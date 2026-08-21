@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -340790334, guid: 67cc4cb7839cd3741b63733d5adf0442, type: 3}
+  m_Name: paryi_change_menu_floating
+  m_EditorClassIdentifier: 
+  Parameters: {fileID: 0}
+  controls:
+  - name: reset
+    icon: {fileID: 2800000, guid: f0ad5fe19664db442938d1247cb9712a, type: 3}
+    type: 102
+    parameter:
+      name: paryi_floating
+    value: -1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters: []
+    labels: []
+  - name: Menu1 floating
+    icon: {fileID: 2800000, guid: 0823643bb4512ef4e847fd30010abb8e, type: 3}
+    type: 103
+    parameter:
+      name: 
+    value: 0.1
+    style: 0
+    subMenu: {fileID: 11400000, guid: 663c9bae84de9a147b8d0a8fe03df0f2, type: 2}
+    subParameters: []
+    labels: []
+  - name: Menu2 floating
+    icon: {fileID: 2800000, guid: dccb27693d42af84b9911bca42d0138c, type: 3}
+    type: 103
+    parameter:
+      name: 
+    value: 0.11
+    style: 0
+    subMenu: {fileID: 11400000, guid: 66ca41f6b98ab274e94618bc1130c235, type: 2}
+    subParameters: []
+    labels: []
+  - name: Menu3 floating
+    icon: {fileID: 0}
+    type: 103
+    parameter:
+      name: 
+    value: 1
+    style: 0
+    subMenu: {fileID: 11400000, guid: 4d497de5903f70b41904136ab4d3cfe3, type: 2}
+    subParameters: []
+    labels: []
+  - name: floating Prone
+    icon: {fileID: 2800000, guid: 7fb307430603a5749b5bd0c1769d9f07, type: 3}
+    type: 103
+    parameter:
+      name: 
+    value: 1
+    style: 0
+    subMenu: {fileID: 11400000, guid: 4cccb4a6fbb6a064f806f2b9c134ea78, type: 2}
+    subParameters: []
+    labels: []
+  - name: Mirror
+    icon: {fileID: 2800000, guid: 001a20e67f8a9224792e89e1d3504aa5, type: 3}
+    type: 102
+    parameter:
+      name: paryi_change_Mirror_H
+    value: 1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters: []
+    labels: []
+  - name: leg fixed
+    icon: {fileID: 2800000, guid: 452af6158f6a02440afe73078ba3e8cd, type: 3}
+    type: 102
+    parameter:
+      name: leg fixed
+    value: 1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters: []
+    labels: []
