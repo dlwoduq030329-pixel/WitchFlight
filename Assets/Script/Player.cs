@@ -48,6 +48,9 @@ public class Player : NetworkBehaviour
     [SerializeField]
     private PlayerEquipment equipment;
 
+    [Networked]
+    private PlayerRef LastAttacker { get; set; }
+
 
     public void InitPlayer(PlayerData data)
     {
@@ -77,6 +80,25 @@ public class Player : NetworkBehaviour
         return (int)data.broom;
     }
 
+    public void TakeDamage(float damage,PlayerRef attacker)
+    {
+        if (!Object.HasStateAuthority)
+            return;
+
+        LastAttacker = attacker;
+
+        NowHp -= damage;
+
+        NowHp = Mathf.Max(
+            NowHp,
+            0
+        );
+
+        if (NowHp <= 0)
+        {
+            Die();
+        }
+    }
 
     public override void Spawned()
     {
@@ -88,7 +110,13 @@ public class Player : NetworkBehaviour
 
         CameraManager.Instance.SetTarget(this.gameObject);
     }
-
+    private void Die()
+    {
+        BattleManager.Instance.PlayerKilled(
+            Object.InputAuthority, // Á×Àº »ç¶÷
+            LastAttacker           // Á×ÀÎ »ç¶÷
+        );
+    }
 
     private void Update()
     {
@@ -125,8 +153,12 @@ public class Player : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        if (!Object.HasStateAuthority)
+            return;
+
         if (!GetInput(out NetworkInputData data))
             return;
+
 
         PlayerSpeed(data);
 
@@ -228,11 +260,14 @@ public class Player : NetworkBehaviour
             Runner.DeltaTime;
     }
 
+    private void parry()
+    {
+
+    }
+
 
     private void CamSet()
     {
-        if (!Object.HasInputAuthority)
-            return;
 
         if (Input.GetMouseButtonDown(1))
         {
