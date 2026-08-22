@@ -21,6 +21,13 @@ public class SignUpValidator : MonoBehaviour
 
     private bool isUpdatingInput = false;
 
+    private void OnEnable()
+    {
+        idInputField.text = string.Empty;
+        passwordInputField.text = string.Empty;
+        passwordConfirmInputField.text = string.Empty;
+    }
+
 
     /// ID 입력 검사
     public void ValidateID(string value)
@@ -176,5 +183,10 @@ public class SignUpValidator : MonoBehaviour
             isIDChecked;
 
         //여기서 서버나 뭐 그런데에 닉네임 비번 저장하셈
+    }
+
+    public void TryRegister()
+    {
+        LoginManager.Instance.SignUp(idInputField.text, passwordInputField.text);
     }
 }

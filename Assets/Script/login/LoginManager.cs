@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.Events;
 using BackEnd;
+using UnityEngine.UI;
+using TMPro;
 
 public class LoginManager : MonoBehaviour
 {
@@ -18,6 +20,7 @@ public class LoginManager : MonoBehaviour
 
     public UnityEvent OnSignUpSuccess;
     public UnityEvent<string> OnSignUpFailed;
+
 
 
     private void Awake()
@@ -39,8 +42,9 @@ public class LoginManager : MonoBehaviour
         InitializeBackend();
     }
 
-    public void TestRegister()
+    public void Register()
     {
+        
         SignUp();
     }
 
