@@ -95,14 +95,40 @@ public class SignUpValidator : MonoBehaviour
             UpdateSignUpButton();
             return;
         }
-        // 여기서 나중에 서버 중복검사 추가 예정
+        StartCoroutine(
+       GoogleSpreadSheet.CheckID(
+           id,
+           isAvailable =>
+           {
+               if (isAvailable)
+               {
+                   Debug.Log("사용 가능한 ID");
 
-        idDialogText.color = successColor;
-        idDialogText.text = "사용 가능한 ID입니다.";
+                   // 여기서 UI에
+                   // "사용 가능한 아이디입니다."
+                   idDialogText.color = successColor;
+                   idDialogText.text = "사용 가능한 ID입니다.";
 
-        isIDChecked = true;
+                   isIDChecked = true;
 
-        UpdateSignUpButton();
+                   UpdateSignUpButton();
+
+               }
+               else
+               {
+                   Debug.Log("이미 존재하는 ID");
+                   idDialogText.color = errorColor;
+                   idDialogText.text = "존재하는 아이디입니다.";
+
+                   isIDChecked = false;
+
+
+                   // 여기서 UI에
+                   // "이미 사용 중인 아이디입니다."
+               }
+           }
+       )
+   );
     }
 
     /// 비밀번호 입력 검사
@@ -187,6 +213,22 @@ public class SignUpValidator : MonoBehaviour
 
     public void TryRegister()
     {
-        LoginManager.Instance.SignUp(idInputField.text, passwordInputField.text);
+        string newId = idInputField.text;
+
+        // AppendID 코루틴 실행
+        StartCoroutine(GoogleSpreadSheet.AppendID(newId, (isSuccess) =>
+        {
+            if (isSuccess)
+            {
+                LoginManager.Instance.SignUp(idInputField.text, passwordInputField.text);
+                Debug.Log("스프레드시트에 성공적으로 추가되었습니다!");
+            }
+            else
+            {
+                Debug.LogError("스프레드시트 추가 실패");
+            }
+        }));
     }
+
+  
 }

@@ -45,15 +45,12 @@ public class LoginManager : MonoBehaviour
     public void Register()
     {
         
-        SignUp();
     }
 
     public void TestLogin()
     {
-        Login();
     }
-
-
+    
     // 게임 실행 시 자동 호출
     public void InitializeBackend()
     {
@@ -79,10 +76,10 @@ public class LoginManager : MonoBehaviour
             }
         });
     }
-
+  
 
     // UI 로그인 버튼에서 호출
-    public void Login(string id = "1234", string password = "1234")
+    public void Login(string id, string password)
     {
         if (!IsInitialized)
         {
@@ -134,7 +131,7 @@ public class LoginManager : MonoBehaviour
 
 
     // UI 회원가입 버튼에서 호출
-    public void SignUp(string id = "1234", string password = "1234")
+    public void SignUp(string id, string password)
     {
         if (!IsInitialized)
         {

@@ -124,6 +124,7 @@ public class NicknameValidator : MonoBehaviour
         if (!isValid)
             return;
 
+
         //UIConfigManager.Instance.SetNickname(nicknameInput.text);
         //bug.Log($"닉네임 UIConfig 저장 완료: {nicknameInput.text}");
     }

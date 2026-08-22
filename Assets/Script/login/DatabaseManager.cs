@@ -72,6 +72,8 @@ public class DatabaseManager : MonoBehaviour
         LoadPlayerSetting();
     }
 
+   
+
 
     // =========================================================
     // 내 데이터 조회
