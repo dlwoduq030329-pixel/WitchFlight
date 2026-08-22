@@ -1,5 +1,22 @@
 {
   "dependencies": {
+    "com.backnd.database": {
+      "version": "0.0.18",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.2",
+        "com.backnd.tools": "0.0.5"
+      },
+      "url": "https://registry.npmjs.org"
+    },
+    "com.backnd.tools": {
+      "version": "0.0.5",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://registry.npmjs.org"
+    },
     "com.ezhex1991.ezsoftbone": {
       "version": "file:C:/Users/USER/Downloads/EZSoftBone-master/EZSoftBone-master",
       "depth": 0,
@@ -96,6 +113,13 @@
     "com.unity.nuget.mono-cecil": {
       "version": "1.11.6",
       "depth": 0,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.nuget.newtonsoft-json": {
+      "version": "3.2.2",
+      "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
