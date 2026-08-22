@@ -62,17 +62,23 @@ public class PlayerData : NetworkBehaviour
     [Networked]
     public Camp camp { get; set; }
 
-    [Networked]
-    public PlayerRef owner { get; set; }
+    //[Networked]
+   // public PlayerRef owner { get; set; }
 
     public override void Spawned()
     {
-        base.Spawned();
+        if (Object.HasInputAuthority)
+        {
+            // 내 PlayerData일 때만
+            // 내 로컬 DataConfig 값을 사용
 
-        hat = (HatType)DataConfig.hatIndex;
-        broom = (BroomType)DataConfig.broomIndex;
-        magic1 = (MagicType)DataConfig.magic2Index;
-        magic2 = (MagicType)DataConfig.magic2Index;
+            hat = (HatType)DataConfig.hatIndex;
+            broom = (BroomType)DataConfig.broomIndex;
+            magic1 = (MagicType)DataConfig.magic1Index;
+            magic2 = (MagicType)DataConfig.magic2Index;
+
+        }
+        base.Spawned();
 
 
         NetworkGameManager.Instance.RegisterPlayerData(this);
