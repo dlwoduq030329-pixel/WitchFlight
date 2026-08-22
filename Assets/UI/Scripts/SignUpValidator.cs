@@ -21,6 +21,8 @@ public class SignUpValidator : MonoBehaviour
 
     private bool isUpdatingInput = false;
 
+    private bool isChecking = false;
+
     private void OnEnable()
     {
         idInputField.text = string.Empty;
@@ -214,7 +216,8 @@ public class SignUpValidator : MonoBehaviour
     public void TryRegister()
     {
         string newId = idInputField.text;
-
+        if (isChecking) return;
+        isChecking = true;
         // AppendID 코루틴 실행
         StartCoroutine(GoogleSpreadSheet.AppendID(newId, (isSuccess) =>
         {
@@ -222,10 +225,12 @@ public class SignUpValidator : MonoBehaviour
             {
                 LoginManager.Instance.SignUp(idInputField.text, passwordInputField.text);
                 Debug.Log("스프레드시트에 성공적으로 추가되었습니다!");
+                isChecking = false;
             }
             else
             {
                 Debug.LogError("스프레드시트 추가 실패");
+                isChecking = false;
             }
         }));
     }
