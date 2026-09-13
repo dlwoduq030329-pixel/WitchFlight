@@ -268,6 +268,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TriMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _AAStrength: 1
@@ -351,7 +355,7 @@ Material:
     - _BlendOp: 0
     - _BlendOpAlpha: 0
     - _BlendOpAlphaFA: 4
-    - _BlendOpFA: 4
+    - _BlendOpFA: 0
     - _Bump2ndMap_UVMode: 0
     - _Bump2ndScale: 1
     - _BumpScale: 1
@@ -489,6 +493,7 @@ Material:
     - _MatCapEnableLighting: 1
     - _MatCapLod: 0
     - _MatCapMainStrength: 0
+    - _MatCapMul: 0
     - _MatCapNormalStrength: 1
     - _MatCapPerspective: 1
     - _MatCapShadowMask: 0
@@ -554,7 +559,7 @@ Material:
     - _RimBlur: 0.2
     - _RimBorder: 0.75
     - _RimDirRange: 0
-    - _RimDirStrength: 0.15
+    - _RimDirStrength: 0
     - _RimEnableLighting: 1
     - _RimFresnelPower: 0.8
     - _RimIndirBlur: 0.3
@@ -564,7 +569,7 @@ Material:
     - _RimNormalStrength: 1
     - _RimShadeBlur: 1
     - _RimShadeBorder: 0.5
-    - _RimShadeFresnelPower: 1
+    - _RimShadeFresnelPower: 1.2
     - _RimShadeNormalStrength: 1
     - _RimShadowMask: 0.5
     - _RimVRParallaxStrength: 1
@@ -590,8 +595,8 @@ Material:
     - _ShadowNormalStrength: 1
     - _ShadowPostAO: 0
     - _ShadowReceive: 1
-    - _ShadowStrength: 0.479
-    - _ShadowStrengthMaskLOD: 0
+    - _ShadowStrength: 0.553
+    - _ShadowStrengthMaskLOD: 1
     - _ShiftBackfaceUV: 0
     - _Smoothness: 0.633
     - _SmoothnessTextureChannel: 0
@@ -641,7 +646,7 @@ Material:
     - _UseAudioLink: 0
     - _UseBacklight: 0
     - _UseBump2ndMap: 0
-    - _UseBumpMap: 0
+    - _UseBumpMap: 1
     - _UseClippingCanceller: 0
     - _UseDither: 0
     - _UseEmission: 0
@@ -656,9 +661,9 @@ Material:
     - _UseParallax: 0
     - _UseReflection: 1
     - _UseRim: 1
-    - _UseRimShade: 0
+    - _UseRimShade: 1
     - _UseShadow: 1
-    - _VertexLightStrength: 0
+    - _VertexLightStrength: 1
     - _ZClip: 1
     - _ZTest: 4
     - _ZWrite: 1
@@ -666,7 +671,7 @@ Material:
     - _e2gci: 2
     - _egai: 2
     - _egci: 2
-    - _lilDirectionalLightStrength: 0
+    - _lilDirectionalLightStrength: 1
     - _lilShadowCasterBias: 0
     - _lilToonVersion: 45
     m_Colors:
@@ -735,9 +740,9 @@ Material:
     - _ReflectionCubeColor: {r: 0, g: 0, b: 0, a: 1}
     - _RimColor: {r: 1, g: 1, b: 1, a: 0.1}
     - _RimIndirColor: {r: 1, g: 1, b: 1, a: 1}
-    - _RimShadeColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _RimShadeColor: {r: 0.8117647, g: 0.5803922, b: 0.6901961, a: 1}
     - _Shadow2ndColor: {r: 0.8117647, g: 0.5803922, b: 0.6901961, a: 0.4862745}
-    - _Shadow3rdColor: {r: 0, g: 0, b: 0, a: 0}
+    - _Shadow3rdColor: {r: 0, g: 0, b: 0, a: 1}
     - _ShadowAOShift: {r: 1, g: 0, b: 1, a: 0}
     - _ShadowAOShift2: {r: 1, g: 0, b: 1, a: 0}
     - _ShadowBorderColor: {r: 1, g: 0.6381888, b: 0.5990566, a: 1}
