@@ -5449,6 +5449,8 @@ GameObject:
   - component: {fileID: 5048588117757004521}
   - component: {fileID: 9072680371855534988}
   - component: {fileID: 8760909375939365996}
+  - component: {fileID: 4057901321258790011}
+  - component: {fileID: 6117363512393180211}
   m_Layer: 0
   m_Name: ChPrefab
   m_TagString: Untagged
@@ -5512,10 +5514,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6aab7e08f334a45428600445ff5f2532, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxSpeed: 20
+  maxSpeed: 60
   minSpeed: 0
-  pitchSpeed: 20
+  pitchSpeed: 90
   maxPitch: 60
+  wallDamageSpeedThreshold: 30
+  wallDamage: 20
+  wallDamageCooldown: 0.5
+  collisionRadius: 0.22
+  collisionHeight: 1.2
+  baseAcceleration: 60
+  equipmentStatTable: {fileID: 11400000, guid: a949750258cc43b4aa2e9b6b2ab4ed68, type: 2}
   _MaxHp: 0
   _NowHp: 0
   _CurrentMagicSlot: 0
@@ -5538,7 +5547,25 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 5048588117757004521}
+  - {fileID: 6117363512393180211}
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &6117363512393180211
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1810222910671885908}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  SyncScale: 0
+  SyncParent: 0
+  _autoAOIOverride: 1
+  DisableSharedModeInterpolation: 0
 --- !u!114 &8760909375939365996
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5565,15 +5592,29 @@ MonoBehaviour:
   - {fileID: 5248227356879361212}
   - {fileID: 6066324955710170651}
   hatPrefabs:
-  - {fileID: 2074922683260364664}
+  - {fileID: 0}
   - {fileID: 8132279307764973}
   - {fileID: 6280950415935578687}
+  - {fileID: 2074922683260364664}
   broomPrefabs:
+  - {fileID: 0}
+  - {fileID: 2992565377785359361}
   - {fileID: 7015825946441502895}
   - {fileID: 2931542781633082301}
-  - {fileID: 2992565377785359361}
-  - {fileID: 2392649415919343271}
   hatAnchor: {fileID: 952449189772798200}
+--- !u!114 &4057901321258790011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1810222910671885908}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37e0576d8e0c4db4a72aa3d44c8f8b15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  targetRefreshInterval: 0.1
 --- !u!1 &1819882363847817774
 GameObject:
   m_ObjectHideFlags: 0
@@ -25317,3 +25358,8 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1716154798868109688, guid: 11a1ed608be0eea459e822250f08cbe8, type: 3}
   m_PrefabInstance: {fileID: 9107549282597231950}
   m_PrefabAsset: {fileID: 0}
+
+
+
+
+

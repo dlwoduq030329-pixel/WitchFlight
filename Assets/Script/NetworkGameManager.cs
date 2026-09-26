@@ -5,6 +5,7 @@ using Fusion;
 using Fusion.Sockets;
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 
@@ -34,7 +35,13 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private Dictionary<PlayerRef, PlayerData> playerDatas
         = new Dictionary<PlayerRef, PlayerData>();
 
+    // PlayerData.Spawned()의 호출 순서와 무관하게 접속 순서 기준의 진영을 보관한다.
+    // 첫 접속자는 A(1), 다음 접속자는 B(2)로 배정한다.
+    private Dictionary<PlayerRef, int> assignedTeamIndexes
+        = new Dictionary<PlayerRef, int>();
+
     private bool isGameStarting = false;
+    private Coroutine battleInitializationRoutine;
 
 
     // 게임 시작 전, NetworkGameManager가 생성될 때 자동 호출
@@ -141,34 +148,66 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (!runner.IsServer)
             return;
 
-        if (playerDatas.ContainsKey(player))
+        if (playerDatas.ContainsKey(player) || assignedTeamIndexes.ContainsKey(player))
             return;
 
-        runner.Spawn(
+        // Spawned()가 비동기로 실행되므로, PlayerData를 등록하기 전에 진영을 예약한다.
+        assignedTeamIndexes[player] = (assignedTeamIndexes.Count % 2) + 1;
+NetworkObject playerDataObject = runner.Spawn(
             playerDataPrefab,
             Vector3.zero,
             Quaternion.identity,
             player
         );
+
+        PlayerData playerData = playerDataObject != null
+            ? playerDataObject.GetComponent<PlayerData>()
+            : null;
+
+        if (playerData == null)
+        {
+            assignedTeamIndexes.Remove(player);
+            Debug.LogError($"Failed to create PlayerData for {player}.");
+            return;
+        }
+// Spawn 직후 호스트가 먼저 등록한다. PlayerData.Spawned/RPC 순서에 의존하지 않는다.
+        RegisterPlayerData(playerData);
+
+        // PlayerData is match-lifetime data, not a lobby-scene object.
+        // Keep it out of the scene that Fusion unloads during LoadScene.
+        if (playerDataObject != null)
+            runner.MakeDontDestroyOnLoad(playerDataObject.gameObject);
     }
 
 
+    // PlayerData.Spawned()의 State Authority 구간에서 호출한다.
+    // 이 시점은 Fusion 네트워크 상태값을 안전하게 기록할 수 있다.
+    public void AssignTeamIndex(PlayerData data)
+    {
+        if (_runner == null || !_runner.IsServer || data == null || data.teamIndex != 0)
+            return;
+
+        PlayerRef player = data.Object.InputAuthority;
+        if (!assignedTeamIndexes.TryGetValue(player, out int teamIndex))
+        {
+            // 복구 경로: 기존 PlayerData가 이미 존재하는 경우에도 일관된 값을 만든다.
+            teamIndex = (assignedTeamIndexes.Count % 2) + 1;
+            assignedTeamIndexes[player] = teamIndex;
+        }
+
+        data.teamIndex = teamIndex;
+    }
     // PlayerData가 생성된 후 PlayerData.Spawned()에서 호출
     // 생성된 PlayerData를 Dictionary에 등록
     public void RegisterPlayerData(
         PlayerData data)
     {
-        PlayerRef player =
-            data.Object.InputAuthority;
-
-        if (playerDatas.ContainsKey(player))
+        // PlayerData Dictionary는 전투 Player를 생성하는 호스트만 관리한다.
+        if (_runner == null || !_runner.IsServer || data == null || data.Object == null)
             return;
 
-        playerDatas.Add(
-            player,
-            data
-        );
-
+        PlayerRef player = data.Object.InputAuthority;
+        playerDatas[player] = data;
     }
 
     public void NotifyPlayerDataInitialized(PlayerData data)
@@ -195,6 +234,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             playerDatas.Remove(player);
         }
+
+        assignedTeamIndexes.Remove(player);
     }
 
 
@@ -257,12 +298,30 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
         if (battleManager == null)
         {
-            Debug.LogError(
-                "BattleManager를 찾을 수 없습니다."
-            );
-
-            return;
+            GameObject battleManagerObject = new GameObject("BattleManager");
+            battleManager = battleManagerObject.AddComponent<BattleManager>();
+            Debug.LogWarning("Battle scene had no BattleManager. A runtime BattleManager was created.");
         }
+
+        if (battleInitializationRoutine == null)
+        {
+            battleInitializationRoutine = StartCoroutine(
+                InitializeBattleWhenPlayerDataIsReady(
+                    battleManager,
+                    runner
+                )
+            );
+        }
+    }
+
+
+    private IEnumerator InitializeBattleWhenPlayerDataIsReady(
+        BattleManager battleManager,
+        NetworkRunner runner)
+    {
+        // PlayerData의 Spawned 및 Loadout RPC가 반영될 때까지 BattleManager 초기화를 미룬다.
+        while (!AreBattlePlayerDatasReady())
+            yield return null;
 
         battleManager.InitializeBattle(
             runner,
@@ -270,9 +329,24 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             playerPrefab,
             spawnedPlayers
         );
+
+        battleInitializationRoutine = null;
     }
 
+    private bool AreBattlePlayerDatasReady()
+    {
+        if (playerDatas.Count < maxPlayerCount)
+            return false;
 
+        foreach (PlayerData data in playerDatas.Values)
+        {
+            if (data == null || data.Object == null || !data.IsLoadoutInitialized ||
+                (data.teamIndex != 1 && data.teamIndex != 2))
+                return false;
+        }
+
+        return true;
+    }
     // 다른 스크립트에서 특정 플레이어의 PlayerData가 필요할 때 호출
     public PlayerData GetPlayerData(
         PlayerRef player)
@@ -324,6 +398,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             playerDatas.Remove(player);
         }
+
+        assignedTeamIndexes.Remove(player);
     }
 
 
@@ -373,6 +449,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         isGameStarting = false;
         spawnedPlayers.Clear();
         playerDatas.Clear();
+        assignedTeamIndexes.Clear();
     }
 
     private bool HasValidNetworkPrefab(NetworkPrefabRef prefab, string name)

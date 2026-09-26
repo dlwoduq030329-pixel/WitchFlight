@@ -27,6 +27,7 @@ public class BattleManager : MonoBehaviour
 
 
     private NetworkObject spawnedFlag;
+    private bool isInitialized;
 
     private static BattleManager instance = null;
     public static BattleManager Instance => instance;
@@ -56,6 +57,10 @@ public class BattleManager : MonoBehaviour
         NetworkPrefabRef playerPrefab,
         Dictionary<PlayerRef, NetworkObject> spawnedPlayers)
     {
+        if (isInitialized)
+            return;
+
+        isInitialized = true;
         this.runner = runner;
 
         this.playerDatas = playerDatas;
@@ -136,19 +141,10 @@ public class BattleManager : MonoBehaviour
     private void SpawnBattlePlayers(
         NetworkPrefabRef playerPrefab)
     {
-        int index = 0;
-
-
-        foreach (
-            KeyValuePair<PlayerRef, PlayerData>
-            pair
-            in playerDatas)
+        foreach (KeyValuePair<PlayerRef, PlayerData> pair in playerDatas)
         {
-            PlayerRef playerRef =
-                pair.Key;
-
-            PlayerData playerData =
-                pair.Value;
+            PlayerRef playerRef = pair.Key;
+            PlayerData playerData = pair.Value;
 
             if (playerData == null || !playerData.IsLoadoutInitialized)
             {
@@ -156,21 +152,14 @@ public class BattleManager : MonoBehaviour
                 continue;
             }
 
-
-            Vector3 spawnPosition =
-                GetSpawnPosition(
-                    index
-                );
-
-
-            NetworkObject playerObject =
-                runner.Spawn(
-                    playerPrefab,
-                    spawnPosition,
-                    Quaternion.identity,
-                    playerRef
-                );
-
+            Vector3 spawnPosition = GetSpawnPosition(playerData.teamIndex);
+            Debug.Log($"Spawning {playerRef}: teamIndex={playerData.teamIndex}, position={spawnPosition}");
+            NetworkObject playerObject = runner.Spawn(
+                playerPrefab,
+                spawnPosition,
+                Quaternion.identity,
+                playerRef
+            );
 
             if (playerObject == null)
             {
@@ -180,50 +169,26 @@ public class BattleManager : MonoBehaviour
 
             spawnedPlayers[playerRef] = playerObject;
 
-
-            Player player =
-                playerObject
-                    .GetComponent<Player>();
-
-
+            Player player = playerObject.GetComponent<Player>();
             if (player != null)
-            {
-                InitializePlayer(
-                    player,
-                    playerData
-                );
-            }
-
-
-            index++;
+                InitializePlayer(player, playerData);
         }
     }
-
-
     // =========================================================
     // 플레이어 생성 위치 반환
     // =========================================================
     private Vector3 GetSpawnPosition(
-        int index)
+        int teamIndex)
     {
-        if (index == 0 &&
-            playerSpawnA != null)
-        {
+        if (teamIndex == 1 && playerSpawnA != null)
             return playerSpawnA.position;
-        }
 
-
-        if (index == 1 &&
-            playerSpawnB != null)
-        {
+        if (teamIndex == 2 && playerSpawnB != null)
             return playerSpawnB.position;
-        }
 
-
+        Debug.LogError($"Unknown teamIndex ({teamIndex}). Player will use the fallback spawn position.");
         return Vector3.zero;
     }
-
-
     // =========================================================
     // PlayerData 정보를
     // 실제 Player에 적용

@@ -32,10 +32,10 @@ public class CameraFollow : MonoBehaviour
 
         if(isAim)
         {
-            followSpeed = 20f;
+            followSpeed = 40f;
         }else
         {
-            followSpeed = 20f;
+            followSpeed = 40f;
         }
     }
 

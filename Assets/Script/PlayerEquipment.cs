@@ -2,14 +2,14 @@ using UnityEngine;
 
 public class PlayerEquipment : MonoBehaviour
 {
-    [Header("Pre-placed objects (MagicType enum index order)")]
-    [SerializeField] private GameObject[] magicStaffObjects;
+    [Header("Pre-placed scene objects (MagicType enum index order)")]
+    [SerializeField] private GameObject[] magicStaffPrefabs;
 
-    [Header("Pre-placed objects (HatType enum index order)")]
-    [SerializeField] private GameObject[] hatObjects;
+    [Header("Pre-placed scene objects (HatType enum index order)")]
+    [SerializeField] private GameObject[] hatPrefabs;
 
-    [Header("Pre-placed objects (BroomType enum index order)")]
-    [SerializeField] private GameObject[] broomObjects;
+    [Header("Pre-placed scene objects (BroomType enum index order)")]
+    [SerializeField] private GameObject[] broomPrefabs;
 
     private GameObject magicStaff1;
     private GameObject magicStaff2;
@@ -22,7 +22,7 @@ public class PlayerEquipment : MonoBehaviour
         ApplyLoadout(hat, broom, magic1, magic2);
     }
 
-    // All objects are authored as children of PlayerPrefab. This method only
+    // All objects are authored as children of ChPrefab. This method only
     // switches their active state; it never instantiates or destroys equipment.
     public void ApplyLoadout(HatType selectedHat, BroomType selectedBroom,
         MagicType selectedMagic1, MagicType selectedMagic2)
@@ -30,7 +30,7 @@ public class PlayerEquipment : MonoBehaviour
         magic1 = selectedMagic1;
         magic2 = selectedMagic2;
 
-        SetAllInactive(magicStaffObjects);
+        SetAllInactive(magicStaffPrefabs);
         magicStaff1 = FindMagicObject(magic1);
         magicStaff2 = FindMagicObject(magic2);
         currentMagicSlot = 0;
@@ -64,7 +64,7 @@ public class PlayerEquipment : MonoBehaviour
     {
         magic1 = (MagicType)selectedMagic1;
         magic2 = (MagicType)selectedMagic2;
-        SetAllInactive(magicStaffObjects);
+        SetAllInactive(magicStaffPrefabs);
         magicStaff1 = FindMagicObject(magic1);
         magicStaff2 = FindMagicObject(magic2);
         currentMagicSlot = 0;
@@ -73,21 +73,21 @@ public class PlayerEquipment : MonoBehaviour
 
     public void EquipHat(int index)
     {
-        SetOnlyActive(hatObjects, index);
+        SetOnlyActive(hatPrefabs, index);
     }
 
     public void EquipBroom(int index)
     {
-        SetOnlyActive(broomObjects, index);
+        SetOnlyActive(broomPrefabs, index);
     }
 
     private GameObject FindMagicObject(MagicType magic)
     {
         int index = (int)magic;
-        if (magicStaffObjects == null || index <= 0 || index >= magicStaffObjects.Length)
+        if (magicStaffPrefabs == null || index <= 0 || index >= magicStaffPrefabs.Length)
             return null;
 
-        return magicStaffObjects[index];
+        return magicStaffPrefabs[index];
     }
 
     private void SetOnlyActive(GameObject[] objects, int activeIndex)
