@@ -62,6 +62,12 @@ public class PlayerData : NetworkBehaviour
     [Networked]
     public Camp camp { get; set; }
 
+    [Networked]
+    public int hairLength { get; private set; }
+
+    [Networked]
+    public bool IsLoadoutInitialized { get; private set; }
+
     //[Networked]
    // public PlayerRef owner { get; set; }
 
@@ -69,23 +75,35 @@ public class PlayerData : NetworkBehaviour
     {
         if (Object.HasInputAuthority)
         {
-            // ≥ª PlayerData¿œ ∂ß∏∏
-            // ≥ª ∑Œƒ√ DataConfig ∞™¿ª ªÁøÎ
+            // ÎÇ¥ PlayerDataÏùº ÎïåÎßå
+            // ÎÇ¥ Î°úÏª¨ DataConfig Í∞íÏùÑ ÏÇ¨Ïö©
 
-            hat = (HatType)DataConfig.hatIndex;
-            broom = (BroomType)DataConfig.broomIndex;
-            magic1 = (MagicType)DataConfig.magic1Index;
-            magic2 = (MagicType)DataConfig.magic2Index;
+            RPC_SetLoadout((HatType)DataConfig.hatIndex, (BroomType)DataConfig.broomIndex,
+                (MagicType)DataConfig.magic1Index, (MagicType)DataConfig.magic2Index,
+                DataConfig.hairLength);
 
         }
         base.Spawned();
 
 
-        NetworkGameManager.Instance.RegisterPlayerData(this);
+        NetworkGameManager.Instance?.RegisterPlayerData(this);
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_SetLoadout(HatType selectedHat, BroomType selectedBroom,
+        MagicType selectedMagic1, MagicType selectedMagic2, int selectedHairLength)
+    {
+        hat = selectedHat;
+        broom = selectedBroom;
+        magic1 = selectedMagic1;
+        magic2 = selectedMagic2;
+        hairLength = Mathf.Max(0, selectedHairLength);
+        IsLoadoutInitialized = true;
+        NetworkGameManager.Instance?.NotifyPlayerDataInitialized(this);
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
-        NetworkGameManager.Instance.UnregisterPlayerData(this);
+        NetworkGameManager.Instance?.UnregisterPlayerData(this);
     }
 }

@@ -36,7 +36,7 @@ public class Player : NetworkBehaviour
     [Networked]
     public float NowHp { get; set; }
 
-    // ÇöÀç µé°í ÀÖ´Â ¸¶¹ı ½½·Ô
+    // í˜„ì¬ ë“¤ê³  ìˆëŠ” ë§ˆë²• ìŠ¬ë¡¯
     // 1 = magic1
     // 2 = magic2
 
@@ -51,25 +51,38 @@ public class Player : NetworkBehaviour
     [Networked]
     private PlayerRef LastAttacker { get; set; }
 
+    [Networked] private HatType Hat { get; set; }
+    [Networked] private BroomType Broom { get; set; }
+    [Networked] private MagicType Magic1 { get; set; }
+    [Networked] private MagicType Magic2 { get; set; }
+    [Networked] private int HairLength { get; set; }
+    [Networked] private int LoadoutVersion { get; set; }
+    private int renderedLoadoutVersion = -1;
+    private PlayerAppearance appearance;
+
 
     public void InitPlayer(PlayerData data)
     {
-        // PlayerData¸¦ ±âÁØÀ¸·Î ÀüÅõ ½ºÅÈ °áÁ¤
-        MaxHp = 200/GetAccelerationHP(data);
+        if (!Object.HasStateAuthority || data == null)
+            return;
+
+        // PlayerDataë¥¼ ê¸°ì¤€ìœ¼ë¡œ ì „íˆ¬ ìŠ¤íƒ¯ ê²°ì •
+        int accelerationLevel = GetAccelerationHP(data);
+        MaxHp = 200f / accelerationLevel;
         NowHp = MaxHp;
 
-        acceleration = GetAccelerationHP(data) * 10;
+        acceleration = accelerationLevel * 10;
 
-        // ±âº»ÀûÀ¸·Î 1¹ø ¸¶¹ıÀ» µé°í ½ÃÀÛ
+        // ê¸°ë³¸ì ìœ¼ë¡œ 1ë²ˆ ë§ˆë²•ì„ ë“¤ê³  ì‹œì‘
         CurrentMagicSlot = 1;
 
-        // Àåºñ ÃÊ±âÈ­
-        equipment.Init(
-            data.magic1,
-            data.magic2,
-            data.hat,
-            data.broom
-        );
+        // ì¥ë¹„ ì´ˆê¸°í™”
+        Hat = data.hat;
+        Broom = data.broom;
+        Magic1 = data.magic1;
+        Magic2 = data.magic2;
+        HairLength = data.hairLength;
+        LoadoutVersion++;
     }
 
 
@@ -77,7 +90,7 @@ public class Player : NetworkBehaviour
 
     private int GetAccelerationHP(PlayerData data)
     {
-        return (int)data.broom;
+        return Mathf.Max(1, (int)data.broom);
     }
 
     public void TakeDamage(float damage,PlayerRef attacker)
@@ -113,14 +126,14 @@ public class Player : NetworkBehaviour
     private void Die()
     {
         BattleManager.Instance.PlayerKilled(
-            Object.InputAuthority, // Á×Àº »ç¶÷
-            LastAttacker           // Á×ÀÎ »ç¶÷
+            Object.InputAuthority, // ì£½ì€ ì‚¬ëŒ
+            LastAttacker           // ì£½ì¸ ì‚¬ëŒ
         );
     }
 
     private void Update()
     {
-        // ³» Ä³¸¯ÅÍ¸¸ 1, 2¹ø ÀÔ·ÂÀ» ¹ŞÀ½
+        // ë‚´ ìºë¦­í„°ë§Œ 1, 2ë²ˆ ì…ë ¥ì„ ë°›ìŒ
         if (Object.HasInputAuthority)
         {
             MagicInput();
@@ -164,7 +177,7 @@ public class Player : NetworkBehaviour
 
         PlayerTurn(data);
 
-        // Ç×»ó ÀüÁø
+        // í•­ìƒ ì „ì§„
         GoForward();
     }
 
@@ -189,12 +202,39 @@ public class Player : NetworkBehaviour
     }
     public override void Render()
     {
+        ApplyReplicatedLoadout();
+
         if (lastMagicSlot == CurrentMagicSlot)
             return;
 
         lastMagicSlot = CurrentMagicSlot;
 
         equipment.ChangeMagic(CurrentMagicSlot);
+    }
+
+    private void ApplyReplicatedLoadout()
+    {
+        if (renderedLoadoutVersion == LoadoutVersion)
+            return;
+
+        if (equipment == null)
+            equipment = GetComponent<PlayerEquipment>();
+
+        if (equipment == null)
+        {
+            Debug.LogError("PlayerPrefab has no PlayerEquipment.", this);
+            return;
+        }
+
+        equipment.ApplyLoadout(Hat, Broom, Magic1, Magic2);
+
+        if (appearance == null)
+            appearance = GetComponent<PlayerAppearance>();
+
+        if (appearance != null)
+            appearance.ApplyHairLength(HairLength);
+
+        renderedLoadoutVersion = LoadoutVersion;
     }
 
 
@@ -268,6 +308,9 @@ public class Player : NetworkBehaviour
 
     private void CamSet()
     {
+        if (!Object.HasInputAuthority)
+            return;
+
 
         if (Input.GetMouseButtonDown(1))
         {

@@ -36,7 +36,6 @@ public class BattleManager : MonoBehaviour
         if (instance == null)
         {
             instance = this;
-            DontDestroyOnLoad(gameObject);
         }
         else
         {
@@ -46,10 +45,10 @@ public class BattleManager : MonoBehaviour
 
 
     // =========================================================
-    // ÀüÅõ ÃÊ±âÈ­
+    // ì „íˆ¬ ì´ˆê¸°í™”
     //
-    // NetworkGameManagerÀÇ
-    // OnSceneLoadDone()¿¡¼­ È£Ãâ
+    // NetworkGameManagerì˜
+    // OnSceneLoadDone()ì—ì„œ í˜¸ì¶œ
     // =========================================================
     public void InitializeBattle(
         NetworkRunner runner,
@@ -80,30 +79,32 @@ public class BattleManager : MonoBehaviour
 
 
     // =========================================================
-    // ÀüÅõ¾À ³»ºÎ SpawnPoint Å½»ö
+    // ì „íˆ¬ì”¬ ë‚´ë¶€ SpawnPoint íƒìƒ‰
     //
-    // NetworkGameManager´Â DontDestroyOnLoadÀÌ±â ¶§¹®¿¡
-    // ¾ÀÀÌ º¯°æµÇ¸é ±âÁ¸ Transform ÂüÁ¶¸¦ »ç¿ëÇÒ ¼ö ¾ø´Ù.
+    // NetworkGameManagerëŠ” DontDestroyOnLoadì´ê¸° ë•Œë¬¸ì—
+    // ì”¬ì´ ë³€ê²½ë˜ë©´ ê¸°ì¡´ Transform ì°¸ì¡°ë¥¼ ì‚¬ìš©í•  ìˆ˜ ì—†ë‹¤.
     //
-    // µû¶ó¼­ ÀüÅõ¾À ·Îµù ÀÌÈÄ
-    // SpawnPoint¸¦ ´Ù½Ã Ã£´Â´Ù.
+    // ë”°ë¼ì„œ ì „íˆ¬ì”¬ ë¡œë”© ì´í›„
+    // SpawnPointë¥¼ ë‹¤ì‹œ ì°¾ëŠ”ë‹¤.
     // =========================================================
     private void FindSpawnPoints()
     {
+        // Inspector reference is preferred. Names are only a fallback so this
+        // scene does not require undefined custom Unity tags.
         GameObject spawnA =
-            GameObject.FindWithTag(
-                "PlayerSpawnA"
-            );
+            playerSpawnA == null
+            ? GameObject.Find("PlayerSpawnA")
+            : null;
 
         GameObject spawnB =
-            GameObject.FindWithTag(
-                "PlayerSpawnB"
-            );
+            playerSpawnB == null
+            ? GameObject.Find("PlayerSpawnB")
+            : null;
 
         GameObject flagSpawn =
-            GameObject.FindWithTag(
-                "FlagSpawn"
-            );
+            flagSpawnPoint == null
+            ? GameObject.Find("FlagSpawn")
+            : null;
 
 
         if (spawnA != null)
@@ -129,8 +130,8 @@ public class BattleManager : MonoBehaviour
 
 
     // =========================================================
-    // PlayerData¸¦ ±â¹İÀ¸·Î
-    // ½ÇÁ¦ ÀüÅõ Player »ı¼º
+    // PlayerDataë¥¼ ê¸°ë°˜ìœ¼ë¡œ
+    // ì‹¤ì œ ì „íˆ¬ Player ìƒì„±
     // =========================================================
     private void SpawnBattlePlayers(
         NetworkPrefabRef playerPrefab)
@@ -149,6 +150,12 @@ public class BattleManager : MonoBehaviour
             PlayerData playerData =
                 pair.Value;
 
+            if (playerData == null || !playerData.IsLoadoutInitialized)
+            {
+                Debug.LogError($"{playerRef} PlayerData is not ready.");
+                continue;
+            }
+
 
             Vector3 spawnPosition =
                 GetSpawnPosition(
@@ -165,10 +172,13 @@ public class BattleManager : MonoBehaviour
                 );
 
 
-            spawnedPlayers.Add(
-                playerRef,
-                playerObject
-            );
+            if (playerObject == null)
+            {
+                Debug.LogError($"Failed to spawn Player for {playerRef}.");
+                continue;
+            }
+
+            spawnedPlayers[playerRef] = playerObject;
 
 
             Player player =
@@ -191,7 +201,7 @@ public class BattleManager : MonoBehaviour
 
 
     // =========================================================
-    // ÇÃ·¹ÀÌ¾î »ı¼º À§Ä¡ ¹İÈ¯
+    // í”Œë ˆì´ì–´ ìƒì„± ìœ„ì¹˜ ë°˜í™˜
     // =========================================================
     private Vector3 GetSpawnPosition(
         int index)
@@ -215,60 +225,39 @@ public class BattleManager : MonoBehaviour
 
 
     // =========================================================
-    // PlayerData Á¤º¸¸¦
-    // ½ÇÁ¦ Player¿¡ Àû¿ë
+    // PlayerData ì •ë³´ë¥¼
+    // ì‹¤ì œ Playerì— ì ìš©
     //
-    // ÀÌÈÄ PlayerData¿¡
+    // ì´í›„ PlayerDataì—
     //
     // speed
     // hp
     //
-    // µîÀÌ Ãß°¡µÇ¸é ¿©±â¿¡¼­ Àü´Ş
+    // ë“±ì´ ì¶”ê°€ë˜ë©´ ì—¬ê¸°ì—ì„œ ì „ë‹¬
     // =========================================================
     private void InitializePlayer(
         Player player,
         PlayerData playerData)
     {
-        /*
         player.InitPlayer(
-            playerData.speed,
-            playerData.hp
+            playerData
         );
-        */
-
-
-        PlayerEquipment equipment =
-            player.GetComponent<
-                PlayerEquipment>();
-
-
-        if (equipment != null)
-        {
-            equipment.EquipHat(
-                (int)playerData.hat
-            );
-
-
-            equipment.EquipBroom(
-                (int)playerData.broom
-            );
-
-
-            equipment.EquipMagic(
-                (int)playerData.magic1,
-                (int)playerData.magic2
-            );
-        }
     }
 
 
     // =========================================================
-    // Áß¾Ó ±ê¹ß »ı¼º
+    // ì¤‘ì•™ ê¹ƒë°œ ìƒì„±
     // =========================================================
     private void SpawnFlag()
     {
         if (spawnedFlag != null)
             return;
+
+        if (!flagPrefab.IsValid)
+        {
+            Debug.LogWarning("BattleManager Flag Prefab is not assigned; skipping flag spawn.");
+            return;
+        }
 
 
         Vector3 spawnPosition =
@@ -287,14 +276,14 @@ public class BattleManager : MonoBehaviour
 
 
     // =========================================================
-    // ÀüÅõ ½ÃÀÛ
+    // ì „íˆ¬ ì‹œì‘
     //
-    // ÀÌÈÄ ¿©±â¿¡¼­
+    // ì´í›„ ì—¬ê¸°ì—ì„œ
     //
-    // TickTimer »ı¼º
-    // ÀüÅõ ½Ã°£ ½ÃÀÛ
+    // TickTimer ìƒì„±
+    // ì „íˆ¬ ì‹œê°„ ì‹œì‘
     //
-    // µîÀÇ ±â´É Ãß°¡
+    // ë“±ì˜ ê¸°ëŠ¥ ì¶”ê°€
     // =========================================================
     private void StartBattle()
     {
@@ -302,10 +291,10 @@ public class BattleManager : MonoBehaviour
 
 
     // =========================================================
-    // ÇÃ·¹ÀÌ¾î »ç¸Á Ã³¸®
+    // í”Œë ˆì´ì–´ ì‚¬ë§ ì²˜ë¦¬
     //
-    // ÀÌÈÄ PlayerÀÇ »ç¸Á ½Ã½ºÅÛ¿¡¼­
-    // ÀÌ ÇÔ¼ö¸¦ È£ÃâÇÏµµ·Ï ¿¬°á
+    // ì´í›„ Playerì˜ ì‚¬ë§ ì‹œìŠ¤í…œì—ì„œ
+    // ì´ í•¨ìˆ˜ë¥¼ í˜¸ì¶œí•˜ë„ë¡ ì—°ê²°
     // =========================================================
     public void PlayerKilled(
         PlayerRef deadPlayer,
@@ -313,22 +302,28 @@ public class BattleManager : MonoBehaviour
     {
         /*
          *
-         * ÀÌÈÄ Flag ½Ã½ºÅÛ°ú ¿¬°á
+         * ì´í›„ Flag ì‹œìŠ¤í…œê³¼ ì—°ê²°
          *
-         * deadPlayer°¡ Flag¸¦ °¡Áö°í ÀÖ¾ú´Ù¸é
+         * deadPlayerê°€ Flagë¥¼ ê°€ì§€ê³  ìˆì—ˆë‹¤ë©´
          *
-         * killerPlayer¿¡°Ô Flag ÀÌÀü
+         * killerPlayerì—ê²Œ Flag ì´ì „
          *
          */
     }
 
 
     // =========================================================
-    // °ÔÀÓ Á¾·á
+    // ê²Œì„ ì¢…ë£Œ
     //
-    // ÀÌÈÄ Timer Á¾·á ½Ã È£Ãâ
+    // ì´í›„ Timer ì¢…ë£Œ ì‹œ í˜¸ì¶œ
     // =========================================================
     private void EndBattle()
     {
+    }
+
+    private void OnDestroy()
+    {
+        if (instance == this)
+            instance = null;
     }
 }

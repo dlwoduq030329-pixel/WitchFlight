@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: -275114532077715167}
   - component: {fileID: 694742587734766166}
   - component: {fileID: -7525888674963022355}
+  - component: {fileID: 5632189494136853921}
   m_Layer: 0
   m_Name: PlayerPrefab
   m_TagString: Untagged
@@ -103,6 +104,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b5fb15eeef64a4d468d0c645004ecea0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &5632189494136853921
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 472910858437703834}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e4dd8ced7ea41b49e2b80bd715c1a10, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hairRoot: {fileID: 0}
+  maxHairLength: 10
+  shortestScaleY: 0.5
+  longestScaleY: 1.5
 --- !u!1 &6799995283097004463
 GameObject:
   m_ObjectHideFlags: 0

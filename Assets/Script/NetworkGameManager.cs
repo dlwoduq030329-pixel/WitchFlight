@@ -14,7 +14,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public static NetworkGameManager Instance => instance;
 
     [Header("Scene")]
-    [SerializeField] private int battleSceneIndex = 2;
+    [SerializeField] private int battleSceneIndex = 1;
 
     [Header("Room")]
     [SerializeField] private TMP_InputField roomIdInput;
@@ -26,18 +26,18 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     private NetworkRunner _runner;
 
-    // PlayerRef ¡æ ½ÇÁ¦ ÀüÅõ Player
+    // PlayerRef â†’ ì‹¤ì œ ì „íˆ¬ Player
     private Dictionary<PlayerRef, NetworkObject> spawnedPlayers
         = new Dictionary<PlayerRef, NetworkObject>();
 
-    // PlayerRef ¡æ PlayerData
+    // PlayerRef â†’ PlayerData
     private Dictionary<PlayerRef, PlayerData> playerDatas
         = new Dictionary<PlayerRef, PlayerData>();
 
     private bool isGameStarting = false;
 
 
-    // °ÔÀÓ ½ÃÀÛ Àü, NetworkGameManager°¡ »ı¼ºµÉ ¶§ ÀÚµ¿ È£Ãâ
+    // ê²Œì„ ì‹œì‘ ì „, NetworkGameManagerê°€ ìƒì„±ë  ë•Œ ìë™ í˜¸ì¶œ
     private void Awake()
     {
         if (instance == null)
@@ -52,13 +52,33 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // °ÔÀÓ ½ÃÀÛ / ¸ÅÄª ¹öÆ°À» ´­·¶À» ¶§ È£Ãâ
+    // ê²Œì„ ì‹œì‘ / ë§¤ì¹­ ë²„íŠ¼ì„ ëˆŒë €ì„ ë•Œ í˜¸ì¶œ
     public void StartMatch()
     {
         if (_runner != null)
             return;
 
-        string roomId = roomIdInput.text;
+        string roomId = "";
+
+        if (roomIdInput == null)
+        {
+            roomId = "textBuild";
+        }
+        else
+        {
+            roomId = roomIdInput.text;
+        }
+
+        if (!HasValidNetworkPrefab(playerDataPrefab, "PlayerData") ||
+            !HasValidNetworkPrefab(playerPrefab, "Player"))
+            return;
+
+        if (battleSceneIndex < 0 || battleSceneIndex >= SceneManager.sceneCountInBuildSettings)
+        {
+            Debug.LogError($"Battle Scene Index({battleSceneIndex}) is not in Build Settings.");
+            return;
+        }
+
 
         if (string.IsNullOrWhiteSpace(roomId))
             return;
@@ -70,8 +90,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // StartMatch()¿¡¼­ È£Ãâ
-    // Fusion ¼­¹ö¿¡ ¿¬°áÇÏ°í RoomID¿¡ ÇØ´çÇÏ´Â ¹æ »ı¼º ¶Ç´Â Âü°¡
+    // StartMatch()ì—ì„œ í˜¸ì¶œ
+    // Fusion ì„œë²„ì— ì—°ê²°í•˜ê³  RoomIDì— í•´ë‹¹í•˜ëŠ” ë°© ìƒì„± ë˜ëŠ” ì°¸ê°€
     private async void StartGame(
         GameMode mode,
         string roomId)
@@ -112,8 +132,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ¹æ¿¡ ÇÃ·¹ÀÌ¾î°¡ Á¢¼ÓÇßÀ» ¶§ FusionÀÌ ÀÚµ¿ È£Ãâ
-    // Host°¡ ÇØ´ç ÇÃ·¹ÀÌ¾îÀÇ PlayerData »ı¼º
+    // ë°©ì— í”Œë ˆì´ì–´ê°€ ì ‘ì†í–ˆì„ ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
+    // Hostê°€ í•´ë‹¹ í”Œë ˆì´ì–´ì˜ PlayerData ìƒì„±
     public void OnPlayerJoined(
         NetworkRunner runner,
         PlayerRef player)
@@ -133,8 +153,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // PlayerData°¡ »ı¼ºµÈ ÈÄ PlayerData.Spawned()¿¡¼­ È£Ãâ
-    // »ı¼ºµÈ PlayerData¸¦ Dictionary¿¡ µî·Ï
+    // PlayerDataê°€ ìƒì„±ëœ í›„ PlayerData.Spawned()ì—ì„œ í˜¸ì¶œ
+    // ìƒì„±ëœ PlayerDataë¥¼ Dictionaryì— ë“±ë¡
     public void RegisterPlayerData(
         PlayerData data)
     {
@@ -149,15 +169,19 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             data
         );
 
-        if (_runner != null &&
-            _runner.IsServer)
-        {
-            CheckPlayerCount();
-        }
+    }
+
+    public void NotifyPlayerDataInitialized(PlayerData data)
+    {
+        if (_runner == null || !_runner.IsServer || data == null)
+            return;
+
+        RegisterPlayerData(data);
+        CheckPlayerCount();
     }
 
 
-    // PlayerData°¡ Á¦°ÅµÉ ¶§ PlayerData.Despawned()¿¡¼­ È£Ãâ
+    // PlayerDataê°€ ì œê±°ë  ë•Œ PlayerData.Despawned()ì—ì„œ í˜¸ì¶œ
     public void UnregisterPlayerData(
         PlayerData data)
     {
@@ -174,8 +198,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // PlayerData µî·Ï ÈÄ È£Ãâ
-    // ÇöÀç ÇÃ·¹ÀÌ¾î°¡ ÃÖ´ë ÀÎ¿øÀÎÁö È®ÀÎ
+    // PlayerData ë“±ë¡ í›„ í˜¸ì¶œ
+    // í˜„ì¬ í”Œë ˆì´ì–´ê°€ ìµœëŒ€ ì¸ì›ì¸ì§€ í™•ì¸
     private void CheckPlayerCount()
     {
         if (!_runner.IsServer)
@@ -187,14 +211,20 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (playerDatas.Count < maxPlayerCount)
             return;
 
+        foreach (PlayerData data in playerDatas.Values)
+        {
+            if (data == null || !data.IsLoadoutInitialized)
+                return;
+        }
+
         isGameStarting = true;
 
         LoadBattleScene();
     }
 
 
-    // ÇÃ·¹ÀÌ¾î ÀÎ¿øÀÌ ÃÖ´ë ÀÎ¿ø¿¡ µµ´ŞÇßÀ» ¶§ È£Ãâ
-    // ¸ğµç ÇÃ·¹ÀÌ¾î¸¦ ÀüÅõ ¾ÀÀ¸·Î ÀÌµ¿
+    // í”Œë ˆì´ì–´ ì¸ì›ì´ ìµœëŒ€ ì¸ì›ì— ë„ë‹¬í–ˆì„ ë•Œ í˜¸ì¶œ
+    // ëª¨ë“  í”Œë ˆì´ì–´ë¥¼ ì „íˆ¬ ì”¬ìœ¼ë¡œ ì´ë™
     private void LoadBattleScene()
     {
         if (!_runner.IsServer)
@@ -208,8 +238,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ³×Æ®¿öÅ©¸¦ ÅëÇÑ ¾À ·ÎµùÀÌ ¿Ï·áµÇ¸é FusionÀÌ ÀÚµ¿ È£Ãâ
-    // Host°¡ BattleManager¸¦ Ã£¾Æ ÀüÅõ ÃÊ±âÈ­ ½ÃÀÛ
+    // ë„¤íŠ¸ì›Œí¬ë¥¼ í†µí•œ ì”¬ ë¡œë”©ì´ ì™„ë£Œë˜ë©´ Fusionì´ ìë™ í˜¸ì¶œ
+    // Hostê°€ BattleManagerë¥¼ ì°¾ì•„ ì „íˆ¬ ì´ˆê¸°í™” ì‹œì‘
     public void OnSceneLoadDone(
         NetworkRunner runner)
     {
@@ -228,7 +258,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (battleManager == null)
         {
             Debug.LogError(
-                "BattleManager¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù."
+                "BattleManagerë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤."
             );
 
             return;
@@ -243,7 +273,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ´Ù¸¥ ½ºÅ©¸³Æ®¿¡¼­ Æ¯Á¤ ÇÃ·¹ÀÌ¾îÀÇ PlayerData°¡ ÇÊ¿äÇÒ ¶§ È£Ãâ
+    // ë‹¤ë¥¸ ìŠ¤í¬ë¦½íŠ¸ì—ì„œ íŠ¹ì • í”Œë ˆì´ì–´ì˜ PlayerDataê°€ í•„ìš”í•  ë•Œ í˜¸ì¶œ
     public PlayerData GetPlayerData(
         PlayerRef player)
     {
@@ -258,7 +288,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ´Ù¸¥ ½ºÅ©¸³Æ®¿¡¼­ Æ¯Á¤ ÇÃ·¹ÀÌ¾îÀÇ ½ÇÁ¦ Player ¿ÀºêÁ§Æ®°¡ ÇÊ¿äÇÒ ¶§ È£Ãâ
+    // ë‹¤ë¥¸ ìŠ¤í¬ë¦½íŠ¸ì—ì„œ íŠ¹ì • í”Œë ˆì´ì–´ì˜ ì‹¤ì œ Player ì˜¤ë¸Œì íŠ¸ê°€ í•„ìš”í•  ë•Œ í˜¸ì¶œ
     public NetworkObject GetPlayerObject(
         PlayerRef player)
     {
@@ -273,7 +303,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // °ÔÀÓ Áß ÇÃ·¹ÀÌ¾î°¡ ¹æÀ» ³ª°¡°Å³ª ¿¬°áÀÌ ²÷°åÀ» ¶§ FusionÀÌ ÀÚµ¿ È£Ãâ
+    // ê²Œì„ ì¤‘ í”Œë ˆì´ì–´ê°€ ë°©ì„ ë‚˜ê°€ê±°ë‚˜ ì—°ê²°ì´ ëŠê²¼ì„ ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
     public void OnPlayerLeft(
         NetworkRunner runner,
         PlayerRef player)
@@ -297,8 +327,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // °ÔÀÓ ½ÇÇà Áß ¸Å ³×Æ®¿öÅ© Tick¸¶´Ù FusionÀÌ ÀÚµ¿ È£Ãâ
-    // ÇöÀç Å°º¸µå¿Í ¸¶¿ì½º ÀÔ·ÂÀ» NetworkInputData¿¡ ÀúÀå
+    // ê²Œì„ ì‹¤í–‰ ì¤‘ ë§¤ ë„¤íŠ¸ì›Œí¬ Tickë§ˆë‹¤ Fusionì´ ìë™ í˜¸ì¶œ
+    // í˜„ì¬ í‚¤ë³´ë“œì™€ ë§ˆìš°ìŠ¤ ì…ë ¥ì„ NetworkInputDataì— ì €ì¥
     public void OnInput(
         NetworkRunner runner,
         NetworkInput input)
@@ -325,7 +355,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ÇØ´ç Tick¿¡ ÇÃ·¹ÀÌ¾î ÀÔ·ÂÀ» ¹ŞÁö ¸øÇßÀ» ¶§ FusionÀÌ ÀÚµ¿ È£Ãâ
+    // í•´ë‹¹ Tickì— í”Œë ˆì´ì–´ ì…ë ¥ì„ ë°›ì§€ ëª»í–ˆì„ ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
     public void OnInputMissing(
         NetworkRunner runner,
         PlayerRef player,
@@ -334,23 +364,35 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // NetworkRunner°¡ Á¾·áµÉ ¶§ FusionÀÌ ÀÚµ¿ È£Ãâ
+    // NetworkRunnerê°€ ì¢…ë£Œë  ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
     public void OnShutdown(
         NetworkRunner runner,
         ShutdownReason shutdownReason)
     {
         _runner = null;
+        isGameStarting = false;
+        spawnedPlayers.Clear();
+        playerDatas.Clear();
+    }
+
+    private bool HasValidNetworkPrefab(NetworkPrefabRef prefab, string name)
+    {
+        if (prefab.IsValid)
+            return true;
+
+        Debug.LogError($"NetworkGameManager {name} Network Prefab is not assigned.");
+        return false;
     }
 
 
-    // Fusion ¼­¹ö ¿¬°áÀÌ ¿Ï·áµÇ¾úÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // Fusion ì„œë²„ ì—°ê²°ì´ ì™„ë£Œë˜ì—ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnConnectedToServer(
         NetworkRunner runner)
     {
     }
 
 
-    // Fusion ¼­¹ö¿Í ¿¬°áÀÌ ²÷°åÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // Fusion ì„œë²„ì™€ ì—°ê²°ì´ ëŠê²¼ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnDisconnectedFromServer(
         NetworkRunner runner,
         NetDisconnectReason reason)
@@ -358,7 +400,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ´Ù¸¥ ÇÃ·¹ÀÌ¾î°¡ ¼­¹ö¿¡ ¿¬°áÀ» ¿äÃ»ÇßÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // ë‹¤ë¥¸ í”Œë ˆì´ì–´ê°€ ì„œë²„ì— ì—°ê²°ì„ ìš”ì²­í–ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnConnectRequest(
         NetworkRunner runner,
         NetworkRunnerCallbackArgs.ConnectRequest request,
@@ -367,7 +409,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ¼­¹ö ¿¬°á¿¡ ½ÇÆĞÇßÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // ì„œë²„ ì—°ê²°ì— ì‹¤íŒ¨í–ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnConnectFailed(
         NetworkRunner runner,
         NetAddress remoteAddress,
@@ -376,7 +418,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // UserSimulationMessage¸¦ ¹Ş¾ÒÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // UserSimulationMessageë¥¼ ë°›ì•˜ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnUserSimulationMessage(
         NetworkRunner runner,
         SimulationMessagePtr message)
@@ -384,7 +426,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ¼¼¼Ç ¸ñ·ÏÀÌ º¯°æµÇ¾úÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // ì„¸ì…˜ ëª©ë¡ì´ ë³€ê²½ë˜ì—ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnSessionListUpdated(
         NetworkRunner runner,
         List<SessionInfo> sessionList)
@@ -392,7 +434,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // Custom Authentication ÀÀ´äÀ» ¹Ş¾ÒÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // Custom Authentication ì‘ë‹µì„ ë°›ì•˜ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnCustomAuthenticationResponse(
         NetworkRunner runner,
         Dictionary<string, object> data)
@@ -400,7 +442,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ÇöÀç Host°¡ ³ª°¡¼­ Host MigrationÀÌ ¹ß»ıÇßÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // í˜„ì¬ Hostê°€ ë‚˜ê°€ì„œ Host Migrationì´ ë°œìƒí–ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnHostMigration(
         NetworkRunner runner,
         HostMigrationToken hostMigrationToken)
@@ -408,14 +450,14 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // ³×Æ®¿öÅ© ¾À ·ÎµùÀÌ ½ÃÀÛµÉ ¶§ ÀÚµ¿ È£Ãâ
+    // ë„¤íŠ¸ì›Œí¬ ì”¬ ë¡œë”©ì´ ì‹œì‘ë  ë•Œ ìë™ í˜¸ì¶œ
     public void OnSceneLoadStart(
         NetworkRunner runner)
     {
     }
 
 
-    // Æ¯Á¤ NetworkObject°¡ ÇÃ·¹ÀÌ¾îÀÇ AOI ¹ÛÀ¸·Î ³ª°¬À» ¶§ ÀÚµ¿ È£Ãâ
+    // íŠ¹ì • NetworkObjectê°€ í”Œë ˆì´ì–´ì˜ AOI ë°–ìœ¼ë¡œ ë‚˜ê°”ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnObjectExitAOI(
         NetworkRunner runner,
         NetworkObject obj,
@@ -424,7 +466,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // Æ¯Á¤ NetworkObject°¡ ÇÃ·¹ÀÌ¾îÀÇ AOI ¾ÈÀ¸·Î µé¾î¿ÔÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // íŠ¹ì • NetworkObjectê°€ í”Œë ˆì´ì–´ì˜ AOI ì•ˆìœ¼ë¡œ ë“¤ì–´ì™”ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnObjectEnterAOI(
         NetworkRunner runner,
         NetworkObject obj,
@@ -433,7 +475,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // Reliable Data¸¦ Á¤»óÀûÀ¸·Î ¹Ş¾ÒÀ» ¶§ ÀÚµ¿ È£Ãâ
+    // Reliable Dataë¥¼ ì •ìƒì ìœ¼ë¡œ ë°›ì•˜ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnReliableDataReceived(
         NetworkRunner runner,
         PlayerRef player,
@@ -443,7 +485,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-    // Reliable Data¸¦ ¹Ş´Â ÁøÇà·üÀÌ º¯°æµÉ ¶§ ÀÚµ¿ È£Ãâ
+    // Reliable Dataë¥¼ ë°›ëŠ” ì§„í–‰ë¥ ì´ ë³€ê²½ë  ë•Œ ìë™ í˜¸ì¶œ
     public void OnReliableDataProgress(
         NetworkRunner runner,
         PlayerRef player,
