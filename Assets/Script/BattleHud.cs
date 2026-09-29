@@ -35,6 +35,15 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private TMP_Text respawnText;
     [Header("Aim")]
     [SerializeField] private GameObject reticle;
+    [Tooltip("큰 원: 목표 조준 방향. 직접 만든 UI RectTransform을 연결합니다.")]
+    [SerializeField] private RectTransform desiredAimMarker;
+    [Tooltip("작은 원: 캐릭터의 실제 정면 발사선. 큰 원과 별도 UI를 연결합니다.")]
+    [SerializeField] private RectTransform forwardAimMarker;
+    [Tooltip("큰 원의 Image. 비워두면 Desired Aim Marker 자체의 Image를 사용합니다.")]
+    [SerializeField] private Image desiredAimImage;
+    [Tooltip("작은 원의 Image. 비워두면 Forward Aim Marker 자체의 Image를 사용합니다.")]
+    [SerializeField] private Image forwardAimImage;
+    [SerializeField] private TMP_Text aimAlignmentText;
     [SerializeField] private RectTransform lockMarker;
     [SerializeField] private Image lockProgressFill;
     [SerializeField] private TMP_Text lockText;
@@ -62,6 +71,8 @@ public sealed class BattleHud : MonoBehaviour
     private float respawnAt;
     private float nextRefresh;
     private int nextDamageSlot;
+    private Image tintedDesiredImage, tintedForwardImage;
+    private Color originalDesiredColor, originalForwardColor;
     public static bool MenuOpen { get; private set; }
 
     private void Awake()
@@ -82,6 +93,7 @@ public sealed class BattleHud : MonoBehaviour
 
     private void OnEnable()
     {
+        Canvas.willRenderCanvases += BindFlightAim;
         instance = this;
         MenuOpen = false;
         if (resumeButton != null) resumeButton.onClick.AddListener(Resume);
@@ -158,7 +170,7 @@ public sealed class BattleHud : MonoBehaviour
 
     private void BindAim(bool show)
     {
-        Visible(reticle, show);
+        Visible(reticle, show && desiredAimMarker == null);
         if (!show) lockTarget = null;
         else if (Time.unscaledTime >= nextRefresh)
         {
@@ -178,7 +190,58 @@ public sealed class BattleHud : MonoBehaviour
         SetText(lockText, locked ? owner.IsFullyLocked ? "RELEASE TO FIRE" : $"LOCK {owner.LockProgress:P0}" : "");
     }
 
+    // Run after the network render pose/camera, avoiding a one-frame lag in the small circle.
+    private void BindFlightAim()
+    {
+        Player pilot = Player.LocalPlayer;
+        if (worldCamera == null) worldCamera = Camera.main;
+        CameraFollow follow = worldCamera != null ? worldCamera.GetComponent<CameraFollow>() : null;
+        bool show = isActiveAndEnabled && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
+            !MenuOpen && pilot != null && pilot.Object != null && pilot.Object.IsValid && pilot.IsAlive &&
+            !pilot.IsReturningToMap && follow != null && !follow.IsBoundaryPresentationActive;
+        bool desiredVisible = false;
+        bool forwardVisible = false;
+        bool aligned = false;
+        if (show)
+        {
+            Vector3 desiredPoint = follow.GetDisplayedAimPoint();
+            Vector3 origin = pilot.LockAimPoint;
+            float distance = Mathf.Max(1f, Vector3.Distance(origin, desiredPoint));
+            Vector3 forwardPoint = origin + pilot.transform.forward * distance;
+            desiredVisible = desiredAimMarker != null && Place(desiredAimMarker, desiredPoint);
+            forwardVisible = forwardAimMarker != null && Place(forwardAimMarker, forwardPoint);
+            aligned = pilot.IsAimAligned((desiredPoint - origin).normalized);
+            SetText(aimAlignmentText, aligned ? "AIM ALIGNED" : "ALIGNING");
+        }
+        SetAimColors(show && aligned);
+        Visible(desiredAimMarker != null ? desiredAimMarker.gameObject : null, desiredVisible);
+        Visible(forwardAimMarker != null ? forwardAimMarker.gameObject : null, forwardVisible);
+        Visible(aimAlignmentText != null ? aimAlignmentText.gameObject : null, show);
+    }
+
     public void ToggleMenu() => SetMenuOpen(!MenuOpen);
+
+    private void SetAimColors(bool aligned)
+    {
+        Image desired = desiredAimImage != null ? desiredAimImage :
+            desiredAimMarker != null ? desiredAimMarker.GetComponent<Image>() : null;
+        Image forward = forwardAimImage != null ? forwardAimImage :
+            forwardAimMarker != null ? forwardAimMarker.GetComponent<Image>() : null;
+        TintAimImage(desired, aligned, ref tintedDesiredImage, ref originalDesiredColor);
+        TintAimImage(forward, aligned, ref tintedForwardImage, ref originalForwardColor);
+    }
+
+    private static void TintAimImage(Image image, bool aligned, ref Image previousImage, ref Color originalColor)
+    {
+        if (previousImage != image)
+        {
+            if (previousImage != null) previousImage.color = originalColor;
+            previousImage = image;
+            if (image != null) originalColor = image.color;
+        }
+        if (image != null)
+            image.color = aligned ? new Color(0f, 1f, 0f, originalColor.a) : originalColor;
+    }
     public void Resume() => SetMenuOpen(false);
 
     private void SetMenuOpen(bool open)
@@ -265,6 +328,10 @@ public sealed class BattleHud : MonoBehaviour
 
     private void HideViews()
     {
+        SetAimColors(false);
+        Visible(desiredAimMarker != null ? desiredAimMarker.gameObject : null, false);
+        Visible(forwardAimMarker != null ? forwardAimMarker.gameObject : null, false);
+        Visible(aimAlignmentText != null ? aimAlignmentText.gameObject : null, false);
         Visible(hudRoot, false); Visible(playerPanel, false);
         Visible(respawnPanel, false); Visible(resultPanel, false); Visible(menuPanel, false);
         Visible(resultText != null ? resultText.gameObject : null, false);
@@ -276,6 +343,7 @@ public sealed class BattleHud : MonoBehaviour
 
     private void OnDisable()
     {
+        Canvas.willRenderCanvases -= BindFlightAim;
         if (resumeButton != null) resumeButton.onClick.RemoveListener(Resume);
         HideViews();
         if (instance != this) return;

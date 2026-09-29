@@ -58,12 +58,15 @@ public struct BroomStatEntry
     [Tooltip("Shift 부스트 중 목표 속도에 적용할 배율입니다.")]
     public float boostMultiplier;
 
-    [Min(0.01f)]
-    [Tooltip("Shift 부스트 유지 시간입니다.")]
+    [Min(0f)]
+    [Tooltip("Shift를 누르는 동안 초당 소모할 AP입니다. 부스트 중 자연 AP 회복은 중단됩니다. 0이면 무료입니다.")]
+    public float boostApCostPerSecond;
+
+    // Legacy serialized values: retained for asset compatibility, unused by held boost.
+    [HideInInspector]
     public float boostDuration;
 
-    [Min(0f)]
-    [Tooltip("Shift 부스트 재사용 대기 시간입니다.")]
+    [HideInInspector]
     public float boostCooldown;
 }
 

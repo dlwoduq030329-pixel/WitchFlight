@@ -2,35 +2,39 @@
 
 ## 적용한 규칙
 
-- Main에서 장비를 고른 뒤 기존 Battle 버튼으로 같은 방에 접속합니다. Main의 기본 인원은 2명입니다.
+- Main에서 장비를 고른 뒤 CreateRoom()으로 코드 방을 만들고 상대는 JoinRoom()으로 접속합니다. StartRandomMatch()는 코드 없는 랜덤 1대1입니다. 기존 StartMatch()는 자동 생성/참가 호환용으로 유지합니다. 코드 방은 기존 Max Player Count, 랜덤은 2명 고정입니다. 로비 대기는 CancelMatch()로 취소합니다. 연결 및 테스트는 UI_CONNECTIONS.md의 매칭 버튼 항목을 참고하세요.
+- 코드 방은 인원/PlayerData가 준비되어도 자동으로 이동하지 않으며 방장의 NetworkGameManager.StartRoomGame() 호출로 Battle 씬에 진입합니다. 랜덤은 양쪽 로비에서 상대 프로필을 각각 1초 표시한 확인을 받은 뒤 자동 전환합니다. Battle 입장 후 기존 연출 시작 흐름은 유지합니다.
+- 프로필 번호는 DataConfig.playerprofile에서 Networked int PlayerData.playerprofile로 전달합니다. 기본 0이며 접속 후 본인의 SetPlayerProfile(int)로 변경할 수 있습니다. linkuserinfo에 내/상대 Image와 Sprite 배열을 직접 연결합니다. 랜덤 매칭용 Main UI 한 곳에서 Confirm Random Match Preview를 켜야 자동 진행합니다. UI_CONNECTIONS.md를 참고하세요. 백엔드 저장은 아직 구현하지 않았습니다.
 - 선택 값은 기존 DataConfig → PlayerData → Player/PlayerEquipment 흐름으로 전달됩니다. PlayerData는 씬 전환과 사망/부활 사이에도 유지됩니다.
 - 배틀 입장 후에는 얼굴 시점으로 준비를 기다립니다. 양쪽의 씬/외형/얼굴 RenderTexture 준비가 끝나면 startGame() → 얼굴 VS 연출(기본 5초) → 후방 카메라와 3·2·1 → 전투 순서로 시작합니다. 설정과 테스트는 BATTLE_START_FLOW.md를 참고하세요.
-- 전투 중 카메라는 본인 기체 뒤에 위치하며 기체의 yaw/pitch를 따라갑니다. 록온이 카메라나 기체 조작을 대신하지 않습니다.
+- 전투 중 마우스 X/Y는 목표 시점을 움직이고, 캐릭터는 빗자루 선회 능력에 맞춰 그 방향을 따라갑니다. 큰 원은 화면 중앙의 목표 방향, 작은 원은 실제 캐릭터 정면의 발사 방향입니다. A/D는 목표 방향의 좌우 회전을 보조합니다. 록온이 시점이나 기체 조작을 대신하지 않습니다. 메뉴/사망/준비 화면/맵 복귀 연출 및 후방 전환 중에는 마우스 시점 입력을 받지 않으며, 리스폰과 맵 복귀 시 목표 시점을 초기화합니다.
 - 비행 중 FlightVisualBob이 캐릭터/장비 외형에만 상하 사인 흔들림을 적용합니다. 기본 진폭은 ±0.08m, 주기는 약 1.7초이며 정지 시 서서히 줄어듭니다. 플레이어 루트/이동용 CharacterController/카메라는 흔들지 않고, 기존 다리 캡슐 중심도 반대로 보정합니다.
-- 마우스 상하로 기수를 올리거나 내리고, A/D로 선회합니다. W/S를 누를 때마다 -3~-1, 0, +1~+3 단계가 변합니다. 0의 목표 속도는 정지, 음수는 기체 뒤 방향의 후진입니다. 실제 속도는 가감속 수치를 따라 변화하며 전후진 전환은 먼저 0까지 감속합니다.
-- Shift는 현재 진행 방향으로 짧게 부스트합니다. 정지 단계에서 사용하면 +1로 출발합니다.
+- 마우스 상하로 목표 고도를 향해 기수를 올리거나 내립니다. 새 조준 모드는 Quaternion 회전으로 수직/역전 비행을 처리하며 기존 Player의 Max Pitch 제한을 사용하지 않습니다. W/S를 누를 때마다 -3~-1, 0, +1~+3 단계가 변합니다. 0의 목표 속도는 정지, 음수는 기체 뒤 방향의 후진입니다. 실제 속도는 가감속 수치를 따라 변화하며 전후진 전환은 먼저 0까지 감속합니다.
+- Shift는 누르는 동안 현재 진행 방향으로 부스트하며 빗자루의 `Boost Ap Cost Per Second`만큼 초당 AP를 소모합니다(기본 20). 부스트 중 자연 AP 회복은 중단되고, 놓으면 기존 감속 설정으로 일반 속도로 복귀합니다. 정지 단계에서 사용하면 +1로 출발합니다. 마나가 고갈되면 Shift를 놓았다 다시 눌러야 재사용됩니다. 경직/입력 억제/입력 누락 중에는 부스트하지 않습니다. 이전 Boost Duration/Cooldown은 호환용으로만 남아 있고 사용하지 않습니다.
 - 1/2번은 선택한 마법, 3번은 고정 패링입니다. 우클릭으로도 패링을 사용합니다. 패링은 마나를 소비하고 기본 0.3초 동안 마법 피해를 막으며 공격자에게 같은 피해를 반사합니다.
-- Fire/Ice는 좌클릭 홀드 중 화면 안의 적 진영 캐릭터를 선택합니다. 중앙에 가까운 적을 먼저 선택하고 유효한 동안 같은 대상을 유지합니다. 화면 밖·거리 초과·벽 가림·은신이면 해제됩니다. 충전 완료 후 좌클릭을 놓으면 유도탄을 발사합니다.
-- Vision은 록온 없는 즉발 광선, Thunder는 록온 없는 전방 범위 투사체입니다. 비록온 마법도 좌클릭을 놓을 때 사용합니다.
+- Fire/Ice 등 requiresTarget 마법은 큰 원/작은 원이 록온 허용각 이내일 때 좌클릭 홀드 중 화면 안의 적 진영 캐릭터를 선택합니다. 허용각은 ChPrefab의 Player → Lock Aim Alignment Tolerance(기본 1.5도) + Lock Aim Offset(기본 3도), 합계 기본 4.5도입니다. 중앙에 가까운 적을 먼저 선택하고 유효한 동안 같은 대상을 유지합니다. 허용각 이탈·화면 밖·거리 초과·벽 가림·은신이면 대상/충전을 초기화합니다. 릴리즈 시에도 같은 조건을 재검사하고 충전 완료 상태여야 유도탄을 발사합니다. 두 원이 기본 정렬 기준 1.5도 이내이면 두 Image는 초록색, 벗어나면 기존 색으로 돌아옵니다. 초록색 판정에 Offset은 적용하지 않습니다.
+- Vision은 록온 없는 즉발 광선, Thunder는 록온 없는 전방 범위 투사체입니다. 비록온 마법도 좌클릭을 놓을 때 사용합니다. 카메라 방향 대신 실제 발사 순간의 캐릭터 정면으로 발사하므로 작은 원이 실제 사격 방향입니다. 시전 시간이 있는 마법도 발사 시점의 정면을 사용합니다. 두 원이 일치하지 않아도 발사할 수 있으며 Fire/Ice의 발사 후 유도는 유지됩니다.
 - 중앙 깃발은 하나이며 접촉한 플레이어가 소유합니다. 보유자가 사망하거나 접속을 종료하면 그 자리에 떨어집니다. 종료 시 마지막으로 소유했던 진영이 승리합니다. 한 번도 소유하지 않았다면 무승부입니다.
 - 사망 후 약 2초 동안 외형이 사라지고 오브젝트가 제거됩니다. 사망 시점부터 7초 뒤 같은 진영에서 HP/마나를 회복해 새 Player를 생성합니다.
 - 모든 적 처치로 다음 방에 이동한다는 문구 대신, 이번 배틀은 기획서의 깃발/제한시간/부활 규칙을 사용합니다.
 
 ## Inspector에서 편집할 위치
 
+최고속 주변부 추가 블러는 Battle Main Camera의 SpeedCameraEffects → Top Speed Peripheral Blur에서 조절합니다. 실제 속도가 빗자루 기본 최고속도의 75%부터 증가하여 최고속에서 최대가 됩니다. PC_Renderer의 PeripheralSpeedBlurFeature에 연결되어 있으며 기존 3단계 연출은 유지합니다. 자세한 설정은 UI_CONNECTIONS.md를 참고하세요.
+
 자동 생성 UI와 OnGUI 창은 제거했습니다. 준비 화면/전투 HUD/로비/바람 UI는 직접 만든 오브젝트를 연결해야 표시됩니다. 상세 필드와 연결 순서는 UI_CONNECTIONS.md를 참고하세요. 기존 사용자 얼굴 RawImage와 패널 연결은 유지합니다.
 
 | 대상 | 파일/위치 | 주요 값 |
 |---|---|---|
 | 모자 3종 | Assets/Resources/EquipmentStatTable.asset / Hats | maxAp, apRecoveryPerSecond |
-| 빗자루 3종 | 같은 파일 / Brooms | maxHp, maxSpeed, turnSpeed, speedStageTransitionSpeed, brakeSpeed, boostMultiplier/Duration/Cooldown |
+| 빗자루 3종 | 같은 파일 / Brooms | maxHp, maxSpeed, turnSpeed, speedStageTransitionSpeed, brakeSpeed, boostMultiplier, boostApCostPerSecond |
 | 마법 10종 | Assets/Resources/MagicStatTable.asset / Magics | apCost, cooldownSeconds, lockChargeSeconds, castSeconds, damage, range, projectileSpeed/TurnSpeed/Lifetime/Radius |
 | 패링 | 같은 파일 / Parry | parryApCost, parryWindowSeconds, parryCooldownSeconds |
-| 카메라 | Battle의 CameraFollow | Follow Speed, Rotation Follow Speed, Follow Offset |
+| 카메라 | Battle의 CameraFollow | Enable Mouse Aim Steering(기본 켜짐), Mouse Yaw Sensitivity/Mouse Pitch Aim Sensitivity(기본 2.5), Follow Offset. 끄면 이전 자유 시점 조작 |
 | 최고속 단계 연출 | Battle/Main Camera의 SpeedCameraEffects | Keep Local Player Sharp(켜짐), Motion Blur Mode(CameraAndObjects), Motion Blur Intensity(1), Motion Blur Distance Multiplier(1.8), Extra Field Of View(+10도), Transition Speed(5), Wind Opacity(0.3), Wind Line Count(36), Wind Speed(1.6), Show Wind Lines |
 | 비행 흔들림 | ChPrefab의 FlightVisualBob | Amplitude(높이), Frequency(초당 횟수), Full Amplitude Speed, Blend Speed. Amplitude=0이면 끔 |
 | 선회 기울임 | ChPrefab의 FlightVisualBob | Max Bank Angle(기본 25도), Full Bank Turn Speed(120도/초), Bank Blend Speed(5), Bank Pivot(공통 회전 중심). Max Bank Angle=0이면 기울임만 끔 |
-| 마우스 상하 감도 | Assets/Ch/ChPrefab.prefab / Player | Mouse Pitch Sensitivity, Max Pitch |
+| 이전 모드 상하 감도 | Assets/Ch/ChPrefab.prefab / Player | Mouse Pitch Sensitivity, Max Pitch. 새 조준 모드에는 적용하지 않음 |
 | 경기/부활 | Battle의 BattleManager | Match Duration Seconds(초기 180), Death Despawn Delay(2), Respawn Delay Seconds(7) |
 | 인원 | Main의 NetworkGameManager | Max Player Count(기본 2, 혼자 테스트할 때 1) |
 
@@ -124,7 +128,10 @@ PlayerEquipment는 이번 작업에서 재작성하지 않았습니다. 이전�
 | 서로 다른 장비/머리 길이, 같은 roomId 접속 | 두 명이 모인 뒤 Battle, 서로 다른 외형과 능력치 |
 | A/B 스폰 | (-70,5,0), (70,5,0)에서 서로 중앙을 향함 |
 | W 3회, S 6회 | +3 → 0 → -3, 부드러운 감속 후 후진 |
-| 상승·하강·A/D·후진·Shift | 카메라는 항상 기체 후방 유지, 좌우 자유 궤도 회전 없음 |
+| 상승·하강·A/D·후진·Shift | 목표 시점에 실제 기수가 뒤따르며 기존 속도 단계/부스트 유지 |
+| 두 원이 떨어진 상태에서 Vision 발사 | 큰 원이 아닌 작은 원 방향으로 광선 발사 |
+| 마우스를 움직인 뒤 정지 | 작은 원이 큰 원으로 수렴, 빗자루 선회 능력에 따라 소요 시간 변화 |
+| 수직/역전 비행 및 사망·리스폰·맵 복귀 | 회전 급반전 없이 목표 추적, 연출 종료 후 목표 시점 초기화 |
 | Fire/Ice 홀드 후 조기 릴리즈 | 미완성 록온은 발사/마나 소비 없음 |
 | 완전 록온 릴리즈 | 투사체가 실제 이동하고 충돌할 때 한 번 피해 |
 | 대상 화면 이탈/벽 뒤 이동/은신 | 충전 및 발사 대상 해제 |

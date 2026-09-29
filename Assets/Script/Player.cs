@@ -16,6 +16,10 @@ public class Player : NetworkBehaviour, IAfterRender
     [SerializeField] private EquipmentStatTable equipmentStatTable;
 
     [Header("Lock on")]
+    [Tooltip("큰 원(목표 방향)과 작은 원(실제 정면)이 일치했다고 보는 허용 각도입니다. HUD와 록온이 함께 사용합니다.")]
+    [SerializeField, Range(0.1f, 10f)] private float lockAimAlignmentTolerance = 1.5f;
+    [Tooltip("록온에만 추가하는 허용각(도)입니다. 정렬 허용각 + Offset 이내면 록온되며, 초록색 정렬 표시는 기존 허용각을 사용합니다.")]
+    [SerializeField, Range(0f, 45f)] private float lockAimOffset = 3f;
     [SerializeField, Min(1f)] private float maxLockDistance = 250f;
     [SerializeField, Min(0f)] private float lockAimHeight = 0.8f;
     [SerializeField] private LayerMask lockObstructionMask = ~0;
@@ -45,8 +49,9 @@ public class Player : NetworkBehaviour, IAfterRender
     [Networked] private TickTimer MagicCooldown { get; set; }
     [Networked] private TickTimer ParryTimer { get; set; }
     [Networked] private TickTimer ParryCooldown { get; set; }
-    [Networked] private TickTimer BoostTimer { get; set; }
-    [Networked] private TickTimer BoostCooldown { get; set; }
+    [Networked] public bool IsBoosting { get; private set; }
+    [Networked] public bool IsReturningToMap { get; private set; }
+    [Networked] public bool DiedFromAltitude { get; private set; }
     [Networked] private TickTimer HitStunTimer { get; set; }
     [Networked] private TickTimer SlowTimer { get; set; }
     [Networked] private TickTimer WindTimer { get; set; }
@@ -76,6 +81,15 @@ public class Player : NetworkBehaviour, IAfterRender
     [SerializeField] private PlayerEquipment equipment;
 
     private CharacterController characterController;
+    private NetworkTransform portalNetworkTransform;
+    private bool hasPendingPortalTeleport;
+    private Vector3 pendingPortalPosition;
+    private TickTimer portalReentryTimer;
+    private Vector3 mapReturnStart, mapReturnControl1, mapReturnControl2, mapReturnEnd;
+    private Vector3 mapReturnEntryDirection;
+    private Quaternion mapReturnStartRotation;
+    private float mapReturnElapsed, mapReturnDuration, mapReturnHeight, mapReturnSpeed;
+    private int mapReturnSpeedStage;
     private CameraFollow localCameraFollow;
     private bool controllerNeedsRenderReset;
     private PlayerAppearance appearance;
@@ -90,6 +104,8 @@ public class Player : NetworkBehaviour, IAfterRender
     private bool hasRenderedCombatState;
     private bool lastVisualHidden;
     private float currentPitch;
+    private float currentYaw;
+    private float currentAimTurnSpeed;
     private float currentTurnSpeed;
     private float lockOnTurnSpeed = 360f;
     private float turnAccel = 18f;
@@ -97,14 +113,12 @@ public class Player : NetworkBehaviour, IAfterRender
     private float stageTransitionSpeed = 60f;
     private float brakeSpeed = 80f;
     private float boostMultiplier = 1.35f;
-    private float boostDuration = 0.45f;
-    private float boostCooldown = 1.5f;
+    private float boostApCostPerSecond = 20f;
+    private bool boostNeedsRelease;
     private float lastWallDamageTime = float.NegativeInfinity;
     private MagicType pendingMagic;
-    private Vector3 pendingAimDirection;
     private NetworkId pendingTargetId;
     private TickTimer castTimer;
-    private Vector3 inputAimDirection;
     private CombatPresentation presentation;
 
     public static Player LocalPlayer { get; private set; }
@@ -112,6 +126,10 @@ public class Player : NetworkBehaviour, IAfterRender
         renderedLoadoutVersion == LoadoutVersion && TeamIndex > 0 && IsAlive;
     public int CurrentSpeedStage => SpeedStage;
     public float CurrentSpeed => Speed;
+    // Read the replicated loadout, not maxSpeed (which is initialized only on the host).
+    public float ForwardCruiseSpeedRatio => Mathf.Clamp01(Mathf.Max(0f, Speed) /
+        Mathf.Max(1f, equipmentStatTable != null ? equipmentStatTable.GetBroomStats(Broom).maxSpeed : 60f));
+    public float SteeringTurnRate => Mathf.Max(0f, turnSpeed * GetTurnMultiplier());
     public MagicStatEntry SelectedMagicStats => GetMagicStats(GetSelectedMagic());
     public float SelectedMagicApCost => CurrentMagicSlot == 3
         ? (magicStatTable != null ? magicStatTable.parryApCost : 8f) : SelectedMagicStats.apCost;
@@ -122,6 +140,19 @@ public class Player : NetworkBehaviour, IAfterRender
     public bool HasActiveMine => Object != null && MagicProjectile.HasMineOwnedBy(Object.InputAuthority);
     public float MaxLockDistance => maxLockDistance;
     public Vector3 LockAimPoint => transform.position + Vector3.up * lockAimHeight;
+
+    public bool IsAimAligned(Vector3 desiredDirection)
+    {
+        return IsFiniteDirection(desiredDirection) && desiredDirection.sqrMagnitude > 0.0001f &&
+            Vector3.Angle(transform.forward, desiredDirection) <= Mathf.Clamp(lockAimAlignmentTolerance, 0.1f, 10f);
+    }
+
+    public bool IsWithinLockAim(Vector3 desiredDirection)
+    {
+        float allowedAngle = Mathf.Clamp(lockAimAlignmentTolerance, 0.1f, 10f) + Mathf.Clamp(lockAimOffset, 0f, 45f);
+        return IsFiniteDirection(desiredDirection) && desiredDirection.sqrMagnitude > 0.0001f &&
+            Vector3.Angle(transform.forward, desiredDirection) <= allowedAngle;
+    }
 
     private void Awake()
     {
@@ -166,8 +197,7 @@ public class Player : NetworkBehaviour, IAfterRender
         stageTransitionSpeed = Mathf.Max(0.01f, broomStats.speedStageTransitionSpeed);
         brakeSpeed = Mathf.Max(0.01f, broomStats.brakeSpeed);
         boostMultiplier = Mathf.Max(1f, broomStats.boostMultiplier);
-        boostDuration = Mathf.Max(0.01f, broomStats.boostDuration);
-        boostCooldown = Mathf.Max(0f, broomStats.boostCooldown);
+        boostApCostPerSecond = Mathf.Max(0f, broomStats.boostApCostPerSecond);
 
         acceleration = Mathf.Max(0f, baseAcceleration);
         CurrentMagicSlot = 1;
@@ -183,8 +213,10 @@ public class Player : NetworkBehaviour, IAfterRender
         MagicCooldown = TickTimer.None;
         ParryTimer = TickTimer.None;
         ParryCooldown = TickTimer.None;
-        BoostTimer = TickTimer.None;
-        BoostCooldown = TickTimer.None;
+        IsBoosting = false;
+        boostNeedsRelease = false;
+        IsReturningToMap = false;
+        DiedFromAltitude = false;
         HitStunTimer = TickTimer.None;
         SlowTimer = TickTimer.None;
         WindTimer = TickTimer.None;
@@ -194,6 +226,8 @@ public class Player : NetworkBehaviour, IAfterRender
         WindMultiplier = 1f;
         KnockbackVelocity = default;
         currentPitch = NormalizePitch(transform.eulerAngles.x);
+        currentYaw = transform.eulerAngles.y;
+        currentAimTurnSpeed = 0f;
         currentTurnSpeed = 0f;
         pendingMagic = MagicType.None;
         castTimer = TickTimer.None;
@@ -241,8 +275,7 @@ public class Player : NetworkBehaviour, IAfterRender
             speedStageTransitionSpeed = 60f,
             brakeSpeed = 80f,
             boostMultiplier = 1.35f,
-            boostDuration = 0.45f,
-            boostCooldown = 1.5f
+            boostApCostPerSecond = 20f
         };
     }
 
@@ -291,14 +324,18 @@ public class Player : NetworkBehaviour, IAfterRender
         if (!Object.HasStateAuthority)
             return;
 
+        // Every tick must receive a held input to sustain boost.
+        IsBoosting = false;
+
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
         {
+            IsReturningToMap = false;
+            hasPendingPortalTeleport = false;
             Speed = 0f;
             SpeedStage = 0;
             currentTurnSpeed = 0f;
             previousButtons = default;
             pendingMagic = MagicType.None;
-            pendingAimDirection = Vector3.zero;
             pendingTargetId = default;
             castTimer = TickTimer.None;
             KnockbackVelocity = Vector3.zero;
@@ -306,19 +343,168 @@ public class Player : NetworkBehaviour, IAfterRender
             return;
         }
         if (!IsAlive)
+        {
+            IsReturningToMap = false;
+            hasPendingPortalTeleport = false;
             return;
+        }
 
+        if (CheckAltitudeLimit())
+            return;
         ResetControllerAfterRender();
+        if (hasPendingPortalTeleport)
+        {
+            ApplyPortalTeleport();
+            CheckAltitudeLimit();
+            return;
+        }
+        if (UpdateMapBoundaryReturn())
+        {
+            if (CheckAltitudeLimit())
+                return;
+            // Consume edge inputs without executing them when control resumes.
+            previousButtons = GetInput(out NetworkInputData ignoredInput) ? ignoredInput.buttons : default;
+            RegenerateAp();
+            return;
+        }
         UpdatePendingCast();
-        RegenerateAp();
 
         if (!GetInput(out NetworkInputData data))
         {
             ContinueWithoutActions();
+            if (CheckAltitudeLimit())
+                return;
+            RegenerateAp();
             return;
         }
 
         ProcessInput(data);
+        if (CheckAltitudeLimit())
+            return;
+        if (!IsBoosting)
+            RegenerateAp();
+    }
+
+    private bool CheckAltitudeLimit()
+    {
+        MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
+        if (!IsAlive || table == null || !table.ExceedsAltitudeLimit(transform.position.y))
+            return false;
+
+        // Environmental death: no parry and no stale attacker kill credit.
+        // Reuse health replication, flag drop and the existing respawn sequence.
+        DiedFromAltitude = true;
+        hasPendingPortalTeleport = false;
+        TakeDamage(Mathf.Max(1f, NowHp), PlayerRef.None, MagicType.None, false, 0f, 0f);
+        return true;
+    }
+
+    private bool UpdateMapBoundaryReturn()
+    {
+        if (!IsReturningToMap)
+        {
+            MapBoundaryTable table = BattleManager.Instance.MapBoundary;
+            if (table == null || !table.boundaryEnabled || !table.HasValidBounds || table.Contains(transform.position))
+                return false;
+
+            Vector3 travel = transform.forward * (Speed < -0.01f ? -1f : 1f);
+            travel.y = 0f;
+            if (travel.sqrMagnitude < 0.0001f)
+                travel = Quaternion.Euler(0f, transform.eulerAngles.y, 0f) * Vector3.forward;
+            mapReturnEntryDirection = travel.normalized;
+            mapReturnStart = transform.position;
+            mapReturnStartRotation = transform.rotation;
+            table.CreateReturnPath(mapReturnStart, mapReturnEntryDirection,
+                out mapReturnControl1, out mapReturnControl2, out mapReturnEnd);
+            mapReturnElapsed = 0f;
+            mapReturnDuration = Mathf.Max(0.25f, table.returnDuration);
+            mapReturnHeight = Mathf.Max(0f, table.climbHeight);
+            mapReturnSpeedStage = Mathf.Clamp(Mathf.Abs(SpeedStage), 1, 3);
+            mapReturnSpeed = Mathf.Max(Mathf.Abs(Speed), maxSpeed * mapReturnSpeedStage / 3f);
+            IsReturningToMap = true;
+            pendingMagic = MagicType.None;
+            castTimer = TickTimer.None;
+            KnockbackVelocity = Vector3.zero;
+            currentTurnSpeed = 0f;
+            ClearLockTargetInternal();
+        }
+
+        mapReturnElapsed += Runner.DeltaTime;
+        float t = Mathf.Clamp01(mapReturnElapsed / mapReturnDuration);
+        MapBoundaryTable.EvaluateReturnPath(mapReturnStart, mapReturnControl1, mapReturnControl2,
+            mapReturnEnd, mapReturnHeight, t, out Vector3 position, out Vector3 tangent);
+        Quaternion rotation = tangent.sqrMagnitude > 0.0001f
+            ? Quaternion.LookRotation(tangent.normalized, Vector3.up) : transform.rotation;
+        rotation = Quaternion.Slerp(mapReturnStartRotation, rotation, Mathf.Clamp01(t * 5f));
+        if (t >= 1f)
+        {
+            position = mapReturnEnd;
+            rotation = Quaternion.LookRotation(-mapReturnEntryDirection, Vector3.up);
+        }
+
+        // Scripted flight ignores blocking scenery; keep the actual network root moving.
+        // Never call Teleport every tick: other clients should see a continuous U-turn.
+        bool controllerWasEnabled = characterController != null && characterController.enabled;
+        if (controllerWasEnabled) characterController.enabled = false;
+        transform.SetPositionAndRotation(position, rotation);
+        if (controllerWasEnabled) characterController.enabled = true;
+        controllerNeedsRenderReset = false;
+
+        if (t >= 1f)
+        {
+            currentPitch = 0f;
+            currentYaw = rotation.eulerAngles.y;
+            currentAimTurnSpeed = 0f;
+            currentTurnSpeed = 0f;
+            KnockbackVelocity = Vector3.zero;
+            SpeedStage = mapReturnSpeedStage;
+            Speed = mapReturnSpeed;
+            IsReturningToMap = false;
+        }
+        return true;
+    }
+
+    // Physics callbacks may run outside Fusion ticks; only queue the request here.
+    public bool TryQueuePortalTeleport(Vector3 destination, float reentryDelay)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority ||
+            Runner == null || !Runner.IsRunning || !IsAlive || IsReturningToMap ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
+            hasPendingPortalTeleport || !portalReentryTimer.ExpiredOrNotRunning(Runner))
+            return false;
+
+        if (portalNetworkTransform == null)
+            portalNetworkTransform = GetComponent<NetworkTransform>();
+        if (portalNetworkTransform == null)
+        {
+            Debug.LogWarning("Portal requires NetworkTransform on the Player root.", this);
+            return false;
+        }
+
+        pendingPortalPosition = destination;
+        hasPendingPortalTeleport = true;
+        portalReentryTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.1f, reentryDelay));
+        return true;
+    }
+
+    private void ApplyPortalTeleport()
+    {
+        hasPendingPortalTeleport = false;
+        bool controllerWasEnabled = characterController != null && characterController.enabled;
+        if (controllerWasEnabled)
+            characterController.enabled = false;
+        try
+        {
+            // Replicate a teleport, not an interpolated flight across the map.
+            // Preserve flight direction, speed, HP, equipment and input authority.
+            portalNetworkTransform.Teleport(pendingPortalPosition);
+        }
+        finally
+        {
+            if (controllerWasEnabled)
+                characterController.enabled = true;
+        }
+        controllerNeedsRenderReset = false;
     }
 
     private void ResetControllerAfterRender()
@@ -350,9 +536,6 @@ public class Player : NetworkBehaviour, IAfterRender
     private void ProcessInput(NetworkInputData data)
     {
         NetworkButtons buttons = data.buttons;
-        inputAimDirection = data.aimDirection.sqrMagnitude > 0.5f &&
-            Vector3.Dot(data.aimDirection.normalized, transform.forward) > 0.5f
-            ? data.aimDirection.normalized : transform.forward;
 
         if (data.suppressActions)
         {
@@ -384,15 +567,24 @@ public class Player : NetworkBehaviour, IAfterRender
         if (buttons.WasPressed(previousButtons, PlayerInputButton.MagicSlot3))
             SelectMagicSlot(3);
 
-        if (buttons.WasPressed(previousButtons, PlayerInputButton.Boost))
-            TryStartBoost();
+        UpdateHeldBoost(buttons.IsSet(PlayerInputButton.Boost));
+
+        if (!IsHitStunned)
+            PlayerTurn(data, buttons);
 
         if (buttons.WasPressed(previousButtons, PlayerInputButton.Parry))
             TryStartParry();
 
         bool lockHeld = buttons.IsSet(PlayerInputButton.Lock);
         if (lockHeld || previousButtons.IsSet(PlayerInputButton.Lock))
-            SetInputLockTarget(data.lockTarget);
+        {
+            // The client selects only visible targets; the host independently checks
+            // actual nose alignment after this tick's steering, including release.
+            if (IsWithinLockAim(data.aimDirection))
+                SetInputLockTarget(data.lockTarget);
+            else
+                ClearLockTargetInternal();
+        }
         if (lockHeld)
         {
             UpdateLockCharge();
@@ -410,8 +602,6 @@ public class Player : NetworkBehaviour, IAfterRender
         else
         {
             UpdateSpeed();
-
-            PlayerTurn(data, buttons);
 
             GoForward();
         }
@@ -446,7 +636,7 @@ public class Player : NetworkBehaviour, IAfterRender
         float targetSpeed = maxSpeed * SpeedStage / 3f;
         targetSpeed *= GetMovementMultiplier();
 
-        if (TimerIsActive(BoostTimer))
+        if (IsBoosting)
             targetSpeed *= boostMultiplier;
 
         // Brake to zero before reversing direction; magnitude decides acceleration in reverse too.
@@ -472,16 +662,31 @@ public class Player : NetworkBehaviour, IAfterRender
             (TimerIsActive(SlowTimer) ? Mathf.Clamp(SlowMultiplier, 0.05f, 1f) : 1f);
     }
 
-    private void TryStartBoost()
+    private void UpdateHeldBoost(bool held)
     {
-        if (TimerIsActive(BoostCooldown) || IsHitStunned)
+        if (!held)
+        {
+            boostNeedsRelease = false;
             return;
+        }
+        if (boostNeedsRelease || IsHitStunned)
+            return;
+
+        float cost = boostApCostPerSecond * Runner.DeltaTime;
+        if (!TryConsumeAp(cost))
+        {
+            // Exhaust the remaining fraction and avoid rapid on/off boosting as AP regenerates.
+            TryConsumeAp(NowAp);
+            boostNeedsRelease = true;
+            return;
+        }
 
         if (SpeedStage == 0)
             SpeedStage = 1;
 
-        BoostTimer = TickTimer.CreateFromSeconds(Runner, boostDuration);
-        BoostCooldown = TickTimer.CreateFromSeconds(Runner, boostCooldown);
+        IsBoosting = true;
+        if (cost > 0f && NowAp <= 0f)
+            boostNeedsRelease = true;
     }
 
     private void TryStartParry()
@@ -579,7 +784,6 @@ public class Player : NetworkBehaviour, IAfterRender
         if (stats.castSeconds > 0f)
         {
             pendingMagic = selectedMagic;
-            pendingAimDirection = inputAimDirection;
             pendingTargetId = target != null ? target.Object.Id : default;
             castTimer = TickTimer.CreateFromSeconds(Runner, stats.castSeconds);
         }
@@ -613,7 +817,6 @@ public class Player : NetworkBehaviour, IAfterRender
 
         MagicStatEntry stats = GetMagicStats(pendingMagic);
         pendingMagic = MagicType.None;
-        inputAimDirection = pendingAimDirection;
         Player target = Runner.TryFindObject(pendingTargetId, out NetworkObject obj) && obj != null
             ? obj.GetComponent<Player>() : null;
         if (stats.requiresTarget && !IsValidLockTarget(target))
@@ -666,8 +869,9 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private void LaunchMagic(MagicStatEntry stats, Player target)
     {
-        Vector3 direction = inputAimDirection.sqrMagnitude > 0.5f
-            ? inputAimDirection.normalized : transform.forward;
+        // Desired aim steers the pilot; it never bends a shot away from the actual nose.
+        // Resolve at execution time, including spells with a delayed cast.
+        Vector3 direction = transform.forward;
         Vector3 origin = LockAimPoint;
         if (stats.projectileSpeed > 0f)
         {
@@ -924,6 +1128,8 @@ public class Player : NetworkBehaviour, IAfterRender
             return;
 
         IsAlive = false;
+        IsReturningToMap = false;
+        IsBoosting = false;
         if (characterController != null)
             characterController.enabled = false;
         Speed = 0f;
@@ -1004,8 +1210,11 @@ public class Player : NetworkBehaviour, IAfterRender
 
     public void SetLockTarget(NetworkObject target)
     {
-        if (Object.HasInputAuthority && target != null)
-            RPC_SetLockTarget(target.Id);
+        enemyLockOn targeting = GetComponent<enemyLockOn>();
+        if (Object.HasInputAuthority && target != null && targeting != null &&
+            targeting.CanLockTarget(target.GetComponent<Player>()) &&
+            targeting.TryGetAlignedAim(out Vector3 direction))
+            RPC_SetLockTarget(target.Id, direction);
     }
 
     public void ClearLockTarget()
@@ -1020,9 +1229,10 @@ public class Player : NetworkBehaviour, IAfterRender
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    private void RPC_SetLockTarget(NetworkId targetId)
+    private void RPC_SetLockTarget(NetworkId targetId, Vector3 desiredDirection)
     {
-        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
+            !SelectedMagicStats.requiresTarget || !IsWithinLockAim(desiredDirection))
         {
             ClearLockTargetInternal();
             return;
@@ -1167,6 +1377,30 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private void PlayerTurn(NetworkInputData data, NetworkButtons buttons)
     {
+        if (data.steerToAim && IsFiniteDirection(data.aimDirection) && data.aimDirection.sqrMagnitude > 0.0001f)
+        {
+            Vector3 forward = data.aimDirection.normalized;
+            Vector3 up = IsFiniteDirection(data.aimUp) ? data.aimUp : transform.up;
+            up = Vector3.ProjectOnPlane(up, forward);
+            if (up.sqrMagnitude < 0.0001f)
+                up = Vector3.ProjectOnPlane(transform.up, forward);
+            if (up.sqrMagnitude < 0.0001f)
+                up = Vector3.ProjectOnPlane(transform.right, forward);
+            Quaternion desired = Quaternion.LookRotation(forward, up.normalized);
+            float angle = Quaternion.Angle(transform.rotation, desired);
+            float targetRate = angle > 0.01f ? SteeringTurnRate : 0f;
+            float response = targetRate > currentAimTurnSpeed ? turnAccel : returnSpeed;
+            currentAimTurnSpeed = Mathf.Lerp(currentAimTurnSpeed, targetRate,
+                1f - Mathf.Exp(-Mathf.Max(0.01f, response) * Runner.DeltaTime));
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, desired,
+                Mathf.Max(0f, currentAimTurnSpeed) * Runner.DeltaTime);
+            // Only needed if the user switches back to legacy control mode.
+            currentPitch = NormalizePitch(transform.eulerAngles.x);
+            currentYaw = transform.eulerAngles.y;
+            currentTurnSpeed = 0f;
+            return;
+        }
+        currentAimTurnSpeed = 0f;
         currentPitch -= data.look.y * mousePitchSensitivity * GetTurnMultiplier();
         currentPitch = Mathf.Clamp(currentPitch, -maxPitch, maxPitch);
 
@@ -1178,8 +1412,15 @@ public class Player : NetworkBehaviour, IAfterRender
         else
             currentTurnSpeed = Mathf.Lerp(currentTurnSpeed, 0f, returnSpeed * Runner.DeltaTime);
 
-        float yaw = transform.rotation.eulerAngles.y + currentTurnSpeed * Runner.DeltaTime;
-        transform.rotation = Quaternion.Euler(currentPitch, yaw, 0f);
+        currentYaw += currentTurnSpeed * Runner.DeltaTime;
+        transform.rotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
+    }
+
+    private static bool IsFiniteDirection(Vector3 value)
+    {
+        return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+               !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+               !float.IsNaN(value.z) && !float.IsInfinity(value.z) && value.sqrMagnitude <= 4f;
     }
 
     private static float NormalizePitch(float eulerPitch)

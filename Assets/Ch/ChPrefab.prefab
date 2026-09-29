@@ -5458,7 +5458,7 @@ GameObject:
   - component: {fileID: 8619302157754221904}
   m_Layer: 0
   m_Name: ChPrefab
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -5529,6 +5529,8 @@ MonoBehaviour:
   collisionHeight: 1.2
   baseAcceleration: 60
   equipmentStatTable: {fileID: 11400000, guid: a949750258cc43b4aa2e9b6b2ab4ed68, type: 2}
+  lockAimAlignmentTolerance: 1.5
+  lockAimOffset: 3
   maxLockDistance: 250
   lockAimHeight: 0.8
   lockObstructionMask:
@@ -5543,6 +5545,9 @@ MonoBehaviour:
   knockbackDamping: 30
   hitReactionState: AS_Broom_SitFly_Arm_Hit_React
   deathAnimationState: AS_Broom_SitFly_Arm_Knock1_Start
+  _IsBoosting: 0
+  _IsReturningToMap: 0
+  _DiedFromAltitude: 0
   _MaxHp: 0
   _NowHp: 0
   _MaxAp: 0

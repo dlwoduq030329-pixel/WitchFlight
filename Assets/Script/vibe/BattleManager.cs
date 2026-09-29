@@ -14,6 +14,10 @@ public class BattleManager : MonoBehaviour
     [SerializeField] private Transform playerSpawnB;
     [SerializeField] private Transform flagSpawnPoint;
 
+    [Header("Map boundary")]
+    [SerializeField] private MapBoundaryTable mapBoundaryTable;
+    public MapBoundaryTable MapBoundary => mapBoundaryTable;
+
     [Header("Battle Start")]
     [Tooltip("All clients must prepare their scene and portraits before startGame is called automatically.")]
     [SerializeField] private bool autoStartWhenReady = true;
@@ -64,10 +68,25 @@ public class BattleManager : MonoBehaviour
 
     private void Awake()
     {
+        if (mapBoundaryTable != null && !mapBoundaryTable.HasValidBounds)
+            Debug.LogWarning("MapBoundaryTable needs finite xmin < xmax and zmin < zmax. Boundary return is disabled.", this);
+        if (mapBoundaryTable != null && mapBoundaryTable.altitudeLimitEnabled && !mapBoundaryTable.HasValidAltitudeLimit)
+            Debug.LogWarning("MapBoundaryTable needs a finite altitudeFadeStartY < ymax. Altitude death is disabled.", this);
         if (instance == null)
             instance = this;
         else
             Destroy(gameObject);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (mapBoundaryTable == null || !mapBoundaryTable.HasValidBounds)
+            return;
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireCube(new Vector3((mapBoundaryTable.xmin + mapBoundaryTable.xmax) * 0.5f,
+            transform.position.y, (mapBoundaryTable.zmin + mapBoundaryTable.zmax) * 0.5f),
+            new Vector3(mapBoundaryTable.xmax - mapBoundaryTable.xmin, 0f,
+                mapBoundaryTable.zmax - mapBoundaryTable.zmin));
     }
 
     // UnityEvent/Button API. It requests the sequence, never bypasses the readiness barrier.
@@ -214,7 +233,9 @@ public class BattleManager : MonoBehaviour
         if (!spawnedPlayers.TryGetValue(deadPlayer, out NetworkObject deadObject) || deadObject == null)
             return;
 
-        battleFlag?.DropCarrier(deadPlayer, deadObject.transform.position);
+        Player deadPilot = deadObject.GetComponent<Player>();
+        battleFlag?.DropCarrier(deadPlayer, deadObject.transform.position,
+            deadPilot != null && deadPilot.DiedFromAltitude);
         pendingRespawns.Add(new PendingRespawn
         {
             PlayerRef = deadPlayer,

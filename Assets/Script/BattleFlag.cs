@@ -18,6 +18,7 @@ public class BattleFlag : NetworkBehaviour
     [Networked] private bool HasStarted { get; set; }
     [Networked] private NetworkId CarrierObjectId { get; set; }
     [Networked] private Vector3 WorldPosition { get; set; }
+    [Networked] public bool IsDescending { get; private set; }
     [Networked] private TickTimer MatchTimer { get; set; }
     [Networked] public BattleStartPhase Phase { get; private set; }
     [Networked] public int ExpectedPlayerCount { get; private set; }
@@ -28,6 +29,9 @@ public class BattleFlag : NetworkBehaviour
     private bool startRequested;
     private float introSeconds;
     private float matchSeconds;
+    private float initialFlagHeight;
+    private float fallStopHeight;
+    private float fallSpeed;
 
     private struct PositionSample
     {
@@ -56,6 +60,8 @@ public class BattleFlag : NetworkBehaviour
             return;
         WorldPosition = position;
         transform.position = position;
+        initialFlagHeight = position.y;
+        IsDescending = false;
         ExpectedPlayerCount = Mathf.Max(1, requiredPlayers);
         matchSeconds = Mathf.Max(1f, durationSeconds);
         introSeconds = Mathf.Max(0.1f, presentationSeconds);
@@ -189,10 +195,12 @@ public class BattleFlag : NetworkBehaviour
         {
             Player carrier = GetCarrierPlayer();
             if (carrier == null || !carrier.IsAlive)
-                DropCarrier(Carrier, carrier != null ? carrier.transform.position : WorldPosition);
+                DropCarrier(Carrier, carrier != null ? carrier.transform.position : WorldPosition,
+                    carrier != null && carrier.DiedFromAltitude);
             else
                 WorldPosition = carrier.transform.TransformPoint(carryOffset);
         }
+        UpdateDescent();
         CheckPickupAndRecordPositions();
         transform.position = WorldPosition;
     }
@@ -203,15 +211,44 @@ public class BattleFlag : NetworkBehaviour
             ? carrierObject.GetComponent<Player>() : null;
     }
 
-    public void DropCarrier(PlayerRef playerRef, Vector3 position)
+    public void DropCarrier(PlayerRef playerRef, Vector3 position, bool descend = false)
     {
         if (!Object.HasStateAuthority || HasEnded || Carrier != playerRef || playerRef == PlayerRef.None)
             return;
         WorldPosition = position;
         Carrier = PlayerRef.None;
         CarrierObjectId = default;
+        IsDescending = descend;
+        if (descend)
+        {
+            fallStopHeight = Mathf.Min(initialFlagHeight, position.y);
+            MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
+            fallSpeed = Mathf.Max(0.1f, table != null ? table.flagFallSpeed : 5f);
+        }
         // Keep LastCarrier/LastCarrierTeam: the rule is the last holder, even if the flag is dropped.
         previousPositions.Clear();
+    }
+
+    private void UpdateDescent()
+    {
+        if (!IsDescending || Carrier != PlayerRef.None)
+            return;
+        float step = fallSpeed * Runner.DeltaTime;
+        float stopHeight = fallStopHeight;
+        // Stop above solid scenery, ignoring flag triggers and player colliders.
+        foreach (RaycastHit hit in Physics.RaycastAll(WorldPosition, Vector3.down,
+                     step + pickupRadius, ~0, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.collider == null || hit.transform.IsChildOf(transform) ||
+                hit.collider.GetComponentInParent<Player>() != null)
+                continue;
+            stopHeight = Mathf.Max(stopHeight, Mathf.Min(WorldPosition.y, hit.point.y + pickupRadius));
+        }
+        Vector3 position = WorldPosition;
+        position.y = Mathf.Max(stopHeight, position.y - step);
+        WorldPosition = position;
+        if (position.y <= stopHeight)
+            IsDescending = false;
     }
 
     private void CheckPickupAndRecordPositions()
@@ -252,6 +289,7 @@ public class BattleFlag : NetworkBehaviour
         if (candidate == null)
             return;
         Carrier = candidate.Object.InputAuthority;
+        IsDescending = false;
         LastCarrier = Carrier;
         LastCarrierTeam = candidate.TeamIndex;
         CarrierObjectId = candidate.Object.Id;

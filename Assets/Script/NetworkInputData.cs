@@ -22,6 +22,8 @@ public struct NetworkInputData : INetworkInput
     public NetworkButtons buttons;
     public Vector2 look;
     public Vector3 aimDirection;
+    public Vector3 aimUp;
+    public NetworkBool steerToAim;
     public NetworkId lockTarget;
     public NetworkBool suppressActions;
 }

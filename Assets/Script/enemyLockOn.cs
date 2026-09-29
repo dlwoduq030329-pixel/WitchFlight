@@ -22,7 +22,8 @@ public class enemyLockOn : MonoBehaviour
             return;
 
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            !owner.IsAlive || CombatPresentation.MenuOpen || !owner.SelectedMagicStats.requiresTarget)
+            !owner.IsAlive || CombatPresentation.MenuOpen || !owner.SelectedMagicStats.requiresTarget ||
+            !TryGetAlignedAim(out _))
         {
             currentTarget = null;
             return;
@@ -46,7 +47,7 @@ public class enemyLockOn : MonoBehaviour
     {
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
             owner == null || !owner.IsAlive || CombatPresentation.MenuOpen ||
-            !owner.SelectedMagicStats.requiresTarget)
+            !owner.SelectedMagicStats.requiresTarget || !TryGetAlignedAim(out _))
         {
             currentTarget = null;
             return default;
@@ -81,6 +82,31 @@ public class enemyLockOn : MonoBehaviour
             }
         }
         return best;
+    }
+
+    public bool TryGetAlignedAim(out Vector3 direction)
+    {
+        direction = Vector3.zero;
+        if (owner == null || owner.Object == null || !owner.Object.IsValid || !owner.IsAlive ||
+            owner.IsReturningToMap)
+            return false;
+        if (targetCamera == null) targetCamera = Camera.main;
+        if (targetCamera == null || !targetCamera.TryGetComponent(out CameraFollow follow) ||
+            follow.IsBoundaryPresentationActive)
+            return false;
+
+        // Check the circles actually displayed, and also the latest mouse goal so a
+        // rapid turn cannot retain last frame's lock before the camera renders again.
+        Vector3 displayedDirection = (follow.GetDisplayedAimPoint() - owner.LockAimPoint).normalized;
+        direction = follow.TryGetSteeringInput(out Vector3 desired, out _) ? desired : displayedDirection;
+        return owner.IsWithinLockAim(displayedDirection) && owner.IsWithinLockAim(direction);
+    }
+
+    public bool CanLockTarget(Player candidate)
+    {
+        return BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
+            !CombatPresentation.MenuOpen && TryGetAlignedAim(out _) &&
+            owner.SelectedMagicStats.requiresTarget && IsVisible(candidate);
     }
 
     private bool IsVisible(Player candidate)
