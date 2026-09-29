@@ -16,6 +16,12 @@ public class PlayerData : NetworkBehaviour
     [Networked] public Camp camp { get; set; }
     [Networked] public int teamIndex { get; set; }
     [Networked] public int hairLength { get; private set; }
+
+    [Networked] public int hairColor { get; private set; }
+    [Networked] public int clothColor { get; private set; }
+
+
+
     [Networked] public bool IsLoadoutInitialized { get; private set; }
 
     // 전투 중인 Player의 체력/AP 상태를 보존하는 PlayerData 값입니다.
@@ -50,8 +56,8 @@ public class PlayerData : NetworkBehaviour
     {
         hat = NormalizeHat(selectedHat);
         broom = NormalizeBroom(selectedBroom);
-        magic1 = selectedMagic1;
-        magic2 = selectedMagic2;
+        magic1 = NormalizeMagic(selectedMagic1, MagicType.Fire);
+        magic2 = NormalizeMagic(selectedMagic2, MagicType.Ice);
         hairLength = Mathf.Max(0, selectedHairLength);
         IsLoadoutInitialized = true;
         NetworkGameManager.Instance?.NotifyPlayerDataInitialized(this);
@@ -63,7 +69,7 @@ public class PlayerData : NetworkBehaviour
                selectedHat == HatType.Twisted ||
                selectedHat == HatType.Elemental
             ? selectedHat
-            : HatType.None;
+            : HatType.Classic;
     }
 
     private static BroomType NormalizeBroom(BroomType selectedBroom)
@@ -72,7 +78,16 @@ public class PlayerData : NetworkBehaviour
                selectedBroom == BroomType.Standard ||
                selectedBroom == BroomType.Speed
             ? selectedBroom
-            : BroomType.None;
+            : BroomType.Standard;
+    }
+
+    private static MagicType NormalizeMagic(MagicType selectedMagic, MagicType fallback)
+    {
+        // Enum numbers are also backend save values; retain them and only repair empty/invalid slots.
+        int value = (int)selectedMagic;
+        return value >= (int)MagicType.Fire && value <= (int)MagicType.Scane
+            ? selectedMagic
+            : fallback;
     }
 
     public void SetBattleHealth(float maxHp, float currentHp)

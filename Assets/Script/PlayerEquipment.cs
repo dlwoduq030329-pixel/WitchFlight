@@ -42,7 +42,9 @@ public class PlayerEquipment : MonoBehaviour
 
     public void ChangeMagic(int slot)
     {
-        if (slot != 1 && slot != 2)
+        // 3번은 기획서의 고정 패링 슬롯입니다. 지팡이를 생성하지 않고
+        // 이미 배치된 두 일반 마법 지팡이만 활성/비활성 전환합니다.
+        if (slot < 1 || slot > 3)
             return;
 
         if (currentMagicSlot == slot)
@@ -53,7 +55,11 @@ public class PlayerEquipment : MonoBehaviour
         if (magicStaff2 != null)
             magicStaff2.SetActive(false);
 
-        GameObject selectedStaff = slot == 1 ? magicStaff1 : magicStaff2;
+        GameObject selectedStaff = slot == 1
+            ? magicStaff1
+            : slot == 2
+                ? magicStaff2
+                : null;
         if (selectedStaff != null)
             selectedStaff.SetActive(true);
 
@@ -114,3 +120,4 @@ public class PlayerEquipment : MonoBehaviour
         }
     }
 }
+

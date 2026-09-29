@@ -26,6 +26,10 @@ public struct BroomStatEntry
     [Tooltip("이 빗자루를 착용했을 때의 HP 최대치입니다.")]
     public float maxHp;
 
+    [Min(0.01f)]
+    [Tooltip("W/S 3단계에서의 전진·후진 최대 이동 속도(m/s)입니다.")]
+    public float maxSpeed;
+
     [Min(0f)]
     [Tooltip("일반 선회의 최대 각속도(도/초)입니다.")]
     public float turnSpeed;
@@ -41,6 +45,26 @@ public struct BroomStatEntry
     [Min(0f)]
     [Tooltip("적 고정 추적 중의 최대 선회 각속도(도/초)입니다.")]
     public float lockOnTurnSpeed;
+
+    [Min(0.01f)]
+    [Tooltip("W/S 단계 변경 후 목표 속도에 도달하는 속도입니다.")]
+    public float speedStageTransitionSpeed;
+
+    [Min(0.01f)]
+    [Tooltip("감속 단계에서 현재 속도를 줄이는 속도입니다.")]
+    public float brakeSpeed;
+
+    [Min(1f)]
+    [Tooltip("Shift 부스트 중 목표 속도에 적용할 배율입니다.")]
+    public float boostMultiplier;
+
+    [Min(0.01f)]
+    [Tooltip("Shift 부스트 유지 시간입니다.")]
+    public float boostDuration;
+
+    [Min(0f)]
+    [Tooltip("Shift 부스트 재사용 대기 시간입니다.")]
+    public float boostCooldown;
 }
 
 [CreateAssetMenu(fileName = "EquipmentStatTable", menuName = "WitchFlight/Combat/Equipment Stat Table")]
@@ -58,7 +82,7 @@ public sealed class EquipmentStatTable : ScriptableObject
     public HatStatEntry[] hats = new HatStatEntry[3];
 
     [Header("Brooms (3)")]
-    [Tooltip("Slow, Standard, Speed 세 빗자루의 HP/선회 능력치를 편집합니다.")]
+    [Tooltip("Slow, Standard, Speed 세 빗자루의 HP/이동/선회 능력치를 편집합니다.")]
     public BroomStatEntry[] brooms = new BroomStatEntry[3];
 
     public HatStatEntry GetHatStats(HatType selectedHat)

@@ -3,6 +3,7 @@ using UnityEngine;
 public class PlayerAppearance : MonoBehaviour
 {
     [SerializeField] private Transform hairRoot;
+    [SerializeField] private string[] autoDetectHairRootNames = { "LongHair", "Hair_Back_rurune", "Hair" };
     [SerializeField, Min(0)] private int maxHairLength = 10;
     [SerializeField, Min(0.01f)] private float shortestScaleY = 0.5f;
     [SerializeField, Min(0.01f)] private float longestScaleY = 1.5f;
@@ -12,12 +13,13 @@ public class PlayerAppearance : MonoBehaviour
 
     public void ApplyHairLength(int hairLength)
     {
-        if (hairRoot == null)
+        Transform root = ResolveHairRoot();
+        if (root == null)
             return;
 
         if (!hasCachedDefaultScale)
         {
-            defaultHairScale = hairRoot.localScale;
+            defaultHairScale = root.localScale;
             hasCachedDefaultScale = true;
         }
 
@@ -28,6 +30,30 @@ public class PlayerAppearance : MonoBehaviour
         Vector3 scale = defaultHairScale;
         scale.y = defaultHairScale.y *
                   Mathf.Lerp(shortestScaleY, longestScaleY, normalizedLength);
-        hairRoot.localScale = scale;
+        // Temporarily disable hair scaling to diagnose missing hair in intro portraits.
+        // root.localScale = scale;
+    }
+
+    private Transform ResolveHairRoot()
+    {
+        if (hairRoot != null)
+            return hairRoot;
+
+        foreach (Transform candidate in GetComponentsInChildren<Transform>(true))
+        {
+            if (autoDetectHairRootNames == null)
+                continue;
+
+            foreach (string candidateName in autoDetectHairRootNames)
+            {
+                if (candidate.name == candidateName)
+                {
+                    hairRoot = candidate;
+                    return hairRoot;
+                }
+            }
+        }
+
+        return null;
     }
 }

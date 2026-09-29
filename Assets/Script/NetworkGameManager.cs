@@ -13,6 +13,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     private static NetworkGameManager instance;
     public static NetworkGameManager Instance => instance;
+    public bool IsMatching => _runner != null;
+    public bool IsBattleSceneLoaded { get; private set; }
+    public int RequiredPlayerCount => Mathf.Max(1, maxPlayerCount);
 
     [Header("Scene")]
     [SerializeField] private int battleSceneIndex = 1;
@@ -42,6 +45,35 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     private bool isGameStarting = false;
     private Coroutine battleInitializationRoutine;
+    private Vector2 accumulatedLook;
+    private NetworkButtons latchedButtons;
+
+    private void Update()
+    {
+        if (_runner == null || Player.LocalPlayer == null || BattleManager.Instance == null ||
+            !BattleManager.Instance.IsGameplayActive || CombatPresentation.MenuOpen ||
+            Cursor.lockState != CursorLockMode.Locked)
+        {
+            accumulatedLook = Vector2.zero;
+            latchedButtons = default;
+            return;
+        }
+
+        accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
+        LatchButton(PlayerInputButton.Accelerate, Input.GetKeyDown(KeyCode.W));
+        LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
+        LatchButton(PlayerInputButton.Parry, Input.GetMouseButtonDown(1));
+        LatchButton(PlayerInputButton.Boost, Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift));
+        LatchButton(PlayerInputButton.MagicSlot1, Input.GetKeyDown(KeyCode.Alpha1));
+        LatchButton(PlayerInputButton.MagicSlot2, Input.GetKeyDown(KeyCode.Alpha2));
+        LatchButton(PlayerInputButton.MagicSlot3, Input.GetKeyDown(KeyCode.Alpha3));
+    }
+
+    private void LatchButton(PlayerInputButton button, bool pressed)
+    {
+        if (pressed)
+            latchedButtons.Set(button, true);
+    }
 
 
     // 게임 시작 전, NetworkGameManager가 생성될 때 자동 호출
@@ -105,6 +137,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     {
         _runner = gameObject.AddComponent<NetworkRunner>();
 
+        _runner.AddCallbacks(this);
         _runner.ProvideInput = true;
 
         SceneRef scene =
@@ -196,6 +229,7 @@ NetworkObject playerDataObject = runner.Spawn(
         }
 
         data.teamIndex = teamIndex;
+        data.camp = teamIndex == 1 ? Camp.A : Camp.B;
     }
     // PlayerData가 생성된 후 PlayerData.Spawned()에서 호출
     // 생성된 PlayerData를 Dictionary에 등록
@@ -259,6 +293,7 @@ NetworkObject playerDataObject = runner.Spawn(
         }
 
         isGameStarting = true;
+        _runner.SessionInfo.IsOpen = false;
 
         LoadBattleScene();
     }
@@ -284,13 +319,14 @@ NetworkObject playerDataObject = runner.Spawn(
     public void OnSceneLoadDone(
         NetworkRunner runner)
     {
-        if (!runner.IsServer)
-            return;
-
         int sceneIndex =
             SceneManager.GetActiveScene().buildIndex;
 
+        IsBattleSceneLoaded = sceneIndex == battleSceneIndex;
         if (sceneIndex != battleSceneIndex)
+            return;
+
+        if (!runner.IsServer)
             return;
 
         BattleManager battleManager =
@@ -385,6 +421,8 @@ NetworkObject playerDataObject = runner.Spawn(
         if (!runner.IsServer)
             return;
 
+        BattleManager.Instance?.PlayerLeft(player);
+
         if (spawnedPlayers.TryGetValue(
             player,
             out NetworkObject playerObject))
@@ -411,21 +449,62 @@ NetworkObject playerDataObject = runner.Spawn(
     {
         NetworkInputData data =
             new NetworkInputData();
+        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
+            CombatPresentation.MenuOpen || Cursor.lockState != CursorLockMode.Locked)
+        {
+            data.suppressActions = true;
+            accumulatedLook = Vector2.zero;
+            latchedButtons = default;
+            input.Set(data);
+            return;
+        }
+        data.buttons.Set(PlayerInputButton.Accelerate, Input.GetKey(KeyCode.W));
+        data.buttons.Set(PlayerInputButton.Decelerate, Input.GetKey(KeyCode.S));
+        data.buttons.Set(PlayerInputButton.TurnLeft, Input.GetKey(KeyCode.A));
+        data.buttons.Set(PlayerInputButton.TurnRight, Input.GetKey(KeyCode.D));
+        data.buttons.Set(PlayerInputButton.Lock, Input.GetMouseButton(0));
+        data.buttons.Set(PlayerInputButton.Parry, Input.GetMouseButton(1));
+        data.buttons.Set(PlayerInputButton.Boost,
+            Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+        data.buttons.Set(PlayerInputButton.MagicSlot1, Input.GetKey(KeyCode.Alpha1));
+        data.buttons.Set(PlayerInputButton.MagicSlot2, Input.GetKey(KeyCode.Alpha2));
+        data.buttons.Set(PlayerInputButton.MagicSlot3, Input.GetKey(KeyCode.Alpha3));
+        data.buttons.Set(PlayerInputButton.Menu, Input.GetKey(KeyCode.Escape));
 
-        data.accelerate =
-            Input.GetKey(KeyCode.W);
-
-        data.decelerate =
-            Input.GetKey(KeyCode.S);
-
-        data.turnLeft =
-            Input.GetKey(KeyCode.A);
-
-        data.turnRight =
-            Input.GetKey(KeyCode.D);
-
-        data.mouseY =
-            Input.GetAxisRaw("Mouse Y");
+        for (int i = 0; i <= (int)PlayerInputButton.Menu; i++)
+        {
+            if (latchedButtons.IsSet(i))
+                data.buttons.Set(i, true);
+        }
+        latchedButtons = default;
+        data.look = accumulatedLook;
+        accumulatedLook = Vector2.zero;
+        Player local = Player.LocalPlayer;
+        if (local != null)
+        {
+            enemyLockOn targeting = local.GetComponent<enemyLockOn>();
+            if (targeting != null)
+                data.lockTarget = targeting.GetInputTarget();
+            Camera view = Camera.main;
+            data.aimDirection = local.transform.forward;
+            if (view != null)
+            {
+                Ray ray = view.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+                float range = Mathf.Max(1f, local.SelectedMagicStats.range);
+                if (range <= 1f)
+                    range = 250f;
+                Vector3 point = ray.GetPoint(range);
+                float closest = range;
+                foreach (RaycastHit hit in Physics.RaycastAll(ray, range, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    if (hit.transform.IsChildOf(local.transform) || hit.distance >= closest)
+                        continue;
+                    closest = hit.distance;
+                    point = hit.point;
+                }
+                data.aimDirection = (point - local.LockAimPoint).normalized;
+            }
+        }
 
         input.Set(data);
     }
@@ -445,6 +524,9 @@ NetworkObject playerDataObject = runner.Spawn(
         NetworkRunner runner,
         ShutdownReason shutdownReason)
     {
+        IsBattleSceneLoaded = false;
+        accumulatedLook = Vector2.zero;
+        latchedButtons = default;
         _runner = null;
         isGameStarting = false;
         spawnedPlayers.Clear();
@@ -531,6 +613,9 @@ NetworkObject playerDataObject = runner.Spawn(
     public void OnSceneLoadStart(
         NetworkRunner runner)
     {
+        IsBattleSceneLoaded = false;
+        accumulatedLook = Vector2.zero;
+        latchedButtons = default;
     }
 
 

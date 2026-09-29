@@ -301,6 +301,7 @@ GameObject:
   m_Component:
   - component: {fileID: 244481545}
   - component: {fileID: 244481544}
+  - component: {fileID: 244481546}
   m_Layer: 0
   m_Name: NetworkGameManager
   m_TagString: Untagged
@@ -342,6 +343,33 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &244481546
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 244481543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9db693224ea343c492c6a9112b4e7b18, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lobbyUiRoot: {fileID: 0}
+  loadoutPanel: {fileID: 0}
+  toggleButton: {fileID: 0}
+  closeButton: {fileID: 0}
+  hatDropdown: {fileID: 0}
+  broomDropdown: {fileID: 0}
+  magic1Dropdown: {fileID: 0}
+  magic2Dropdown: {fileID: 0}
+  hairLengthSlider: {fileID: 0}
+  statusText: {fileID: 0}
+  hatStatsText: {fileID: 0}
+  broomStatsText: {fileID: 0}
+  magic1StatsText: {fileID: 0}
+  magic2StatsText: {fileID: 0}
+  hairLengthText: {fileID: 0}
 --- !u!1 &254666564
 GameObject:
   m_ObjectHideFlags: 0
@@ -1218,10 +1246,58 @@ PrefabInstance:
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
       objectReference: {fileID: 13569361}
+    - target: {fileID: 3025491648602466337, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3025491648602466337, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4125647479219857311, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4125647479219857311, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4725808325297360618, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
       objectReference: {fileID: 244481544}
+    - target: {fileID: 5723744781041478526, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5723744781041478526, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7799351609497596167, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7799351609497596167, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8113162741227484391, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8113162741227484391, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8667206068374398364, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8667206068374398364, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8675653520467550097, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
       propertyPath: m_Name
       value: IntroAndRobby
@@ -1269,10 +1345,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8843826003985683217, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 0}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

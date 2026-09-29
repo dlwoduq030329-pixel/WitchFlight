@@ -1,293 +1,282 @@
+using System;
+using System.Collections.Generic;
+using Fusion;
 using UnityEngine;
 
-using Fusion;
-
-using System.Collections.Generic;
-
+[RequireComponent(typeof(BattleIntroPresentation))]
 public class BattleManager : MonoBehaviour
 {
     [Header("Network Prefab")]
     [SerializeField] private NetworkPrefabRef flagPrefab;
 
-
     [Header("Battle Spawn Point")]
-
     [SerializeField] private Transform playerSpawnA;
-
     [SerializeField] private Transform playerSpawnB;
-
     [SerializeField] private Transform flagSpawnPoint;
 
+    [Header("Battle Start")]
+    [Tooltip("All clients must prepare their scene and portraits before startGame is called automatically.")]
+    [SerializeField] private bool autoStartWhenReady = true;
+    [Tooltip("Face-versus-face presentation duration, before the shared three-second countdown.")]
+    [SerializeField, Min(0.1f)] private float introDurationSeconds = 5f;
+
+    [Header("Flag Match / Respawn")]
+    [Tooltip("Match duration in seconds. The last flag holder wins when time expires.")]
+    [SerializeField, Min(1f)] private float matchDurationSeconds = 180f;
+    [SerializeField, Min(0f)] private float deathDespawnDelay = 2f;
+    [Tooltip("Time measured from death, not from disappearance.")]
+    [SerializeField, Min(0.1f)] private float respawnDelaySeconds = 7f;
+
+    private sealed class PendingRespawn
+    {
+        public PlayerRef PlayerRef;
+        public NetworkObject DeadObject;
+        public TickTimer DespawnAt;
+        public TickTimer RespawnAt;
+    }
 
     private NetworkRunner runner;
-
     private Dictionary<PlayerRef, PlayerData> playerDatas;
-
     private Dictionary<PlayerRef, NetworkObject> spawnedPlayers;
-
-
-    private NetworkObject spawnedFlag;
+    private NetworkPrefabRef playerPrefab;
+    private readonly List<PendingRespawn> pendingRespawns = new();
+    private BattleFlag battleFlag;
     private bool isInitialized;
+    private bool resultAnnounced;
+    private bool startRequestedLocally;
+    private static BattleManager instance;
 
-    private static BattleManager instance = null;
     public static BattleManager Instance => instance;
+    private bool HasValidFlag => battleFlag != null && battleFlag.Object != null && battleFlag.Object.IsValid;
+    public BattleStartPhase Phase => HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
+    public bool IsGameplayActive => Phase == BattleStartPhase.Playing;
+    public bool AutoStartWhenReady => autoStartWhenReady;
+    public int ExpectedPlayerCount => HasValidFlag && battleFlag.ExpectedPlayerCount > 0
+        ? battleFlag.ExpectedPlayerCount : NetworkGameManager.Instance != null
+            ? NetworkGameManager.Instance.RequiredPlayerCount : 2;
+    public float PhaseRemainingSeconds => HasValidFlag ? battleFlag.PhaseRemainingSeconds : 0f;
+    public bool IsBattleEnded => battleFlag != null && battleFlag.Object != null &&
+        battleFlag.Object.IsValid && battleFlag.HasEnded;
+    public float RemainingSeconds => battleFlag != null ? battleFlag.RemainingSeconds : 0f;
+    public int WinningTeam => IsBattleEnded ? battleFlag.WinningTeam : 0;
+    public float RespawnDelaySeconds => respawnDelaySeconds;
+    public event Action<int> BattleEnded;
 
     private void Awake()
     {
         if (instance == null)
-        {
             instance = this;
-        }
         else
-        {
             Destroy(gameObject);
+    }
+
+    // UnityEvent/Button API. It requests the sequence, never bypasses the readiness barrier.
+    public void startGame()
+    {
+        if (Phase != BattleStartPhase.WaitingForPlayers)
+            return;
+        startRequestedLocally = true;
+        TrySendStartRequest();
+    }
+
+    public void StartGame() => startGame();
+
+    private void Update()
+    {
+        if (startRequestedLocally)
+            TrySendStartRequest();
+    }
+
+    private void TrySendStartRequest()
+    {
+        if (!HasValidFlag)
+            return;
+        if (battleFlag.Object.HasStateAuthority)
+        {
+            battleFlag.RequestStart();
+            startRequestedLocally = false;
+        }
+        else if (Player.LocalPlayer != null && Player.LocalPlayer.IsPresentationReady)
+        {
+            Player.LocalPlayer.RequestBattleStart();
+            startRequestedLocally = false;
         }
     }
 
-
-    // =========================================================
-    // 전투 초기화
-    //
-    // NetworkGameManager의
-    // OnSceneLoadDone()에서 호출
-    // =========================================================
-    public void InitializeBattle(
-        NetworkRunner runner,
-        Dictionary<PlayerRef, PlayerData> playerDatas,
-        NetworkPrefabRef playerPrefab,
+    // NetworkGameManager calls this only on the host after PlayerData is ready.
+    public void InitializeBattle(NetworkRunner runner,
+        Dictionary<PlayerRef, PlayerData> playerDatas, NetworkPrefabRef playerPrefab,
         Dictionary<PlayerRef, NetworkObject> spawnedPlayers)
     {
-        if (isInitialized)
+        if (isInitialized || runner == null || !runner.IsServer)
             return;
 
         isInitialized = true;
         this.runner = runner;
-
         this.playerDatas = playerDatas;
-
+        this.playerPrefab = playerPrefab;
         this.spawnedPlayers = spawnedPlayers;
-
-
+        pendingRespawns.Clear();
+        resultAnnounced = false;
         FindSpawnPoints();
-
-
-        SpawnBattlePlayers(
-            playerPrefab
-        );
-
-
+        SpawnBattlePlayers(playerPrefab);
         SpawnFlag();
-
-
-        StartBattle();
     }
 
-
-    // =========================================================
-    // 전투씬 내부 SpawnPoint 탐색
-    //
-    // NetworkGameManager는 DontDestroyOnLoad이기 때문에
-    // 씬이 변경되면 기존 Transform 참조를 사용할 수 없다.
-    //
-    // 따라서 전투씬 로딩 이후
-    // SpawnPoint를 다시 찾는다.
-    // =========================================================
     private void FindSpawnPoints()
     {
-        // Inspector reference is preferred. Names are only a fallback so this
-        // scene does not require undefined custom Unity tags.
-        GameObject spawnA =
-            playerSpawnA == null
-            ? GameObject.Find("PlayerSpawnA")
-            : null;
-
-        GameObject spawnB =
-            playerSpawnB == null
-            ? GameObject.Find("PlayerSpawnB")
-            : null;
-
-        GameObject flagSpawn =
-            flagSpawnPoint == null
-            ? GameObject.Find("FlagSpawn")
-            : null;
-
-
-        if (spawnA != null)
-        {
-            playerSpawnA =
-                spawnA.transform;
-        }
-
-
-        if (spawnB != null)
-        {
-            playerSpawnB =
-                spawnB.transform;
-        }
-
-
-        if (flagSpawn != null)
-        {
-            flagSpawnPoint =
-                flagSpawn.transform;
-        }
+        if (playerSpawnA == null)
+            playerSpawnA = FindSpawnPoint("PlayerSpawnA", "spawnA");
+        if (playerSpawnB == null)
+            playerSpawnB = FindSpawnPoint("PlayerSpawnB", "spawnB");
+        if (flagSpawnPoint == null)
+            flagSpawnPoint = FindSpawnPoint("FlagSpawn", "Flag");
     }
 
+    private static Transform FindSpawnPoint(string preferredName, string sceneName)
+    {
+        GameObject found = GameObject.Find(preferredName) ?? GameObject.Find(sceneName);
+        return found != null ? found.transform : null;
+    }
 
-    // =========================================================
-    // PlayerData를 기반으로
-    // 실제 전투 Player 생성
-    // =========================================================
-    private void SpawnBattlePlayers(
-        NetworkPrefabRef playerPrefab)
+    private void SpawnBattlePlayers(NetworkPrefabRef prefab)
     {
         foreach (KeyValuePair<PlayerRef, PlayerData> pair in playerDatas)
+            SpawnBattlePlayer(pair.Key, pair.Value, prefab);
+    }
+
+    private void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab)
+    {
+        if (playerData == null || !playerData.IsLoadoutInitialized || !IsConnected(playerRef))
+            return;
+        if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject existing) &&
+            existing != null && existing.IsValid)
+            return;
+
+        Transform spawn = playerData.teamIndex == 1 ? playerSpawnA : playerSpawnB;
+        if (spawn == null || (playerData.teamIndex != 1 && playerData.teamIndex != 2))
         {
-            PlayerRef playerRef = pair.Key;
-            PlayerData playerData = pair.Value;
-
-            if (playerData == null || !playerData.IsLoadoutInitialized)
-            {
-                Debug.LogError($"{playerRef} PlayerData is not ready.");
-                continue;
-            }
-
-            Vector3 spawnPosition = GetSpawnPosition(playerData.teamIndex);
-            Debug.Log($"Spawning {playerRef}: teamIndex={playerData.teamIndex}, position={spawnPosition}");
-            NetworkObject playerObject = runner.Spawn(
-                playerPrefab,
-                spawnPosition,
-                Quaternion.identity,
-                playerRef
-            );
-
-            if (playerObject == null)
-            {
-                Debug.LogError($"Failed to spawn Player for {playerRef}.");
-                continue;
-            }
-
-            spawnedPlayers[playerRef] = playerObject;
-
-            Player player = playerObject.GetComponent<Player>();
-            if (player != null)
-                InitializePlayer(player, playerData);
+            Debug.LogError($"Missing spawn point for team {playerData.teamIndex}.", this);
+            return;
         }
+
+        NetworkObject playerObject = runner.Spawn(prefab, spawn.position, spawn.rotation, playerRef);
+        if (playerObject == null)
+            return;
+
+        spawnedPlayers[playerRef] = playerObject;
+        runner.SetPlayerObject(playerRef, playerObject);
+        Player player = playerObject.GetComponent<Player>();
+        if (player != null)
+            player.InitPlayer(playerData);
     }
-    // =========================================================
-    // 플레이어 생성 위치 반환
-    // =========================================================
-    private Vector3 GetSpawnPosition(
-        int teamIndex)
+
+    private bool IsConnected(PlayerRef playerRef)
     {
-        if (teamIndex == 1 && playerSpawnA != null)
-            return playerSpawnA.position;
-
-        if (teamIndex == 2 && playerSpawnB != null)
-            return playerSpawnB.position;
-
-        Debug.LogError($"Unknown teamIndex ({teamIndex}). Player will use the fallback spawn position.");
-        return Vector3.zero;
-    }
-    // =========================================================
-    // PlayerData 정보를
-    // 실제 Player에 적용
-    //
-    // 이후 PlayerData에
-    //
-    // speed
-    // hp
-    //
-    // 등이 추가되면 여기에서 전달
-    // =========================================================
-    private void InitializePlayer(
-        Player player,
-        PlayerData playerData)
-    {
-        player.InitPlayer(
-            playerData
-        );
+        if (runner == null || !runner.IsRunning)
+            return false;
+        foreach (PlayerRef active in runner.ActivePlayers)
+            if (active == playerRef)
+                return true;
+        return false;
     }
 
-
-    // =========================================================
-    // 중앙 깃발 생성
-    // =========================================================
     private void SpawnFlag()
     {
-        if (spawnedFlag != null)
+        if (battleFlag != null || !flagPrefab.IsValid)
             return;
-
-        if (!flagPrefab.IsValid)
+        Vector3 position = flagSpawnPoint != null ? flagSpawnPoint.position : Vector3.zero;
+        Quaternion rotation = flagSpawnPoint != null ? flagSpawnPoint.rotation : Quaternion.identity;
+        NetworkObject flagObject = runner.Spawn(flagPrefab, position, rotation);
+        BattleFlag flag = flagObject != null ? flagObject.GetComponent<BattleFlag>() : null;
+        if (flag == null)
         {
-            Debug.LogWarning("BattleManager Flag Prefab is not assigned; skipping flag spawn.");
+            Debug.LogError("FlagOBJ must have BattleFlag and be registered as a network prefab.", this);
             return;
         }
-
-
-        Vector3 spawnPosition =
-            flagSpawnPoint != null
-            ? flagSpawnPoint.position
-            : Vector3.zero;
-
-
-        spawnedFlag =
-            runner.Spawn(
-                flagPrefab,
-                spawnPosition,
-                Quaternion.identity
-            );
+        RegisterFlag(flag);
+        flag.PrepareMatch(position, matchDurationSeconds, ExpectedPlayerCount, introDurationSeconds);
     }
 
-
-    // =========================================================
-    // 전투 시작
-    //
-    // 이후 여기에서
-    //
-    // TickTimer 생성
-    // 전투 시간 시작
-    //
-    // 등의 기능 추가
-    // =========================================================
-    private void StartBattle()
+    // BattleFlag.Spawned also calls this on remote clients.
+    public void RegisterFlag(BattleFlag flag)
     {
+        battleFlag = flag;
     }
 
-
-    // =========================================================
-    // 플레이어 사망 처리
-    //
-    // 이후 Player의 사망 시스템에서
-    // 이 함수를 호출하도록 연결
-    // =========================================================
-    public void PlayerKilled(
-        PlayerRef deadPlayer,
-        PlayerRef killerPlayer)
+    public void PlayerKilled(PlayerRef deadPlayer, PlayerRef killerPlayer)
     {
-        /*
-         *
-         * 이후 Flag 시스템과 연결
-         *
-         * deadPlayer가 Flag를 가지고 있었다면
-         *
-         * killerPlayer에게 Flag 이전
-         *
-         */
+        if (runner == null || !runner.IsServer || !IsGameplayActive || deadPlayer == PlayerRef.None)
+            return;
+        foreach (PendingRespawn pending in pendingRespawns)
+            if (pending.PlayerRef == deadPlayer)
+                return;
+        if (!spawnedPlayers.TryGetValue(deadPlayer, out NetworkObject deadObject) || deadObject == null)
+            return;
+
+        battleFlag?.DropCarrier(deadPlayer, deadObject.transform.position);
+        pendingRespawns.Add(new PendingRespawn
+        {
+            PlayerRef = deadPlayer,
+            DeadObject = deadObject,
+            DespawnAt = TickTimer.CreateFromSeconds(runner, Mathf.Min(deathDespawnDelay, respawnDelaySeconds)),
+            RespawnAt = TickTimer.CreateFromSeconds(runner, respawnDelaySeconds)
+        });
     }
 
-
-    // =========================================================
-    // 게임 종료
-    //
-    // 이후 Timer 종료 시 호출
-    // =========================================================
-    private void EndBattle()
+    public void PlayerLeft(PlayerRef playerRef)
     {
+        if (runner == null || !runner.IsServer)
+            return;
+        battleFlag?.ForgetReadyPlayer(playerRef);
+        if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject playerObject) && playerObject != null)
+            battleFlag?.DropCarrier(playerRef, playerObject.transform.position);
+        pendingRespawns.RemoveAll(pending => pending.PlayerRef == playerRef);
+    }
+
+    // Called from the authoritative flag's network tick: no scene-lifetime coroutines.
+    public void TickRespawns()
+    {
+        if (runner == null || !runner.IsRunning || !runner.IsServer || !IsGameplayActive)
+            return;
+        for (int index = pendingRespawns.Count - 1; index >= 0; index--)
+        {
+            PendingRespawn pending = pendingRespawns[index];
+            if (!IsConnected(pending.PlayerRef))
+            {
+                pendingRespawns.RemoveAt(index);
+                continue;
+            }
+            if (pending.DespawnAt.Expired(runner) && pending.DeadObject != null)
+            {
+                if (pending.DeadObject.IsValid)
+                    runner.Despawn(pending.DeadObject);
+                if (spawnedPlayers.TryGetValue(pending.PlayerRef, out NetworkObject registered) &&
+                    registered == pending.DeadObject)
+                    spawnedPlayers.Remove(pending.PlayerRef);
+                pending.DeadObject = null;
+            }
+            if (!pending.RespawnAt.Expired(runner))
+                continue;
+            if (playerDatas.TryGetValue(pending.PlayerRef, out PlayerData playerData))
+                SpawnBattlePlayer(pending.PlayerRef, playerData, playerPrefab);
+            pendingRespawns.RemoveAt(index);
+        }
+    }
+
+    public void NotifyBattleEnded(int winningTeam)
+    {
+        if (resultAnnounced)
+            return;
+        resultAnnounced = true;
+        pendingRespawns.Clear();
+        Debug.Log(winningTeam > 0 ? $"Flag match ended. Team {winningTeam} wins." : "Flag match ended in a draw.");
+        BattleEnded?.Invoke(winningTeam);
     }
 
     private void OnDestroy()
     {
+        pendingRespawns.Clear();
         if (instance == this)
             instance = null;
     }

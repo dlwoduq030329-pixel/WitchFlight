@@ -21,4 +21,9 @@ public class CameraManager : MonoBehaviour
     {
         follow.setAim(temp);
     }
+    public void SetLockTarget(Player target)
+    {
+        follow?.SetLockTarget(target);
+    }
+
 }

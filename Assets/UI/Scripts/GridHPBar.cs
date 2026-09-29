@@ -11,8 +11,6 @@ public class GridHPBar : MonoBehaviour
 
     void Awake()
     {
-        // 하위의 모든 HP_Cell 이미지를 가져옴
-        hpCells = gridParent.GetComponentsInChildren<Image>();
         UpdateHP(currentPercent);
     }
 
@@ -21,6 +19,10 @@ public class GridHPBar : MonoBehaviour
     {
         currentPercent = Mathf.Clamp01(percent);
 
+        // UI binding may run before Awake or while this bar is inactive.
+        if (hpCells == null && gridParent != null)
+            hpCells = gridParent.GetComponentsInChildren<Image>(true);
+
         if (hpCells == null || hpCells.Length == 0) return;
 
         // 예: 칸이 총 10개라면, 켜져야 할 칸의 개수를 구함
@@ -28,6 +30,7 @@ public class GridHPBar : MonoBehaviour
 
         for (int i = 0; i < hpCells.Length; i++)
         {
+            if (hpCells[i] == null) continue;
             Color color = hpCells[i].color;
 
             if (i < activeCellsCount)
@@ -42,6 +45,16 @@ public class GridHPBar : MonoBehaviour
 
             hpCells[i].color = color;
         }
+    }
+
+    // Connect linkuserinfo's Dynamic PlayerData event to this method.
+    public void UpdateFromPlayerData(PlayerData data)
+    {
+        bool valid = data != null && data.Object != null && data.Object.IsValid &&
+                     data.Runner != null && data.Runner.IsRunning;
+        UpdateHP(valid && data.BattleMaxHp > 0f
+            ? data.BattleCurrentHp / data.BattleMaxHp
+            : 0f);
     }
 
     // ⭐ [중요] 버튼 클릭 이벤트에 연결해서 테스트할 함수
