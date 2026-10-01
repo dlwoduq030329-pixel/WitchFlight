@@ -13,16 +13,23 @@ MonoBehaviour:
   m_Name: EquipmentStatTable
   m_EditorClassIdentifier: 
   defaultHat:
-    hat: 0
+    hat: 1
     maxAp: 100
     apRecoveryPerSecond: 10
   defaultBroom:
-    broom: 0
-    maxHp: 200
-    turnSpeed: 180
-    turnAcceleration: 18
-    turnReturnSpeed: 30
+    broom: 2
+    maxHp: 220
+    maxSpeed: 30
+    turnSpeed: 135
+    turnAcceleration: 9
+    turnReturnSpeed: 18
     lockOnTurnSpeed: 360
+    speedStageTransitionSpeed: 35
+    brakeSpeed: 28
+    boostMultiplier: 1.35
+    boostApCostPerSecond: 20
+    boostDuration: 0.45
+    boostCooldown: 1.5
   hats:
   - hat: 1
     maxAp: 150
@@ -36,19 +43,40 @@ MonoBehaviour:
   brooms:
   - broom: 1
     maxHp: 300
-    turnSpeed: 120
-    turnAcceleration: 12
-    turnReturnSpeed: 20
+    maxSpeed: 22.5
+    turnSpeed: 45
+    turnAcceleration: 6
+    turnReturnSpeed: 12
     lockOnTurnSpeed: 240
+    speedStageTransitionSpeed: 22
+    brakeSpeed: 18
+    boostMultiplier: 1.18
+    boostApCostPerSecond: 20
+    boostDuration: 0.35
+    boostCooldown: 1.9
   - broom: 2
     maxHp: 220
-    turnSpeed: 180
-    turnAcceleration: 18
-    turnReturnSpeed: 30
+    maxSpeed: 30
+    turnSpeed: 67.5
+    turnAcceleration: 9
+    turnReturnSpeed: 18
     lockOnTurnSpeed: 360
+    speedStageTransitionSpeed: 35
+    brakeSpeed: 28
+    boostMultiplier: 1.35
+    boostApCostPerSecond: 20
+    boostDuration: 0.45
+    boostCooldown: 1.5
   - broom: 3
     maxHp: 160
-    turnSpeed: 240
-    turnAcceleration: 24
-    turnReturnSpeed: 40
+    maxSpeed: 37.5
+    turnSpeed: 90
+    turnAcceleration: 12
+    turnReturnSpeed: 24
     lockOnTurnSpeed: 480
+    speedStageTransitionSpeed: 52
+    brakeSpeed: 40
+    boostMultiplier: 1.55
+    boostApCostPerSecond: 20
+    boostDuration: 0.6
+    boostCooldown: 1.1
