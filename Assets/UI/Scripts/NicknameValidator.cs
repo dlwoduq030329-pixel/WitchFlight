@@ -6,14 +6,19 @@ using UnityEngine.UI;
 using TMPro;
 public class NicknameValidator : MonoBehaviour
 {
+    public event System.Action RegistrationCompleted;
+    public event System.Action RegistrationCancelled;
+    private bool isSaving;
     [Header("UI")]
     [SerializeField] private TMP_InputField nicknameInput;
     [SerializeField] private TMP_Text guideText;
     [SerializeField] private Button confirmButton;
+    [SerializeField] private GameObject nicknamePopup;
+    [SerializeField] private GameObject registerPopup;
 
     private readonly string[] bannedWords =
     {
-        "Âğµû", "¹ÌÄ£","½Ã¹ß", "¤µ¤²", "º´½Å", "°³»õ³¢", "¤²¤µ", "¹Ùº¸", "Çü½Å", "¾Ö¹Ì", "Ã¢³â", "¸ÛÃ»ÀÌ"
+        "ì°ë”°", "ë¯¸ì¹œ","ì‹œë°œ", "ã……ã…‚", "ë³‘ì‹ ", "ê°œìƒˆë¼", "ã…‚ã……", "ë°”ë³´", "í˜•ì‹ ", "ì• ë¯¸", "ì°½ë…„", "ë©ì²­ì´"
     };
 
     private bool isValid;
@@ -27,12 +32,14 @@ public class NicknameValidator : MonoBehaviour
 
     private void OnEnable()
     {
+        if (nicknameInput == null) return;
         nicknameInput.onValueChanged.AddListener(OnNicknameChanged);
+        ValidateNickname(nicknameInput.text);
     }
 
     private void OnDisable()
     {
-        nicknameInput.onValueChanged.RemoveListener(OnNicknameChanged);
+        if (nicknameInput != null) nicknameInput.onValueChanged.RemoveListener(OnNicknameChanged);
     }
 
     private void OnNicknameChanged(string value)
@@ -42,7 +49,7 @@ public class NicknameValidator : MonoBehaviour
     }
 
     /* =========================
-       Length Clamp (½Ç½Ã°£)
+       Length Clamp (ì‹¤ì‹œê°„)
        ========================= */
 
     private void ClampLength(string value)
@@ -58,36 +65,37 @@ public class NicknameValidator : MonoBehaviour
     }
 
     /* =========================
-       Validation (ÀÔ·Â ¿Ï·á ÈÄ)
+       Validation (ì…ë ¥ ì™„ë£Œ í›„)
        ========================= */
 
     public void ValidateNickname(string nickname)
     {
+        nickname = nickname ?? string.Empty;
         isValid = false;
 
         if (nickname.Length < MIN_LENGTH || nickname.Length > MAX_LENGTH)
         {
-            SetGuide("2-10 ±ÛÀÚ·Î ¼³Á¤ °¡´ÉÇÕ´Ï´Ù.");
+            SetGuide("2-10 ê¸€ìë¡œ ì„¤ì • ê°€ëŠ¥í•©ë‹ˆë‹¤.");
             return;
         }
 
         if (ContainsSpecialChar(nickname))
         {
-            SetGuide("Æ¯¼ö¹®ÀÚ´Â »ç¿ë ºÒ°¡´ÉÇÕ´Ï´Ù.");
+            SetGuide("íŠ¹ìˆ˜ë¬¸ìëŠ” ì‚¬ìš© ë¶ˆê°€ëŠ¥í•©ë‹ˆë‹¤.");
             return;
         }
 
         if (ContainsBannedWord(nickname))
         {
-            SetGuide("¿å¼³ ¹× ºñ¼Ó¾î´Â »ç¿ë ºÒ°¡´ÉÇÕ´Ï´Ù.");
+            SetGuide("ìš•ì„¤ ë° ë¹„ì†ì–´ëŠ” ì‚¬ìš© ë¶ˆê°€ëŠ¥í•©ë‹ˆë‹¤.");
             return;
         }
 
-        // Åë°ú
+        // í†µê³¼
         isValid = true;
-        guideText.text = "»ç¿ë °¡´ÉÇÑ ´Ğ³×ÀÓÀÔ´Ï´Ù.";
+        if (guideText != null) guideText.text = "ì‚¬ìš© ê°€ëŠ¥í•œ ë‹‰ë„¤ì„ì…ë‹ˆë‹¤.";
         //guideText.color = validColor;
-        confirmButton.interactable = true;
+        if (confirmButton != null) confirmButton.interactable = !isSaving;
     }
 
     /* =========================
@@ -96,14 +104,14 @@ public class NicknameValidator : MonoBehaviour
 
     private void SetGuide(string message)
     {
-        guideText.text = message;
+        if (guideText != null) guideText.text = message;
         //guideText.color = invalidColor;
-        confirmButton.interactable = false;
+        if (confirmButton != null) confirmButton.interactable = false;
     }
 
     private bool ContainsSpecialChar(string text)
     {
-        return !Regex.IsMatch(text, @"^[a-zA-Z0-9°¡-ÆR]+$");
+        return !Regex.IsMatch(text, @"^[a-zA-Z0-9ê°€-í£]+$");
     }
 
     private bool ContainsBannedWord(string text)
@@ -121,12 +129,60 @@ public class NicknameValidator : MonoBehaviour
 
     public void OnConfirm()
     {
+        if (isSaving || nicknameInput == null) return;
+        ValidateNickname(nicknameInput.text);
         if (!isValid)
             return;
+        DatabaseManager database = DatabaseManager.Instance;
+        if (database == null)
+        {
+            ShowSaveError("DatabaseManagerê°€ ì—†ìŠµë‹ˆë‹¤.");
+            return;
+        }
+        isSaving = true;
+        if (confirmButton != null) confirmButton.interactable = false;
+        try
+        {
+            if (database.SaveRegistrationNickname(nicknameInput.text))
+            {
 
+                RegistrationCompleted?.Invoke();
+                registerPopup.SetActive(false);
+                nicknamePopup.SetActive(false);
+            }
+            else
+                ShowSaveError(database.LastError);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception);
+            ShowSaveError("ì €ì¥ ì¤‘ ì˜¤ë¥˜ê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤. ë‹¤ì‹œ ì‹œë„í•´ì£¼ì„¸ìš”.");
+        }
+        finally
+        {
+            isSaving = false;
+            if (confirmButton != null) confirmButton.interactable = isValid;
+        }
+    }
 
-        //UIConfigManager.Instance.SetNickname(nicknameInput.text);
-        //bug.Log($"´Ğ³×ÀÓ UIConfig ÀúÀå ¿Ï·á: {nicknameInput.text}");
+    public void ResetInput()
+    {
+        if (nicknameInput != null) nicknameInput.SetTextWithoutNotify(string.Empty);
+        ValidateNickname(string.Empty);
+    }
+
+    public void OnCancel()
+    {
+        if (isSaving) return;
+        if (RegistrationCancelled != null) RegistrationCancelled.Invoke();
+        else gameObject.SetActive(false);
+    }
+
+    private void ShowSaveError(string message)
+    {
+        if (guideText != null) guideText.text = string.IsNullOrEmpty(message)
+            ? "ì €ì¥í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤. ë‹¤ì‹œ ì‹œë„í•´ì£¼ì„¸ìš”." : message;
+        Debug.LogError(message);
     }
 
     private static Color HexToColor(string hex)

@@ -43,7 +43,7 @@ public class Player : NetworkBehaviour, IAfterRender
     [Networked] private BroomType Broom { get; set; }
     [Networked] private MagicType Magic1 { get; set; }
     [Networked] private MagicType Magic2 { get; set; }
-    [Networked] private int HairLength { get; set; }
+    [Networked] private PlayerConfig AppearanceConfig { get; set; }
     [Networked] private int LoadoutVersion { get; set; }
     [Networked] private NetworkId LockTargetId { get; set; }
     // Index = MagicType (0=None, 1..10=spells). Duplicate equipped spells share a timer.
@@ -238,7 +238,7 @@ public class Player : NetworkBehaviour, IAfterRender
         Broom = data.broom;
         Magic1 = data.magic1;
         Magic2 = data.magic2;
-        HairLength = data.hairLength;
+        AppearanceConfig = data.GetPlayerConfig().Sanitized();
         LoadoutVersion++;
 
         SyncHealthToPlayerData();
@@ -292,6 +292,9 @@ public class Player : NetworkBehaviour, IAfterRender
 
     public override void Spawned()
     {
+        // Network characters must never follow this client's global lobby settings.
+        appearance ??= GetComponent<PlayerAppearance>();
+        appearance?.UnbindFromDataConfig();
         if (characterController != null)
         {
             characterController.enabled = false;
@@ -1493,7 +1496,7 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private void ApplyReplicatedLoadout()
     {
-        if (renderedLoadoutVersion == LoadoutVersion)
+        if (LoadoutVersion <= 0 || renderedLoadoutVersion == LoadoutVersion)
             return;
 
         equipment ??= GetComponent<PlayerEquipment>();
@@ -1506,7 +1509,7 @@ public class Player : NetworkBehaviour, IAfterRender
         equipment.ApplyLoadout(Hat, Broom, Magic1, Magic2);
 
         appearance ??= GetComponent<PlayerAppearance>();
-        appearance?.ApplyHairLength(HairLength);
+        appearance?.ApplyPlayerConfig(AppearanceConfig);
         renderedLoadoutVersion = LoadoutVersion;
     }
 

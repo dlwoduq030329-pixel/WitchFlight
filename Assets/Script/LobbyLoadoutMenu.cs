@@ -59,7 +59,11 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     public void SetBroom(int index) { if (CanEdit) DataConfig.broomIndex = Mathf.Clamp(index, 0, 2) + 1; }
     public void SetMagic1(int index) { if (CanEdit) DataConfig.magic1Index = Mathf.Clamp(index, 0, 9) + 1; }
     public void SetMagic2(int index) { if (CanEdit) DataConfig.magic2Index = Mathf.Clamp(index, 0, 9) + 1; }
-    public void SetHairLength(float value) { if (CanEdit) DataConfig.hairLength = Mathf.Clamp(Mathf.RoundToInt(value), 0, 10); }
+    public void SetHairLength(float value)
+    {
+        if (CanEdit && DatabaseManager.Instance != null && DatabaseManager.Instance.IsDataConfigReady)
+            DataConfig.bangsLength = float.IsNaN(value) || float.IsInfinity(value) ? 0f : Mathf.Clamp01(value);
+    }
 
     private void RefreshUI()
     {
@@ -77,14 +81,17 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
         BindDropdown(broomDropdown, broom - 1, canEdit);
         BindDropdown(magic1Dropdown, magic1 - 1, canEdit);
         BindDropdown(magic2Dropdown, magic2 - 1, canEdit);
-        int hair = Mathf.Clamp(DataConfig.hairLength, 0, 10);
+        float hair = Mathf.Clamp01(DataConfig.bangsLength);
         if (hairLengthSlider != null)
         {
-            hairLengthSlider.interactable = canEdit;
+            hairLengthSlider.wholeNumbers = false;
+            hairLengthSlider.minValue = 0f;
+            hairLengthSlider.maxValue = 1f;
+            hairLengthSlider.interactable = canEdit && DatabaseManager.Instance != null && DatabaseManager.Instance.IsDataConfigReady;
             hairLengthSlider.SetValueWithoutNotify(hair);
         }
         Text(statusText, canEdit ? "선택한 장비는 Battle 입장 시 적용됩니다." : "매칭 중에는 장비를 변경할 수 없습니다.");
-        Text(hairLengthText, hair.ToString());
+        Text(hairLengthText, Mathf.RoundToInt(hair * 100f).ToString());
         if (equipmentTable != null)
         {
             HatStatEntry h = equipmentTable.GetHatStats((HatType)hat);

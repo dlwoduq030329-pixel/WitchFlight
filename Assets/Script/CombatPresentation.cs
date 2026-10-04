@@ -20,7 +20,7 @@ public sealed class CombatPresentation : MonoBehaviour
     }
 
     private readonly List<Visual> visuals = new();
-    private readonly MaterialPropertyBlock block = new();
+    private MaterialPropertyBlock block;
     private Player owner;
     private bool initialized;
     private int lastHit;
@@ -35,6 +35,8 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void Awake()
     {
+        // Unity native objects cannot be created from MonoBehaviour field initializers.
+        block = new MaterialPropertyBlock();
         owner = GetComponent<Player>();
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
         {
@@ -54,8 +56,50 @@ public sealed class CombatPresentation : MonoBehaviour
                 visual.colors[i] = ReadColor(materials[i]);
                 visual.originalBlocks[i] = new MaterialPropertyBlock();
                 renderer.GetPropertyBlock(visual.originalBlocks[i], i);
+                if (visual.originalBlocks[i].HasColor("_BaseColor"))
+                    visual.colors[i] = visual.originalBlocks[i].GetColor("_BaseColor");
+                else if (visual.originalBlocks[i].HasColor("_Color"))
+                    visual.colors[i] = visual.originalBlocks[i].GetColor("_Color");
             }
             visuals.Add(visual);
+        }
+    }
+
+    // Called after PlayerAppearance writes the per-material property block.
+    public void SetAppearanceColor(Renderer renderer, int materialIndex, Color color)
+    {
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer != renderer || materialIndex < 0 || materialIndex >= visual.colors.Length)
+                continue;
+            visual.colors[materialIndex] = color;
+            renderer.GetPropertyBlock(visual.originalBlocks[materialIndex], materialIndex);
+            return;
+        }
+    }
+
+    // Layer tint (e.g. iris _Color2nd) is not the base color used for hit flashes.
+    // Modify only this baseline property, never capture an in-progress flash as the base.
+    public void SetAppearanceLayerColor(Renderer renderer, int materialIndex, string property, Color color)
+    {
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer != renderer || materialIndex < 0 || materialIndex >= visual.colors.Length)
+                continue;
+            visual.originalBlocks[materialIndex].SetColor(property, color);
+            return;
+        }
+    }
+
+    // Preserve the selected eye texture when hit/death presentation restores the property block.
+    public void SetAppearanceLayerTexture(Renderer renderer, int materialIndex, string property, Texture texture)
+    {
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer != renderer || materialIndex < 0 || materialIndex >= visual.colors.Length)
+                continue;
+            visual.originalBlocks[materialIndex].SetTexture(property, texture);
+            return;
         }
     }
 

@@ -56,6 +56,7 @@ public class PlayerData : NetworkBehaviour
     // Compatibility: both names read the SAME replicated profile index (default 0).
     // Use SetPlayerProfile to change it; do not introduce a second networked copy.
     public int profileimage => playerprofile;
+    // LoginPlayerData.nickname -> DataConfig.playerName -> owner's RPC -> all clients.
     [Networked] public NetworkString<_32> playerName { get; private set; }
     [Networked] public bool IsRoomOwner { get; private set; }
     [Networked] public HatType hat { get; set; }
@@ -65,10 +66,24 @@ public class PlayerData : NetworkBehaviour
     [Networked] public bool ready { get; set; }
     [Networked] public Camp camp { get; set; }
     [Networked] public int teamIndex { get; set; }
-    [Networked] public int hairLength { get; private set; }
+    [Networked] public int hairStylePreset { get; private set; }
+    [Networked] public float bangsLength { get; private set; }
+    [Networked] public float bangsDirection { get; private set; }
+    [Networked] public float sideHairLength { get; private set; }
+    [Networked] public float ahogeLength { get; private set; }
+    [Networked] public Color hairColor { get; private set; } = Color.white;
+    [Networked] public Color clothColor { get; private set; } = Color.white;
+    [Networked] public Color eyeColor { get; private set; } = Color.white;
+    [Networked] public int wandIndex { get; private set; }
+    public int hairLength => Mathf.RoundToInt(bangsLength);
 
-    [Networked] public int hairColor { get; private set; }
-    [Networked] public int clothColor { get; private set; }
+    public PlayerConfig GetPlayerConfig() => new PlayerConfig
+    {
+        hairStylePreset = hairStylePreset, bangsLength = bangsLength, bangsDirection = bangsDirection,
+        sideHairLength = sideHairLength, ahogeLength = ahogeLength,
+        hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor,
+        hatIndex = (int)hat, broomIndex = (int)broom, wandIndex = wandIndex
+    };
 
 
 
@@ -87,12 +102,10 @@ public class PlayerData : NetworkBehaviour
             IsRoomOwner = Runner.IsServer && Object.InputAuthority == Runner.LocalPlayer;
         if (Object.HasInputAuthority)
         {
-            string nickname = DataConfig.playerName;
-            if (string.IsNullOrWhiteSpace(nickname) && DatabaseManager.Instance != null)
-                nickname = DatabaseManager.Instance.GetNickname();
-            RPC_SetLoadout((HatType)DataConfig.hatIndex, (BroomType)DataConfig.broomIndex,
+            // Only the local owner's loaded DataConfig supplies this player's name.
+            RPC_SetLoadout(DataConfig.GetPlayerConfig(),
                 (MagicType)DataConfig.magic1Index, (MagicType)DataConfig.magic2Index,
-                DataConfig.hairLength, DataConfig.playerprofile, NormalizePlayerName(nickname));
+                DataConfig.playerprofile, NormalizePlayerName(DataConfig.playerName));
         }
 
         base.Spawned();
@@ -106,14 +119,23 @@ public class PlayerData : NetworkBehaviour
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    private void RPC_SetLoadout(HatType selectedHat, BroomType selectedBroom,
-        MagicType selectedMagic1, MagicType selectedMagic2, int selectedHairLength, int selectedProfile, string selectedName)
+    private void RPC_SetLoadout(PlayerConfig selectedConfig,
+        MagicType selectedMagic1, MagicType selectedMagic2, int selectedProfile, string selectedName)
     {
-        hat = NormalizeHat(selectedHat);
-        broom = NormalizeBroom(selectedBroom);
+        selectedConfig = selectedConfig.Sanitized();
+        hat = NormalizeHat((HatType)selectedConfig.hatIndex);
+        broom = NormalizeBroom((BroomType)selectedConfig.broomIndex);
         magic1 = NormalizeMagic(selectedMagic1, MagicType.Fire);
         magic2 = NormalizeMagic(selectedMagic2, MagicType.Ice);
-        hairLength = Mathf.Max(0, selectedHairLength);
+        hairStylePreset = selectedConfig.hairStylePreset;
+        bangsLength = selectedConfig.bangsLength;
+        bangsDirection = selectedConfig.bangsDirection;
+        sideHairLength = selectedConfig.sideHairLength;
+        ahogeLength = selectedConfig.ahogeLength;
+        hairColor = selectedConfig.hairColor;
+        clothColor = selectedConfig.clothColor;
+        eyeColor = selectedConfig.eyeColor;
+        wandIndex = selectedConfig.wandIndex;
         playerprofile = Mathf.Max(0, selectedProfile);
         playerName = NormalizePlayerName(selectedName);
         IsLoadoutInitialized = true;
@@ -163,9 +185,9 @@ public class PlayerData : NetworkBehaviour
 
     private static MagicType NormalizeMagic(MagicType selectedMagic, MagicType fallback)
     {
-        // Enum numbers are also backend save values; retain them and only repair empty/invalid slots.
+        // None (0) is an intentional empty slot and must survive backend/network loading.
         int value = (int)selectedMagic;
-        return value >= (int)MagicType.Fire && value <= (int)MagicType.Scane
+        return value >= (int)MagicType.None && value <= (int)MagicType.Scane
             ? selectedMagic
             : fallback;
     }

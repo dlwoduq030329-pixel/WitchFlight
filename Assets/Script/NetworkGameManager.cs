@@ -226,6 +226,13 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private async void StartGame(MatchRequest request, string roomId)
     {
         if (IsMatching || !ValidateMatchSetup()) return;
+        // Keep standalone battle tests usable, but do not match with an uninitialized login profile.
+        if (LoginManager.Instance != null && (!LoginManager.Instance.IsLoggedIn ||
+            DatabaseManager.Instance == null || !DatabaseManager.Instance.IsDataConfigReady))
+        {
+            Debug.LogWarning("로그인과 로비 데이터 초기화를 먼저 완료해주세요.");
+            return;
+        }
         bool randomMatch = request == MatchRequest.Random;
         startInProgress = true;
         cancelRequested = false;
