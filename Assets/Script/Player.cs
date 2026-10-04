@@ -28,7 +28,7 @@ public class Player : NetworkBehaviour, IAfterRender
     [SerializeField] private MagicStatTable magicStatTable;
     [SerializeField] private NetworkPrefabRef magicProjectilePrefab;
     [SerializeField, Min(0.01f)] private float parryWindowSeconds = 0.3f;
-    [SerializeField, Min(0f)] private float parryCooldownSeconds = 0.6f;
+    [SerializeField, Min(0f)] private float parryCooldownSeconds = 2f;
     [SerializeField, Min(0f)] private float defaultHitStunSeconds = 0.25f;
     [SerializeField, Min(0.01f)] private float knockbackDamping = 30f;
     [SerializeField] private string hitReactionState = "AS_Broom_SitFly_Arm_Hit_React";
@@ -46,7 +46,8 @@ public class Player : NetworkBehaviour, IAfterRender
     [Networked] private int HairLength { get; set; }
     [Networked] private int LoadoutVersion { get; set; }
     [Networked] private NetworkId LockTargetId { get; set; }
-    [Networked] private TickTimer MagicCooldown { get; set; }
+    // Index = MagicType (0=None, 1..10=spells). Duplicate equipped spells share a timer.
+    [Networked, Capacity(11)] private NetworkArray<TickTimer> MagicCooldowns => default;
     [Networked] private TickTimer ParryTimer { get; set; }
     [Networked] private TickTimer ParryCooldown { get; set; }
     [Networked] public bool IsBoosting { get; private set; }
@@ -131,6 +132,7 @@ public class Player : NetworkBehaviour, IAfterRender
         Mathf.Max(1f, equipmentStatTable != null ? equipmentStatTable.GetBroomStats(Broom).maxSpeed : 60f));
     public float SteeringTurnRate => Mathf.Max(0f, turnSpeed * GetTurnMultiplier());
     public MagicStatEntry SelectedMagicStats => GetMagicStats(GetSelectedMagic());
+    public MagicStatTable MagicTable => magicStatTable;
     public float SelectedMagicApCost => CurrentMagicSlot == 3
         ? (magicStatTable != null ? magicStatTable.parryApCost : 8f) : SelectedMagicStats.apCost;
 
@@ -210,7 +212,7 @@ public class Player : NetworkBehaviour, IAfterRender
         LockTargetId = default;
         LockProgress = 0f;
         IsFullyLocked = false;
-        MagicCooldown = TickTimer.None;
+        for (int i = 0; i < MagicCooldowns.Length; i++) MagicCooldowns.Set(i, TickTimer.None);
         ParryTimer = TickTimer.None;
         ParryCooldown = TickTimer.None;
         IsBoosting = false;
@@ -746,11 +748,14 @@ public class Player : NetworkBehaviour, IAfterRender
             TryStartParry();
             return;
         }
-        if (TimerIsActive(MagicCooldown) || pendingMagic != MagicType.None)
+        if (pendingMagic != MagicType.None)
             return;
 
         MagicType selectedMagic = GetSelectedMagic();
         if (selectedMagic == MagicType.None)
+            return;
+        int magicIndex = (int)selectedMagic;
+        if (magicIndex <= 0 || magicIndex >= MagicCooldowns.Length || TimerIsActive(MagicCooldowns[magicIndex]))
             return;
 
         MagicStatEntry stats = GetMagicStats(selectedMagic);
@@ -778,7 +783,7 @@ public class Player : NetworkBehaviour, IAfterRender
         if (!TryConsumeAp(stats.apCost))
             return;
 
-        MagicCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.cooldownSeconds));
+        MagicCooldowns.Set(magicIndex, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.cooldownSeconds)));
         LastCastMagic = selectedMagic;
         CastSequence++;
         if (stats.castSeconds > 0f)
@@ -795,12 +800,39 @@ public class Player : NetworkBehaviour, IAfterRender
 
     public MagicType GetSelectedMagic()
     {
-        return CurrentMagicSlot switch
+        return GetMagicInSlot(CurrentMagicSlot);
+    }
+
+    public MagicType GetMagicInSlot(int slot)
+    {
+        return slot switch
         {
             1 => Magic1,
             2 => Magic2,
             _ => MagicType.None
         };
+    }
+
+    // Read-only UI access to authoritative replicated timers. Never start cooldowns in UI.
+    public float GetMagicCooldownRemaining(int slot)
+    {
+        if (Object == null || !Object.IsValid || Runner == null || !Runner.IsRunning) return 0f;
+        TickTimer timer;
+        if (slot == 3) timer = ParryCooldown;
+        else
+        {
+            int index = (int)GetMagicInSlot(slot);
+            if (index <= 0 || index >= MagicCooldowns.Length) return 0f;
+            timer = MagicCooldowns[index];
+        }
+        return Mathf.Max(0f, timer.RemainingTime(Runner) ?? 0f);
+    }
+
+    public float GetMagicCooldownDuration(int slot)
+    {
+        if (slot == 3) return Mathf.Max(0f, magicStatTable != null ? magicStatTable.parryCooldownSeconds : parryCooldownSeconds);
+        MagicType magic = GetMagicInSlot(slot);
+        return magic == MagicType.None || magicStatTable == null ? 0f : Mathf.Max(0f, magicStatTable.GetStats(magic).cooldownSeconds);
     }
 
     private void UpdatePendingCast()

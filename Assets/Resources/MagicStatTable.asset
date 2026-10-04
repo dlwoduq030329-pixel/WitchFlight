@@ -14,13 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   parryApCost: 8
   parryWindowSeconds: 0.3
-  parryCooldownSeconds: 0.6
+  parryCooldownSeconds: 2
+  parryIcon: {fileID: 0}
   fallback:
     magic: 0
     displayName: None
+    icon: {fileID: 0}
     effect: 0
     apCost: 0
-    cooldownSeconds: 0
+    cooldownSeconds: 2
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 0
@@ -42,9 +44,10 @@ MonoBehaviour:
   magics:
   - magic: 1
     displayName: Fire
+    icon: {fileID: 0}
     effect: 0
     apCost: 30
-    cooldownSeconds: 2.5
+    cooldownSeconds: 2
     lockChargeSeconds: 1.5
     castSeconds: 0
     projectileSpeed: 120
@@ -65,9 +68,10 @@ MonoBehaviour:
     requiresFullLock: 1
   - magic: 2
     displayName: Ice
+    icon: {fileID: 0}
     effect: 1
     apCost: 18
-    cooldownSeconds: 1.5
+    cooldownSeconds: 2
     lockChargeSeconds: 0.6
     castSeconds: 0
     projectileSpeed: 130
@@ -88,9 +92,10 @@ MonoBehaviour:
     requiresFullLock: 1
   - magic: 3
     displayName: Vision
+    icon: {fileID: 0}
     effect: 0
     apCost: 10
-    cooldownSeconds: 1
+    cooldownSeconds: 2
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 0
@@ -111,9 +116,10 @@ MonoBehaviour:
     requiresFullLock: 0
   - magic: 4
     displayName: Thunder
+    icon: {fileID: 0}
     effect: 2
     apCost: 35
-    cooldownSeconds: 3
+    cooldownSeconds: 2
     lockChargeSeconds: 0.9
     castSeconds: 0.25
     projectileSpeed: 65
@@ -134,9 +140,10 @@ MonoBehaviour:
     requiresFullLock: 0
   - magic: 5
     displayName: Flare
+    icon: {fileID: 0}
     effect: 3
     apCost: 16
-    cooldownSeconds: 4
+    cooldownSeconds: 2
     lockChargeSeconds: 0.4
     castSeconds: 0
     projectileSpeed: 0
@@ -157,9 +164,10 @@ MonoBehaviour:
     requiresFullLock: 0
   - magic: 6
     displayName: Smoke
+    icon: {fileID: 0}
     effect: 4
     apCost: 25
-    cooldownSeconds: 8
+    cooldownSeconds: 2
     lockChargeSeconds: 0.1
     castSeconds: 0
     projectileSpeed: 0
@@ -180,9 +188,10 @@ MonoBehaviour:
     requiresFullLock: 0
   - magic: 7
     displayName: Wind
+    icon: {fileID: 0}
     effect: 5
     apCost: 20
-    cooldownSeconds: 7
+    cooldownSeconds: 2
     lockChargeSeconds: 0.1
     castSeconds: 0
     projectileSpeed: 0
@@ -203,9 +212,10 @@ MonoBehaviour:
     requiresFullLock: 0
   - magic: 8
     displayName: Decoy
+    icon: {fileID: 0}
     effect: 6
     apCost: 28
-    cooldownSeconds: 10
+    cooldownSeconds: 2
     lockChargeSeconds: 0.1
     castSeconds: 0
     projectileSpeed: 0
@@ -226,9 +236,10 @@ MonoBehaviour:
     requiresFullLock: 0
   - magic: 9
     displayName: Mine
+    icon: {fileID: 0}
     effect: 7
     apCost: 30
-    cooldownSeconds: 9
+    cooldownSeconds: 2
     lockChargeSeconds: 0.1
     castSeconds: 0
     projectileSpeed: 12.5
@@ -249,9 +260,10 @@ MonoBehaviour:
     requiresFullLock: 0
   - magic: 10
     displayName: Scane
+    icon: {fileID: 0}
     effect: 8
     apCost: 15
-    cooldownSeconds: 6
+    cooldownSeconds: 2
     lockChargeSeconds: 0.1
     castSeconds: 0
     projectileSpeed: 0

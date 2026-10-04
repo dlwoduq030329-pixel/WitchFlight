@@ -22,10 +22,13 @@ public struct MagicStatEntry
 
     [Tooltip("Inspector에서 표시할 이름입니다. Dark enum 값은 기존 저장값 호환을 위해 Wind로 표시합니다.")]
     public string displayName;
+    [Tooltip("로컬 BattleMagicUI에 표시할 아이콘입니다.")]
+    public Sprite icon;
 
     public MagicEffectKind effect;
 
     [Min(0f)] public float apCost;
+    [Tooltip("이 마법 종류만의 재사용 대기 시간(초)입니다.")]
     [Min(0f)] public float cooldownSeconds;
     [Min(0.01f)] public float lockChargeSeconds;
     [Min(0f)]
@@ -82,13 +85,22 @@ public sealed class MagicStatTable : ScriptableObject
     [Header("Parry (right mouse button)")]
     [Min(0f)] public float parryApCost = 8f;
     [Min(0.01f)] public float parryWindowSeconds = 0.3f;
-    [Min(0f)] public float parryCooldownSeconds = 0.6f;
+    [Min(0f)] public float parryCooldownSeconds = 2f;
+    public Sprite parryIcon;
 
     [Tooltip("등록되지 않은 마법을 선택했을 때의 안전한 기본값입니다.")]
-    public MagicStatEntry fallback;
+    public MagicStatEntry fallback = new MagicStatEntry { cooldownSeconds = 2f };
 
     [Tooltip("Fire부터 Scane까지의 마법 수치를 편집합니다.")]
-    public MagicStatEntry[] magics = new MagicStatEntry[10];
+    public MagicStatEntry[] magics = CreateDefaultEntries();
+
+    private static MagicStatEntry[] CreateDefaultEntries()
+    {
+        var entries = new MagicStatEntry[10];
+        for (int i = 0; i < entries.Length; i++)
+            entries[i] = new MagicStatEntry { magic = (MagicType)(i + 1), cooldownSeconds = 2f };
+        return entries;
+    }
 
     public MagicStatEntry GetStats(MagicType magic)
     {
