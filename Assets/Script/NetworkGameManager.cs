@@ -38,6 +38,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private int maxPlayerCount = 2;
     [Header("Matchmaking UI (optional)")]
     [SerializeField] private TMP_Text matchmakingStatusText;
+    [Header("Random match start")]
+    [Tooltip("켜면 양쪽 linkuserinfo의 상대 프로필 1초 표시 확인을 기다립니다. 테스트 시 끄면 PlayerData 준비 후 1초 뒤 시작합니다.")]
+    [SerializeField] private bool requireRandomMatchProfilePreview = true;
 
     private const int RandomPlayerCount = 2;
     private const string RandomLobbyName = "WitchFlight-Random-1v1-v1";
@@ -53,6 +56,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private bool startInProgress, stopInProgress, cancelRequested, initialSceneLoaded;
     private int activePlayerCount;
     private float nextWaitingStatusRefresh;
+    private float randomPlayersReadyAt = -1f;
 
     // PlayerRef → 실제 전투 Player
     private Dictionary<PlayerRef, NetworkObject> spawnedPlayers
@@ -237,6 +241,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         startInProgress = true;
         cancelRequested = false;
         IsRandomMatch = randomMatch;
+        randomPlayersReadyAt = -1f;
         activePlayerCount = randomMatch ? RandomPlayerCount : Mathf.Max(1, maxPlayerCount);
         var cancellation = new CancellationTokenSource();
         matchCancellation = cancellation;
@@ -357,6 +362,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         battleInitializationRoutine = null;
         IsBattleSceneLoaded = false;
         initialSceneLoaded = false;
+        randomPlayersReadyAt = -1f;
         accumulatedLook = Vector2.zero;
         latchedButtons = default;
         _runner = null;
@@ -395,7 +401,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         foreach (PlayerRef player in _runner.ActivePlayers) count++;
         if (IsRandomMatch)
             SetMatchStatus(count >= RequiredPlayerCount
-                ? "매칭 완료! 상대 프로필 표시 및 1초 대기 중..."
+                ? (requireRandomMatchProfilePreview
+                    ? "매칭 완료! 상대 프로필 표시 및 1초 대기 중..."
+                    : "매칭 완료! 참가자 데이터 준비 및 1초 대기 중...")
                 : $"랜덤 상대 대기 중 ({count}/{RequiredPlayerCount})");
         else if (count < RequiredPlayerCount)
             SetMatchStatus($"참가자 대기 중 ({count}/{RequiredPlayerCount})");
@@ -420,6 +428,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         PlayerRef player)
     {
         if (runner != _runner || cancelRequested) return;
+        randomPlayersReadyAt = -1f;
         UpdateWaitingStatus();
         if (!runner.IsServer)
             return;
@@ -519,6 +528,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
         if (playerDatas.TryGetValue(player, out PlayerData registered) && registered == data)
         {
+            randomPlayersReadyAt = -1f;
             playerDatas.Remove(player);
             assignedTeamIndexes.Remove(player);
         }
@@ -529,7 +539,25 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // 현재 플레이어가 최대 인원인지 확인
     private void CheckPlayerCount()
     {
-        if (IsRandomMatch && CanBeginBattle() && AreRandomProfilesPresented()) BeginBattleTransition();
+        if (!IsRandomMatch || !CanBeginBattle())
+        {
+            randomPlayersReadyAt = -1f;
+            return;
+        }
+        if (AreRandomStartRequirementsMet()) BeginBattleTransition();
+    }
+
+    private bool AreRandomStartRequirementsMet()
+    {
+        if (requireRandomMatchProfilePreview)
+        {
+            randomPlayersReadyAt = -1f;
+            return AreRandomProfilesPresented();
+        }
+        // UI-independent test path. CanBeginBattle must still validate the host,
+        // connected participants, initialized PlayerData and scene-loading state.
+        if (randomPlayersReadyAt < 0f) randomPlayersReadyAt = Time.unscaledTime;
+        return Time.unscaledTime - randomPlayersReadyAt >= 1f;
     }
 
     private bool AreRandomProfilesPresented()
@@ -555,8 +583,12 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private void BeginBattleTransition()
     {
         // Revalidate at click time; do not trust an earlier UI enabled state.
-        if (!CanBeginBattle()) return;
-        if (IsRandomMatch && !AreRandomProfilesPresented()) return;
+        if (!CanBeginBattle())
+        {
+            randomPlayersReadyAt = -1f;
+            return;
+        }
+        if (IsRandomMatch && !AreRandomStartRequirementsMet()) return;
         isGameStarting = true;
         _runner.SessionInfo.IsOpen = false;
         _runner.SessionInfo.IsVisible = false;
@@ -691,6 +723,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         PlayerRef player)
     {
         if (runner != _runner || cancelRequested) return;
+        randomPlayersReadyAt = -1f;
         UpdateWaitingStatus();
         if (!runner.IsServer)
             return;
