@@ -24,7 +24,7 @@ public class EnterRoom : MonoBehaviour
         
     }
 
-    void TryEnterRoom()
+    public void TryEnterRoom()
     {
         string passwordPack = string.Empty;
 

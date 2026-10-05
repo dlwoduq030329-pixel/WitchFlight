@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 // Main scene customization only. Assign designer-owned UI; no windows are generated.
@@ -51,12 +52,16 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     [SerializeField] private Sprite emptySlotSprite;
     [SerializeField, Range(1, 2)] private int defaultSlot = 1;
 
-    [Header("Selection details and confirmation (all optional)")]
+    [Header("Description panel visibility (content always follows the selected magic)")]
+    [FormerlySerializedAs("manageSelectionDetails")]
+    [Tooltip("설명창을 코드가 켜고 끌지 여부입니다. 기존 OnClick이 창을 켠다면 끄세요. 이름/설명/아이콘은 이 옵션과 관계없이 갱신합니다.")]
+    [SerializeField] private bool manageSelectionPanel;
     [Tooltip("선택 전에는 숨길 상세 UI. 이 스크립트가 붙은 오브젝트/부모는 지정하지 마세요.")]
     [SerializeField] private GameObject selectionPanel;
     [SerializeField] private Image selectedMagicImage;
     [SerializeField] private TMP_Text selectedMagicName;
     [SerializeField] private TMP_Text selectedMagicDescription;
+    [Header("Equip confirmation (existing OnClick events are preserved)")]
     [Tooltip("마법을 선택하면 표시됩니다. OnClick은 자동 연결되므로 직접 중복 연결하지 마세요.")]
     [SerializeField] private Button equipButton;
     [SerializeField] private TMP_Text equipButtonText;
@@ -73,17 +78,19 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private readonly List<(Button button, UnityAction action)> listeners = new List<(Button, UnityAction)>();
     private bool lastProfileReady, lastCanEdit;
+    private bool isEquipping;
+    private bool refreshControlsAfterClick;
 
     private bool ProfileReady => DatabaseManager.Instance != null &&
         DatabaseManager.Instance.IsDataConfigReady && DatabaseManager.Instance.HasLoadedProfile;
-    private bool CanEdit => ProfileReady &&
+    private bool CanEdit => isActiveAndEnabled && ProfileReady &&
         (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsMatching);
 
     private void OnEnable()
     {
         if (magicTable == null) magicTable = Resources.Load<MagicStatTable>("MagicStatTable");
         SelectedSlot = Mathf.Clamp(defaultSlot, 1, 2);
-        SelectedMagic = MagicType.None;
+        ClearPendingSelection();
         if (magicChoices != null)
         {
             foreach (MagicChoice choice in magicChoices)
@@ -108,7 +115,9 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         foreach (var listener in listeners)
             if (listener.button != null) listener.button.onClick.RemoveListener(listener.action);
         listeners.Clear();
-        SelectedMagic = MagicType.None;
+        ClearPendingSelection();
+        RefreshSelectionUI();
+        refreshControlsAfterClick = false;
     }
 
     private void Update()
@@ -117,7 +126,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         bool ready = ProfileReady;
         bool editable = CanEdit;
         if (ready == lastProfileReady && editable == lastCanEdit) return;
-        SelectedMagic = MagicType.None;
+        ClearPendingSelection();
         SetStatus(string.Empty);
         RefreshFromDataConfig();
     }
@@ -129,20 +138,38 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         listeners.Add((button, action));
     }
 
+    private void LateUpdate()
+    {
+        if (!refreshControlsAfterClick) return;
+        refreshControlsAfterClick = false;
+        // Existing OnClick handlers may run after ours and touch controls/text.
+        // Restore the selected content after the click, but leave panel visibility
+        // to the designer's OnClick when automatic panel management is disabled.
+        RefreshEquippedSlots();
+        RefreshSelectionContent();
+        RefreshEquipButton();
+    }
+
     // Optional manual Button.OnClick entry point: slots are 1 and 2, not 0 and 1.
     public void SelectSlot(int slot)
     {
+        if (!CanEdit) { RejectSelection(EditBlockedMessage()); return; }
         if (slot != 1 && slot != 2) { Fail("마법은 1번 또는 2번 슬롯에 장착할 수 있습니다."); return; }
+        // Slot and spell are independent selections. Mine chosen in slot 1 must
+        // remain the candidate when switching to slot 2, without equipping yet.
         SelectedSlot = slot;
         SetStatus(string.Empty);
-        RefreshFromDataConfig();
+        RefreshEquippedSlots();
+        RefreshSlotControls();
+        RefreshEquipButton();
+        refreshControlsAfterClick = true;
     }
 
     // Optional manual entry point. Pass the MagicType numeric value (Fire=1, Ice=2...).
     // Preview only: never write to DataConfig or the backend here.
     public void SelectMagic(int magicId)
     {
-        if (!CanEdit) { Fail(EditBlockedMessage()); return; }
+        if (!CanEdit) { RejectSelection(EditBlockedMessage()); return; }
         MagicType magic = (MagicType)magicId;
         if (!IsSelectableMagic(magic) || FindChoice(magic) == null)
         {
@@ -157,31 +184,55 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     public void EquipSelectedMagic()
     {
+        if (isEquipping) return;
         // Recheck at confirmation: login/matching state can change after selection.
-        if (!CanEdit) { Fail(EditBlockedMessage()); return; }
-        if (!IsSelectableMagic(SelectedMagic) || FindChoice(SelectedMagic) == null)
+        if (!CanEdit) { RejectSelection(EditBlockedMessage()); return; }
+        if ((SelectedSlot != 1 && SelectedSlot != 2) ||
+            !IsSelectableMagic(SelectedMagic) || FindChoice(SelectedMagic) == null)
         {
-            Fail("장착할 마법을 먼저 선택해주세요.");
+            RejectSelection("장착할 마법과 1번 또는 2번 슬롯을 선택해주세요.");
             return;
         }
         if (EquippedMagic(SelectedSlot) == SelectedMagic) return;
 
         int slot = SelectedSlot;
         MagicType magic = SelectedMagic;
-        // DatabaseManager already observes Changed and saves asynchronously with retries.
-        // Do not perform a second synchronous save or change the other slot / appearance.
-        if (slot == 1) DataConfig.magic1Index = (int)magic;
-        else DataConfig.magic2Index = (int)magic;
-        RefreshFromDataConfig();
-        SetStatus($"{slot}번 슬롯에 {MagicName(magic)} 장착 완료");
-        onEquipped.Invoke(slot);
+        isEquipping = true;
+        try
+        {
+            // Snapshot BOTH choices at confirmation, not when a spell was picked.
+            // Retain the candidate for another slot; same-slot repeat is a no-op.
+            // DatabaseManager already observes Changed and saves asynchronously.
+            if (slot == 1) DataConfig.magic1Index = (int)magic;
+            else DataConfig.magic2Index = (int)magic;
+            RefreshFromDataConfig();
+            SetStatus($"{slot}번 슬롯에 {MagicName(magic)} 장착 완료");
+            onEquipped.Invoke(slot);
+        }
+        finally
+        {
+            isEquipping = false;
+            RefreshEquipButton();
+            refreshControlsAfterClick = isActiveAndEnabled;
+        }
     }
 
     public void CancelSelection()
     {
-        SelectedMagic = MagicType.None;
+        ClearPendingSelection();
         SetStatus(string.Empty);
         RefreshFromDataConfig();
+    }
+
+    private void ClearPendingSelection()
+    {
+        SelectedMagic = MagicType.None;
+    }
+
+    private void RejectSelection(string message)
+    {
+        CancelSelection();
+        Fail(message);
     }
 
     // Can also be wired to LobbyPlayerInitializer.OnInitialized for a silent server load.
@@ -189,14 +240,10 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     {
         lastProfileReady = ProfileReady;
         lastCanEdit = CanEdit;
-        if (!lastCanEdit) SelectedMagic = MagicType.None;
+        if (!lastCanEdit) ClearPendingSelection();
 
-        SetIcon(slot1Image, lastProfileReady ? MagicIcon(EquippedMagic(1)) ?? emptySlotSprite : emptySlotSprite);
-        SetIcon(slot2Image, lastProfileReady ? MagicIcon(EquippedMagic(2)) ?? emptySlotSprite : emptySlotSprite);
-        SetVisible(slot1Highlight, SelectedSlot == 1);
-        SetVisible(slot2Highlight, SelectedSlot == 2);
-        if (slot1Button != null) slot1Button.interactable = lastCanEdit;
-        if (slot2Button != null) slot2Button.interactable = lastCanEdit;
+        RefreshEquippedSlots();
+        RefreshSlotControls();
         if (magicChoices != null)
         {
             foreach (MagicChoice choice in magicChoices)
@@ -205,24 +252,65 @@ public sealed class MagicCustomizationUI : MonoBehaviour
                 choice.button.interactable = lastCanEdit && IsSelectableMagic(choice.magic);
                 Sprite icon = MagicIcon(choice.magic);
                 // Preserve designer-authored button art when no replacement is assigned.
-                if (icon != null) SetIcon(choice.buttonImage, icon);
+                if (icon != null && !IsEquippedSlotImage(choice.buttonImage)) SetIcon(choice.buttonImage, icon);
             }
         }
 
+        RefreshSelectionUI();
+        refreshControlsAfterClick = isActiveAndEnabled;
+    }
+
+    private void RefreshSelectionUI()
+    {
+        if (manageSelectionPanel)
+            SetVisible(selectionPanel, IsSelectableMagic(SelectedMagic) && FindChoice(SelectedMagic) != null);
+        RefreshSelectionContent();
+        RefreshEquipButton();
+    }
+
+    private void RefreshSelectionContent()
+    {
         MagicChoice selected = FindChoice(SelectedMagic);
         bool hasSelection = selected != null && IsSelectableMagic(SelectedMagic);
-        bool alreadyEquipped = hasSelection && EquippedMagic(SelectedSlot) == SelectedMagic;
-        SetVisible(selectionPanel, hasSelection);
-        SetIcon(selectedMagicImage, hasSelection ? MagicIcon(SelectedMagic) : null);
-        if (selectedMagicName != null) selectedMagicName.text = hasSelection ? MagicName(SelectedMagic) : string.Empty;
-        if (selectedMagicDescription != null) selectedMagicDescription.text = hasSelection ? selected.description ?? string.Empty : string.Empty;
+        // Panel activation and content are independent. Existing OnClick may show
+        // the panel, while these assigned fields always describe the chosen magic.
+        // A preview accidentally assigned to a loadout Image cannot erase it.
+        if (!IsEquippedSlotImage(selectedMagicImage))
+            SetIcon(selectedMagicImage, hasSelection ? MagicIcon(SelectedMagic) : null);
+        SetText(selectedMagicName, hasSelection ? MagicName(SelectedMagic) : string.Empty);
+        SetText(selectedMagicDescription, hasSelection ? selected.description ?? string.Empty : string.Empty);
+    }
+
+    private void RefreshEquippedSlots()
+    {
+        // The bottom row always shows SAVED equipment, never the pending candidate.
+        bool ready = ProfileReady;
+        SetIcon(slot1Image, ready ? MagicIcon(EquippedMagic(1)) ?? emptySlotSprite : emptySlotSprite);
+        SetIcon(slot2Image, ready ? MagicIcon(EquippedMagic(2)) ?? emptySlotSprite : emptySlotSprite);
+    }
+
+    private void RefreshSlotControls()
+    {
+        SetVisible(slot1Highlight, SelectedSlot == 1);
+        SetVisible(slot2Highlight, SelectedSlot == 2);
+        if (slot1Button != null) slot1Button.interactable = CanEdit;
+        if (slot2Button != null) slot2Button.interactable = CanEdit;
+    }
+
+    private void RefreshEquipButton()
+    {
+        bool hasSelection = IsSelectableMagic(SelectedMagic) && FindChoice(SelectedMagic) != null;
+        bool validSlot = SelectedSlot == 1 || SelectedSlot == 2;
+        bool alreadyEquipped = validSlot && hasSelection && EquippedMagic(SelectedSlot) == SelectedMagic;
         if (equipButtonText != null) equipButtonText.text = alreadyEquipped ? "장착 중" : $"{SelectedSlot}번 슬롯에 장착";
         if (equipButton != null)
         {
             SetVisible(equipButton.gameObject, hasSelection);
-            equipButton.interactable = lastCanEdit && hasSelection && !alreadyEquipped;
+            equipButton.interactable = CanEdit && validSlot && hasSelection && !alreadyEquipped && !isEquipping;
         }
     }
+
+    private bool IsEquippedSlotImage(Image image) => image != null && (image == slot1Image || image == slot2Image);
 
     private MagicChoice FindChoice(MagicType magic)
     {
@@ -265,7 +353,13 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private static void SetIcon(Image image, Sprite sprite)
     {
         if (image == null) return;
-        image.sprite = sprite;
-        image.enabled = sprite != null;
+        if (image.sprite != sprite) image.sprite = sprite;
+        bool visible = sprite != null;
+        if (image.enabled != visible) image.enabled = visible;
+    }
+
+    private static void SetText(TMP_Text text, string value)
+    {
+        if (text != null && text.text != value) text.text = value;
     }
 }

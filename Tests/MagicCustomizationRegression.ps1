@@ -58,6 +58,9 @@ namespace UnityEngine.Events {
   public void Invoke(T value){handlers?.Invoke(value);}
  }
 }
+namespace UnityEngine.Serialization {
+ public class FormerlySerializedAsAttribute:Attribute {public FormerlySerializedAsAttribute(string name){}}
+}
 namespace UnityEngine.UI {
  public class Image:UnityEngine.MonoBehaviour {public UnityEngine.Sprite sprite;public bool enabled=true;}
  public class Button:UnityEngine.MonoBehaviour {
@@ -107,7 +110,7 @@ namespace MagicCustomizationChecks {
    public int StaffWrites {get {int result=0;foreach(var staff in staffs)result+=staff.Writes;return result;}}
    public Sprite empty=new Sprite();
    public int changes,equips,errors,lastSlot;
-   public Fixture(bool ready=true){
+   public Fixture(bool ready=true,bool automaticPanel=true){
     DatabaseManager.Instance=new DatabaseManager{IsDataConfigReady=ready,HasLoadedProfile=ready};
     NetworkGameManager.Instance=null;
     DataConfig.ResetToDefaults();
@@ -118,6 +121,7 @@ namespace MagicCustomizationChecks {
     Set(ui,"slot1Highlight",h1);Set(ui,"slot2Highlight",h2);
     Set(ui,"selectionPanel",details);Set(ui,"selectedMagicImage",selected);
     Set(ui,"selectedMagicName",name);Set(ui,"selectedMagicDescription",description);
+    Set(ui,"manageSelectionPanel",automaticPanel);
     Set(ui,"equipButton",equip);Set(ui,"equipButtonText",label);Set(ui,"statusText",status);
     Set(ui,"cancelSelectionButton",cancel);
     for(int i=0;i<staffs.Length;i++)staffs[i]=new GameObject();
@@ -200,6 +204,70 @@ namespace MagicCustomizationChecks {
     Check(f.ui.SelectedMagic==MagicType.None&&!f.equip.gameObject.activeSelf&&!f.slot1.interactable,"matching clears candidate and locks buttons");
     NetworkGameManager.Instance.IsMatching=false;Life(f.ui,"Update");
     Check(f.slot1.interactable&&f.ui.SelectedMagic==MagicType.None,"leaving room unlocks without restoring stale candidate");
+   }
+   using(var f=new Fixture()){
+    f.ui.SelectSlot(1);f.Pick(MagicType.Mine);f.slot2.onClick.Invoke();
+    Check(f.ui.SelectedSlot==2&&f.ui.SelectedMagic==MagicType.Mine,"user scenario: slot 1 -> Mine -> slot 2 retains chosen magic");
+    Check(DataConfig.magic1Index==1&&DataConfig.magic2Index==2&&f.changes==0&&f.first.sprite==f.Icon(MagicType.Fire)&&f.second.sprite==f.Icon(MagicType.Ice),"slot change changes neither saved data nor equipped icons");
+    Check(f.equip.interactable&&f.equip.gameObject.activeSelf&&f.label.text=="2번 슬롯에 장착","equip button follows latest target slot");
+    f.equip.onClick.Invoke();
+    Check(DataConfig.magic1Index==1&&DataConfig.magic2Index==(int)MagicType.Mine&&f.changes==1&&f.lastSlot==2,"confirmation equips Mine in latest slot only");
+    Check(f.first.sprite==f.Icon(MagicType.Fire)&&f.second.sprite==f.Icon(MagicType.Mine)&&f.staffs[(int)MagicType.Mine].activeSelf,"equipping updates weapon and only target icon through DataConfig");
+    f.slot2.onClick.Invoke();f.ui.EquipSelectedMagic();
+    Check(f.ui.SelectedMagic==MagicType.Mine&&f.changes==1&&f.equips==1,"same slot and repeated confirm preserve candidate without repeat save");
+    f.slot1.onClick.Invoke();
+    Check(f.ui.SelectedMagic==MagicType.Mine&&f.equip.interactable,"same candidate can intentionally be equipped in the other slot");
+    f.Pick(MagicType.Thunder);f.slot2.onClick.Invoke();f.slot1.onClick.Invoke();f.equip.onClick.Invoke();
+    Check(DataConfig.magic1Index==(int)MagicType.Thunder&&DataConfig.magic2Index==(int)MagicType.Mine&&f.changes==2,"last selected magic and slot win after repeated navigation");
+   }
+   using(var f=new Fixture(automaticPanel:false)){
+    var designerIcon=new Sprite();
+    f.name.text="Designer name";f.description.text="Designer description";f.selected.sprite=designerIcon;
+    f.details.SetActive(false);
+    int designerClicks=0;
+    // Existing OnClick callbacks are deliberately not removed by the controller.
+    f.choices[(int)MagicType.Mine-1].button.onClick.AddListener(()=>{designerClicks++;f.details.SetActive(true);});
+    f.Pick(MagicType.Mine);f.slot2.onClick.Invoke();
+    Check(designerClicks==1&&f.details.activeSelf&&f.name.text=="Mine"&&f.description.text=="Description Mine"&&f.selected.sprite==f.Icon(MagicType.Mine),"existing OnClick owns visibility; content still follows the selected magic");
+    f.ui.CancelSelection();
+    Check(f.details.activeSelf&&f.name.text==string.Empty&&f.description.text==string.Empty&&f.selected.sprite==null,"cancel clears stale content without hiding the manually controlled panel");
+    f.Pick(MagicType.Mine);
+    // A legacy slot callback may run after our listener. One end-of-frame repair
+    // restores controls and candidate content, leaving panel visibility alone.
+    f.slot2.onClick.AddListener(()=>{f.first.sprite=null;f.equip.gameObject.SetActive(false);f.description.text="Slot tab text";});
+    f.slot2.onClick.Invoke();Life(f.ui,"LateUpdate");
+    Check(f.first.sprite==f.Icon(MagicType.Fire)&&f.second.sprite==f.Icon(MagicType.Ice)&&f.equip.gameObject.activeSelf&&f.equip.interactable,"later UI callbacks cannot leave saved icons cleared or valid confirm hidden");
+    Check(f.description.text=="Description Mine"&&f.ui.SelectedMagic==MagicType.Mine&&f.changes==0,"end-of-frame refresh restores selected magic description without saving");
+    Life(f.ui,"OnDisable");f.Pick(MagicType.Mine);
+    Check(designerClicks==3,"disabling removes only controller listeners, not existing OnClick");
+   }
+   using(var f=new Fixture(automaticPanel:false)){
+    f.details.SetActive(false);int panelWrites=f.details.Writes;
+    f.Pick(MagicType.Flare);
+    Check(!f.details.activeSelf&&f.details.Writes==panelWrites,"automatic panel OFF never opens a manually controlled description panel");
+    Check(f.name.text=="Flare"&&f.description.text=="Description Flare"&&f.selected.sprite==f.Icon(MagicType.Flare),"automatic panel OFF still updates all connected content");
+    f.Pick(MagicType.Ice);
+    Check(f.name.text=="Ice"&&f.description.text=="Description Ice"&&f.changes==0,"switching spell updates content immediately without equipping");
+    f.choices[(int)MagicType.Mine-1].button.onClick.AddListener(()=>{f.details.SetActive(true);f.name.text="Fire";f.description.text="Old fire text";});
+    f.Pick(MagicType.Mine);Life(f.ui,"LateUpdate");
+    Check(f.details.activeSelf&&f.name.text=="Mine"&&f.description.text=="Description Mine","late existing OnClick cannot leave stale fire description after choosing Mine");
+    f.slot2.onClick.Invoke();Life(f.ui,"LateUpdate");
+    Check(f.name.text=="Mine"&&f.description.text=="Description Mine"&&f.ui.SelectedMagic==MagicType.Mine&&f.changes==0,"slot switch preserves candidate description and saved loadout");
+   }
+   using(var f=new Fixture()){
+    f.Pick(MagicType.Mine);f.slot2.onClick.Invoke();
+    Get<UnityEvent<int>>(f.ui,"onEquipped").AddListener(slot=>{f.ui.SelectSlot(1);f.ui.EquipSelectedMagic();});
+    f.equip.onClick.Invoke();
+    Check(DataConfig.magic1Index==1&&DataConfig.magic2Index==(int)MagicType.Mine&&f.changes==1&&f.equips==1,"reentrant equip callback cannot write a second slot in one confirmation");
+    Check(f.equip.interactable,"reentrancy guard releases for next intentional click");
+   }
+   using(var f=new Fixture()){
+    // Common Inspector mistake: preview/list images reference the equipped Image.
+    Set(f.ui,"selectedMagicImage",f.first);f.choices[0].buttonImage=f.second;
+    f.Pick(MagicType.Mine);f.slot2.onClick.Invoke();f.cancel.onClick.Invoke();
+    Check(f.first.sprite==f.Icon(MagicType.Fire)&&f.second.sprite==f.Icon(MagicType.Ice),"aliased preview/list image cannot overwrite equipped slot images");
+    f.Pick(MagicType.Mine);f.ui.isActiveAndEnabled=false;Life(f.ui,"OnDisable");f.ui.EquipSelectedMagic();
+    Check(f.changes==0&&f.ui.SelectedMagic==MagicType.None&&!f.equip.interactable,"closed controller cannot equip from a stale invocation");
    }
    using(var f=new Fixture()){
     f.preview.SetFlightEquipmentVisible(false);
