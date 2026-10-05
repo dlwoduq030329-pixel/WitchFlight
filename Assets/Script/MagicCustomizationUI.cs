@@ -11,6 +11,8 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class MagicCustomizationUI : MonoBehaviour
 {
+    public enum EquipmentCategory { Magic, Hat, Broom }
+
     [Serializable]
     public sealed class MagicChoice
     {
@@ -24,6 +26,52 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         public string displayName;
         [TextArea] public string description;
     }
+
+    [Serializable]
+    public sealed class HatChoice
+    {
+        public HatType hat;
+        public Button button;
+        public Image buttonImage;
+        public Sprite icon;
+        public string displayName;
+        [TextArea] public string description;
+    }
+
+    [Serializable]
+    public sealed class BroomChoice
+    {
+        public BroomType broom;
+        public Button button;
+        public Image buttonImage;
+        public Sprite icon;
+        public string displayName;
+        [TextArea] public string description;
+    }
+
+    [Header("Hat image buttons (same selection/confirmation flow as magic)")]
+    [SerializeField] private HatChoice[] hatChoices =
+    {
+        new HatChoice { hat = HatType.Classic },
+        new HatChoice { hat = HatType.Twisted },
+        new HatChoice { hat = HatType.Elemental },
+        new HatChoice { hat = HatType.Serenity },
+        new HatChoice { hat = HatType.Cosmic }
+    };
+    [SerializeField] private Button hatSlotButton;
+    [SerializeField] private Image hatSlotImage;
+    [SerializeField] private GameObject hatSlotHighlight;
+
+    [Header("Broom image buttons (same selection/confirmation flow as magic)")]
+    [SerializeField] private BroomChoice[] broomChoices =
+    {
+        new BroomChoice { broom = BroomType.Slow },
+        new BroomChoice { broom = BroomType.Standard },
+        new BroomChoice { broom = BroomType.Speed }
+    };
+    [SerializeField] private Button broomSlotButton;
+    [SerializeField] private Image broomSlotImage;
+    [SerializeField] private GameObject broomSlotHighlight;
 
     [Header("Magic image buttons (enum IDs, not array indices)")]
     [SerializeField] private MagicChoice[] magicChoices =
@@ -52,17 +100,20 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     [SerializeField] private Sprite emptySlotSprite;
     [SerializeField, Range(1, 2)] private int defaultSlot = 1;
 
-    [Header("Description panel visibility (content always follows the selected magic)")]
+    [Header("Description panel visibility (content always follows the selected item)")]
     [FormerlySerializedAs("manageSelectionDetails")]
     [Tooltip("설명창을 코드가 켜고 끌지 여부입니다. 기존 OnClick이 창을 켠다면 끄세요. 이름/설명/아이콘은 이 옵션과 관계없이 갱신합니다.")]
     [SerializeField] private bool manageSelectionPanel;
     [Tooltip("선택 전에는 숨길 상세 UI. 이 스크립트가 붙은 오브젝트/부모는 지정하지 마세요.")]
     [SerializeField] private GameObject selectionPanel;
-    [SerializeField] private Image selectedMagicImage;
-    [SerializeField] private TMP_Text selectedMagicName;
-    [SerializeField] private TMP_Text selectedMagicDescription;
+    [FormerlySerializedAs("selectedMagicImage")]
+    [SerializeField] private Image selectedItemImage;
+    [FormerlySerializedAs("selectedMagicName")]
+    [SerializeField] private TMP_Text selectedItemName;
+    [FormerlySerializedAs("selectedMagicDescription")]
+    [SerializeField] private TMP_Text selectedItemDescription;
     [Header("Equip confirmation (existing OnClick events are preserved)")]
-    [Tooltip("마법을 선택하면 표시됩니다. OnClick은 자동 연결되므로 직접 중복 연결하지 마세요.")]
+    [Tooltip("모자/빗자루/마법 공용 장착 버튼. OnClick은 자동 연결되므로 장착 함수를 중복 연결하지 마세요.")]
     [SerializeField] private Button equipButton;
     [SerializeField] private TMP_Text equipButtonText;
     [SerializeField] private TMP_Text statusText;
@@ -71,10 +122,18 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     [Header("Optional UI events")]
     [Tooltip("로컬 장착 완료 시 슬롯 번호(1 또는 2)를 전달합니다. 서버 저장 완료 이벤트는 아닙니다.")]
     [SerializeField] private UnityEvent<int> onEquipped = new UnityEvent<int>();
+    [Tooltip("모자 장착 완료 시 HatType의 정수 값을 전달합니다. 서버 저장 완료는 아닙니다.")]
+    [SerializeField] private UnityEvent<int> onHatEquipped = new UnityEvent<int>();
+    [Tooltip("빗자루 장착 완료 시 BroomType의 정수 값을 전달합니다. 서버 저장 완료는 아닙니다.")]
+    [SerializeField] private UnityEvent<int> onBroomEquipped = new UnityEvent<int>();
     [SerializeField] private UnityEvent<string> onEquipFailed = new UnityEvent<string>();
 
     public int SelectedSlot { get; private set; } = 1;
     public MagicType SelectedMagic { get; private set; } = MagicType.None;
+    public HatType SelectedHat { get; private set; } = HatType.None;
+    public BroomType SelectedBroom { get; private set; } = BroomType.None;
+    public EquipmentCategory SelectedCategory { get; private set; } = EquipmentCategory.Magic;
+    public EquipmentCategory SelectedItemCategory { get; private set; } = EquipmentCategory.Magic;
 
     private readonly List<(Button button, UnityAction action)> listeners = new List<(Button, UnityAction)>();
     private bool lastProfileReady, lastCanEdit;
@@ -90,6 +149,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     {
         if (magicTable == null) magicTable = Resources.Load<MagicStatTable>("MagicStatTable");
         SelectedSlot = Mathf.Clamp(defaultSlot, 1, 2);
+        SelectedCategory = EquipmentCategory.Magic;
         ClearPendingSelection();
         if (magicChoices != null)
         {
@@ -100,9 +160,25 @@ public sealed class MagicCustomizationUI : MonoBehaviour
                 Bind(choice.button, () => SelectMagic(magicId));
             }
         }
+        if (hatChoices != null)
+            foreach (HatChoice choice in hatChoices)
+            {
+                if (choice == null || !IsSelectableHat(choice.hat)) continue;
+                int index = (int)choice.hat;
+                Bind(choice.button, () => SelectHat(index));
+            }
+        if (broomChoices != null)
+            foreach (BroomChoice choice in broomChoices)
+            {
+                if (choice == null || !IsSelectableBroom(choice.broom)) continue;
+                int index = (int)choice.broom;
+                Bind(choice.button, () => SelectBroom(index));
+            }
+        Bind(hatSlotButton, SelectHatSlot);
+        Bind(broomSlotButton, SelectBroomSlot);
         Bind(slot1Button, () => SelectSlot(1));
         Bind(slot2Button, () => SelectSlot(2));
-        Bind(equipButton, EquipSelectedMagic);
+        Bind(equipButton, EquipSelectedItem);
         Bind(cancelSelectionButton, CancelSelection);
         DataConfig.Changed += RefreshFromDataConfig;
         SetStatus(string.Empty);
@@ -158,6 +234,22 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         // Slot and spell are independent selections. Mine chosen in slot 1 must
         // remain the candidate when switching to slot 2, without equipping yet.
         SelectedSlot = slot;
+        SelectedCategory = EquipmentCategory.Magic;
+        RefreshTargetSlot();
+    }
+
+    public void SelectHatSlot() => SelectEquipmentSlot(EquipmentCategory.Hat);
+    public void SelectBroomSlot() => SelectEquipmentSlot(EquipmentCategory.Broom);
+
+    private void SelectEquipmentSlot(EquipmentCategory category)
+    {
+        if (!CanEdit) { RejectSelection(EditBlockedMessage()); return; }
+        SelectedCategory = category;
+        RefreshTargetSlot();
+    }
+
+    private void RefreshTargetSlot()
+    {
         SetStatus(string.Empty);
         RefreshEquippedSlots();
         RefreshSlotControls();
@@ -178,36 +270,86 @@ public sealed class MagicCustomizationUI : MonoBehaviour
             return;
         }
         SelectedMagic = magic;
+        SelectedItemCategory = EquipmentCategory.Magic;
         SetStatus(string.Empty);
         RefreshFromDataConfig();
     }
 
-    public void EquipSelectedMagic()
+    public void SelectHat(int hatId)
+    {
+        if (!CanEdit) { RejectSelection(EditBlockedMessage()); return; }
+        HatType hat = (HatType)hatId;
+        if (!IsSelectableHat(hat) || FindHatChoice(hat) == null)
+        {
+            RejectSelection("목록에 등록된 모자를 선택해주세요.");
+            return;
+        }
+        SelectedHat = hat;
+        SelectedItemCategory = EquipmentCategory.Hat;
+        SetStatus(string.Empty);
+        RefreshFromDataConfig();
+    }
+
+    public void SelectBroom(int broomId)
+    {
+        if (!CanEdit) { RejectSelection(EditBlockedMessage()); return; }
+        BroomType broom = (BroomType)broomId;
+        if (!IsSelectableBroom(broom) || FindBroomChoice(broom) == null)
+        {
+            RejectSelection("목록에 등록된 빗자루를 선택해주세요.");
+            return;
+        }
+        SelectedBroom = broom;
+        SelectedItemCategory = EquipmentCategory.Broom;
+        SetStatus(string.Empty);
+        RefreshFromDataConfig();
+    }
+
+    // Backward-compatible entry point for existing manually wired buttons.
+    public void EquipSelectedMagic() => EquipSelectedItem();
+
+    public void EquipSelectedItem()
     {
         if (isEquipping) return;
         // Recheck at confirmation: login/matching state can change after selection.
         if (!CanEdit) { RejectSelection(EditBlockedMessage()); return; }
-        if ((SelectedSlot != 1 && SelectedSlot != 2) ||
-            !IsSelectableMagic(SelectedMagic) || FindChoice(SelectedMagic) == null)
+        if (!HasSelectedItem || !HasValidTargetSlot)
         {
-            RejectSelection("장착할 마법과 1번 또는 2번 슬롯을 선택해주세요.");
+            RejectSelection("장착할 장비와 슬롯을 선택해주세요.");
             return;
         }
-        if (EquippedMagic(SelectedSlot) == SelectedMagic) return;
+        if (SelectedItemCategory != SelectedCategory)
+        {
+            Fail("선택한 장비와 같은 종류의 슬롯을 선택해주세요.");
+            return;
+        }
+        if (IsSelectedItemEquipped) return;
 
         int slot = SelectedSlot;
-        MagicType magic = SelectedMagic;
+        EquipmentCategory category = SelectedCategory;
+        int index = SelectedItemIndex;
+        string itemName = SelectedItemName();
+        string targetName = SelectedTargetName();
         isEquipping = true;
         try
         {
             // Snapshot BOTH choices at confirmation, not when a spell was picked.
             // Retain the candidate for another slot; same-slot repeat is a no-op.
             // DatabaseManager already observes Changed and saves asynchronously.
-            if (slot == 1) DataConfig.magic1Index = (int)magic;
-            else DataConfig.magic2Index = (int)magic;
+            switch (category)
+            {
+                case EquipmentCategory.Hat: DataConfig.hatIndex = index; break;
+                case EquipmentCategory.Broom: DataConfig.broomIndex = index; break;
+                default:
+                    if (slot == 1) DataConfig.magic1Index = index;
+                    else DataConfig.magic2Index = index;
+                    break;
+            }
             RefreshFromDataConfig();
-            SetStatus($"{slot}번 슬롯에 {MagicName(magic)} 장착 완료");
-            onEquipped.Invoke(slot);
+            SetStatus($"{targetName}에 {itemName} 장착 완료");
+            if (category == EquipmentCategory.Hat) onHatEquipped.Invoke(index);
+            else if (category == EquipmentCategory.Broom) onBroomEquipped.Invoke(index);
+            else onEquipped.Invoke(slot);
         }
         finally
         {
@@ -227,6 +369,8 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private void ClearPendingSelection()
     {
         SelectedMagic = MagicType.None;
+        SelectedHat = HatType.None;
+        SelectedBroom = BroomType.None;
     }
 
     private void RejectSelection(string message)
@@ -255,6 +399,20 @@ public sealed class MagicCustomizationUI : MonoBehaviour
                 if (icon != null && !IsEquippedSlotImage(choice.buttonImage)) SetIcon(choice.buttonImage, icon);
             }
         }
+        if (hatChoices != null)
+            foreach (HatChoice choice in hatChoices)
+            {
+                if (choice?.button == null) continue;
+                choice.button.interactable = lastCanEdit && IsSelectableHat(choice.hat);
+                if (choice.icon != null && !IsEquippedSlotImage(choice.buttonImage)) SetIcon(choice.buttonImage, choice.icon);
+            }
+        if (broomChoices != null)
+            foreach (BroomChoice choice in broomChoices)
+            {
+                if (choice?.button == null) continue;
+                choice.button.interactable = lastCanEdit && IsSelectableBroom(choice.broom);
+                if (choice.icon != null && !IsEquippedSlotImage(choice.buttonImage)) SetIcon(choice.buttonImage, choice.icon);
+            }
 
         RefreshSelectionUI();
         refreshControlsAfterClick = isActiveAndEnabled;
@@ -263,22 +421,21 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private void RefreshSelectionUI()
     {
         if (manageSelectionPanel)
-            SetVisible(selectionPanel, IsSelectableMagic(SelectedMagic) && FindChoice(SelectedMagic) != null);
+            SetVisible(selectionPanel, HasSelectedItem);
         RefreshSelectionContent();
         RefreshEquipButton();
     }
 
     private void RefreshSelectionContent()
     {
-        MagicChoice selected = FindChoice(SelectedMagic);
-        bool hasSelection = selected != null && IsSelectableMagic(SelectedMagic);
+        bool hasSelection = HasSelectedItem;
         // Panel activation and content are independent. Existing OnClick may show
         // the panel, while these assigned fields always describe the chosen magic.
         // A preview accidentally assigned to a loadout Image cannot erase it.
-        if (!IsEquippedSlotImage(selectedMagicImage))
-            SetIcon(selectedMagicImage, hasSelection ? MagicIcon(SelectedMagic) : null);
-        SetText(selectedMagicName, hasSelection ? MagicName(SelectedMagic) : string.Empty);
-        SetText(selectedMagicDescription, hasSelection ? selected.description ?? string.Empty : string.Empty);
+        if (!IsEquippedSlotImage(selectedItemImage))
+            SetIcon(selectedItemImage, hasSelection ? SelectedItemIcon() : null);
+        SetText(selectedItemName, hasSelection ? SelectedItemName() : string.Empty);
+        SetText(selectedItemDescription, hasSelection ? SelectedItemDescription() : string.Empty);
     }
 
     private void RefreshEquippedSlots()
@@ -287,30 +444,107 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         bool ready = ProfileReady;
         SetIcon(slot1Image, ready ? MagicIcon(EquippedMagic(1)) ?? emptySlotSprite : emptySlotSprite);
         SetIcon(slot2Image, ready ? MagicIcon(EquippedMagic(2)) ?? emptySlotSprite : emptySlotSprite);
+        SetIcon(hatSlotImage, ready ? FindHatChoice((HatType)DataConfig.hatIndex)?.icon ?? emptySlotSprite : emptySlotSprite);
+        SetIcon(broomSlotImage, ready ? FindBroomChoice((BroomType)DataConfig.broomIndex)?.icon ?? emptySlotSprite : emptySlotSprite);
     }
 
     private void RefreshSlotControls()
     {
-        SetVisible(slot1Highlight, SelectedSlot == 1);
-        SetVisible(slot2Highlight, SelectedSlot == 2);
+        SetVisible(slot1Highlight, SelectedCategory == EquipmentCategory.Magic && SelectedSlot == 1);
+        SetVisible(slot2Highlight, SelectedCategory == EquipmentCategory.Magic && SelectedSlot == 2);
+        SetVisible(hatSlotHighlight, SelectedCategory == EquipmentCategory.Hat);
+        SetVisible(broomSlotHighlight, SelectedCategory == EquipmentCategory.Broom);
         if (slot1Button != null) slot1Button.interactable = CanEdit;
         if (slot2Button != null) slot2Button.interactable = CanEdit;
+        if (hatSlotButton != null) hatSlotButton.interactable = CanEdit;
+        if (broomSlotButton != null) broomSlotButton.interactable = CanEdit;
     }
 
     private void RefreshEquipButton()
     {
-        bool hasSelection = IsSelectableMagic(SelectedMagic) && FindChoice(SelectedMagic) != null;
-        bool validSlot = SelectedSlot == 1 || SelectedSlot == 2;
-        bool alreadyEquipped = validSlot && hasSelection && EquippedMagic(SelectedSlot) == SelectedMagic;
-        if (equipButtonText != null) equipButtonText.text = alreadyEquipped ? "장착 중" : $"{SelectedSlot}번 슬롯에 장착";
+        bool hasSelection = HasSelectedItem;
+        bool matchingCategory = SelectedItemCategory == SelectedCategory;
+        bool alreadyEquipped = hasSelection && HasValidTargetSlot && matchingCategory && IsSelectedItemEquipped;
+        if (equipButtonText != null) equipButtonText.text = alreadyEquipped ? "장착 중" :
+            hasSelection && !matchingCategory ? "같은 종류의 슬롯을 선택해주세요" : $"{SelectedTargetName()}에 장착";
         if (equipButton != null)
         {
             SetVisible(equipButton.gameObject, hasSelection);
-            equipButton.interactable = CanEdit && validSlot && hasSelection && !alreadyEquipped && !isEquipping;
+            equipButton.interactable = CanEdit && HasValidTargetSlot && matchingCategory && hasSelection && !alreadyEquipped && !isEquipping;
         }
     }
 
-    private bool IsEquippedSlotImage(Image image) => image != null && (image == slot1Image || image == slot2Image);
+    private bool IsEquippedSlotImage(Image image) => image != null &&
+        (image == slot1Image || image == slot2Image || image == hatSlotImage || image == broomSlotImage);
+
+    private HatChoice FindHatChoice(HatType hat)
+    {
+        if (hatChoices != null)
+            foreach (HatChoice choice in hatChoices)
+                if (choice != null && choice.hat == hat) return choice;
+        return null;
+    }
+
+    private BroomChoice FindBroomChoice(BroomType broom)
+    {
+        if (broomChoices != null)
+            foreach (BroomChoice choice in broomChoices)
+                if (choice != null && choice.broom == broom) return choice;
+        return null;
+    }
+
+    private bool HasSelectedItem => SelectedItemCategory switch
+    {
+        EquipmentCategory.Hat => IsSelectableHat(SelectedHat) && FindHatChoice(SelectedHat) != null,
+        EquipmentCategory.Broom => IsSelectableBroom(SelectedBroom) && FindBroomChoice(SelectedBroom) != null,
+        _ => IsSelectableMagic(SelectedMagic) && FindChoice(SelectedMagic) != null
+    };
+
+    private bool HasValidTargetSlot => SelectedCategory == EquipmentCategory.Hat || SelectedCategory == EquipmentCategory.Broom ||
+        (SelectedCategory == EquipmentCategory.Magic && (SelectedSlot == 1 || SelectedSlot == 2));
+
+    private int SelectedItemIndex => SelectedItemCategory switch
+    {
+        EquipmentCategory.Hat => (int)SelectedHat,
+        EquipmentCategory.Broom => (int)SelectedBroom,
+        _ => (int)SelectedMagic
+    };
+
+    private bool IsSelectedItemEquipped => SelectedCategory switch
+    {
+        EquipmentCategory.Hat => DataConfig.hatIndex == SelectedItemIndex,
+        EquipmentCategory.Broom => DataConfig.broomIndex == SelectedItemIndex,
+        _ => (int)EquippedMagic(SelectedSlot) == SelectedItemIndex
+    };
+
+    private string SelectedTargetName() => SelectedCategory switch
+    {
+        EquipmentCategory.Hat => "모자 슬롯",
+        EquipmentCategory.Broom => "빗자루 슬롯",
+        _ => $"{SelectedSlot}번 슬롯"
+    };
+
+    private Sprite SelectedItemIcon() => SelectedItemCategory switch
+    {
+        EquipmentCategory.Hat => FindHatChoice(SelectedHat)?.icon,
+        EquipmentCategory.Broom => FindBroomChoice(SelectedBroom)?.icon,
+        _ => MagicIcon(SelectedMagic)
+    };
+
+    private string SelectedItemName()
+    {
+        if (SelectedItemCategory == EquipmentCategory.Magic) return MagicName(SelectedMagic);
+        string name = SelectedItemCategory == EquipmentCategory.Hat ? FindHatChoice(SelectedHat)?.displayName : FindBroomChoice(SelectedBroom)?.displayName;
+        return !string.IsNullOrWhiteSpace(name) ? name :
+            SelectedItemCategory == EquipmentCategory.Hat ? SelectedHat.ToString() : SelectedBroom.ToString();
+    }
+
+    private string SelectedItemDescription() => (SelectedItemCategory switch
+    {
+        EquipmentCategory.Hat => FindHatChoice(SelectedHat)?.description,
+        EquipmentCategory.Broom => FindBroomChoice(SelectedBroom)?.description,
+        _ => FindChoice(SelectedMagic)?.description
+    }) ?? string.Empty;
 
     private MagicChoice FindChoice(MagicType magic)
     {
@@ -338,7 +572,9 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private static MagicType EquippedMagic(int slot) => (MagicType)(slot == 1 ? DataConfig.magic1Index : DataConfig.magic2Index);
     private static bool IsSelectableMagic(MagicType magic) => magic >= MagicType.Fire && magic <= MagicType.Scane;
-    private string EditBlockedMessage() => !ProfileReady ? "로그인 및 유저 정보 불러오기를 먼저 완료해주세요." : "매칭 중이거나 방에 입장한 상태에서는 마법을 변경할 수 없습니다.";
+    private static bool IsSelectableHat(HatType hat) => hat >= HatType.Classic && hat <= HatType.Cosmic;
+    private static bool IsSelectableBroom(BroomType broom) => broom >= BroomType.Slow && broom <= BroomType.Speed;
+    private string EditBlockedMessage() => !ProfileReady ? "로그인 및 유저 정보 불러오기를 먼저 완료해주세요." : "매칭 중이거나 방에 입장한 상태에서는 장비를 변경할 수 없습니다.";
     private void SetStatus(string message) { if (statusText != null) statusText.text = message; }
     private void Fail(string message) { SetStatus(message); onEquipFailed.Invoke(message); }
 

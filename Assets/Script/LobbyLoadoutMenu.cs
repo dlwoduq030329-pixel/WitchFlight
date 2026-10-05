@@ -55,7 +55,7 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     public void ClosePanel() { expanded = false; RefreshUI(); }
 
     // Dropdown indices are zero-based. Stored enum IDs remain one-based.
-    public void SetHat(int index) { if (CanEdit) DataConfig.hatIndex = Mathf.Clamp(index, 0, 2) + 1; }
+    public void SetHat(int index) { if (CanEdit) DataConfig.hatIndex = Mathf.Clamp(index, 0, (int)HatType.Cosmic - 1) + 1; }
     public void SetBroom(int index) { if (CanEdit) DataConfig.broomIndex = Mathf.Clamp(index, 0, 2) + 1; }
     public void SetMagic1(int index) { if (CanEdit) DataConfig.magic1Index = Mathf.Clamp(index, 0, 9) + 1; }
     public void SetMagic2(int index) { if (CanEdit) DataConfig.magic2Index = Mathf.Clamp(index, 0, 9) + 1; }
@@ -119,7 +119,7 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     }
     private static void Text(TMP_Text label, string value) { if (label != null) label.text = value; }
     private static void SetVisible(GameObject root, bool value) { if (root != null && root.activeSelf != value) root.SetActive(value); }
-    private static int ValidHat(int selected) => selected >= (int)HatType.Classic && selected <= (int)HatType.Elemental ? selected : (int)HatType.Classic;
+    private static int ValidHat(int selected) => selected >= (int)HatType.Classic && selected <= (int)HatType.Cosmic ? selected : (int)HatType.Classic;
     private static int ValidBroom(int selected) => selected >= (int)BroomType.Slow && selected <= (int)BroomType.Speed ? selected : (int)BroomType.Standard;
     private static int ValidMagic(int selected, int fallback) => selected >= (int)MagicType.Fire && selected <= (int)MagicType.Scane ? selected : fallback;
 

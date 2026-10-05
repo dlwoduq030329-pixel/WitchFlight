@@ -155,7 +155,9 @@ public class PlayerData : NetworkBehaviour
     {
         return selectedHat == HatType.Classic ||
                selectedHat == HatType.Twisted ||
-               selectedHat == HatType.Elemental
+               selectedHat == HatType.Elemental ||
+               selectedHat == HatType.Serenity ||
+               selectedHat == HatType.Cosmic
             ? selectedHat
             : HatType.Classic;
     }

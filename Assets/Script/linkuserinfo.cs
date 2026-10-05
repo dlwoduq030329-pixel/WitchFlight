@@ -15,6 +15,13 @@ public sealed class linkuserinfo : MonoBehaviour
     public sealed class PlayerDataEvent : UnityEvent<PlayerData> { }
 
     [Serializable]
+    public struct MagicIconEntry
+    {
+        public MagicType magic;
+        public Sprite icon;
+    }
+
+    [Serializable]
     public sealed class WaitingRoomSlot
     {
         public GameObject occupiedRoot;
@@ -39,6 +46,18 @@ public sealed class linkuserinfo : MonoBehaviour
     [SerializeField] private Sprite fallbackProfileSprite;
     [Tooltip("Enable on exactly one active MAIN lobby UI bridge, not the Battle intro panel. Random matchmaking waits for both peers to display the opponent for one second.")]
     [SerializeField] private bool confirmRandomMatchPreview;
+
+    [Header("Battle intro cards (Local = this client, Opponent = other team)")]
+    [SerializeField] private TMP_Text localNameText;
+    [SerializeField] private TMP_Text opponentNameText;
+    [SerializeField] private Image localMagic1Image;
+    [SerializeField] private Image localMagic2Image;
+    [SerializeField] private Image opponentMagic1Image;
+    [SerializeField] private Image opponentMagic2Image;
+    [Tooltip("장착 마법 enum에 대응하는 아이콘. 배열 순서가 아니라 Magic 값으로 찾습니다.")]
+    [SerializeField] private MagicIconEntry[] magicIcons = Array.Empty<MagicIconEntry>();
+    [Tooltip("Magic Icons가 비어 있으면 이 테이블의 icon을 사용합니다. 비우면 Resources/MagicStatTable입니다.")]
+    [SerializeField] private MagicStatTable magicTable;
 
     [Header("Code waiting room (optional, MAIN only)")]
     [Tooltip("Keep this component on an always-active object OUTSIDE this panel, so it can open the panel after connecting.")]
@@ -117,6 +136,7 @@ public sealed class linkuserinfo : MonoBehaviour
 
     private void OnEnable()
     {
+        if (magicTable == null) magicTable = Resources.Load<MagicStatTable>("MagicStatTable");
         if (waitingRoomPanel != null && transform.IsChildOf(waitingRoomPanel.transform))
             Debug.LogWarning("Waiting Room Panel must not contain its linkuserinfo controller. Place the controller on an always-active sibling; automatic panel visibility is skipped for this hierarchy.", this);
         hasSnapshot = false;
@@ -217,9 +237,46 @@ public sealed class linkuserinfo : MonoBehaviour
 
     private void ApplyProfile(Image target, PlayerData data)
     {
+        SetIcon(target, GetProfileSprite(data));
+    }
+
+    private Sprite GetMagicIcon(MagicType magic)
+    {
+        // Empty slots must stay empty, not fall back to Fire or another player's icon.
+        if (magic < MagicType.Fire || magic > MagicType.Scane) return null;
+        if (magicIcons != null)
+            foreach (MagicIconEntry entry in magicIcons)
+                if (entry.magic == magic && entry.icon != null) return entry.icon;
+        return magicTable != null ? magicTable.GetStats(magic).icon : null;
+    }
+
+    private void ApplyIntroCard(PlayerData data, TMP_Text nameText, Image first, Image second)
+    {
+        bool ready = IsReady(data);
+        if (nameText != null)
+        {
+            // Names are user input, not TMP markup. Never use the local DataConfig for an opponent.
+            nameText.richText = false;
+            string name = ready ? data.playerName.ToString() : string.Empty;
+            if (nameText.text != name) nameText.text = name;
+        }
+        SetIcon(first, ready ? GetMagicIcon(data.magic1) : null);
+        SetIcon(second, ready ? GetMagicIcon(data.magic2) : null);
+    }
+
+    private static void SetIcon(Image target, Sprite sprite)
+    {
         if (target == null) return;
-        target.sprite = GetProfileSprite(data);
-        target.enabled = target.sprite != null;
+        if (target.sprite != sprite) target.sprite = sprite;
+        if (target.enabled != (sprite != null)) target.enabled = sprite != null;
+    }
+
+    // The portrait presentation can wait for the SAME participants' replicated labels/loadouts.
+    public bool HasUserInfoFor(PlayerRef local, PlayerRef opponent, bool requireOpponent)
+    {
+        return IsReady(localPlayerData) && localPlayerData.Object.InputAuthority == local &&
+               (!requireOpponent || (IsReady(opponentPlayerData) &&
+                opponentPlayerData.Object.InputAuthority == opponent));
     }
 
     private bool IsOpponentProfileVisible()
@@ -324,6 +381,8 @@ public sealed class linkuserinfo : MonoBehaviour
             states.Add(UserState.Read(data));
         ApplyProfile(localProfileImage, localPlayerData);
         ApplyProfile(opponentProfileImage, opponentPlayerData);
+        ApplyIntroCard(localPlayerData, localNameText, localMagic1Image, localMagic2Image);
+        ApplyIntroCard(opponentPlayerData, opponentNameText, opponentMagic1Image, opponentMagic2Image);
         RefreshWaitingRoom(network, runner);
         UserState local = UserState.Read(localPlayerData);
         UserState opponent = UserState.Read(opponentPlayerData);
@@ -370,6 +429,8 @@ public sealed class linkuserinfo : MonoBehaviour
         ResetLobbyPreview();
         ApplyProfile(localProfileImage, null);
         ApplyProfile(opponentProfileImage, null);
+        ApplyIntroCard(null, localNameText, localMagic1Image, localMagic2Image);
+        ApplyIntroCard(null, opponentNameText, opponentMagic1Image, opponentMagic2Image);
         localPlayerData = null;
         opponentPlayerData = null;
         players.Clear();

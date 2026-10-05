@@ -40,7 +40,7 @@ public struct PlayerConfig : INetworkStruct
         value.hairColor = SanitizeColor(hairColor);
         value.clothColor = SanitizeColor(clothColor);
         value.eyeColor = SanitizeColor(eyeColor);
-        value.hatIndex = hatIndex >= (int)HatType.Classic && hatIndex <= (int)HatType.Elemental
+        value.hatIndex = hatIndex >= (int)HatType.Classic && hatIndex <= (int)HatType.Cosmic
             ? hatIndex : (int)HatType.Classic;
         value.broomIndex = broomIndex >= (int)BroomType.Slow && broomIndex <= (int)BroomType.Speed
             ? broomIndex : (int)BroomType.Standard;

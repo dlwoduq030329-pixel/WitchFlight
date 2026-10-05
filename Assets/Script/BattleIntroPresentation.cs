@@ -19,6 +19,8 @@ public sealed class BattleIntroPresentation : MonoBehaviour
     [SerializeField] private RawImage localPortrait;
     [SerializeField] private RawImage opponentPortrait;
     [SerializeField] private GameObject introPanel;
+    [Tooltip("이름/장착 마법/프로필 UI. 비우면 Intro Panel 내부의 linkuserinfo를 사용합니다. 얼굴 RawImage는 기존 설정을 유지합니다.")]
+    [SerializeField] private linkuserinfo introUserInfo;
     [SerializeField] private TMP_Text countdownText;
     [SerializeField] private TMP_Text waitingText;
     [SerializeField] private TMP_Text soloText;
@@ -65,6 +67,8 @@ public sealed class BattleIntroPresentation : MonoBehaviour
 
     private void OnEnable()
     {
+        if (introUserInfo == null && introPanel != null)
+            introUserInfo = introPanel.GetComponentInChildren<linkuserinfo>(true);
         RenderPipelineManager.endCameraRendering += OnCameraRendered;
         Camera.onPostRender += OnBuiltinCameraRendered;
         nextPreparationTime = 0f;
@@ -124,7 +128,10 @@ public sealed class BattleIntroPresentation : MonoBehaviour
         UpdatePortraitVisibility(phase);
 
         if (phase == BattleStartPhase.WaitingForPlayers && localSnapshot.IsReady &&
-            (solo || opponentSnapshot.IsReady))
+            (solo || opponentSnapshot.IsReady) &&
+            (introUserInfo == null || (introUserInfo.isActiveAndEnabled &&
+             introUserInfo.HasUserInfoFor(local.Object.InputAuthority,
+                 solo ? default : opponent.Object.InputAuthority, !solo))))
             local.ReportBattleSceneReady();
     }
 
