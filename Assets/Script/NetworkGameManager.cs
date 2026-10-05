@@ -75,6 +75,10 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private Coroutine battleInitializationRoutine;
     private Vector2 accumulatedLook;
     private NetworkButtons latchedButtons;
+    private Player inputPlayer;
+    private enemyLockOn inputTargeting;
+    private Camera inputCamera;
+    private CameraFollow inputCameraFollow;
 
     private void Update()
     {
@@ -791,15 +795,25 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         Player local = Player.LocalPlayer;
         if (local != null)
         {
-            enemyLockOn targeting = local.GetComponent<enemyLockOn>();
-            if (targeting != null)
-                data.lockTarget = targeting.GetInputTarget();
-            Camera view = Camera.main;
+            if (inputPlayer != local)
+            {
+                inputPlayer = local;
+                inputTargeting = local.GetComponent<enemyLockOn>();
+                inputCamera = null; // Respawn/scene changes must not retain the old camera.
+            }
+            if (inputCamera == null || !inputCamera.isActiveAndEnabled || !inputCamera.CompareTag("MainCamera"))
+            {
+                inputCamera = Camera.main;
+                inputCameraFollow = inputCamera != null ? inputCamera.GetComponent<CameraFollow>() : null;
+            }
+            if (inputTargeting != null)
+                data.lockTarget = inputTargeting.GetInputTarget();
             // Missing camera means no validated aim, not automatic nose alignment.
             data.aimDirection = Vector3.zero;
             data.aimUp = local.transform.up;
-            if (view != null && view.TryGetComponent(out CameraFollow follow))
+            if (inputCameraFollow != null)
             {
+                CameraFollow follow = inputCameraFollow;
                 data.aimDirection = (follow.GetDisplayedAimPoint() - local.LockAimPoint).normalized;
                 if (follow.TryGetSteeringInput(out Vector3 direction, out Vector3 up))
                 {

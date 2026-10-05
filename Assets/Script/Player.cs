@@ -1,10 +1,15 @@
 using Fusion;
 using UnityEngine;
+using Unity.Profiling;
 
-public class Player : NetworkBehaviour, IAfterRender
+public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAllTicks
 {
+    private static readonly ProfilerMarker flightMarker = new("WitchFlight.Player.Simulate");
+    private static readonly ProfilerMarker combatMarker = new("WitchFlight.Player.AuthoritativeCombat");
     [Header("Movement")]
     [SerializeField] private float maxSpeed = 60f;
+    [Tooltip("Host/Client 모드에서 내 비행을 즉시 예측합니다. 비교 테스트 시에만 꺼 주세요. 모든 빌드에서 동일하게 설정합니다.")]
+    [SerializeField] private bool enableMovementPrediction = true;
     [SerializeField, Min(0.01f)] private float mousePitchSensitivity = 2.5f;
     [SerializeField] private float maxPitch = 60f;
     [SerializeField] private float wallDamageSpeedThreshold = 30f;
@@ -14,6 +19,9 @@ public class Player : NetworkBehaviour, IAfterRender
     [SerializeField] private float collisionHeight = 1.2f;
     [SerializeField] private float baseAcceleration = 60f;
     [SerializeField] private EquipmentStatTable equipmentStatTable;
+    [Header("Network presentation")]
+    [Tooltip("PlayerData 정보 UI용 마나 복사 주기입니다. 실제 전투 마나/이동의 틱 주기는 변경하지 않습니다.")]
+    [SerializeField, Min(0.05f)] private float infoApSyncInterval = 0.1f;
 
     [Header("Lock on")]
     [Tooltip("큰 원(목표 방향)과 작은 원(실제 정면)이 일치했다고 보는 허용 각도입니다. HUD와 록온이 함께 사용합니다.")]
@@ -38,6 +46,7 @@ public class Player : NetworkBehaviour, IAfterRender
     [Networked] private int SpeedStage { get; set; }
     [Networked] private float acceleration { get; set; }
     [Networked] private float turnSpeed { get; set; }
+    [Networked] private float flightMaxSpeed { get; set; }
     [Networked] private PlayerRef LastAttacker { get; set; }
     [Networked] private HatType Hat { get; set; }
     [Networked] private BroomType Broom { get; set; }
@@ -62,8 +71,8 @@ public class Player : NetworkBehaviour, IAfterRender
     [Networked] private float WindMultiplier { get; set; }
     [Networked] private Vector3 KnockbackVelocity { get; set; }
 
-    [Networked] public float MaxHp { get; set; }
-    [Networked] public float NowHp { get; set; }
+    [Networked, OnChangedRender(nameof(NotifyHealthChanged))] public float MaxHp { get; set; }
+    [Networked, OnChangedRender(nameof(NotifyHealthChanged))] public float NowHp { get; set; }
     [Networked] public float MaxAp { get; private set; }
     [Networked] public float NowAp { get; private set; }
     [Networked] public float ApRecoveryPerSecond { get; private set; }
@@ -86,50 +95,76 @@ public class Player : NetworkBehaviour, IAfterRender
     private bool hasPendingPortalTeleport;
     private Vector3 pendingPortalPosition;
     private TickTimer portalReentryTimer;
-    private Vector3 mapReturnStart, mapReturnControl1, mapReturnControl2, mapReturnEnd;
-    private Vector3 mapReturnEntryDirection;
-    private Quaternion mapReturnStartRotation;
-    private float mapReturnElapsed, mapReturnDuration, mapReturnHeight, mapReturnSpeed;
-    private int mapReturnSpeedStage;
+    // Replay must start with the SAME path and progress as the server snapshot.
+    [Networked] private Vector3 mapReturnStart { get; set; }
+    [Networked] private Vector3 mapReturnControl1 { get; set; }
+    [Networked] private Vector3 mapReturnControl2 { get; set; }
+    [Networked] private Vector3 mapReturnEnd { get; set; }
+    [Networked] private Vector3 mapReturnEntryDirection { get; set; }
+    [Networked] private Quaternion mapReturnStartRotation { get; set; }
+    [Networked] private float mapReturnElapsed { get; set; }
+    [Networked] private float mapReturnDuration { get; set; }
+    [Networked] private float mapReturnHeight { get; set; }
+    [Networked] private float mapReturnSpeed { get; set; }
+    [Networked] private int mapReturnSpeedStage { get; set; }
     private CameraFollow localCameraFollow;
     private bool controllerNeedsRenderReset;
     private PlayerAppearance appearance;
     private Animator animator;
     private Renderer[] visualRenderers;
     private bool[] defaultRendererEnabled;
-    private NetworkButtons previousButtons;
+    [Networked] private NetworkButtons previousButtons { get; set; }
     private int lastMagicSlot = -1;
     private int renderedLoadoutVersion = -1;
     private int renderedHitSequence;
     private int renderedDeathSequence;
     private bool hasRenderedCombatState;
     private bool lastVisualHidden;
-    private float currentPitch;
-    private float currentYaw;
-    private float currentAimTurnSpeed;
-    private float currentTurnSpeed;
+    [Networked] private float currentPitch { get; set; }
+    [Networked] private float currentYaw { get; set; }
+    [Networked] private float currentAimTurnSpeed { get; set; }
+    [Networked] private float currentTurnSpeed { get; set; }
     private float lockOnTurnSpeed = 360f;
-    private float turnAccel = 18f;
-    private float returnSpeed = 30f;
-    private float stageTransitionSpeed = 60f;
-    private float brakeSpeed = 80f;
-    private float boostMultiplier = 1.35f;
-    private float boostApCostPerSecond = 20f;
-    private bool boostNeedsRelease;
+    // Selected broom constants are initialized by the host and replicated once;
+    // prediction must not use a client's uninitialized/default equipment values.
+    [Networked] private float turnAccel { get; set; }
+    [Networked] private float returnSpeed { get; set; }
+    [Networked] private float stageTransitionSpeed { get; set; }
+    [Networked] private float brakeSpeed { get; set; }
+    [Networked] private float boostMultiplier { get; set; }
+    [Networked] private float boostApCostPerSecond { get; set; }
+    [Networked] private bool boostNeedsRelease { get; set; }
     private float lastWallDamageTime = float.NegativeInfinity;
     private MagicType pendingMagic;
     private NetworkId pendingTargetId;
     private TickTimer castTimer;
     private CombatPresentation presentation;
+    private readonly RaycastHit[] lockHits = new RaycastHit[32];
+    private readonly RaycastHit[] instantShotHits = new RaycastHit[32];
+    private TickTimer nextInfoApSync;
+    private float publishedHp = float.NaN, publishedMaxHp = float.NaN;
+    public event System.Action<float, float> HealthChanged;
+
+    // Fusion invokes this only when a received/rendered HP property changes.
+    // Both properties may change in one snapshot; publish that pair only once.
+    private void NotifyHealthChanged()
+    {
+        if (publishedHp == NowHp && publishedMaxHp == MaxHp) return;
+        publishedHp = NowHp;
+        publishedMaxHp = MaxHp;
+        HealthChanged?.Invoke(publishedHp, publishedMaxHp);
+    }
 
     public static Player LocalPlayer { get; private set; }
     public bool IsPresentationReady => Object != null && Object.IsValid && LoadoutVersion > 0 &&
         renderedLoadoutVersion == LoadoutVersion && TeamIndex > 0 && IsAlive;
     public int CurrentSpeedStage => SpeedStage;
     public float CurrentSpeed => Speed;
-    // Read the replicated loadout, not maxSpeed (which is initialized only on the host).
+    private bool SimulatesMovement => Object.HasStateAuthority ||
+        (enableMovementPrediction && Object.HasInputAuthority);
+    // Use the exact server-selected broom constant, also on the predicting owner.
     public float ForwardCruiseSpeedRatio => Mathf.Clamp01(Mathf.Max(0f, Speed) /
-        Mathf.Max(1f, equipmentStatTable != null ? equipmentStatTable.GetBroomStats(Broom).maxSpeed : 60f));
+        Mathf.Max(1f, flightMaxSpeed));
     public float SteeringTurnRate => Mathf.Max(0f, turnSpeed * GetTurnMultiplier());
     public MagicStatEntry SelectedMagicStats => GetMagicStats(GetSelectedMagic());
     public MagicStatTable MagicTable => magicStatTable;
@@ -139,7 +174,7 @@ public class Player : NetworkBehaviour, IAfterRender
     public bool IsParrying => TimerIsActive(ParryTimer);
     public bool IsHitStunned => TimerIsActive(HitStunTimer);
     public bool IsStealthed => TimerIsActive(StealthTimer) && !TimerIsActive(RevealTimer);
-    public bool HasActiveMine => Object != null && MagicProjectile.HasMineOwnedBy(Object.InputAuthority);
+    public bool HasActiveMine => Object != null && MagicProjectile.HasMineOwnedBy(Object.InputAuthority, Runner);
     public float MaxLockDistance => maxLockDistance;
     public Vector3 LockAimPoint => transform.position + Vector3.up * lockAimHeight;
 
@@ -191,7 +226,7 @@ public class Player : NetworkBehaviour, IAfterRender
 
         MaxHp = Mathf.Max(1f, broomStats.maxHp);
         NowHp = MaxHp;
-        maxSpeed = Mathf.Max(1f, broomStats.maxSpeed);
+        flightMaxSpeed = Mathf.Max(1f, broomStats.maxSpeed);
         turnSpeed = Mathf.Max(0f, broomStats.turnSpeed);
         lockOnTurnSpeed = Mathf.Max(0f, broomStats.lockOnTurnSpeed);
         turnAccel = Mathf.Max(0.01f, broomStats.turnAcceleration);
@@ -231,6 +266,7 @@ public class Player : NetworkBehaviour, IAfterRender
         currentYaw = transform.eulerAngles.y;
         currentAimTurnSpeed = 0f;
         currentTurnSpeed = 0f;
+        previousButtons = default;
         pendingMagic = MagicType.None;
         castTimer = TickTimer.None;
 
@@ -269,7 +305,7 @@ public class Player : NetworkBehaviour, IAfterRender
         {
             broom = BroomType.None,
             maxHp = 200f,
-            maxSpeed = 60f,
+            maxSpeed = Mathf.Max(1f, maxSpeed),
             turnSpeed = 180f,
             turnAcceleration = 18f,
             turnReturnSpeed = 30f,
@@ -292,6 +328,11 @@ public class Player : NetworkBehaviour, IAfterRender
 
     public override void Spawned()
     {
+        // Predicted input owners use Fusion's local timeline; remote characters
+        // interpolate server snapshots. The fallback remains available for A/B tests.
+        Object.ForceRemoteRenderTimeframe = !SimulatesMovement;
+        publishedHp = publishedMaxHp = float.NaN;
+        NotifyHealthChanged(); // OnChangedRender does not initialize the spawn snapshot.
         // Network characters must never follow this client's global lobby settings.
         appearance ??= GetComponent<PlayerAppearance>();
         appearance?.UnbindFromDataConfig();
@@ -326,8 +367,9 @@ public class Player : NetworkBehaviour, IAfterRender
 
     public override void FixedUpdateNetwork()
     {
-        if (!Object.HasStateAuthority)
+        if (!SimulatesMovement || LoadoutVersion <= 0)
             return;
+        using var simulationSample = flightMarker.Auto();
 
         // Every tick must receive a held input to sustain boost.
         IsBoosting = false;
@@ -354,10 +396,10 @@ public class Player : NetworkBehaviour, IAfterRender
             return;
         }
 
+        ResetControllerAfterRender();
         if (CheckAltitudeLimit())
             return;
-        ResetControllerAfterRender();
-        if (hasPendingPortalTeleport)
+        if (Object.HasStateAuthority && hasPendingPortalTeleport)
         {
             ApplyPortalTeleport();
             CheckAltitudeLimit();
@@ -372,7 +414,7 @@ public class Player : NetworkBehaviour, IAfterRender
             RegenerateAp();
             return;
         }
-        UpdatePendingCast();
+        if (Object.HasStateAuthority) UpdatePendingCast();
 
         if (!GetInput(out NetworkInputData data))
         {
@@ -392,6 +434,7 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private bool CheckAltitudeLimit()
     {
+        if (!Object.HasStateAuthority) return false;
         MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
         if (!IsAlive || table == null || !table.ExceedsAltitudeLimit(transform.position.y))
             return false;
@@ -420,12 +463,15 @@ public class Player : NetworkBehaviour, IAfterRender
             mapReturnStart = transform.position;
             mapReturnStartRotation = transform.rotation;
             table.CreateReturnPath(mapReturnStart, mapReturnEntryDirection,
-                out mapReturnControl1, out mapReturnControl2, out mapReturnEnd);
+                out Vector3 control1, out Vector3 control2, out Vector3 end);
+            mapReturnControl1 = control1;
+            mapReturnControl2 = control2;
+            mapReturnEnd = end;
             mapReturnElapsed = 0f;
             mapReturnDuration = Mathf.Max(0.25f, table.returnDuration);
             mapReturnHeight = Mathf.Max(0f, table.climbHeight);
             mapReturnSpeedStage = Mathf.Clamp(Mathf.Abs(SpeedStage), 1, 3);
-            mapReturnSpeed = Mathf.Max(Mathf.Abs(Speed), maxSpeed * mapReturnSpeedStage / 3f);
+            mapReturnSpeed = Mathf.Max(Mathf.Abs(Speed), flightMaxSpeed * mapReturnSpeedStage / 3f);
             IsReturningToMap = true;
             pendingMagic = MagicType.None;
             castTimer = TickTimer.None;
@@ -523,12 +569,28 @@ public class Player : NetworkBehaviour, IAfterRender
         // NetworkTransform.BeforeAllTicks has already restored the simulation pose.
         // Reset the controller's cached render-space pose before the first Move call,
         // just as Fusion's NetworkCharacterController does when restoring its state.
-        // Do this once per rendered frame, not once per catch-up simulation tick.
+        // Do this once per simulation batch, not once per catch-up simulation tick.
         Vector3 simulationPosition = transform.position;
         Quaternion simulationRotation = transform.rotation;
         characterController.enabled = false;
         transform.SetPositionAndRotation(simulationPosition, simulationRotation);
         characterController.enabled = true;
+    }
+
+    void IBeforeAllTicks.BeforeAllTicks(bool resimulation, int tickCount)
+    {
+        // A single frame may contain a rollback batch AND a forward batch. Reset
+        // the CC cache at the first movement tick of EACH batch, after Fusion's
+        // NetworkTransform has restored the correct simulation pose.
+        if (tickCount > 0) controllerNeedsRenderReset = true;
+    }
+
+    void IAfterAllTicks.AfterAllTicks(bool resimulation, int tickCount)
+    {
+        // Coalesce informational UI state after simulation, never during owner replay.
+        // Also flush a final partial value when regeneration is zero or play is paused.
+        if (Object.HasStateAuthority && LoadoutVersion > 0 && tickCount > 0)
+            SyncApToPlayerData();
     }
 
     void IAfterRender.AfterRender()
@@ -577,28 +639,9 @@ public class Player : NetworkBehaviour, IAfterRender
         if (!IsHitStunned)
             PlayerTurn(data, buttons);
 
-        if (buttons.WasPressed(previousButtons, PlayerInputButton.Parry))
-            TryStartParry();
-
-        bool lockHeld = buttons.IsSet(PlayerInputButton.Lock);
-        if (lockHeld || previousButtons.IsSet(PlayerInputButton.Lock))
-        {
-            // The client selects only visible targets; the host independently checks
-            // actual nose alignment after this tick's steering, including release.
-            if (IsWithinLockAim(data.aimDirection))
-                SetInputLockTarget(data.lockTarget);
-            else
-                ClearLockTargetInternal();
-        }
-        if (lockHeld)
-        {
-            UpdateLockCharge();
-        }
-        else if (previousButtons.IsSet(PlayerInputButton.Lock))
-        {
-            TryCastSelectedMagic();
-            ClearLockTargetInternal();
-        }
+        // Never replay attacks, spawning, damage, RPCs or another player's state
+        // while predicting/re-simulating this owner's movement.
+        if (Object.HasStateAuthority) ProcessAuthoritativeCombat(data, buttons);
 
         if (IsHitStunned)
         {
@@ -613,6 +656,24 @@ public class Player : NetworkBehaviour, IAfterRender
 
         ApplyKnockback();
         previousButtons = buttons;
+    }
+
+    private void ProcessAuthoritativeCombat(NetworkInputData data, NetworkButtons buttons)
+    {
+        using var combatSample = combatMarker.Auto();
+        if (buttons.WasPressed(previousButtons, PlayerInputButton.Parry)) TryStartParry();
+        bool lockHeld = buttons.IsSet(PlayerInputButton.Lock);
+        if (lockHeld || previousButtons.IsSet(PlayerInputButton.Lock))
+        {
+            if (IsWithinLockAim(data.aimDirection)) SetInputLockTarget(data.lockTarget);
+            else ClearLockTargetInternal();
+        }
+        if (lockHeld) UpdateLockCharge();
+        else if (previousButtons.IsSet(PlayerInputButton.Lock))
+        {
+            TryCastSelectedMagic();
+            ClearLockTargetInternal();
+        }
     }
 
     private void ContinueWithoutActions()
@@ -638,7 +699,7 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private void UpdateSpeed()
     {
-        float targetSpeed = maxSpeed * SpeedStage / 3f;
+        float targetSpeed = flightMaxSpeed * SpeedStage / 3f;
         targetSpeed *= GetMovementMultiplier();
 
         if (IsBoosting)
@@ -678,10 +739,10 @@ public class Player : NetworkBehaviour, IAfterRender
             return;
 
         float cost = boostApCostPerSecond * Runner.DeltaTime;
-        if (!TryConsumeAp(cost))
+        if (!TryConsumeMovementAp(cost))
         {
             // Exhaust the remaining fraction and avoid rapid on/off boosting as AP regenerates.
-            TryConsumeAp(NowAp);
+            TryConsumeMovementAp(NowAp);
             boostNeedsRelease = true;
             return;
         }
@@ -925,13 +986,30 @@ public class Player : NetworkBehaviour, IAfterRender
         // Vision is an aimed instant shot, not an invisible target-only damage call.
         float range = Mathf.Max(0.1f, stats.range);
         Vector3 end = origin + direction * range;
-        RaycastHit[] hits = Physics.SphereCastAll(origin, Mathf.Max(0.01f, stats.projectileRadius),
-            direction, range, lockObstructionMask, QueryTriggerInteraction.Ignore);
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-        foreach (RaycastHit hit in hits)
+        float radius = Mathf.Max(0.01f, stats.projectileRadius);
+        int hitCount = Physics.SphereCastNonAlloc(origin, radius, direction, instantShotHits,
+            range, lockObstructionMask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = instantShotHits;
+        if (hitCount == hits.Length)
         {
-            if (hit.collider == null || hit.transform.IsChildOf(transform))
+            // Overflow must not lose a closer wall or change hit/occlusion rules.
+            hits = Physics.SphereCastAll(origin, radius, direction, range,
+                lockObstructionMask, QueryTriggerInteraction.Ignore);
+            hitCount = hits.Length;
+        }
+        int nearestIndex = -1;
+        float nearestDistance = float.PositiveInfinity;
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || hit.transform.IsChildOf(transform) || hit.distance >= nearestDistance)
                 continue;
+            nearestIndex = i;
+            nearestDistance = hit.distance;
+        }
+        if (nearestIndex >= 0)
+        {
+            RaycastHit hit = hits[nearestIndex];
             Player victim = hit.collider.GetComponentInParent<Player>();
             end = hit.point;
             if (stats.effect != MagicEffectKind.AreaDamage &&
@@ -939,13 +1017,13 @@ public class Player : NetworkBehaviour, IAfterRender
                 victim.ReceiveMagicHit(stats, Object.InputAuthority);
             if (stats.effect == MagicEffectKind.AreaDamage)
                 end = origin + direction * Mathf.Max(0f, hit.distance - 0.02f);
-            break;
         }
         if (stats.effect == MagicEffectKind.AreaDamage)
         {
-            foreach (Player victim in FindObjectsByType<Player>(FindObjectsSortMode.None))
+            foreach (PlayerRef playerRef in Runner.ActivePlayers)
             {
-                if (victim.IsAlive && victim.TeamIndex != TeamIndex &&
+                Player victim = FindInRunner(Runner, playerRef);
+                if (victim != null && victim.IsAlive && victim.TeamIndex != TeamIndex &&
                     (victim.LockAimPoint - end).sqrMagnitude <= stats.radius * stats.radius &&
                     MagicProjectile.HasBlastSight(end, victim))
                     victim.ReceiveMagicHit(stats, Object.InputAuthority);
@@ -1015,9 +1093,10 @@ public class Player : NetworkBehaviour, IAfterRender
     private void RevealEnemies(MagicStatEntry stats)
     {
         float radius = Mathf.Max(stats.radius, stats.range);
-        foreach (Player candidate in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        foreach (PlayerRef playerRef in Runner.ActivePlayers)
         {
-            if (!candidate.IsEnemyOf(this))
+            Player candidate = FindInRunner(Runner, playerRef);
+            if (candidate == null || !candidate.IsEnemyOf(this))
                 continue;
 
             if (Vector3.SqrMagnitude(candidate.transform.position - transform.position) > radius * radius)
@@ -1039,9 +1118,10 @@ public class Player : NetworkBehaviour, IAfterRender
     private bool HasEnemyWithin(float distance)
     {
         float distanceSqr = distance * distance;
-        foreach (Player candidate in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        foreach (PlayerRef playerRef in Runner.ActivePlayers)
         {
-            if (!candidate.IsEnemyOf(this))
+            Player candidate = FindInRunner(Runner, playerRef);
+            if (candidate == null || !candidate.IsEnemyOf(this))
                 continue;
 
             if (Vector3.SqrMagnitude(candidate.transform.position - transform.position) <= distanceSqr)
@@ -1144,17 +1224,17 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private Player FindPlayer(PlayerRef playerRef)
     {
-        NetworkObject playerObject = NetworkGameManager.Instance?.GetPlayerObject(playerRef);
-        if (playerObject != null)
-            return playerObject.GetComponent<Player>();
+        return FindInRunner(Runner, playerRef);
+    }
 
-        foreach (Player candidate in FindObjectsByType<Player>(FindObjectsSortMode.None))
-        {
-            if (candidate.Object != null && candidate.Object.InputAuthority == playerRef)
-                return candidate;
-        }
-
-        return null;
+    // Battle spawning registers exactly one current character with SetPlayerObject.
+    // Avoid allocating scene-wide arrays, including for area damage and mine ticks.
+    public static Player FindInRunner(NetworkRunner runner, PlayerRef playerRef)
+    {
+        return runner != null && runner.IsRunning &&
+            runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) &&
+            playerObject != null && playerObject.IsValid
+            ? playerObject.GetComponent<Player>() : null;
     }
 
     private void Die()
@@ -1183,8 +1263,16 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private void SyncApToPlayerData()
     {
+        if (!Object.HasStateAuthority) return;
         PlayerData data = NetworkGameManager.Instance?.GetPlayerData(Object.InputAuthority);
-        data?.SetBattleAp(MaxAp, NowAp, ApRecoveryPerSecond);
+        if (data == null) return;
+        bool changed = data.BattleCurrentAp != NowAp || data.BattleMaxAp != MaxAp ||
+            data.BattleApRecoveryPerSecond != ApRecoveryPerSecond;
+        if (!changed) return;
+        bool endpoint = NowAp <= 0f || NowAp >= MaxAp || data.BattleMaxAp != MaxAp;
+        if (!endpoint && !nextInfoApSync.ExpiredOrNotRunning(Runner)) return;
+        nextInfoApSync = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.05f, infoApSyncInterval));
+        data.SetBattleAp(MaxAp, NowAp, ApRecoveryPerSecond);
     }
 
     public bool TryConsumeAp(float amount)
@@ -1198,6 +1286,17 @@ public class Player : NetworkBehaviour, IAfterRender
 
         NowAp -= amount;
         SyncApToPlayerData();
+        return true;
+    }
+
+    private bool TryConsumeMovementAp(float amount)
+    {
+        // Only boost uses predicted spending. Magic costs and damage stay on the host.
+        // NowAp is networked, so each rollback starts from authoritative mana again.
+        if (!SimulatesMovement) return false;
+        amount = Mathf.Max(0f, amount);
+        if (NowAp < amount) return false;
+        NowAp -= amount;
         return true;
     }
 
@@ -1216,7 +1315,6 @@ public class Player : NetworkBehaviour, IAfterRender
             return;
 
         NowAp = Mathf.Min(MaxAp, NowAp + ApRecoveryPerSecond * Runner.DeltaTime);
-        SyncApToPlayerData();
     }
 
     public void ReportBattleSceneReady()
@@ -1261,6 +1359,15 @@ public class Player : NetworkBehaviour, IAfterRender
     public bool HasLockTarget(NetworkObject target)
     {
         return target != null && LockTargetId.Equals(target.Id);
+    }
+
+    // HUD lookup uses Fusion's registry, not a scene-wide allocating search.
+    public Player GetDisplayedLockTarget()
+    {
+        if (Object == null || !Object.IsValid || Runner == null ||
+            !Runner.TryFindObject(LockTargetId, out NetworkObject target) || target == null)
+            return null;
+        return target.GetComponent<Player>();
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -1337,19 +1444,24 @@ public class Player : NetworkBehaviour, IAfterRender
         if (distance <= 0.01f)
             return true;
 
-        RaycastHit[] hits = Physics.RaycastAll(
-            origin,
-            direction / distance,
-            distance,
-            lockObstructionMask,
-            QueryTriggerInteraction.Ignore
-        );
+        int count = Physics.RaycastNonAlloc(origin, direction / distance, lockHits,
+            distance, lockObstructionMask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = lockHits;
+        // A full buffer may omit the nearest wall: preserve correct occlusion in
+        // unusually dense geometry, rather than allowing a shot through a wall.
+        if (count == lockHits.Length)
+        {
+            hits = Physics.RaycastAll(origin, direction / distance, distance,
+                lockObstructionMask, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
+        }
 
         float nearestDistance = float.PositiveInfinity;
         Player nearestPlayer = null;
         bool nearestIsObstacle = false;
-        foreach (RaycastHit hit in hits)
+        for (int i = 0; i < count; i++)
         {
+            RaycastHit hit = hits[i];
             if (hit.collider == null || hit.collider.transform.IsChildOf(transform))
                 continue;
 
@@ -1381,9 +1493,10 @@ public class Player : NetworkBehaviour, IAfterRender
 
     private void ClearAllLocksTargetingMe()
     {
-        foreach (Player candidate in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        foreach (PlayerRef playerRef in Runner.ActivePlayers)
         {
-            if (candidate == this || candidate.Object == null || !candidate.Object.HasStateAuthority)
+            Player candidate = FindInRunner(Runner, playerRef);
+            if (candidate == null || candidate == this || !candidate.Object.HasStateAuthority)
                 continue;
 
             if (candidate.LockTargetId.Equals(Object.Id))

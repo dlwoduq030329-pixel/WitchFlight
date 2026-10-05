@@ -9037,6 +9037,13 @@ MonoBehaviour:
   rotationFollowSpeed: 60
   followOffset: {x: 0, y: 1.6, z: -3}
   aimOffset: {x: 0.65, y: 1.8, z: -4}
+  enableSpeedShake: 1
+  speedShakeStage2Intensity: 0.15
+  speedShakeStage3Intensity: 0.35
+  speedShakePositionAmplitude: {x: 0.008, y: 0.008, z: 0}
+  speedShakeRotationAmplitude: {x: 0.06, y: 0.06, z: 0}
+  speedShakeFrequency: 4
+  speedShakeTransitionSpeed: 2
   enableMouseAimSteering: 1
   mousePitchAimSensitivity: 2.5
   mouseYawSensitivity: 2.5
@@ -10294,8 +10301,8 @@ MonoBehaviour:
   resultText: {fileID: 0}
   respawnText: {fileID: 0}
   reticle: {fileID: 0}
-  desiredAimMarker: {fileID: 0}
-  forwardAimMarker: {fileID: 2027782581}
+  desiredAimMarker: {fileID: 2027782581}
+  forwardAimMarker: {fileID: 2027782585}
   desiredAimImage: {fileID: 0}
   forwardAimImage: {fileID: 0}
   aimAlignmentText: {fileID: 0}
@@ -13840,6 +13847,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2072900282}
     m_Modifications:
+    - target: {fileID: 8323471176851699074, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 36
+      objectReference: {fileID: 0}
+    - target: {fileID: 8323471176851699074, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 36
+      objectReference: {fileID: 0}
+    - target: {fileID: 5879512654876858511, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
+      propertyPath: m_Sprite
+      value:
+      objectReference: {fileID: 21300000, guid: b3e45cf5a764a4e4a8e63508fe6035db, type: 3}
     - target: {fileID: 47960997589568888, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
       propertyPath: m_AnchorMax.y
       value: 1
@@ -15292,6 +15311,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 67db9e8f0e2ae9c40bc1e2b64352a6b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!224 &2027782585 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 8323471176851699074, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
+  m_PrefabInstance: {fileID: 2027782578}
+  m_PrefabAsset: {fileID: 0}
 --- !u!224 &2027782581 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 5902421080451873667, guid: f85a690f8032072489dd7b498ab4110d, type: 3}

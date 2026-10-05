@@ -35,9 +35,9 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private TMP_Text respawnText;
     [Header("Aim")]
     [SerializeField] private GameObject reticle;
-    [Tooltip("큰 원: 목표 조준 방향. 직접 만든 UI RectTransform을 연결합니다.")]
+    [Tooltip("화면 중앙에 고정할 크로스헤어입니다. 움직이는 원과 별개로 연결합니다.")]
     [SerializeField] private RectTransform desiredAimMarker;
-    [Tooltip("작은 원: 캐릭터의 실제 정면 발사선. 큰 원과 별도 UI를 연결합니다.")]
+    [Tooltip("움직이는 원형 UI: 캐릭터의 실제 정면 발사 방향입니다.")]
     [SerializeField] private RectTransform forwardAimMarker;
     [Tooltip("큰 원의 Image. 비워두면 Desired Aim Marker 자체의 Image를 사용합니다.")]
     [SerializeField] private Image desiredAimImage;
@@ -69,7 +69,6 @@ public sealed class BattleHud : MonoBehaviour
     private Player lockTarget;
     private bool wasAlive;
     private float respawnAt;
-    private float nextRefresh;
     private int nextDamageSlot;
     private Image tintedDesiredImage, tintedForwardImage;
     private Color originalDesiredColor, originalForwardColor;
@@ -107,7 +106,7 @@ public sealed class BattleHud : MonoBehaviour
         {
             if (MenuOpen) SetMenuOpen(false);
             respawnAt = 0f;
-            owner = null;
+            BindOwner(null);
             wasAlive = false;
             HideViews();
             return;
@@ -122,7 +121,7 @@ public sealed class BattleHud : MonoBehaviour
         {
             if (owner != local)
             {
-                owner = local;
+                BindOwner(local);
                 wasAlive = owner.IsAlive;
             }
             if (wasAlive && !owner.IsAlive)
@@ -130,23 +129,24 @@ public sealed class BattleHud : MonoBehaviour
             if (owner.IsAlive) respawnAt = 0f;
             wasAlive = owner.IsAlive;
         }
-        else owner = null;
+        else BindOwner(null);
         if (worldCamera == null) worldCamera = Camera.main;
 
         Visible(hudRoot, true);
         Visible(playerPanel, valid);
-        SetText(matchTimeText, TimeSpan.FromSeconds(Mathf.Max(0f, battle.RemainingSeconds)).ToString(@"mm\:ss"));
+        if (matchTimeText != null)
+            SetText(matchTimeText, TimeSpan.FromSeconds(Mathf.Max(0f, battle.RemainingSeconds)).ToString(@"mm\:ss"));
         BattleFlag flag = BattleFlag.Instance;
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
-        SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
+        if (flagText != null) SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
             valid && flag.Carrier == owner.Object.InputAuthority ? "YOU HAVE THE FLAG" : $"FLAG: {flag.Carrier}");
         Visible(resultPanel, battle.IsBattleEnded);
         Visible(resultText != null ? resultText.gameObject : null, battle.IsBattleEnded);
-        SetText(resultText, battle.WinningTeam > 0 ? $"TEAM {battle.WinningTeam} WINS" : "DRAW - NO FLAG HOLDER");
+        if (resultText != null) SetText(resultText, battle.WinningTeam > 0 ? $"TEAM {battle.WinningTeam} WINS" : "DRAW - NO FLAG HOLDER");
         bool respawning = respawnAt > 0f && !battle.IsBattleEnded;
         Visible(respawnPanel, respawning);
         Visible(respawnText != null ? respawnText.gameObject : null, respawning);
-        SetText(respawnText, Time.unscaledTime < respawnAt
+        if (respawnText != null) SetText(respawnText, Time.unscaledTime < respawnAt
             ? $"DOWNED - respawn in {Mathf.Max(0f, respawnAt - Time.unscaledTime):0.0}s" : "Waiting for respawn...");
         BindPlayer(valid);
         BindAim(valid && owner.IsAlive && battle.IsGameplayActive && !MenuOpen);
@@ -155,31 +155,41 @@ public sealed class BattleHud : MonoBehaviour
 
     private void BindPlayer(bool valid)
     {
-        float hpPercent = valid && owner.MaxHp > 0f ? Mathf.Clamp01(owner.NowHp / owner.MaxHp) : 0f;
-        if (hpGridBar != null) hpGridBar.UpdateHP(hpPercent);
-        SetBar(hpSlider, hpFill, hpPercent);
         SetBar(apSlider, apFill, valid ? owner.NowAp / Mathf.Max(1f, owner.MaxAp) : 0f);
-        SetText(hpText, valid ? $"{owner.NowHp:0} / {owner.MaxHp:0}" : "");
-        SetText(apText, valid ? $"{owner.NowAp:0} / {owner.MaxAp:0}" : "");
-        SetText(teamText, valid ? owner.TeamIndex.ToString() : "");
-        SetText(speedStageText, valid ? owner.CurrentSpeedStage.ToString("+0;-0;0") : "");
-        SetText(speedText, valid ? $"{owner.CurrentSpeed:0.0} m/s" : "");
-        SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
-        SetText(magicCostText, valid ? owner.SelectedMagicApCost.ToString("0") : "");
+        if (apText != null) SetText(apText, valid ? $"{owner.NowAp:0} / {owner.MaxAp:0}" : "");
+        if (teamText != null) SetText(teamText, valid ? owner.TeamIndex.ToString() : "");
+        if (speedStageText != null) SetText(speedStageText, valid ? owner.CurrentSpeedStage.ToString("+0;-0;0") : "");
+        if (speedText != null) SetText(speedText, valid ? $"{owner.CurrentSpeed:0.0} m/s" : "");
+        if (selectedMagicText != null) SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
+        if (magicCostText != null) SetText(magicCostText, valid ? owner.SelectedMagicApCost.ToString("0") : "");
+    }
+
+    private void BindOwner(Player next)
+    {
+        if (owner == next) return;
+        if (owner != null) owner.HealthChanged -= BindHealth;
+        owner = next;
+        if (owner != null)
+        {
+            owner.HealthChanged += BindHealth;
+            BindHealth(owner.NowHp, owner.MaxHp);
+        }
+        else BindHealth(0f, 0f);
+    }
+
+    private void BindHealth(float hp, float maxHp)
+    {
+        float fraction = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 0f;
+        if (hpGridBar != null) hpGridBar.UpdateHP(fraction);
+        SetBar(hpSlider, hpFill, fraction);
+        if (hpText != null) SetText(hpText, owner != null ? $"{hp:0} / {maxHp:0}" : "");
     }
 
     private void BindAim(bool show)
     {
         Visible(reticle, show && desiredAimMarker == null);
         if (!show) lockTarget = null;
-        else if (Time.unscaledTime >= nextRefresh)
-        {
-            nextRefresh = Time.unscaledTime + 0.1f;
-            lockTarget = null;
-            foreach (Player candidate in FindObjectsByType<Player>(FindObjectsSortMode.None))
-                if (candidate.Object != null && candidate.Object.IsValid && owner.HasLockTarget(candidate.Object))
-                { lockTarget = candidate; break; }
-        }
+        else lockTarget = owner.GetDisplayedLockTarget();
         bool locked = show && owner.SelectedMagicStats.requiresTarget && lockTarget != null &&
             lockTarget.Object != null && lockTarget.Object.IsValid;
         if (locked && lockMarker != null) locked = Place(lockMarker, lockTarget.LockAimPoint);
@@ -187,7 +197,7 @@ public sealed class BattleHud : MonoBehaviour
         Visible(lockProgressFill != null ? lockProgressFill.gameObject : null, locked);
         Visible(lockText != null ? lockText.gameObject : null, locked);
         if (lockProgressFill != null) lockProgressFill.fillAmount = locked ? Mathf.Clamp01(owner.LockProgress) : 0f;
-        SetText(lockText, locked ? owner.IsFullyLocked ? "RELEASE TO FIRE" : $"LOCK {owner.LockProgress:P0}" : "");
+        if (lockText != null) SetText(lockText, locked ? owner.IsFullyLocked ? "RELEASE TO FIRE" : $"LOCK {owner.LockProgress:P0}" : "");
     }
 
     // Run after the network render pose/camera, avoiding a one-frame lag in the small circle.
@@ -208,14 +218,17 @@ public sealed class BattleHud : MonoBehaviour
             Vector3 origin = pilot.LockAimPoint;
             float distance = Mathf.Max(1f, Vector3.Distance(origin, desiredPoint));
             Vector3 forwardPoint = origin + pilot.transform.forward * distance;
-            desiredVisible = desiredAimMarker != null && Place(desiredAimMarker, desiredPoint);
-            forwardVisible = forwardAimMarker != null && Place(forwardAimMarker, forwardPoint);
+            // Never project the fixed crosshair through a shaken render matrix.
+            desiredVisible = desiredAimMarker != null && PlaceScreen(desiredAimMarker, worldCamera.pixelRect.center);
+            forwardVisible = forwardAimMarker != null && forwardAimMarker != desiredAimMarker &&
+                PlaceStableAim(forwardAimMarker, forwardPoint);
             aligned = pilot.IsAimAligned((desiredPoint - origin).normalized);
             SetText(aimAlignmentText, aligned ? "AIM ALIGNED" : "ALIGNING");
         }
         SetAimColors(show && aligned);
         Visible(desiredAimMarker != null ? desiredAimMarker.gameObject : null, desiredVisible);
-        Visible(forwardAimMarker != null ? forwardAimMarker.gameObject : null, forwardVisible);
+        if (forwardAimMarker != desiredAimMarker)
+            Visible(forwardAimMarker != null ? forwardAimMarker.gameObject : null, forwardVisible);
         Visible(aimAlignmentText != null ? aimAlignmentText.gameObject : null, show);
     }
 
@@ -299,9 +312,28 @@ public sealed class BattleHud : MonoBehaviour
         if (worldCamera == null || rect.parent is not RectTransform parent) return false;
         Vector3 viewport = worldCamera.WorldToViewportPoint(position);
         if (viewport.z <= 0 || viewport.x < 0 || viewport.x > 1 || viewport.y < 0 || viewport.y > 1) return false;
+        return PlaceScreen(rect, worldCamera.WorldToScreenPoint(position));
+    }
+
+    private bool PlaceStableAim(RectTransform rect, Vector3 position)
+    {
+        // Render-only camera shake must not make the aiming circle jitter.
+        Vector3 local = worldCamera.transform.InverseTransformPoint(position);
+        if (local.z <= 0f) return false;
+        Vector4 clip = worldCamera.projectionMatrix * new Vector4(local.x, local.y, -local.z, 1f);
+        if (Mathf.Abs(clip.w) < 0.0001f) return false;
+        Vector2 viewport = new Vector2(clip.x / clip.w, clip.y / clip.w) * 0.5f + Vector2.one * 0.5f;
+        if (viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f) return false;
+        Rect pixels = worldCamera.pixelRect;
+        return PlaceScreen(rect, new Vector2(pixels.x + viewport.x * pixels.width, pixels.y + viewport.y * pixels.height));
+    }
+
+    private bool PlaceScreen(RectTransform rect, Vector2 screenPoint)
+    {
+        if (rect.parent is not RectTransform parent) return false;
         Canvas canvas = rect.GetComponentInParent<Canvas>();
         Camera uiCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
-        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, worldCamera.WorldToScreenPoint(position), uiCamera, out Vector2 point))
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenPoint, uiCamera, out Vector2 point))
             return false;
         rect.localPosition = new Vector3(point.x, point.y, rect.localPosition.z);
         return true;
@@ -343,6 +375,7 @@ public sealed class BattleHud : MonoBehaviour
 
     private void OnDisable()
     {
+        BindOwner(null);
         Canvas.willRenderCanvases -= BindFlightAim;
         if (resumeButton != null) resumeButton.onClick.RemoveListener(Resume);
         HideViews();

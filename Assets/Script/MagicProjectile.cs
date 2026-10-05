@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
+using Unity.Profiling;
 
 // Uses the existing runner. Only StateAuthority simulates flight and damage.
 public sealed class MagicProjectile : NetworkBehaviour
 {
+    private static readonly ProfilerMarker simulationMarker = new("WitchFlight.Projectile.Simulate");
     private static readonly HashSet<MagicProjectile> active = new();
     [Networked] public MagicType Magic { get; private set; }
     [Networked] public PlayerRef Shooter { get; private set; }
@@ -25,10 +27,17 @@ public sealed class MagicProjectile : NetworkBehaviour
     private Material material;
     private TrailRenderer trail;
     private MagicType visualMagic = MagicType.None;
+    private readonly RaycastHit[] collisionHits = new RaycastHit[32];
+    private readonly Collider[] overlapHits = new Collider[32];
+    // Main-thread, non-reentrant visibility queries; no damage callbacks within them.
+    private static readonly RaycastHit[] blastHits = new RaycastHit[32];
+    private static readonly Collider[] blastOverlaps = new Collider[32];
     public bool IsRevealed => RevealTimer.IsRunning && !RevealTimer.Expired(Runner);
 
     public override void Spawned()
     {
+        // Projectiles remain server-simulated: even their shooter renders remote snapshots.
+        Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
         active.Add(this);
     }
 
@@ -58,6 +67,7 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         if (!Object.HasStateAuthority || !initialized)
             return;
+        using var simulationSample = simulationMarker.Auto();
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
         {
             Runner.Despawn(Object);
@@ -138,10 +148,19 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         nearest = default;
         float best = float.PositiveInfinity;
-        foreach (RaycastHit hit in Physics.SphereCastAll(transform.position,
-                     Mathf.Max(0.02f, stats.projectileRadius), direction, distance, ~0,
-                     QueryTriggerInteraction.Ignore))
+        float radius = Mathf.Max(0.02f, stats.projectileRadius);
+        int count = Physics.SphereCastNonAlloc(transform.position, radius, direction,
+            collisionHits, distance, ~0, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = collisionHits;
+        if (count == hits.Length)
         {
+            hits = Physics.SphereCastAll(transform.position, radius, direction,
+                distance, ~0, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
+        }
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
             if (hit.collider == null || hit.transform.IsChildOf(transform))
                 continue;
             Player player = hit.collider.GetComponentInParent<Player>();
@@ -157,9 +176,18 @@ public sealed class MagicProjectile : NetworkBehaviour
 
     private bool TryGetInitialOverlap(out Collider overlap)
     {
-        foreach (Collider collider in Physics.OverlapSphere(transform.position,
-                     Mathf.Max(0.02f, stats.projectileRadius), ~0, QueryTriggerInteraction.Ignore))
+        float radius = Mathf.Max(0.02f, stats.projectileRadius);
+        int count = Physics.OverlapSphereNonAlloc(transform.position, radius, overlapHits,
+            ~0, QueryTriggerInteraction.Ignore);
+        Collider[] hits = overlapHits;
+        if (count == hits.Length)
         {
+            hits = Physics.OverlapSphere(transform.position, radius, ~0, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
+        }
+        for (int i = 0; i < count; i++)
+        {
+            Collider collider = hits[i];
             if (collider == null || collider.transform.IsChildOf(transform))
                 continue;
             Player player = collider.GetComponentInParent<Player>();
@@ -184,9 +212,10 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         if (!ArmTimer.Expired(Runner))
             return;
-        foreach (Player player in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        foreach (PlayerRef playerRef in Runner.ActivePlayers)
         {
-            if (player.IsAlive && (player.LockAimPoint - transform.position).sqrMagnitude <= stats.radius * stats.radius &&
+            Player player = Player.FindInRunner(Runner, playerRef);
+            if (player != null && player.IsAlive && (player.LockAimPoint - transform.position).sqrMagnitude <= stats.radius * stats.radius &&
                 HasBlastSight(player))
             {
                 Impact(transform.position);
@@ -203,9 +232,10 @@ public sealed class MagicProjectile : NetworkBehaviour
         transform.position = point;
         if (IsMine || stats.effect == MagicEffectKind.AreaDamage)
         {
-            foreach (Player player in FindObjectsByType<Player>(FindObjectsSortMode.None))
+            foreach (PlayerRef playerRef in Runner.ActivePlayers)
             {
-                if (!player.IsAlive || (!IsMine && player.TeamIndex == ShooterTeam) ||
+                Player player = Player.FindInRunner(Runner, playerRef);
+                if (player == null || !player.IsAlive || (!IsMine && player.TeamIndex == ShooterTeam) ||
                     (player.LockAimPoint - point).sqrMagnitude > stats.radius * stats.radius || !HasBlastSight(player))
                     continue;
                 player.ReceiveMagicHit(stats, Shooter);
@@ -228,14 +258,34 @@ public sealed class MagicProjectile : NetworkBehaviour
     public static bool HasBlastSight(Vector3 origin, Player target)
     {
         // Rays alone can miss a wall enclosing their origin.
-        foreach (Collider collider in Physics.OverlapSphere(origin, 0.01f, ~0, QueryTriggerInteraction.Ignore))
+        int overlapCount = Physics.OverlapSphereNonAlloc(origin, 0.01f, blastOverlaps,
+            ~0, QueryTriggerInteraction.Ignore);
+        Collider[] overlaps = blastOverlaps;
+        if (overlapCount == overlaps.Length)
+        {
+            overlaps = Physics.OverlapSphere(origin, 0.01f, ~0, QueryTriggerInteraction.Ignore);
+            overlapCount = overlaps.Length;
+        }
+        for (int i = 0; i < overlapCount; i++)
+        {
+            Collider collider = overlaps[i];
             if (collider != null && collider.GetComponentInParent<Player>() == null &&
                 collider.GetComponentInParent<MagicProjectile>() == null)
                 return false;
+        }
         Vector3 delta = target.LockAimPoint - origin;
-        foreach (RaycastHit hit in Physics.RaycastAll(origin, delta.normalized, delta.magnitude,
-                     ~0, QueryTriggerInteraction.Ignore))
+        int hitCount = Physics.RaycastNonAlloc(origin, delta.normalized, blastHits,
+            delta.magnitude, ~0, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = blastHits;
+        if (hitCount == hits.Length)
         {
+            hits = Physics.RaycastAll(origin, delta.normalized, delta.magnitude,
+                ~0, QueryTriggerInteraction.Ignore);
+            hitCount = hits.Length;
+        }
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = hits[i];
             if (hit.collider == null || hit.collider.GetComponentInParent<MagicProjectile>() != null ||
                 hit.collider.GetComponentInParent<Player>() != null)
                 continue;
@@ -248,7 +298,7 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         foreach (MagicProjectile shot in active)
         {
-            if (shot != null && shot.Object != null && shot.Object.HasStateAuthority &&
+            if (shot != null && shot.Runner == target.Runner && shot.Object != null && shot.Object.HasStateAuthority &&
                 shot.TargetId.Equals(target.Object.Id))
                 shot.TargetId = default;
         }
@@ -258,16 +308,16 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         foreach (MagicProjectile shot in active)
         {
-            if (shot != null && shot.Object != null && shot.Object.HasStateAuthority && shot.IsMine &&
+            if (shot != null && shot.Runner == scanner.Runner && shot.Object != null && shot.Object.HasStateAuthority && shot.IsMine &&
                 (shot.transform.position - scanner.transform.position).sqrMagnitude <= radius * radius)
                 shot.RevealTimer = TickTimer.CreateFromSeconds(shot.Runner, Mathf.Max(0.1f, duration));
         }
     }
 
-    public static bool HasMineOwnedBy(PlayerRef player)
+    public static bool HasMineOwnedBy(PlayerRef player, NetworkRunner runner = null)
     {
         foreach (MagicProjectile shot in active)
-            if (shot != null && shot.Object != null && shot.Object.IsValid &&
+            if (shot != null && (runner == null || shot.Runner == runner) && shot.Object != null && shot.Object.IsValid &&
                 shot.IsMine && !shot.Finished && shot.Shooter == player)
                 return true;
         return false;

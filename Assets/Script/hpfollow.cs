@@ -25,10 +25,29 @@ public sealed class hpfollow : MonoBehaviour
     private GridHPBar gridBar;
     private Slider slider;
     private Image filledImage;
+    private float healthFraction;
+    private float maxHealth;
+    private bool healthDirty = true;
 
     private void Awake()
     {
         owner = GetComponent<Player>();
+    }
+
+    private void OnEnable()
+    {
+        if (owner == null) owner = GetComponent<Player>();
+        owner.HealthChanged += OnHealthChanged;
+        // Re-enabling a view may have missed an event while it was disabled.
+        if (owner.Object != null && owner.Object.IsValid)
+            OnHealthChanged(owner.NowHp, owner.MaxHp);
+    }
+
+    private void OnHealthChanged(float hp, float maxHp)
+    {
+        maxHealth = maxHp;
+        healthFraction = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 0f;
+        healthDirty = true;
     }
 
     private void LateUpdate()
@@ -73,13 +92,14 @@ public sealed class hpfollow : MonoBehaviour
         viewRoot.transform.localScale = Vector3.one * Mathf.Max(0.0001f, worldSpaceScale);
         SetVisible(true);
 
-        float fraction = Mathf.Clamp01(owner.NowHp / owner.MaxHp);
+        if (!healthDirty) return;
+        healthDirty = false;
         if (gridBar != null)
-            gridBar.UpdateHP(fraction);
+            gridBar.UpdateHP(healthFraction);
         else if (slider != null)
-            slider.SetValueWithoutNotify(fraction);
+            slider.SetValueWithoutNotify(healthFraction);
         else if (filledImage != null)
-            filledImage.fillAmount = fraction;
+            filledImage.fillAmount = healthFraction;
     }
 
     private bool CanShowToLocalPlayer()
@@ -91,11 +111,12 @@ public sealed class hpfollow : MonoBehaviour
                local != null && local.Object != null && local.Object.IsValid &&
                local != owner && !owner.Object.HasInputAuthority &&
                local.TeamIndex > 0 && owner.TeamIndex > 0 && local.TeamIndex != owner.TeamIndex &&
-               local.IsAlive && owner.IsAlive && owner.MaxHp > 0f && !owner.IsStealthed;
+               local.IsAlive && owner.IsAlive && maxHealth > 0f && !owner.IsStealthed;
     }
 
     private void CreateView()
     {
+        healthDirty = true;
         attemptedPrefab = hpBarPrefab;
         if (hpBarPrefab.GetComponent<RectTransform>() == null)
         {
@@ -184,6 +205,7 @@ public sealed class hpfollow : MonoBehaviour
 
     private void OnDisable()
     {
+        if (owner != null) owner.HealthChanged -= OnHealthChanged;
         SetVisible(false);
     }
 

@@ -5,6 +5,7 @@ public class GridHPBar : MonoBehaviour
 {
     public Transform gridParent; // Grid_Parent를 드래그 앤 드롭
     private Image[] hpCells;
+    private int displayedCellCount = -1;
 
     [Header("테스트용 현재 HP 비율 (0.0 ~ 1.0)")]
     [Range(0f, 1f)] public float currentPercent = 1f;
@@ -27,6 +28,8 @@ public class GridHPBar : MonoBehaviour
 
         // 예: 칸이 총 10개라면, 켜져야 할 칸의 개수를 구함
         int activeCellsCount = Mathf.RoundToInt(hpCells.Length * currentPercent);
+        if (activeCellsCount == displayedCellCount) return;
+        displayedCellCount = activeCellsCount;
 
         for (int i = 0; i < hpCells.Length; i++)
         {

@@ -355,7 +355,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   battleSceneIndex: 1
   roomIdInput: {fileID: 70084480}
-  maxPlayerCount: 2
+  maxPlayerCount: 1
   matchmakingStatusText: {fileID: 0}
   requireRandomMatchProfilePreview: 0
   playerPrefab:
@@ -847,7 +847,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 685793983}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c4474f138f3247cdb99b176c43d831de, type: 3}
   m_Name: 
@@ -1759,6 +1759,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   equipment: {fileID: 0}
   characterSearchRoot: {fileID: 1900010006}
+  customizationPanel: {fileID: 1900010007}
   nicknameText: {fileID: 422378055}
   appearance: {fileID: 1722239304}
   bangsLengthSlider: {fileID: 1337680403}
@@ -1840,6 +1841,11 @@ GameObject:
 --- !u!4 &1900010006 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 95175211562570635, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
+  m_PrefabInstance: {fileID: 2702975989589152586}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1900010007 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4384096590937772047, guid: 32d42efa5e4f52d489a4ab902868a73e, type: 3}
   m_PrefabInstance: {fileID: 2702975989589152586}
   m_PrefabAsset: {fileID: 0}
 --- !u!1 &1911106098 stripped

@@ -5,7 +5,7 @@ using UnityEngine;
 public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended }
 
 // One existing network flag owns the replicated match clock, carrier and result.
-public class BattleFlag : NetworkBehaviour
+public class BattleFlag : NetworkBehaviour, IAfterRender
 {
     [SerializeField, Min(0.1f)] private float pickupRadius = 0.85f;
     [SerializeField] private Vector3 carryOffset = new Vector3(0f, 1.3f, -0.5f);
@@ -40,6 +40,9 @@ public class BattleFlag : NetworkBehaviour
     }
 
     private readonly Dictionary<PlayerRef, PositionSample> previousPositions = new();
+    private readonly RaycastHit[] obstacleHits = new RaycastHit[32];
+    private PropertyReader<Vector3> worldPositionReader;
+    private PropertyReader<NetworkId> carrierIdReader;
     public static BattleFlag Instance { get; private set; }
     public float PhaseRemainingSeconds => Object != null && Object.IsValid
         ? Mathf.Max(0f, PhaseTimer.RemainingTime(Runner) ?? 0f) : 0f;
@@ -48,6 +51,9 @@ public class BattleFlag : NetworkBehaviour
 
     public override void Spawned()
     {
+        Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
+        worldPositionReader = GetPropertyReader<Vector3>(nameof(WorldPosition));
+        carrierIdReader = GetPropertyReader<NetworkId>(nameof(CarrierObjectId));
         Instance = this;
         BattleManager.Instance?.RegisterFlag(this);
         foreach (Collider flagCollider in GetComponentsInChildren<Collider>())
@@ -236,9 +242,10 @@ public class BattleFlag : NetworkBehaviour
         float step = fallSpeed * Runner.DeltaTime;
         float stopHeight = fallStopHeight;
         // Stop above solid scenery, ignoring flag triggers and player colliders.
-        foreach (RaycastHit hit in Physics.RaycastAll(WorldPosition, Vector3.down,
-                     step + pickupRadius, ~0, QueryTriggerInteraction.Ignore))
+        RaycastHit[] hits = GetObstacleHits(WorldPosition, Vector3.down, step + pickupRadius, out int count);
+        for (int i = 0; i < count; i++)
         {
+            RaycastHit hit = hits[i];
             if (hit.collider == null || hit.transform.IsChildOf(transform) ||
                 hit.collider.GetComponentInParent<Player>() != null)
                 continue;
@@ -301,15 +308,26 @@ public class BattleFlag : NetworkBehaviour
         Vector3 delta = WorldPosition - contactCenter;
         if (delta.sqrMagnitude < 0.0001f)
             return true;
-        foreach (RaycastHit hit in Physics.RaycastAll(contactCenter, delta.normalized, delta.magnitude,
-                     ~0, QueryTriggerInteraction.Ignore))
+        RaycastHit[] hits = GetObstacleHits(contactCenter, delta.normalized, delta.magnitude, out int count);
+        for (int i = 0; i < count; i++)
         {
+            RaycastHit hit = hits[i];
             if (hit.collider == null || hit.transform.IsChildOf(transform) ||
                 hit.collider.GetComponentInParent<Player>() != null)
                 continue;
             return false;
         }
         return true;
+    }
+
+    private RaycastHit[] GetObstacleHits(Vector3 origin, Vector3 direction, float distance, out int count)
+    {
+        count = Physics.RaycastNonAlloc(origin, direction, obstacleHits, distance,
+            ~0, QueryTriggerInteraction.Ignore);
+        if (count < obstacleHits.Length) return obstacleHits;
+        RaycastHit[] all = Physics.RaycastAll(origin, direction, distance, ~0, QueryTriggerInteraction.Ignore);
+        count = all.Length;
+        return all;
     }
 
     private static void GetCapsule(Player player, out Vector3 center, out Vector3 halfAxis, out float radius)
@@ -396,12 +414,30 @@ public class BattleFlag : NetworkBehaviour
         if (!IsPrepared)
             return;
         BattleManager.Instance?.RegisterFlag(this);
-        Player carrier = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
-        transform.position = carrier != null ? carrier.transform.TransformPoint(carryOffset) : WorldPosition;
-        if (carrier != null)
-            transform.rotation = Quaternion.Euler(0f, carrier.transform.eulerAngles.y, 0f);
         if (HasEnded)
             BattleManager.Instance?.NotifyBattleEnded(WinningTeam);
+    }
+
+    void IAfterRender.AfterRender()
+    {
+        if (!IsPrepared) return;
+        // Carrier roots have finished NetworkTransform.Render before following them.
+        // The flag has no NetworkTransform: interpolate its free-flight snapshots here,
+        // instead of snapping directly to the latest received WorldPosition each frame.
+        Player carrier = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
+        Vector3 position = WorldPosition;
+        if (carrier == null && Carrier == PlayerRef.None &&
+            TryGetSnapshotsBuffers(out var from, out var to, out float alpha))
+        {
+            NetworkId fromCarrier = carrierIdReader.Read(from);
+            NetworkId toCarrier = carrierIdReader.Read(to);
+            // Never lerp across a pickup/drop or a different respawned carrier.
+            if (fromCarrier.Equals(default(NetworkId)) && toCarrier.Equals(default(NetworkId)))
+                position = Vector3.Lerp(worldPositionReader.Read(from), worldPositionReader.Read(to), alpha);
+        }
+        transform.position = carrier != null ? carrier.transform.TransformPoint(carryOffset) : position;
+        if (carrier != null)
+            transform.rotation = Quaternion.Euler(0f, carrier.transform.eulerAngles.y, 0f);
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)

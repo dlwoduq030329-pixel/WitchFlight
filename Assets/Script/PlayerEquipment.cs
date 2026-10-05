@@ -16,6 +16,20 @@ public class PlayerEquipment : MonoBehaviour
     private MagicType magic1;
     private MagicType magic2;
     private int currentMagicSlot;
+    private int currentBroomIndex;
+    private bool flightEquipmentVisible = true;
+
+    // Presentation only: keep selections so leaving the lobby does not erase a loadout.
+    public void SetFlightEquipmentVisible(bool visible)
+    {
+        if (flightEquipmentVisible == visible) return;
+        flightEquipmentVisible = visible;
+        int slot = currentMagicSlot;
+        currentMagicSlot = 0;
+        ChangeMagic(slot);
+        SetOnlyActive(broomPrefabs, visible ? currentBroomIndex : 0);
+        if (!visible) SetAllInactive(magicStaffPrefabs);
+    }
 
     public void Init(MagicType magic1, MagicType magic2, HatType hat, BroomType broom)
     {
@@ -61,7 +75,7 @@ public class PlayerEquipment : MonoBehaviour
                 ? magicStaff2
                 : null;
         if (selectedStaff != null)
-            selectedStaff.SetActive(true);
+            selectedStaff.SetActive(flightEquipmentVisible);
 
         currentMagicSlot = slot;
     }
@@ -84,7 +98,8 @@ public class PlayerEquipment : MonoBehaviour
 
     public void EquipBroom(int index)
     {
-        SetOnlyActive(broomPrefabs, index);
+        currentBroomIndex = index;
+        SetOnlyActive(broomPrefabs, flightEquipmentVisible ? index : 0);
     }
 
     private GameObject FindMagicObject(MagicType magic)

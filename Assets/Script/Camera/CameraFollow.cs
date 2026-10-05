@@ -18,16 +18,16 @@ public class CameraFollow : MonoBehaviour
     [Header("Local speed shake (forward stages 2 and 3)")]
     [SerializeField] private bool enableSpeedShake = true;
     [Tooltip("2단계에서 목표로 하는 흔들림 배율입니다. 0이면 해당 단계에서 끕니다.")]
-    [SerializeField, Min(0f)] private float speedShakeStage2Intensity = 0.35f;
+    [SerializeField, Min(0f)] private float speedShakeStage2Intensity = 0.15f;
     [Tooltip("3단계에서 목표로 하는 흔들림 배율입니다.")]
-    [SerializeField, Min(0f)] private float speedShakeStage3Intensity = 1f;
+    [SerializeField, Min(0f)] private float speedShakeStage3Intensity = 0.35f;
     [Tooltip("강도 1일 때 카메라 로컬 X/Y/Z 이동 폭(미터)입니다. 렌더링에만 적용됩니다.")]
-    [SerializeField] private Vector3 speedShakePositionAmplitude = new Vector3(0.015f, 0.015f, 0f);
+    [SerializeField] private Vector3 speedShakePositionAmplitude = new Vector3(0.008f, 0.008f, 0f);
     [Tooltip("강도 1일 때 X/Y/Z 회전 폭(도)입니다. 에임 방향에는 적용되지 않습니다.")]
-    [SerializeField] private Vector3 speedShakeRotationAmplitude = new Vector3(0.12f, 0.12f, 0.2f);
-    [SerializeField, Min(0.01f)] private float speedShakeFrequency = 8f;
+    [SerializeField] private Vector3 speedShakeRotationAmplitude = new Vector3(0.06f, 0.06f, 0f);
+    [SerializeField, Min(0.01f)] private float speedShakeFrequency = 4f;
     [Tooltip("강도가 목표값으로 변하는 반응 속도입니다. 낮을수록 천천히 켜지고 꺼집니다.")]
-    [SerializeField, Min(0.01f)] private float speedShakeTransitionSpeed = 3f;
+    [SerializeField, Min(0.01f)] private float speedShakeTransitionSpeed = 2f;
 
     [Header("Mouse aim flight")]
     [Tooltip("큰 조준점의 방향으로 캐릭터가 선회합니다. 끄면 이전 자유 시점/직접 피치 조작을 사용합니다.")]

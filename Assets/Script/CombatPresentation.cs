@@ -191,17 +191,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (magic != MagicType.Vision)
             return;
 
-        GameObject beam = new GameObject("Vision beam");
-        var line = beam.AddComponent<LineRenderer>();
-        line.positionCount = 2;
-        line.SetPosition(0, origin);
-        line.SetPosition(1, end);
-        line.startWidth = 0.12f;
-        line.endWidth = 0.04f;
-        Material material = CreateEffectMaterial(color);
-        line.sharedMaterial = material;
-        var lifetime = beam.AddComponent<CombatTransientEffect>();
-        lifetime.Initialize(0.16f, Vector3.one, Vector3.one, new[] { material });
+        CombatTransientEffect.PlayBeam(origin, end, color);
     }
 
     public static void ShowImpact(Vector3 position, MagicType magic)
@@ -262,19 +252,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private static void SpawnPulse(Vector3 position, Color color, float diameter, float duration)
     {
-        GameObject pulse = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        pulse.name = "Combat pulse";
-        pulse.layer = 2;
-        Collider collider = pulse.GetComponent<Collider>();
-        collider.enabled = false;
-        Destroy(collider);
-        pulse.transform.position = position;
-        var renderer = pulse.GetComponent<Renderer>();
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        Material material = CreateEffectMaterial(color);
-        renderer.sharedMaterial = material;
-        pulse.AddComponent<CombatTransientEffect>().Initialize(
-            duration, Vector3.one * 0.08f, Vector3.one * diameter, new[] { material });
+        CombatTransientEffect.PlayPulse(position, color, diameter, duration);
     }
 
     public static Material CreateEffectMaterial(Color color)

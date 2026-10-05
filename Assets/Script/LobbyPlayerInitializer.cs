@@ -8,6 +8,8 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
 {
     [SerializeField] private PlayerEquipment equipment;
     [SerializeField] private Transform characterSearchRoot;
+    [Tooltip("Main의 커스터마이징 창. 이 창이 열려 있을 때만 미리보기 빗자루/지팡이를 표시합니다.")]
+    [SerializeField] private GameObject customizationPanel;
     [SerializeField] private TMP_Text nicknameText;
     [Header("Local preview and bangs slider (0..1)")]
     [SerializeField] private PlayerAppearance appearance;
@@ -62,11 +64,22 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
 
     private void OnEnable()
     {
+        RefreshEquipmentVisibility();
         BindSlider(bangsLengthSlider, SetBangsLength);
         BindSlider(bangsDirectionSlider, SetBangsDirection);
         BindSlider(sideHairLengthSlider, SetSideHairLength);
         DataConfig.Changed += RefreshCustomizationUI;
         RefreshCustomizationUI();
+    }
+
+    private void LateUpdate() => RefreshEquipmentVisibility();
+
+    private void RefreshEquipmentVisibility()
+    {
+        if (equipment == null && characterSearchRoot != null)
+            equipment = characterSearchRoot.GetComponentInChildren<PlayerEquipment>(true);
+        if (equipment != null)
+            equipment.SetFlightEquipmentVisible(customizationPanel != null && customizationPanel.activeInHierarchy);
     }
 
     private void OnDisable()
@@ -75,6 +88,7 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         if (bangsDirectionSlider != null) bangsDirectionSlider.onValueChanged.RemoveListener(SetBangsDirection);
         if (sideHairLengthSlider != null) sideHairLengthSlider.onValueChanged.RemoveListener(SetSideHairLength);
         DataConfig.Changed -= RefreshCustomizationUI;
+        if (equipment != null) equipment.SetFlightEquipmentVisible(false);
     }
 
     private bool CanCustomize => DatabaseManager.Instance != null &&
@@ -230,6 +244,7 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         onBroomIndex.Invoke(CurrentConfig.broomIndex);
         onWandIndex.Invoke(CurrentConfig.wandIndex);
         onInitialized.Invoke();
+        RefreshEquipmentVisibility();
     }
 
     // Wire the customization Save button here, after writing the selection to DataConfig.

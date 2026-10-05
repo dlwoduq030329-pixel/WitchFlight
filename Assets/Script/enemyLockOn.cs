@@ -12,6 +12,7 @@ public class enemyLockOn : MonoBehaviour
     private Camera targetCamera;
     private Player currentTarget;
     private float nextRefreshTime;
+    private readonly RaycastHit[] obstructionHits = new RaycastHit[32];
     public Player CurrentTarget => currentTarget;
 
     private void Awake() => owner = GetComponent<Player>();
@@ -69,8 +70,12 @@ public class enemyLockOn : MonoBehaviour
     {
         Player best = null;
         float bestScore = float.PositiveInfinity;
-        foreach (Player candidate in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        if (owner.Runner == null) return null;
+        foreach (PlayerRef playerRef in owner.Runner.ActivePlayers)
         {
+            if (!owner.Runner.TryGetPlayerObject(playerRef, out NetworkObject networkPlayer) ||
+                networkPlayer == null || !networkPlayer.IsValid) continue;
+            Player candidate = networkPlayer.GetComponent<Player>();
             if (!IsVisible(candidate))
                 continue;
             Vector3 point = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
@@ -135,9 +140,18 @@ public class enemyLockOn : MonoBehaviour
         if (distance < 0.01f)
             return true;
 
-        foreach (RaycastHit hit in Physics.RaycastAll(origin, delta / distance, distance,
-                     obstructionMask, QueryTriggerInteraction.Ignore))
+        int count = Physics.RaycastNonAlloc(origin, delta / distance, obstructionHits,
+            distance, obstructionMask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = obstructionHits;
+        if (count == obstructionHits.Length)
         {
+            hits = Physics.RaycastAll(origin, delta / distance, distance,
+                obstructionMask, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
+        }
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
             if (hit.collider == null || hit.transform.IsChildOf(owner.transform) ||
                 hit.transform.IsChildOf(candidate.transform))
                 continue;
