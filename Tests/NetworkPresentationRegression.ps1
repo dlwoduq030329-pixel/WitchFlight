@@ -11,7 +11,7 @@ function Method([string]$name) {
 }
 $stubs = @'
 namespace UnityEngine {
- public class MonoBehaviour {}
+ public class MonoBehaviour {public bool isActiveAndEnabled=true;}
  public class SerializeField:System.Attribute {}
  public class HeaderAttribute:System.Attribute { public HeaderAttribute(string x){} }
  public class RangeAttribute:System.Attribute { public RangeAttribute(float a,float b){} }
@@ -22,6 +22,7 @@ namespace UnityEngine {
 }
 namespace UnityEngine.UI { public class Image { private UnityEngine.Color c; public int Writes; public UnityEngine.Color color {get=>c;set{c=value;Writes++;}} } }
 namespace Tested {
+ public static class DataConfig { public static event System.Action Changed; public static int magic1Index,magic2Index,hatIndex,broomIndex; }
  public enum MagicType {None,Fire,Ice,Vision} public enum HatType {None,Classic} public enum BroomType {None,Slow,Standard}
  public class Obj { public bool IsValid=true,HasStateAuthority=true; public int InputAuthority; }
  public class RunnerState { public bool IsRunning=true; public float Time; }

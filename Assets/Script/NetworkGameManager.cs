@@ -148,13 +148,60 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void JoinRoom()
     {
+        if (IsMatching) return;
+        if (TryReadRoomId(out string roomId)) JoinRoom(roomId);
+    }
+
+    public void JoinRoom(string roomId)
+    {
+        JoinRoom(roomId, null, null);
+    }
+
+    /// <summary>
+    /// 기존 방에 접속하고 요청한 UI에 결과를 전달합니다. 없는 방은 생성하지 않습니다.
+    /// onSuccess: 세션 접속 완료 (PlayerData/프로필 동기화 완료는 별도).
+    /// onFailed: 코드 오류, 빈 코드, 접속 중복, 로그인/설정 오류, 취소, 연결 실패.
+    /// UI는 콜백에서 입력창/오류 문구를 처리하고 대기실 정보는 linkuserinfo로 갱신합니다.
+    /// </summary>
+    public void JoinRoom(string roomId, Action onSuccess, Action<string> onFailed)
+    {
         if (IsMatching)
         {
+            // Reject only this request; never replace an in-flight request's callback/status.
+            NotifyRoomJoinResult(onSuccess, onFailed, "이미 접속 중이거나 방에 입장한 상태입니다.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(roomId))
+        {
+            SetMatchStatus("방 코드를 입력해주세요.");
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
             return;
         }
 
+        StartGame(MatchRequest.JoinRoom, roomId.Trim(), onSuccess, onFailed);
+    }
 
-        if (TryReadRoomId(out string roomId)) StartGame(MatchRequest.JoinRoom, roomId);
+    private void NotifyRoomJoinResult(Action onSuccess, Action<string> onFailed, string error)
+    {
+        // The delegates belong to ONE join attempt, not a global UI reference.
+        Delegate callback = error == null ? (Delegate)onSuccess : onFailed;
+        if (callback == null) return;
+        foreach (Delegate handler in callback.GetInvocationList())
+        {
+            // Scene changes may destroy the UI before the connection finishes.
+            if (handler.Target is UnityEngine.Object target && target == null) continue;
+            try
+            {
+                if (error == null) ((Action)handler)();
+                else ((Action<string>)handler)(error);
+            }
+            catch (Exception exception)
+            {
+                // A UI callback error must not shut down a successfully joined session
+                // or deliver a second (failure) result for the same successful attempt.
+                Debug.LogException(exception, this);
+            }
+        }
     }
 
     private bool TryReadRoomId(out string roomId, bool allowLegacyFallback = false)
@@ -231,14 +278,27 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         return true;
     }
 
-    private async void StartGame(MatchRequest request, string roomId)
+    // Despite its name, this starts/joins a NETWORK SESSION, not the battle.
+    private async void StartGame(MatchRequest request, string roomId,
+        Action onSuccess = null, Action<string> onFailed = null)
     {
-        if (IsMatching || !ValidateMatchSetup()) return;
+        if (IsMatching)
+        {
+            NotifyRoomJoinResult(onSuccess, onFailed, "이미 접속 중이거나 방에 입장한 상태입니다.");
+            return;
+        }
+        if (!ValidateMatchSetup())
+        {
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
+            return;
+        }
         // Keep standalone battle tests usable, but do not match with an uninitialized login profile.
         if (LoginManager.Instance != null && (!LoginManager.Instance.IsLoggedIn ||
             DatabaseManager.Instance == null || !DatabaseManager.Instance.IsDataConfigReady))
         {
-            Debug.LogWarning("로그인과 로비 데이터 초기화를 먼저 완료해주세요.");
+            SetMatchStatus("로그인과 로비 데이터 초기화를 먼저 완료해주세요.");
+            Debug.LogWarning(MatchStatus);
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
             return;
         }
         bool randomMatch = request == MatchRequest.Random;
@@ -250,6 +310,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         var cancellation = new CancellationTokenSource();
         matchCancellation = cancellation;
         NetworkRunner sessionRunner = null;
+        string failureMessage = null;
+        bool connected = false;
         try
         {
             // A failed/shut-down Runner cannot be reused. Its disposable child keeps
@@ -300,32 +362,50 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             if (cancelRequested || !result.Ok)
             {
                 bool cancelled = cancelRequested || result.ShutdownReason == ShutdownReason.OperationCanceled;
+                failureMessage = cancelled ? "매칭을 취소했습니다." : GetMatchFailureMessage(result.ShutdownReason);
                 await ShutdownSession(sessionRunner);
-                SetMatchStatus(cancelled ? "매칭을 취소했습니다." : GetMatchFailureMessage(result.ShutdownReason));
                 if (!cancelled) Debug.LogWarning($"Matchmaking failed: {result.ShutdownReason} {result.ErrorMessage}", this);
-                return;
             }
-            UpdateWaitingStatus();
+            else if (sessionRunner != null && sessionRunner.IsRunning && ReferenceEquals(_runner, sessionRunner))
+            {
+                connected = true;
+            }
+            else
+            {
+                failureMessage = "방에 접속하는 중 연결이 종료되었습니다. 다시 시도해주세요.";
+                await ShutdownSession(sessionRunner);
+            }
         }
         catch (OperationCanceledException)
         {
+            failureMessage = "매칭을 취소했습니다.";
             await ShutdownSession(sessionRunner);
-            if (this != null) SetMatchStatus("매칭을 취소했습니다.");
         }
         catch (Exception exception)
         {
+            failureMessage = "매칭 연결에 실패했습니다. 다시 시도해주세요.";
             await ShutdownSession(sessionRunner);
-            if (this != null)
-            {
-                SetMatchStatus("매칭 연결에 실패했습니다. 다시 시도해주세요.");
-                Debug.LogException(exception, this);
-            }
+            if (this != null) Debug.LogException(exception, this);
         }
         finally
         {
             if (ReferenceEquals(matchCancellation, cancellation)) matchCancellation = null;
             cancellation.Dispose();
             startInProgress = false;
+        }
+
+        if (this == null) return;
+        // Notify AFTER cleanup/finally so UI can safely retry from a failure callback
+        // and IsWaitingInCodeRoom does not still report "startup in progress" on success.
+        if (connected)
+        {
+            UpdateWaitingStatus();
+            NotifyRoomJoinResult(onSuccess, onFailed, null);
+        }
+        else
+        {
+            SetMatchStatus(failureMessage ?? "방에 접속하지 못했습니다. 다시 시도해주세요.");
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
         }
     }
 

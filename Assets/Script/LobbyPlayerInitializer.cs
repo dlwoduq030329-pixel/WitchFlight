@@ -65,6 +65,7 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
     private void OnEnable()
     {
         RefreshEquipmentVisibility();
+        if (CanCustomize && equipment != null) equipment.BindToDataConfig();
         BindSlider(bangsLengthSlider, SetBangsLength);
         BindSlider(bangsDirectionSlider, SetBangsDirection);
         BindSlider(sideHairLengthSlider, SetSideHairLength);
@@ -88,7 +89,11 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         if (bangsDirectionSlider != null) bangsDirectionSlider.onValueChanged.RemoveListener(SetBangsDirection);
         if (sideHairLengthSlider != null) sideHairLengthSlider.onValueChanged.RemoveListener(SetSideHairLength);
         DataConfig.Changed -= RefreshCustomizationUI;
-        if (equipment != null) equipment.SetFlightEquipmentVisible(false);
+        if (equipment != null)
+        {
+            equipment.UnbindFromDataConfig();
+            equipment.SetFlightEquipmentVisible(false);
+        }
     }
 
     private bool CanCustomize => DatabaseManager.Instance != null &&
@@ -230,8 +235,7 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         RefreshCustomizationUI();
         if (nicknameText != null) nicknameText.text = DataConfig.playerName;
         if (equipment != null)
-            equipment.ApplyLoadout((HatType)CurrentConfig.hatIndex, (BroomType)CurrentConfig.broomIndex,
-                (MagicType)DataConfig.magic1Index, (MagicType)DataConfig.magic2Index);
+            equipment.BindToDataConfig();
         onHairStylePreset.Invoke(CurrentConfig.hairStylePreset);
         onBangsLength.Invoke(CurrentConfig.bangsLength);
         onBangsDirection.Invoke(CurrentConfig.bangsDirection);

@@ -16,8 +16,55 @@ public class PlayerEquipment : MonoBehaviour
     private MagicType magic1;
     private MagicType magic2;
     private int currentMagicSlot;
+    private int currentHatIndex;
     private int currentBroomIndex;
     private bool flightEquipmentVisible = true;
+    private bool followsDataConfig;
+    private bool hasLocalLoadout;
+
+    private void OnEnable()
+    {
+        if (!followsDataConfig) return;
+        DataConfig.Changed += ApplyFromDataConfig;
+        ApplyFromDataConfig();
+    }
+
+    private void OnDisable() => DataConfig.Changed -= ApplyFromDataConfig;
+
+    // Like PlayerAppearance, only the Main preview explicitly observes local settings.
+    // No UI needs a reference to this component to equip a spell: edit DataConfig instead.
+    public void BindToDataConfig()
+    {
+        followsDataConfig = true;
+        hasLocalLoadout = false;
+        DataConfig.Changed -= ApplyFromDataConfig;
+        if (isActiveAndEnabled) DataConfig.Changed += ApplyFromDataConfig;
+        ApplyFromDataConfig();
+    }
+
+    public void UnbindFromDataConfig()
+    {
+        followsDataConfig = false;
+        hasLocalLoadout = false;
+        DataConfig.Changed -= ApplyFromDataConfig;
+    }
+
+    private void ApplyFromDataConfig()
+    {
+        if (!followsDataConfig) return;
+        int first = DataConfig.magic1Index, second = DataConfig.magic2Index;
+        bool firstChanged = (int)magic1 != first;
+        bool secondChanged = (int)magic2 != second;
+        if (!hasLocalLoadout || firstChanged || secondChanged)
+        {
+            // Show the staff just equipped. Unrelated hair/color edits do not reset it.
+            int slot = hasLocalLoadout && !firstChanged && secondChanged ? 2 : 1;
+            ApplyMagicSelection(first, second, slot);
+        }
+        if (!hasLocalLoadout || currentHatIndex != DataConfig.hatIndex) EquipHat(DataConfig.hatIndex);
+        if (!hasLocalLoadout || currentBroomIndex != DataConfig.broomIndex) EquipBroom(DataConfig.broomIndex);
+        hasLocalLoadout = true;
+    }
 
     // Presentation only: keep selections so leaving the lobby does not erase a loadout.
     public void SetFlightEquipmentVisible(bool visible)
@@ -41,6 +88,9 @@ public class PlayerEquipment : MonoBehaviour
     public void ApplyLoadout(HatType selectedHat, BroomType selectedBroom,
         MagicType selectedMagic1, MagicType selectedMagic2)
     {
+        // Battle calls this with the replicated PlayerData/Player snapshot.
+        // Never let local account settings change a remote character's weapon.
+        UnbindFromDataConfig();
         magic1 = selectedMagic1;
         magic2 = selectedMagic2;
 
@@ -82,17 +132,23 @@ public class PlayerEquipment : MonoBehaviour
 
     public void EquipMagic(int selectedMagic1, int selectedMagic2)
     {
+        ApplyMagicSelection(selectedMagic1, selectedMagic2, 1);
+    }
+
+    private void ApplyMagicSelection(int selectedMagic1, int selectedMagic2, int visibleSlot)
+    {
         magic1 = (MagicType)selectedMagic1;
         magic2 = (MagicType)selectedMagic2;
         SetAllInactive(magicStaffPrefabs);
         magicStaff1 = FindMagicObject(magic1);
         magicStaff2 = FindMagicObject(magic2);
         currentMagicSlot = 0;
-        ChangeMagic(1);
+        ChangeMagic(visibleSlot);
     }
 
     public void EquipHat(int index)
     {
+        currentHatIndex = index;
         SetOnlyActive(hatPrefabs, index);
     }
 
