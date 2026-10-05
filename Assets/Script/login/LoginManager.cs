@@ -9,7 +9,11 @@ public class LoginManager : MonoBehaviour
     public static LoginManager Instance;
 
     public bool IsInitialized { get; private set; }
+    public bool IsInitializing { get; private set; }
+    private System.Action<bool, string> initializationCompleted;
     public bool IsLoggedIn { get; private set; }
+    public bool IsLoggingIn { get; private set; }
+    private int loginAttempt;
 
     [Header("Events")]
     public UnityEvent OnInitializeSuccess;
@@ -17,6 +21,8 @@ public class LoginManager : MonoBehaviour
 
     public UnityEvent OnLoginSuccess;
     public UnityEvent<string> OnLoginFailed;
+    public UnityEvent OnLoginStarted = new UnityEvent();
+    public UnityEvent OnLoggedOut = new UnityEvent();
 
     public UnityEvent OnSignUpSuccess;
     public UnityEvent<string> OnSignUpFailed;
@@ -51,39 +57,82 @@ public class LoginManager : MonoBehaviour
     {
     }
     
-    // °ÔÀÓ ½ÇÇà ½Ã ÀÚµ¿ È£Ãâ
+    // ê²Œì„ ì‹¤í–‰ ì‹œ ìë™ í˜¸ì¶œ
     public void InitializeBackend()
     {
-        Backend.InitializeAsync(callback =>
+        EnsureBackendInitialized(null);
+    }
+
+    // Share one in-flight initialization with startup and registration callers.
+    public void EnsureBackendInitialized(System.Action<bool, string> completed)
+    {
+        if (IsInitializing)
         {
-            if (callback.IsSuccess())
+            initializationCompleted += completed;
+            return;
+        }
+        if (Backend.IsInitialized)
+        {
+            IsInitialized = true;
+            completed?.Invoke(true, string.Empty);
+            return;
+        }
+
+        initializationCompleted += completed;
+        IsInitialized = false;
+        IsInitializing = true;
+        try
+        {
+            Backend.InitializeAsync(callback =>
             {
-                IsInitialized = true;
+                if (this == null) return;
+                bool success = callback.IsSuccess() && Backend.IsInitialized;
+                CompleteBackendInitialization(success, success ? string.Empty : callback.GetMessage());
+            });
+        }
+        catch (System.Exception exception)
+        {
+            CompleteBackendInitialization(false, exception.Message);
+        }
+    }
 
-                Debug.Log("BACKND ÃÊ±âÈ­ ¼º°ø");
+    private void CompleteBackendInitialization(bool success, string error)
+    {
+        IsInitializing = false;
+        IsInitialized = success;
+        var callbacks = initializationCompleted;
+        initializationCompleted = null;
+        if (success) Debug.Log("BACKND ì´ˆê¸°í™” ì„±ê³µ");
+        else Debug.LogError($"BACKND ì´ˆê¸°í™” ì‹¤íŒ¨ : {error}");
 
-                OnInitializeSuccess?.Invoke();
-            }
-            else
+        try
+        {
+            if (success) OnInitializeSuccess?.Invoke();
+            else OnInitializeFailed?.Invoke(error);
+        }
+        catch (System.Exception exception) { Debug.LogException(exception); }
+
+        if (callbacks == null) return;
+        foreach (System.Action<bool, string> callback in callbacks.GetInvocationList())
+        {
+            try { callback(success, error); }
+            catch (System.Exception exception)
             {
-                Debug.LogError(
-                    $"BACKND ÃÊ±âÈ­ ½ÇÆĞ : {callback.GetMessage()}"
-                );
-
-                OnInitializeFailed?.Invoke(
-                    callback.GetMessage()
-                );
+                Debug.LogException(exception);
             }
-        });
+        }
     }
   
 
-    // UI ·Î±×ÀÎ ¹öÆ°¿¡¼­ È£Ãâ
+    // UI ë¡œê·¸ì¸ ë²„íŠ¼ì—ì„œ í˜¸ì¶œ
     public void Login(string id, string password)
     {
+        if (IsLoggingIn) return;
+        // After a profile-read failure, the existing Login button retries the data flow.
+        if (IsLoggedIn) { OnLoginSuccess?.Invoke(); return; }
         if (!IsInitialized)
         {
-            Debug.LogError("BACKND°¡ ¾ÆÁ÷ ÃÊ±âÈ­µÇÁö ¾Ê¾Ò½À´Ï´Ù.");
+            Debug.LogError("BACKNDê°€ ì•„ì§ ì´ˆê¸°í™”ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.");
             return;
         }
 
@@ -91,34 +140,36 @@ public class LoginManager : MonoBehaviour
             string.IsNullOrWhiteSpace(password))
         {
             OnLoginFailed?.Invoke(
-                "¾ÆÀÌµğ¿Í ºñ¹Ğ¹øÈ£¸¦ ÀÔ·ÂÇØÁÖ¼¼¿ä."
+                "ì•„ì´ë””ì™€ ë¹„ë°€ë²ˆí˜¸ë¥¼ ì…ë ¥í•´ì£¼ì„¸ìš”."
             );
 
             return;
         }
 
-
+        IsLoggingIn = true;
+        int attempt = ++loginAttempt;
+        OnLoginStarted?.Invoke();
         Backend.BMember.CustomLogin(
             id,
             password,
             callback =>
             {
+                if (attempt != loginAttempt || this == null) return;
+                IsLoggingIn = false;
                 if (callback.IsSuccess())
                 {
                     IsLoggedIn = true;
 
-                    Debug.Log("·Î±×ÀÎ ¼º°ø");
+                    Debug.Log("ë¡œê·¸ì¸ ì„±ê³µ");
 
-                    // ·Î±×ÀÎ ¼º°ø ÈÄ
-                    // À¯Àú DataConfig ¼¼ÆÃÀ» ºÒ·¯¿È
-                    DatabaseManager.Instance.InitializeDatabase();
-
+                    // LoginFlowController checks registration, opens the lobby UI,
+                    // then applies the saved customization. Authentication alone is not lobby readiness.
                     OnLoginSuccess?.Invoke();
                 }
                 else
                 {
                     Debug.LogError(
-                        $"·Î±×ÀÎ ½ÇÆĞ : {callback.GetMessage()}"
+                        $"ë¡œê·¸ì¸ ì‹¤íŒ¨ : {callback.GetMessage()}"
                     );
 
                     OnLoginFailed?.Invoke(
@@ -130,12 +181,12 @@ public class LoginManager : MonoBehaviour
     }
 
 
-    // UI È¸¿ø°¡ÀÔ ¹öÆ°¿¡¼­ È£Ãâ
+    // UI íšŒì›ê°€ì… ë²„íŠ¼ì—ì„œ í˜¸ì¶œ
     public void SignUp(string id, string password)
     {
         if (!IsInitialized)
         {
-            Debug.LogError("BACKND°¡ ¾ÆÁ÷ ÃÊ±âÈ­µÇÁö ¾Ê¾Ò½À´Ï´Ù.");
+            Debug.LogError("BACKNDê°€ ì•„ì§ ì´ˆê¸°í™”ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.");
             return;
         }
 
@@ -143,7 +194,7 @@ public class LoginManager : MonoBehaviour
             string.IsNullOrWhiteSpace(password))
         {
             OnSignUpFailed?.Invoke(
-                "¾ÆÀÌµğ¿Í ºñ¹Ğ¹øÈ£¸¦ ÀÔ·ÂÇØÁÖ¼¼¿ä."
+                "ì•„ì´ë””ì™€ ë¹„ë°€ë²ˆí˜¸ë¥¼ ì…ë ¥í•´ì£¼ì„¸ìš”."
             );
 
             return;
@@ -157,14 +208,14 @@ public class LoginManager : MonoBehaviour
             {
                 if (callback.IsSuccess())
                 {
-                    Debug.Log("È¸¿ø°¡ÀÔ ¼º°ø");
+                    Debug.Log("íšŒì›ê°€ì… ì„±ê³µ");
 
                     OnSignUpSuccess?.Invoke();
                 }
                 else
                 {
                     Debug.LogError(
-                        $"È¸¿ø°¡ÀÔ ½ÇÆĞ : {callback.GetMessage()}"
+                        $"íšŒì›ê°€ì… ì‹¤íŒ¨ : {callback.GetMessage()}"
                     );
 
                     OnSignUpFailed?.Invoke(
@@ -178,13 +229,19 @@ public class LoginManager : MonoBehaviour
     }
 
 
-    // ·Î±×¾Æ¿ô
+    // ë¡œê·¸ì•„ì›ƒ
     public void Logout()
     {
+        loginAttempt++;
+        IsLoggingIn = false;
         Backend.BMember.Logout();
 
         IsLoggedIn = false;
+        DatabaseManager.Instance?.ClearSession();
+        OnLoggedOut?.Invoke();
 
-        Debug.Log("·Î±×¾Æ¿ô");
+        Debug.Log("ë¡œê·¸ì•„ì›ƒ");
     }
+
+ 
 }

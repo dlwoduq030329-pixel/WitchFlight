@@ -20,7 +20,7 @@ public sealed class CombatPresentation : MonoBehaviour
     }
 
     private readonly List<Visual> visuals = new();
-    private readonly MaterialPropertyBlock block = new();
+    private MaterialPropertyBlock block;
     private Player owner;
     private bool initialized;
     private int lastHit;
@@ -35,6 +35,8 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void Awake()
     {
+        // Unity native objects cannot be created from MonoBehaviour field initializers.
+        block = new MaterialPropertyBlock();
         owner = GetComponent<Player>();
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
         {
@@ -54,8 +56,50 @@ public sealed class CombatPresentation : MonoBehaviour
                 visual.colors[i] = ReadColor(materials[i]);
                 visual.originalBlocks[i] = new MaterialPropertyBlock();
                 renderer.GetPropertyBlock(visual.originalBlocks[i], i);
+                if (visual.originalBlocks[i].HasColor("_BaseColor"))
+                    visual.colors[i] = visual.originalBlocks[i].GetColor("_BaseColor");
+                else if (visual.originalBlocks[i].HasColor("_Color"))
+                    visual.colors[i] = visual.originalBlocks[i].GetColor("_Color");
             }
             visuals.Add(visual);
+        }
+    }
+
+    // Called after PlayerAppearance writes the per-material property block.
+    public void SetAppearanceColor(Renderer renderer, int materialIndex, Color color)
+    {
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer != renderer || materialIndex < 0 || materialIndex >= visual.colors.Length)
+                continue;
+            visual.colors[materialIndex] = color;
+            renderer.GetPropertyBlock(visual.originalBlocks[materialIndex], materialIndex);
+            return;
+        }
+    }
+
+    // Layer tint (e.g. iris _Color2nd) is not the base color used for hit flashes.
+    // Modify only this baseline property, never capture an in-progress flash as the base.
+    public void SetAppearanceLayerColor(Renderer renderer, int materialIndex, string property, Color color)
+    {
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer != renderer || materialIndex < 0 || materialIndex >= visual.colors.Length)
+                continue;
+            visual.originalBlocks[materialIndex].SetColor(property, color);
+            return;
+        }
+    }
+
+    // Preserve the selected eye texture when hit/death presentation restores the property block.
+    public void SetAppearanceLayerTexture(Renderer renderer, int materialIndex, string property, Texture texture)
+    {
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer != renderer || materialIndex < 0 || materialIndex >= visual.colors.Length)
+                continue;
+            visual.originalBlocks[materialIndex].SetTexture(property, texture);
+            return;
         }
     }
 
@@ -147,17 +191,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (magic != MagicType.Vision)
             return;
 
-        GameObject beam = new GameObject("Vision beam");
-        var line = beam.AddComponent<LineRenderer>();
-        line.positionCount = 2;
-        line.SetPosition(0, origin);
-        line.SetPosition(1, end);
-        line.startWidth = 0.12f;
-        line.endWidth = 0.04f;
-        Material material = CreateEffectMaterial(color);
-        line.sharedMaterial = material;
-        var lifetime = beam.AddComponent<CombatTransientEffect>();
-        lifetime.Initialize(0.16f, Vector3.one, Vector3.one, new[] { material });
+        CombatTransientEffect.PlayBeam(origin, end, color);
     }
 
     public static void ShowImpact(Vector3 position, MagicType magic)
@@ -218,19 +252,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private static void SpawnPulse(Vector3 position, Color color, float diameter, float duration)
     {
-        GameObject pulse = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        pulse.name = "Combat pulse";
-        pulse.layer = 2;
-        Collider collider = pulse.GetComponent<Collider>();
-        collider.enabled = false;
-        Destroy(collider);
-        pulse.transform.position = position;
-        var renderer = pulse.GetComponent<Renderer>();
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        Material material = CreateEffectMaterial(color);
-        renderer.sharedMaterial = material;
-        pulse.AddComponent<CombatTransientEffect>().Initialize(
-            duration, Vector3.one * 0.08f, Vector3.one * diameter, new[] { material });
+        CombatTransientEffect.PlayPulse(position, color, diameter, duration);
     }
 
     public static Material CreateEffectMaterial(Color color)

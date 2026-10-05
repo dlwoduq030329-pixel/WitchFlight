@@ -2,12 +2,26 @@ using System;
 using UnityEngine;
 using BackEnd;
 using LitJson;
+using System.Globalization;
+using System.Collections.Concurrent;
 
 public class DatabaseManager : MonoBehaviour
 {
     public static DatabaseManager Instance;
 
     private const string TABLE_NAME = "LoginPlayerData";
+
+    [Header("New player defaults (used only when LoginPlayerData has no row)")]
+    [SerializeField] private PlayerSetting newPlayerDefaults = new PlayerSetting
+    {
+        nickname = "test",
+        magic1Index = (int)MagicType.None,
+        magic2Index = (int)MagicType.Fire
+    };
+
+    [Header("DataConfig auto save")]
+    [Tooltip("Ï†ÄÏû• Ïã§Ìå® Ïãú Ïû¨ÏãúÎèÑ ÎåÄÍ∏∞ ÏãúÍ∞ÑÏûÖÎãàÎã§. Ïó∞ÏÜç Ïã§Ìå® Ïãú ÏµúÎåÄ 30Ï¥àÍπåÏßÄ ÎäòÏñ¥ÎÇ©ÎãàÎã§.")]
+    [SerializeField, Min(0.5f)] private float autoSaveRetryDelay = 2f;
 
     // =========================================================
     // PlayerSetting
@@ -18,17 +32,86 @@ public class DatabaseManager : MonoBehaviour
     {
         public string nickname;
 
-        public int hatIndex;
-        public int broomIndex;
-        public int magic1Index;
-        public int magic2Index;
+        public int hatIndex = (int)HatType.Classic;
+        public int broomIndex = (int)BroomType.Standard;
+        public int magic1Index = (int)MagicType.Fire;
+        public int magic2Index = (int)MagicType.Ice;
+        public int playerprofile;
+        public int hairStylePreset;
+        public float bangsLength;
+        public float bangsDirection = 0.5f;
+        public float sideHairLength;
+        public float ahogeLength;
+        public Color hairColor = Color.white;
+        public Color clothColor = Color.white;
+        public Color eyeColor = Color.white;
+        public int wandIndex;
+
+        public PlayerConfig GetPlayerConfig() => new PlayerConfig
+        {
+            hairStylePreset = hairStylePreset, bangsLength = bangsLength, bangsDirection = bangsDirection,
+            sideHairLength = sideHairLength, ahogeLength = ahogeLength,
+            hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor,
+            hatIndex = hatIndex, broomIndex = broomIndex, wandIndex = wandIndex
+        }.Sanitized();
+
+        public void SetPlayerConfig(PlayerConfig config)
+        {
+            config = config.Sanitized();
+            hairStylePreset = config.hairStylePreset;
+            bangsLength = config.bangsLength;
+            bangsDirection = config.bangsDirection;
+            sideHairLength = config.sideHairLength;
+            ahogeLength = config.ahogeLength;
+            hairColor = config.hairColor;
+            clothColor = config.clothColor;
+            eyeColor = config.eyeColor;
+            hatIndex = config.hatIndex;
+            broomIndex = config.broomIndex;
+            wandIndex = config.wandIndex;
+        }
     }
 
-    // «ˆ¿Á ∑Œ±◊¿Œ«— «√∑π¿ÃæÓ¿« º≥¡§
+    // ÌòÑÏû¨ Î°úÍ∑∏Ïù∏Ìïú ÌîåÎ†àÏù¥Ïñ¥Ïùò ÏÑ§Ï†ï
     private PlayerSetting currentPlayerSetting;
 
-    // DB row¿« inDate
+    // DB rowÏùò inDate
     private string currentPlayerSettingInDate;
+    private string loadedUserInDate;
+    private bool registrationWaitingForInitialization;
+    private int registrationRequestVersion;
+    private bool autoSaveDirty, autoSaveInFlight;
+    private float nextAutoSaveTime;
+    private int autoSaveFailures;
+    private int dataSessionVersion;
+    private readonly ConcurrentQueue<Action> saveCompletions = new ConcurrentQueue<Action>();
+    public bool IsAutoSavePending => autoSaveDirty || autoSaveInFlight;
+    public bool IsPlayerSettingLoaded { get; private set; }
+    public bool IsDataConfigReady { get; private set; }
+    public bool LastSaveSucceeded { get; private set; }
+    public string LastError { get; private set; } = string.Empty;
+    public bool HasLoadedProfile => Backend.IsLogin && IsPlayerSettingLoaded &&
+        loadedUserInDate == Backend.UserInDate && HasPlayerSetting() &&
+        !string.IsNullOrWhiteSpace(currentPlayerSetting.nickname);
+
+    public void ClearSession()
+    {
+        dataSessionVersion++;
+        autoSaveDirty = autoSaveInFlight = false;
+        nextAutoSaveTime = 0f;
+        autoSaveFailures = 0;
+        // Logout/account changes cancel registration waiting on SDK initialization.
+        registrationRequestVersion++;
+        registrationWaitingForInitialization = false;
+        currentPlayerSetting = null;
+        currentPlayerSettingInDate = null;
+        loadedUserInDate = null;
+        IsPlayerSettingLoaded = false;
+        IsDataConfigReady = false;
+        LastSaveSucceeded = false;
+        LastError = string.Empty;
+        DataConfig.ResetToDefaults();
+    }
 
 
     // =========================================================
@@ -46,28 +129,117 @@ public class DatabaseManager : MonoBehaviour
         Instance = this;
 
         DontDestroyOnLoad(gameObject);
+        DataConfig.Changed += OnDataConfigChanged;
+    }
+
+    private void OnDestroy()
+    {
+        DataConfig.Changed -= OnDataConfigChanged;
+        dataSessionVersion++;
+        if (Instance == this) Instance = null;
+    }
+
+    private bool CanAutoSave => Backend.IsInitialized && Backend.IsLogin && IsDataConfigReady &&
+        IsPlayerSettingLoaded && loadedUserInDate == Backend.UserInDate && HasPlayerSetting();
+
+    private void OnDataConfigChanged()
+    {
+        // Never turn an uninitialized/default snapshot into a write to another account.
+        if (!CanAutoSave) return;
+        autoSaveDirty = true;
+        LastSaveSucceeded = false;
+    }
+
+    private void Update()
+    {
+        // SDK callbacks may run off-thread. All local state is updated here.
+        while (saveCompletions.TryDequeue(out Action complete)) complete();
+    }
+
+    private void LateUpdate()
+    {
+        // One snapshot per frame, and at most one request in flight. Further edits
+        // are coalesced into the next snapshot instead of producing stale writes.
+        if (!autoSaveDirty || autoSaveInFlight || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
+        if (string.IsNullOrWhiteSpace(DataConfig.playerName))
+        {
+            nextAutoSaveTime = Time.unscaledTime + Mathf.Max(0.5f, autoSaveRetryDelay);
+            Fail("ÏûêÎèô Ï†ÄÏû•Ìï† ÎãâÎÑ§ÏûÑÏù¥ ÎπÑÏñ¥ ÏûàÏäµÎãàÎã§. DataConfig.playerNameÏùÑ ÌôïÏù∏Ìï¥Ï£ºÏÑ∏Ïöî.");
+            return;
+        }
+
+        PlayerSetting snapshot = CreateCurrentSetting(DataConfig.playerName);
+        string owner = loadedUserInDate;
+        string row = currentPlayerSettingInDate;
+        int session = dataSessionVersion;
+        autoSaveDirty = false;
+        autoSaveInFlight = true;
+        LastSaveSucceeded = false;
+        try
+        {
+            Backend.GameData.UpdateV2(TABLE_NAME, row, owner, CreateParam(snapshot), result =>
+                saveCompletions.Enqueue(() => CompleteAutoSave(session, owner, row, snapshot, result)));
+        }
+        catch (Exception exception)
+        {
+            AutoSaveFailed(exception.Message);
+        }
+    }
+
+    private void CompleteAutoSave(int session, string owner, string row, PlayerSetting snapshot, BackendReturnObject result)
+    {
+        // A late response after logout/relogin must never overwrite the new account's state.
+        if (this == null || session != dataSessionVersion) return;
+        autoSaveInFlight = false;
+        if (!Backend.IsLogin || owner != Backend.UserInDate || owner != loadedUserInDate || row != currentPlayerSettingInDate)
+        {
+            autoSaveDirty = false;
+            return;
+        }
+        if (result == null || !result.IsSuccess())
+        {
+            AutoSaveFailed(result == null ? "ÏÑúÎ≤Ñ ÏùëÎãµÏù¥ ÏóÜÏäµÎãàÎã§." : result.GetMessage());
+            return;
+        }
+        currentPlayerSetting = snapshot;
+        // Do NOT apply this older snapshot to DataConfig: the user may have edited it in flight.
+        LastSaveSucceeded = true;
+        LastError = string.Empty;
+        autoSaveFailures = 0;
+        nextAutoSaveTime = 0f;
+    }
+
+    private void AutoSaveFailed(string error)
+    {
+        autoSaveInFlight = false;
+        autoSaveDirty = true;
+        LastSaveSucceeded = false;
+        autoSaveFailures = Mathf.Min(autoSaveFailures + 1, 5);
+        nextAutoSaveTime = Time.unscaledTime + Mathf.Min(30f,
+            Mathf.Max(0.5f, autoSaveRetryDelay) * Mathf.Pow(2f, autoSaveFailures - 1));
+        Fail($"Ïú†Ï†Ä Ï†ïÎ≥¥ ÏûêÎèô Ï†ÄÏû• Ïã§Ìå® (Ïû¨ÏãúÎèÑ ÏòàÏ†ï): {error}");
     }
 
 
     // =========================================================
-    // ∑Œ±◊¿Œ º∫∞¯ »ƒ »£√‚
+    // Î°úÍ∑∏Ïù∏ ÏÑ±Í≥µ ÌõÑ Ìò∏Ï∂ú
     // =========================================================
 
     public void InitializeDatabase()
     {
         if (!Backend.IsInitialized)
         {
-            Debug.LogError("BACKND∞° √ ±‚»≠µ«¡ˆ æ æ“Ω¿¥œ¥Ÿ.");
+            Debug.LogError("BACKNDÍ∞Ä Ï¥àÍ∏∞ÌôîÎêòÏßÄ ÏïäÏïòÏäµÎãàÎã§.");
             return;
         }
 
         if (!Backend.IsLogin)
         {
-            Debug.LogError("BACKND ∑Œ±◊¿Œ¿Ã µ«æÓ¿÷¡ˆ æ Ω¿¥œ¥Ÿ.");
+            Debug.LogError("BACKND Î°úÍ∑∏Ïù∏Ïù¥ ÎêòÏñ¥ÏûàÏßÄ ÏïäÏäµÎãàÎã§.");
             return;
         }
 
-        Debug.Log("Database √ ±‚»≠ Ω√¿€");
+        Debug.Log("Database Ï¥àÍ∏∞Ìôî ÏãúÏûë");
 
         LoadPlayerSetting();
     }
@@ -76,30 +248,46 @@ public class DatabaseManager : MonoBehaviour
 
 
     // =========================================================
-    // ≥ª µ•¿Ã≈Õ ¡∂»∏
+    // ÎÇ¥ Îç∞Ïù¥ÌÑ∞ Ï°∞Ìöå
     // =========================================================
 
     public void LoadPlayerSetting()
     {
+        TryLoadPlayerSetting(true);
+    }
+
+    // Login checks the saved state without initializing the lobby character yet.
+    public bool TryLoadPlayerSetting(bool applyToDataConfig)
+    {
+        try { return LoadPlayerSettingCore(applyToDataConfig); }
+        catch (Exception exception)
+        {
+            ClearSession();
+            return Fail($"Îç∞Ïù¥ÌÑ∞ Ï°∞Ìöå Ï§ë Ïò§Î•òÍ∞Ä Î∞úÏÉùÌñàÏäµÎãàÎã§: {exception.Message}");
+        }
+    }
+
+    private bool LoadPlayerSettingCore(bool applyToDataConfig)
+    {
+        // A missing column/row or failed load must not reuse another account's values.
+        ClearSession();
         if (!Backend.IsInitialized)
         {
-            Debug.LogError("BACKND∞° √ ±‚»≠µ«¡ˆ æ æ“Ω¿¥œ¥Ÿ.");
-            return;
+            return Fail("BACKNDÍ∞Ä Ï¥àÍ∏∞ÌôîÎêòÏßÄ ÏïäÏïòÏäµÎãàÎã§.");
         }
 
         if (!Backend.IsLogin)
         {
-            Debug.LogError("∑Œ±◊¿Œ¿Ã µ«æÓ¿÷¡ˆ æ Ω¿¥œ¥Ÿ.");
-            return;
+            return Fail("Î°úÍ∑∏Ïù∏Ïù¥ ÎêòÏñ¥ÏûàÏßÄ ÏïäÏäµÎãàÎã§.");
         }
 
 
         Debug.Log(
-            $"[{TABLE_NAME}] µ•¿Ã≈Õ ¡∂»∏ Ω√¿€"
+            $"[{TABLE_NAME}] Îç∞Ïù¥ÌÑ∞ Ï°∞Ìöå ÏãúÏûë"
         );
 
 
-        // «ˆ¿Á ∑Œ±◊¿Œ«— ¿Ø¿˙¿« µ•¿Ã≈Õ ¡∂»∏
+        // ÌòÑÏû¨ Î°úÍ∑∏Ïù∏Ìïú Ïú†Ï†ÄÏùò Îç∞Ïù¥ÌÑ∞ Ï°∞Ìöå
         BackendReturnObject callback =
             Backend.GameData.GetMyData(
                 TABLE_NAME,
@@ -109,106 +297,45 @@ public class DatabaseManager : MonoBehaviour
 
         if (!callback.IsSuccess())
         {
-            Debug.LogError(
-                $"µ•¿Ã≈Õ ¡∂»∏ Ω«∆– : {callback.GetMessage()}"
-            );
-
-            return;
+            return Fail($"Îç∞Ïù¥ÌÑ∞ Ï°∞Ìöå Ïã§Ìå® : {callback.GetMessage()}");
         }
 
 
         JsonData rows =
             callback.FlattenRows();
 
+        if (rows == null || !rows.IsArray)
+            return Fail("Îç∞Ïù¥ÌÑ∞ Ï°∞Ìöå ÏùëÎãµ ÌòïÏãùÏù¥ Ïò¨Î∞îÎ•¥ÏßÄ ÏïäÏäµÎãàÎã§. Îã§Ïãú Ï°∞ÌöåÌï¥Ï£ºÏÑ∏Ïöî.");
+        if (rows.Count > 1)
+            return Fail("Í≥ÑÏ†ïÏóê Ïó¨Îü¨ PlayerSetting ÌñâÏù¥ ÏûàÏäµÎãàÎã§. Ï§ëÎ≥µ Îç∞Ïù¥ÌÑ∞Î•º ÌôïÏù∏Ìï¥Ï£ºÏÑ∏Ïöî.");
+
 
         // ---------------------------------------------------------
-        // µ•¿Ã≈Õ∞° æ¯¥¬ Ω≈±‘ ¿Ø¿˙
+        // Îç∞Ïù¥ÌÑ∞Í∞Ä ÏóÜÎäî Ïã†Í∑ú Ïú†Ï†Ä
         // ---------------------------------------------------------
 
-        if (rows == null || rows.Count == 0)
+        if (rows.Count == 0)
         {
-            currentPlayerSetting = null;
-            currentPlayerSettingInDate = null;
-
-            Debug.Log(
-                $"[{TABLE_NAME}] ¿˙¿Âµ» µ•¿Ã≈Õ∞° æ¯Ω¿¥œ¥Ÿ."
-            );
-
-            return;
+            loadedUserInDate = Backend.UserInDate;
+            IsPlayerSettingLoaded = true;
+            return InitializeMissingPlayerSetting(applyToDataConfig);
         }
 
 
         // ---------------------------------------------------------
-        // √π π¯¬∞ µ•¿Ã≈Õ ªÁøÎ
+        // Ï≤´ Î≤àÏß∏ Îç∞Ïù¥ÌÑ∞ ÏÇ¨Ïö©
         // ---------------------------------------------------------
 
         JsonData row = rows[0];
 
 
-        if (row.Keys.Contains("inDate"))
+        currentPlayerSettingInDate = ReadString(row, "inDate", string.Empty);
+        if (string.IsNullOrEmpty(currentPlayerSettingInDate))
         {
-            currentPlayerSettingInDate =
-                row["inDate"].ToString();
+            return Fail("Ï†ÄÏû• Îç∞Ïù¥ÌÑ∞Ïùò inDateÍ∞Ä ÏóÜÏäµÎãàÎã§. Îã§Ïãú Ï°∞ÌöåÌï¥Ï£ºÏÑ∏Ïöî.");
         }
 
-
-        PlayerSetting setting =
-            new PlayerSetting();
-
-
-        // ---------------------------------------------------------
-        // nickname
-        // ---------------------------------------------------------
-
-        if (row.Keys.Contains("nickname"))
-        {
-            setting.nickname =
-                row["nickname"].ToString();
-        }
-
-
-        // ---------------------------------------------------------
-        // hatIndex
-        // ---------------------------------------------------------
-
-        if (row.Keys.Contains("hatIndex"))
-        {
-            setting.hatIndex =
-                ParseInt(row["hatIndex"]);
-        }
-
-
-        // ---------------------------------------------------------
-        // broomIndex
-        // ---------------------------------------------------------
-
-        if (row.Keys.Contains("broomIndex"))
-        {
-            setting.broomIndex =
-                ParseInt(row["broomIndex"]);
-        }
-
-
-        // ---------------------------------------------------------
-        // magic1Index
-        // ---------------------------------------------------------
-
-        if (row.Keys.Contains("magic1Index"))
-        {
-            setting.magic1Index =
-                ParseInt(row["magic1Index"]);
-        }
-
-
-        // ---------------------------------------------------------
-        // magic2Index
-        // ---------------------------------------------------------
-
-        if (row.Keys.Contains("magic2Index"))
-        {
-            setting.magic2Index =
-                ParseInt(row["magic2Index"]);
-        }
+        PlayerSetting setting = ReadPlayerSetting(row);
 
 
         currentPlayerSetting =
@@ -216,25 +343,17 @@ public class DatabaseManager : MonoBehaviour
 
 
         // ---------------------------------------------------------
-        // DataConfigø° ¿˚øÎ
+        // DataConfigÏóê Ï†ÅÏö©
         // ---------------------------------------------------------
 
-        DataConfig.hatIndex =
-            setting.hatIndex;
-
-        DataConfig.broomIndex =
-            setting.broomIndex;
-
-        DataConfig.magic1Index =
-            setting.magic1Index;
-
-        DataConfig.magic2Index =
-            setting.magic2Index;
+        loadedUserInDate = Backend.UserInDate;
+        IsPlayerSettingLoaded = true;
+        if (applyToDataConfig) ApplyLoadedSettingToDataConfig();
 
 
         Debug.Log(
             "====================================\n" +
-            "PlayerSetting ∫“∑Øø¿±‚ º∫∞¯\n" +
+            "PlayerSetting Î∂àÎü¨Ïò§Í∏∞ ÏÑ±Í≥µ\n" +
             $"inDate : {currentPlayerSettingInDate}\n" +
             $"nickname : {setting.nickname}\n" +
             $"hatIndex : {setting.hatIndex}\n" +
@@ -243,30 +362,144 @@ public class DatabaseManager : MonoBehaviour
             $"magic2Index : {setting.magic2Index}\n" +
             "===================================="
         );
+        return true;
+    }
+
+    private bool InitializeMissingPlayerSetting(bool applyToDataConfig)
+    {
+        // Copy Inspector defaults, never a previous account's DataConfig.
+        PlayerSetting defaults = newPlayerDefaults ?? new PlayerSetting
+        {
+            nickname = "test", magic1Index = 0, magic2Index = 1
+        };
+        var setting = new PlayerSetting
+        {
+            nickname = string.IsNullOrWhiteSpace(defaults.nickname) ? "test" : defaults.nickname.Trim(),
+            magic1Index = NormalizeMagicIndex(defaults.magic1Index, (int)MagicType.None),
+            magic2Index = NormalizeMagicIndex(defaults.magic2Index, (int)MagicType.Fire),
+            playerprofile = Mathf.Max(0, defaults.playerprofile)
+        };
+        setting.SetPlayerConfig(defaults.GetPlayerConfig());
+
+        // Called only after a successful GetMyData returned an empty array.
+        BackendReturnObject result = Backend.GameData.Insert(TABLE_NAME, CreateParam(setting));
+        if (!result.IsSuccess())
+        {
+            IsPlayerSettingLoaded = false; // Retry must query again before inserting.
+            return Fail($"Í∏∞Î≥∏ Ïú†Ï†Ä Îç∞Ïù¥ÌÑ∞ ÏÉùÏÑ± Ïã§Ìå®: {result.GetMessage()}");
+        }
+        string inDate = result.GetInDate();
+        if (string.IsNullOrWhiteSpace(inDate))
+        {
+            IsPlayerSettingLoaded = false;
+            return Fail("Í∏∞Î≥∏ Îç∞Ïù¥ÌÑ∞ Ï†ÄÏû• Í≤∞Í≥ºÎ•º ÌôïÏù∏Ìï† Ïàò ÏóÜÏäµÎãàÎã§. Îã§Ïãú Ï°∞ÌöåÌï¥Ï£ºÏÑ∏Ïöî.");
+        }
+
+        currentPlayerSetting = setting;
+        currentPlayerSettingInDate = inDate;
+        LastSaveSucceeded = true;
+        Debug.Log($"[{TABLE_NAME}] Í∏∞Î≥∏ Ïú†Ï†Ä Îç∞Ïù¥ÌÑ∞ ÏÉùÏÑ± ÏôÑÎ£å: {setting.nickname}");
+        // The Main login flow applies the snapshot when opening the lobby UI.
+        return !applyToDataConfig || ApplyLoadedSettingToDataConfig();
+    }
+
+    // Call only after switching the Main scene's UI to the lobby.
+    public bool ApplyLoadedSettingToDataConfig()
+    {
+        if (!HasLoadedProfile)
+            return Fail("LoginPlayerDataÏùò Ï†ÄÏû• Îç∞Ïù¥ÌÑ∞ ÎòêÎäî nicknameÏù¥ ÏóÜÏäµÎãàÎã§. ÌöåÏõêÍ∞ÄÏûÖ Ïãú Ï†ÄÏû• Í≤ΩÎ°úÎ•º ÌôïÏù∏Ìï¥Ï£ºÏÑ∏Ïöî.");
+        ApplyToDataConfig(currentPlayerSetting);
+        IsDataConfigReady = true;
+        LastError = string.Empty;
+        return true;
+    }
+
+    public void SuspendLobbyInitialization() => IsDataConfigReady = false;
+
+    // Explicit signup UI action. Login never opens a nickname UI.
+    public bool SaveRegistrationNickname(string nickname)
+    {
+        LastSaveSucceeded = false;
+        LastError = string.Empty;
+        if (string.IsNullOrWhiteSpace(nickname)) return Fail("ÎãâÎÑ§ÏûÑÏùÑ ÏûÖÎ†•Ìï¥Ï£ºÏÑ∏Ïöî.");
+        if (!Backend.IsInitialized) return Fail("BACKND Ï¥àÍ∏∞ÌôîÍ∞Ä ÏôÑÎ£åÎêòÏßÄ ÏïäÏïòÏäµÎãàÎã§.");
+        if (!Backend.IsLogin) return Fail("ÌöåÏõêÍ∞ÄÏûÖ Í≥ÑÏ†ïÏùò Ïù∏Ï¶ù ÏÉÅÌÉúÎ•º ÌôïÏù∏Ìï¥Ï£ºÏÑ∏Ïöî. Îã§Ïãú Î°úÍ∑∏Ïù∏ ÌõÑ ÏãúÎèÑÌï¥Ï£ºÏÑ∏Ïöî.");
+        if (autoSaveInFlight) return Fail("ÏûêÎèô Ï†ÄÏû•Ïù¥ ÏßÑÌñâ Ï§ëÏûÖÎãàÎã§. ÏôÑÎ£å ÌõÑ ÎãâÎÑ§ÏûÑÏùÑ ÌôïÏ†ïÌï¥Ï£ºÏÑ∏Ïöî.");
+        // Signup reaches this method without going through the login UI's load path.
+        // A successful empty lookup creates defaults; then update that SAME row's nickname.
+        if ((!IsPlayerSettingLoaded || loadedUserInDate != Backend.UserInDate || !HasPlayerSetting()) &&
+            !TryLoadPlayerSetting(false)) return false;
+        if (!CanSaveLoadedAccount()) return false;
+        // A generated default profile must still accept the signup nickname.
+        if (HasLoadedProfile && currentPlayerSetting.nickname == nickname.Trim() && !autoSaveDirty)
+        {
+            LastSaveSucceeded = true;
+            return ApplyLoadedSettingToDataConfig();
+        }
+        SaveCurrentSettingInternal(nickname, true);
+        return LastSaveSucceeded && HasLoadedProfile && ApplyLoadedSettingToDataConfig();
+    }
+
+    private bool Fail(string message)
+    {
+        LastError = message;
+        Debug.LogError(message);
+        return false;
     }
 
 
     // =========================================================
-    // Ω≈±‘ µ•¿Ã≈Õ µÓ∑œ
+    // Ïã†Í∑ú Îç∞Ïù¥ÌÑ∞ Îì±Î°ù
     // =========================================================
 
     public void RegisterPlayerSetting(string nickname)
     {
+        if (registrationWaitingForInitialization) return;
+        LastSaveSucceeded = false;
+        LastError = string.Empty;
         if (!Backend.IsInitialized)
         {
-            Debug.LogError("BACKND∞° √ ±‚»≠µ«¡ˆ æ æ“Ω¿¥œ¥Ÿ.");
+            LoginManager loginManager = LoginManager.Instance;
+            if (loginManager == null)
+            {
+                Fail("BACKND Ï¥àÍ∏∞ÌôîÎ•º ÏöîÏ≤≠Ìï† LoginManagerÍ∞Ä ÏóÜÏäµÎãàÎã§.");
+                return;
+            }
+
+            registrationWaitingForInitialization = true;
+            int requestVersion = ++registrationRequestVersion;
+            Debug.Log("BACKND Ï¥àÍ∏∞ÌôîÎ•º ÏãúÎèÑÌï©ÎãàÎã§. ÏÑ±Í≥µ ÌõÑ Ïú†Ï†Ä Ï†ïÎ≥¥ Îì±Î°ùÏùÑ Ïû¨Í∞úÌï©ÎãàÎã§.");
+            loginManager.EnsureBackendInitialized((success, error) =>
+            {
+                if (this == null || requestVersion != registrationRequestVersion) return;
+                registrationWaitingForInitialization = false;
+                if (!success)
+                {
+                    Fail($"BACKND Ï¥àÍ∏∞Ìôî Ïã§Ìå®Î°ú Îì±Î°ùÏùÑ Ï§ëÎã®ÌñàÏäµÎãàÎã§: {error}");
+                    return;
+                }
+                // Re-check login and the loaded account before writing any data.
+                RegisterPlayerSetting(nickname);
+            });
             return;
         }
 
         if (!Backend.IsLogin)
         {
-            Debug.LogError("∑Œ±◊¿Œ¿Ã µ«æÓ¿÷¡ˆ æ Ω¿¥œ¥Ÿ.");
+            Fail("Î°úÍ∑∏Ïù∏Ïù¥ ÎêòÏñ¥ÏûàÏßÄ ÏïäÏäµÎãàÎã§.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(nickname))
         {
-            Debug.LogError("¥–≥◊¿”¿ª ¿‘∑¬«ÿ¡÷ººø‰.");
+            Fail("ÎãâÎÑ§ÏûÑÏùÑ ÏûÖÎ†•Ìï¥Ï£ºÏÑ∏Ïöî.");
+            return;
+        }
+
+        if (!CanSaveLoadedAccount()) return;
+        if (HasPlayerSetting())
+        {
+            Debug.LogWarning("PlayerSetting already exists. Use SaveCurrentSetting to update it.");
             return;
         }
 
@@ -289,58 +522,102 @@ public class DatabaseManager : MonoBehaviour
         if (!callback.IsSuccess())
         {
             Debug.LogError(
-                $"PlayerSetting µÓ∑œ Ω«∆– : {callback.GetMessage()}"
+                $"PlayerSetting Îì±Î°ù Ïã§Ìå® : {callback.GetMessage()}"
             );
 
             return;
         }
 
 
-        // ªı row¿« inDate ¿˙¿Â
+        // ÏÉà rowÏùò inDate Ï†ÄÏû•
         currentPlayerSettingInDate =
             callback.GetInDate();
 
         currentPlayerSetting =
             setting;
-
+        ApplyToDataConfig(setting);
+        LastSaveSucceeded = true;
+        IsDataConfigReady = HasLoadedProfile;
 
         Debug.Log(
-            $"PlayerSetting µÓ∑œ º∫∞¯\n" +
+            $"PlayerSetting Îì±Î°ù ÏÑ±Í≥µ\n" +
             $"inDate : {currentPlayerSettingInDate}"
         );
     }
 
 
     // =========================================================
-    // «ˆ¿Á º≥¡§ ¿˙¿Â
+    // ÌòÑÏû¨ ÏÑ§Ï†ï Ï†ÄÏû•
     //
-    // µ•¿Ã≈Õ∞° æ¯¿∏∏È Insert
-    // µ•¿Ã≈Õ∞° ¿÷¿∏∏È UpdateV2
+    // Îç∞Ïù¥ÌÑ∞Í∞Ä ÏóÜÏúºÎ©¥ Insert
+    // Îç∞Ïù¥ÌÑ∞Í∞Ä ÏûàÏúºÎ©¥ UpdateV2
     // =========================================================
 
     public void SaveCurrentSetting(string nickname)
     {
+        SaveCurrentSettingInternal(nickname, false);
+    }
+
+    private void SaveCurrentSettingInternal(string nickname, bool registeringNickname)
+    {
+        try { SaveCurrentSettingCore(nickname, registeringNickname); }
+        catch (Exception exception)
+        {
+            LastSaveSucceeded = false;
+            // The server may have accepted the write before a client-side exception.
+            // Require a fresh read before any retry can insert a second row.
+            IsPlayerSettingLoaded = false;
+            IsDataConfigReady = false;
+            Fail($"Ï†ÄÏû• Í≤∞Í≥ºÎ•º ÌôïÏù∏Ìï† Ïàò ÏóÜÏäµÎãàÎã§. Îã§Ïãú Î°úÍ∑∏Ïù∏ÌïòÏó¨ Îç∞Ïù¥ÌÑ∞Î•º Ï°∞ÌöåÌï¥Ï£ºÏÑ∏Ïöî: {exception.Message}");
+        }
+    }
+
+    private void SaveCurrentSettingCore(string nickname, bool registeringNickname)
+    {
+        LastSaveSucceeded = false;
+        LastError = string.Empty;
+        if (autoSaveInFlight)
+        {
+            Fail("ÏûêÎèô Ï†ÄÏû•Ïù¥ ÏßÑÌñâ Ï§ëÏûÖÎãàÎã§. ÏôÑÎ£å ÌõÑ Îã§Ïãú Ï†ÄÏû•Ìï¥Ï£ºÏÑ∏Ïöî.");
+            return;
+        }
         if (!Backend.IsInitialized)
         {
-            Debug.LogError("BACKND∞° √ ±‚»≠µ«¡ˆ æ æ“Ω¿¥œ¥Ÿ.");
+            Fail("BACKNDÍ∞Ä Ï¥àÍ∏∞ÌôîÎêòÏßÄ ÏïäÏïòÏäµÎãàÎã§.");
             return;
         }
 
         if (!Backend.IsLogin)
         {
-            Debug.LogError("∑Œ±◊¿Œ¿Ã µ«æÓ¿÷¡ˆ æ Ω¿¥œ¥Ÿ.");
+            Fail("Î°úÍ∑∏Ïù∏Ïù¥ ÎêòÏñ¥ÏûàÏßÄ ÏïäÏäµÎãàÎã§.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(nickname))
         {
-            Debug.LogError("¥–≥◊¿”¿ª ¿‘∑¬«ÿ¡÷ººø‰.");
+            Fail("ÎãâÎÑ§ÏûÑÏùÑ ÏûÖÎ†•Ìï¥Ï£ºÏÑ∏Ïöî.");
+            return;
+        }
+
+        if (!CanSaveLoadedAccount()) return;
+        if (!registeringNickname && HasPlayerSetting() && !IsDataConfigReady)
+        {
+            Fail("Î°úÎπÑ Îç∞Ïù¥ÌÑ∞Î•º Ï†ÅÏö©Ìïú ÌõÑ Ïª§Ïä§ÌÑ∞ÎßàÏù¥ÏßïÏùÑ Ï†ÄÏû•Ìï¥Ï£ºÏÑ∏Ïöî.");
             return;
         }
 
 
         PlayerSetting setting =
             CreateCurrentSetting(nickname);
+
+        // Signup nickname registration must preserve any previously saved customization.
+        if (registeringNickname && currentPlayerSetting != null && !IsDataConfigReady)
+        {
+            setting.SetPlayerConfig(currentPlayerSetting.GetPlayerConfig());
+            setting.playerprofile = currentPlayerSetting.playerprofile;
+            setting.magic1Index = currentPlayerSetting.magic1Index;
+            setting.magic2Index = currentPlayerSetting.magic2Index;
+        }
 
 
         Param param =
@@ -351,7 +628,7 @@ public class DatabaseManager : MonoBehaviour
 
 
         // =====================================================
-        // Ω≈±‘ µ•¿Ã≈Õ
+        // Ïã†Í∑ú Îç∞Ïù¥ÌÑ∞
         // =====================================================
 
         if (string.IsNullOrEmpty(
@@ -366,9 +643,7 @@ public class DatabaseManager : MonoBehaviour
 
             if (!callback.IsSuccess())
             {
-                Debug.LogError(
-                    $"PlayerSetting µÓ∑œ Ω«∆– : {callback.GetMessage()}"
-                );
+                Fail($"PlayerSetting Îì±Î°ù Ïã§Ìå® : {callback.GetMessage()}");
 
                 return;
             }
@@ -380,7 +655,7 @@ public class DatabaseManager : MonoBehaviour
 
 
         // =====================================================
-        // ±‚¡∏ µ•¿Ã≈Õ ºˆ¡§
+        // Í∏∞Ï°¥ Îç∞Ïù¥ÌÑ∞ ÏàòÏ†ï
         // =====================================================
 
         else
@@ -396,9 +671,7 @@ public class DatabaseManager : MonoBehaviour
 
             if (!callback.IsSuccess())
             {
-                Debug.LogError(
-                    $"PlayerSetting ºˆ¡§ Ω«∆– : {callback.GetMessage()}"
-                );
+                Fail($"PlayerSetting ÏàòÏ†ï Ïã§Ìå® : {callback.GetMessage()}");
 
                 return;
             }
@@ -407,16 +680,23 @@ public class DatabaseManager : MonoBehaviour
 
         currentPlayerSetting =
             setting;
+        // Apply only when the lobby has initialized DataConfig for this account.
+        if (IsDataConfigReady) ApplyToDataConfig(setting);
+        LastSaveSucceeded = true;
 
+        // A successful explicit save already includes every pending local change.
+        autoSaveDirty = false;
+        autoSaveFailures = 0;
+        nextAutoSaveTime = 0f;
 
         Debug.Log(
-            "PlayerSetting ¿˙¿Â º∫∞¯"
+            "PlayerSetting Ï†ÄÏû• ÏÑ±Í≥µ"
         );
     }
 
 
     // =========================================================
-    // PlayerSetting °Ê Param
+    // PlayerSetting ‚Üí Param
     // =========================================================
 
     private Param CreateParam(
@@ -450,14 +730,26 @@ public class DatabaseManager : MonoBehaviour
             "magic2Index",
             setting.magic2Index
         );
-
+        PlayerConfig config = setting.GetPlayerConfig();
+        param.Add("playerprofile", setting.playerprofile);
+        param.Add("hairStylePreset", config.hairStylePreset);
+        param.Add("bangsLength", config.bangsLength);
+        param.Add("bangsDirection", config.bangsDirection);
+        param.Add("sideHairLength", config.sideHairLength);
+        param.Add("ahogeLength", config.ahogeLength);
+        param.Add("hairColor", "#" + ColorUtility.ToHtmlStringRGBA(config.hairColor));
+        param.Add("clothColor", "#" + ColorUtility.ToHtmlStringRGBA(config.clothColor));
+        param.Add("eyeColor", "#" + ColorUtility.ToHtmlStringRGBA(config.eyeColor));
+        // Wand appearance is not persisted; the current 14-column schema omits wandIndex.
+        // Schema-defined LoginPlayerData stores bangsLength only. ReadPlayerSetting
+        // still accepts legacy hairLength rows, but new writes must not require that column.
 
         return param;
     }
 
 
     // =========================================================
-    // «ˆ¿Á DataConfig °Ê PlayerSetting
+    // ÌòÑÏû¨ DataConfig ‚Üí PlayerSetting
     // =========================================================
 
     private PlayerSetting CreateCurrentSetting(
@@ -468,7 +760,7 @@ public class DatabaseManager : MonoBehaviour
 
 
         setting.nickname =
-            nickname;
+            nickname.Trim();
 
         setting.hatIndex =
             DataConfig.hatIndex;
@@ -481,36 +773,99 @@ public class DatabaseManager : MonoBehaviour
 
         setting.magic2Index =
             DataConfig.magic2Index;
-
+        setting.SetPlayerConfig(DataConfig.GetPlayerConfig());
+        setting.playerprofile = Mathf.Max(0, DataConfig.playerprofile);
+        setting.magic1Index = NormalizeMagicIndex(setting.magic1Index, (int)MagicType.Fire);
+        setting.magic2Index = NormalizeMagicIndex(setting.magic2Index, (int)MagicType.Ice);
 
         return setting;
     }
 
 
     // =========================================================
-    // º˝¿⁄ ∫Ø»Ø
+    // Ïà´Ïûê Î≥ÄÌôò
     // =========================================================
 
-    private int ParseInt(JsonData value)
+    private bool CanSaveLoadedAccount()
     {
-        if (value == null)
-            return 0;
-
-        int result;
-
-        if (int.TryParse(
-            value.ToString(),
-            out result))
-        {
-            return result;
-        }
-
-        return 0;
+        if (Backend.IsLogin && IsPlayerSettingLoaded && loadedUserInDate == Backend.UserInDate) return true;
+        return Fail("ÌòÑÏû¨ Í≥ÑÏ†ïÏùò Îç∞Ïù¥ÌÑ∞ Ï°∞ÌöåÎ•º Î®ºÏ†Ä ÏôÑÎ£åÌï¥Ï£ºÏÑ∏Ïöî. Ï°∞Ìöå Ïã§Ìå® Ïãú Ï†ÄÏû•ÌïòÏßÄ ÏïäÏäµÎãàÎã§.");
     }
 
+    // Consumes a FlattenRows() row. Missing columns support existing accounts.
+    public static PlayerSetting ReadPlayerSetting(JsonData row)
+    {
+        var setting = new PlayerSetting
+        {
+            nickname = ReadString(row, "nickname", string.Empty),
+            hatIndex = ReadInt(row, "hatIndex", (int)HatType.Classic),
+            broomIndex = ReadInt(row, "broomIndex", (int)BroomType.Standard),
+            magic1Index = NormalizeMagicIndex(ReadInt(row, "magic1Index", (int)MagicType.Fire), (int)MagicType.Fire),
+            magic2Index = NormalizeMagicIndex(ReadInt(row, "magic2Index", (int)MagicType.Ice), (int)MagicType.Ice),
+            playerprofile = Mathf.Max(0, ReadInt(row, "playerprofile", 0)),
+            hairStylePreset = ReadInt(row, "hairStylePreset", 0),
+            bangsLength = ReadFloat(row, "bangsLength", ReadFloat(row, "hairLength", 0f)),
+            bangsDirection = ReadFloat(row, "bangsDirection", 0.5f),
+            sideHairLength = ReadFloat(row, "sideHairLength", 0f),
+            ahogeLength = ReadFloat(row, "ahogeLength", 0f),
+            hairColor = ReadColor(row, "hairColor"),
+            clothColor = ReadColor(row, "clothColor"),
+            eyeColor = ReadColor(row, "eyeColor"),
+            wandIndex = ReadInt(row, "wandIndex", 0)
+        };
+        setting.SetPlayerConfig(setting.GetPlayerConfig());
+        return setting;
+    }
+
+    private static void ApplyToDataConfig(PlayerSetting setting)
+    {
+        using var batch = DataConfig.BeginChangeBatch(false);
+        DataConfig.ApplyPlayerConfig(setting.GetPlayerConfig());
+        // Reuse the existing backend column; no duplicate playerName column is needed.
+        DataConfig.playerName = (setting.nickname ?? string.Empty).Trim();
+        DataConfig.playerprofile = setting.playerprofile;
+        DataConfig.magic1Index = setting.magic1Index;
+        DataConfig.magic2Index = setting.magic2Index;
+    }
+
+    private static JsonData ReadValue(JsonData row, string key)
+        => row != null && row.IsObject && row.Keys.Contains(key) ? row[key] : null;
+
+    private static string ReadString(JsonData row, string key, string fallback)
+    {
+        JsonData value = ReadValue(row, key);
+        return value != null && value.IsString ? (string)value : fallback;
+    }
+
+    private static int ReadInt(JsonData row, string key, int fallback)
+    {
+        JsonData value = ReadValue(row, key);
+        return value != null && int.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)
+            ? number : fallback;
+    }
+
+    private static float ReadFloat(JsonData row, string key, float fallback)
+    {
+        JsonData value = ReadValue(row, key);
+        if (value == null) return fallback;
+        float number;
+        if (value.IsDouble) number = (float)(double)value;
+        else if (!float.TryParse(value.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out number)) return fallback;
+        return float.IsNaN(number) || float.IsInfinity(number) ? fallback : number;
+    }
+
+    private static Color ReadColor(JsonData row, string key)
+    {
+        string html = ReadString(row, key, string.Empty);
+        return !string.IsNullOrEmpty(html) && ColorUtility.TryParseHtmlString(html, out Color color) ? color : Color.white;
+    }
+
+    private static int NormalizeMagicIndex(int value, int fallback)
+        => value >= (int)MagicType.None && value <= (int)MagicType.Scane ? value : fallback;
+
 
     // =========================================================
-    // ø‹∫Œ ¡¢±Ÿ
+    // Ïô∏Î∂Ä Ï†ëÍ∑º
     // =========================================================
 
     public PlayerSetting GetPlayerSetting()

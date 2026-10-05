@@ -38,6 +38,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private int maxPlayerCount = 2;
     [Header("Matchmaking UI (optional)")]
     [SerializeField] private TMP_Text matchmakingStatusText;
+    [Header("Random match start")]
+    [Tooltip("켜면 양쪽 linkuserinfo의 상대 프로필 1초 표시 확인을 기다립니다. 테스트 시 끄면 PlayerData 준비 후 1초 뒤 시작합니다.")]
+    [SerializeField] private bool requireRandomMatchProfilePreview = true;
 
     private const int RandomPlayerCount = 2;
     private const string RandomLobbyName = "WitchFlight-Random-1v1-v1";
@@ -53,6 +56,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private bool startInProgress, stopInProgress, cancelRequested, initialSceneLoaded;
     private int activePlayerCount;
     private float nextWaitingStatusRefresh;
+    private float randomPlayersReadyAt = -1f;
 
     // PlayerRef → 실제 전투 Player
     private Dictionary<PlayerRef, NetworkObject> spawnedPlayers
@@ -71,6 +75,10 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private Coroutine battleInitializationRoutine;
     private Vector2 accumulatedLook;
     private NetworkButtons latchedButtons;
+    private Player inputPlayer;
+    private enemyLockOn inputTargeting;
+    private Camera inputCamera;
+    private CameraFollow inputCameraFollow;
 
     private void Update()
     {
@@ -140,13 +148,60 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void JoinRoom()
     {
+        if (IsMatching) return;
+        if (TryReadRoomId(out string roomId)) JoinRoom(roomId);
+    }
+
+    public void JoinRoom(string roomId)
+    {
+        JoinRoom(roomId, null, null);
+    }
+
+    /// <summary>
+    /// 기존 방에 접속하고 요청한 UI에 결과를 전달합니다. 없는 방은 생성하지 않습니다.
+    /// onSuccess: 세션 접속 완료 (PlayerData/프로필 동기화 완료는 별도).
+    /// onFailed: 코드 오류, 빈 코드, 접속 중복, 로그인/설정 오류, 취소, 연결 실패.
+    /// UI는 콜백에서 입력창/오류 문구를 처리하고 대기실 정보는 linkuserinfo로 갱신합니다.
+    /// </summary>
+    public void JoinRoom(string roomId, Action onSuccess, Action<string> onFailed)
+    {
         if (IsMatching)
         {
+            // Reject only this request; never replace an in-flight request's callback/status.
+            NotifyRoomJoinResult(onSuccess, onFailed, "이미 접속 중이거나 방에 입장한 상태입니다.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(roomId))
+        {
+            SetMatchStatus("방 코드를 입력해주세요.");
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
             return;
         }
 
+        StartGame(MatchRequest.JoinRoom, roomId.Trim(), onSuccess, onFailed);
+    }
 
-        if (TryReadRoomId(out string roomId)) StartGame(MatchRequest.JoinRoom, roomId);
+    private void NotifyRoomJoinResult(Action onSuccess, Action<string> onFailed, string error)
+    {
+        // The delegates belong to ONE join attempt, not a global UI reference.
+        Delegate callback = error == null ? (Delegate)onSuccess : onFailed;
+        if (callback == null) return;
+        foreach (Delegate handler in callback.GetInvocationList())
+        {
+            // Scene changes may destroy the UI before the connection finishes.
+            if (handler.Target is UnityEngine.Object target && target == null) continue;
+            try
+            {
+                if (error == null) ((Action)handler)();
+                else ((Action<string>)handler)(error);
+            }
+            catch (Exception exception)
+            {
+                // A UI callback error must not shut down a successfully joined session
+                // or deliver a second (failure) result for the same successful attempt.
+                Debug.LogException(exception, this);
+            }
+        }
     }
 
     private bool TryReadRoomId(out string roomId, bool allowLegacyFallback = false)
@@ -223,17 +278,40 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         return true;
     }
 
-    private async void StartGame(MatchRequest request, string roomId)
+    // Despite its name, this starts/joins a NETWORK SESSION, not the battle.
+    private async void StartGame(MatchRequest request, string roomId,
+        Action onSuccess = null, Action<string> onFailed = null)
     {
-        if (IsMatching || !ValidateMatchSetup()) return;
+        if (IsMatching)
+        {
+            NotifyRoomJoinResult(onSuccess, onFailed, "이미 접속 중이거나 방에 입장한 상태입니다.");
+            return;
+        }
+        if (!ValidateMatchSetup())
+        {
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
+            return;
+        }
+        // Keep standalone battle tests usable, but do not match with an uninitialized login profile.
+        if (LoginManager.Instance != null && (!LoginManager.Instance.IsLoggedIn ||
+            DatabaseManager.Instance == null || !DatabaseManager.Instance.IsDataConfigReady))
+        {
+            SetMatchStatus("로그인과 로비 데이터 초기화를 먼저 완료해주세요.");
+            Debug.LogWarning(MatchStatus);
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
+            return;
+        }
         bool randomMatch = request == MatchRequest.Random;
         startInProgress = true;
         cancelRequested = false;
         IsRandomMatch = randomMatch;
+        randomPlayersReadyAt = -1f;
         activePlayerCount = randomMatch ? RandomPlayerCount : Mathf.Max(1, maxPlayerCount);
         var cancellation = new CancellationTokenSource();
         matchCancellation = cancellation;
         NetworkRunner sessionRunner = null;
+        string failureMessage = null;
+        bool connected = false;
         try
         {
             // A failed/shut-down Runner cannot be reused. Its disposable child keeps
@@ -284,32 +362,50 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             if (cancelRequested || !result.Ok)
             {
                 bool cancelled = cancelRequested || result.ShutdownReason == ShutdownReason.OperationCanceled;
+                failureMessage = cancelled ? "매칭을 취소했습니다." : GetMatchFailureMessage(result.ShutdownReason);
                 await ShutdownSession(sessionRunner);
-                SetMatchStatus(cancelled ? "매칭을 취소했습니다." : GetMatchFailureMessage(result.ShutdownReason));
                 if (!cancelled) Debug.LogWarning($"Matchmaking failed: {result.ShutdownReason} {result.ErrorMessage}", this);
-                return;
             }
-            UpdateWaitingStatus();
+            else if (sessionRunner != null && sessionRunner.IsRunning && ReferenceEquals(_runner, sessionRunner))
+            {
+                connected = true;
+            }
+            else
+            {
+                failureMessage = "방에 접속하는 중 연결이 종료되었습니다. 다시 시도해주세요.";
+                await ShutdownSession(sessionRunner);
+            }
         }
         catch (OperationCanceledException)
         {
+            failureMessage = "매칭을 취소했습니다.";
             await ShutdownSession(sessionRunner);
-            if (this != null) SetMatchStatus("매칭을 취소했습니다.");
         }
         catch (Exception exception)
         {
+            failureMessage = "매칭 연결에 실패했습니다. 다시 시도해주세요.";
             await ShutdownSession(sessionRunner);
-            if (this != null)
-            {
-                SetMatchStatus("매칭 연결에 실패했습니다. 다시 시도해주세요.");
-                Debug.LogException(exception, this);
-            }
+            if (this != null) Debug.LogException(exception, this);
         }
         finally
         {
             if (ReferenceEquals(matchCancellation, cancellation)) matchCancellation = null;
             cancellation.Dispose();
             startInProgress = false;
+        }
+
+        if (this == null) return;
+        // Notify AFTER cleanup/finally so UI can safely retry from a failure callback
+        // and IsWaitingInCodeRoom does not still report "startup in progress" on success.
+        if (connected)
+        {
+            UpdateWaitingStatus();
+            NotifyRoomJoinResult(onSuccess, onFailed, null);
+        }
+        else
+        {
+            SetMatchStatus(failureMessage ?? "방에 접속하지 못했습니다. 다시 시도해주세요.");
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
         }
     }
 
@@ -350,6 +446,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         battleInitializationRoutine = null;
         IsBattleSceneLoaded = false;
         initialSceneLoaded = false;
+        randomPlayersReadyAt = -1f;
         accumulatedLook = Vector2.zero;
         latchedButtons = default;
         _runner = null;
@@ -388,7 +485,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         foreach (PlayerRef player in _runner.ActivePlayers) count++;
         if (IsRandomMatch)
             SetMatchStatus(count >= RequiredPlayerCount
-                ? "매칭 완료! 상대 프로필 표시 및 1초 대기 중..."
+                ? (requireRandomMatchProfilePreview
+                    ? "매칭 완료! 상대 프로필 표시 및 1초 대기 중..."
+                    : "매칭 완료! 참가자 데이터 준비 및 1초 대기 중...")
                 : $"랜덤 상대 대기 중 ({count}/{RequiredPlayerCount})");
         else if (count < RequiredPlayerCount)
             SetMatchStatus($"참가자 대기 중 ({count}/{RequiredPlayerCount})");
@@ -413,6 +512,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         PlayerRef player)
     {
         if (runner != _runner || cancelRequested) return;
+        randomPlayersReadyAt = -1f;
         UpdateWaitingStatus();
         if (!runner.IsServer)
             return;
@@ -512,6 +612,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
         if (playerDatas.TryGetValue(player, out PlayerData registered) && registered == data)
         {
+            randomPlayersReadyAt = -1f;
             playerDatas.Remove(player);
             assignedTeamIndexes.Remove(player);
         }
@@ -522,7 +623,25 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // 현재 플레이어가 최대 인원인지 확인
     private void CheckPlayerCount()
     {
-        if (IsRandomMatch && CanBeginBattle() && AreRandomProfilesPresented()) BeginBattleTransition();
+        if (!IsRandomMatch || !CanBeginBattle())
+        {
+            randomPlayersReadyAt = -1f;
+            return;
+        }
+        if (AreRandomStartRequirementsMet()) BeginBattleTransition();
+    }
+
+    private bool AreRandomStartRequirementsMet()
+    {
+        if (requireRandomMatchProfilePreview)
+        {
+            randomPlayersReadyAt = -1f;
+            return AreRandomProfilesPresented();
+        }
+        // UI-independent test path. CanBeginBattle must still validate the host,
+        // connected participants, initialized PlayerData and scene-loading state.
+        if (randomPlayersReadyAt < 0f) randomPlayersReadyAt = Time.unscaledTime;
+        return Time.unscaledTime - randomPlayersReadyAt >= 1f;
     }
 
     private bool AreRandomProfilesPresented()
@@ -548,8 +667,12 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private void BeginBattleTransition()
     {
         // Revalidate at click time; do not trust an earlier UI enabled state.
-        if (!CanBeginBattle()) return;
-        if (IsRandomMatch && !AreRandomProfilesPresented()) return;
+        if (!CanBeginBattle())
+        {
+            randomPlayersReadyAt = -1f;
+            return;
+        }
+        if (IsRandomMatch && !AreRandomStartRequirementsMet()) return;
         isGameStarting = true;
         _runner.SessionInfo.IsOpen = false;
         _runner.SessionInfo.IsVisible = false;
@@ -684,6 +807,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         PlayerRef player)
     {
         if (runner != _runner || cancelRequested) return;
+        randomPlayersReadyAt = -1f;
         UpdateWaitingStatus();
         if (!runner.IsServer)
             return;
@@ -751,15 +875,25 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         Player local = Player.LocalPlayer;
         if (local != null)
         {
-            enemyLockOn targeting = local.GetComponent<enemyLockOn>();
-            if (targeting != null)
-                data.lockTarget = targeting.GetInputTarget();
-            Camera view = Camera.main;
+            if (inputPlayer != local)
+            {
+                inputPlayer = local;
+                inputTargeting = local.GetComponent<enemyLockOn>();
+                inputCamera = null; // Respawn/scene changes must not retain the old camera.
+            }
+            if (inputCamera == null || !inputCamera.isActiveAndEnabled || !inputCamera.CompareTag("MainCamera"))
+            {
+                inputCamera = Camera.main;
+                inputCameraFollow = inputCamera != null ? inputCamera.GetComponent<CameraFollow>() : null;
+            }
+            if (inputTargeting != null)
+                data.lockTarget = inputTargeting.GetInputTarget();
             // Missing camera means no validated aim, not automatic nose alignment.
             data.aimDirection = Vector3.zero;
             data.aimUp = local.transform.up;
-            if (view != null && view.TryGetComponent(out CameraFollow follow))
+            if (inputCameraFollow != null)
             {
+                CameraFollow follow = inputCameraFollow;
                 data.aimDirection = (follow.GetDisplayedAimPoint() - local.LockAimPoint).normalized;
                 if (follow.TryGetSteeringInput(out Vector3 direction, out Vector3 up))
                 {

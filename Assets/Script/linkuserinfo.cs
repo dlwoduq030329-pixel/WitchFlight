@@ -92,7 +92,8 @@ public sealed class linkuserinfo : MonoBehaviour
         public bool Ready;
         public string PlayerName;
         public bool IsRoomOwner;
-        public int TeamIndex, HairLength, HairColor, ClothColor, PlayerProfile;
+        public int TeamIndex, PlayerProfile;
+        public PlayerConfig Customization;
         public float MaxHp, Hp, MaxAp, Ap, ApRecovery;
 
         public static UserState Read(PlayerData data)
@@ -106,7 +107,7 @@ public sealed class linkuserinfo : MonoBehaviour
                 Ready = data.ready, TeamIndex = data.teamIndex,
                 PlayerProfile = data.playerprofile,
                 PlayerName = data.playerName.ToString(), IsRoomOwner = data.IsRoomOwner,
-                HairLength = data.hairLength, HairColor = data.hairColor, ClothColor = data.clothColor,
+                Customization = data.GetPlayerConfig(),
                 MaxHp = data.BattleMaxHp, Hp = data.BattleCurrentHp,
                 MaxAp = data.BattleMaxAp, Ap = data.BattleCurrentAp,
                 ApRecovery = data.BattleApRecoveryPerSecond

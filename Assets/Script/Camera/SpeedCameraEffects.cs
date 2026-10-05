@@ -320,7 +320,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
                     originalMotionModes.Add(renderer, renderer.motionVectorGenerationMode);
         }
         foreach (var entry in originalMotionModes)
-            if (entry.Key != null)
+            if (entry.Key != null && entry.Key.motionVectorGenerationMode != MotionVectorGenerationMode.ForceNoMotion)
                 entry.Key.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
     }
 

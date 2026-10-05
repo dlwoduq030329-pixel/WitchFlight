@@ -15,6 +15,20 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private Vector3 followOffset = new Vector3(0f, 2f, -5f);
     [SerializeField] private Vector3 aimOffset = new Vector3(0.65f, 1.8f, -4f);
 
+    [Header("Local speed shake (forward stages 2 and 3)")]
+    [SerializeField] private bool enableSpeedShake = true;
+    [Tooltip("2단계에서 목표로 하는 흔들림 배율입니다. 0이면 해당 단계에서 끕니다.")]
+    [SerializeField, Min(0f)] private float speedShakeStage2Intensity = 0.15f;
+    [Tooltip("3단계에서 목표로 하는 흔들림 배율입니다.")]
+    [SerializeField, Min(0f)] private float speedShakeStage3Intensity = 0.35f;
+    [Tooltip("강도 1일 때 카메라 로컬 X/Y/Z 이동 폭(미터)입니다. 렌더링에만 적용됩니다.")]
+    [SerializeField] private Vector3 speedShakePositionAmplitude = new Vector3(0.008f, 0.008f, 0f);
+    [Tooltip("강도 1일 때 X/Y/Z 회전 폭(도)입니다. 에임 방향에는 적용되지 않습니다.")]
+    [SerializeField] private Vector3 speedShakeRotationAmplitude = new Vector3(0.06f, 0.06f, 0f);
+    [SerializeField, Min(0.01f)] private float speedShakeFrequency = 4f;
+    [Tooltip("강도가 목표값으로 변하는 반응 속도입니다. 낮을수록 천천히 켜지고 꺼집니다.")]
+    [SerializeField, Min(0.01f)] private float speedShakeTransitionSpeed = 2f;
+
     [Header("Mouse aim flight")]
     [Tooltip("큰 조준점의 방향으로 캐릭터가 선회합니다. 끄면 이전 자유 시점/직접 피치 조작을 사용합니다.")]
     [SerializeField] private bool enableMouseAimSteering = true;
@@ -62,6 +76,9 @@ public class CameraFollow : MonoBehaviour
     private Renderer[] targetRenderers;
     private float mouseOrbitYaw;
     private Quaternion mouseAimRotation = Quaternion.identity;
+    private float speedShakeIntensity;
+    private int speedShakeUpdatedFrame = -1;
+    private bool speedShakeViewApplied;
 
     public bool IsBoundaryPresentationActive => boundaryCameraFrozen || boundaryReturnBlending;
     public float AimProjectionDistance => targetPlayer != null && targetPlayer.Object != null && targetPlayer.Object.IsValid
@@ -98,10 +115,16 @@ public class CameraFollow : MonoBehaviour
         int portraitLayer = LayerMask.NameToLayer("BattlePortrait");
         if (portraitLayer >= 0)
             viewCamera.cullingMask &= ~(1 << portraitLayer);
+        ResetSpeedShake();
+        RenderPipelineManager.beginCameraRendering += BeginSpeedShakeRendering;
+        RenderPipelineManager.endCameraRendering += EndSpeedShakeRendering;
     }
 
     private void OnDisable()
     {
+        RenderPipelineManager.beginCameraRendering -= BeginSpeedShakeRendering;
+        RenderPipelineManager.endCameraRendering -= EndSpeedShakeRendering;
+        ResetSpeedShake();
         mouseOrbitYaw = 0f;
         boundaryCameraFrozen = false;
         boundaryReturnBlending = false;
@@ -111,6 +134,7 @@ public class CameraFollow : MonoBehaviour
 
     public void SetTarget(GameObject targetObject)
     {
+        ResetSpeedShake();
         mouseOrbitYaw = 0f;
         boundaryCameraFrozen = false;
         boundaryReturnBlending = false;
@@ -190,6 +214,76 @@ public class CameraFollow : MonoBehaviour
         BattleManager battle = BattleManager.Instance;
         return battle != null && (battle.Phase == BattleStartPhase.WaitingForPlayers ||
             battle.Phase == BattleStartPhase.Intro);
+    }
+
+    private void BeginSpeedShakeRendering(ScriptableRenderContext context, Camera renderingCamera)
+    {
+        if (renderingCamera != viewCamera) return;
+        // Remove a leftover override before computing the current frame's base pose.
+        RestoreSpeedShakeView();
+        BattleManager battle = BattleManager.Instance;
+        bool canShake = isActiveAndEnabled && enableSpeedShake && battle != null && battle.IsGameplayActive &&
+            !CombatPresentation.MenuOpen && !IsBoundaryPresentationActive && targetPlayer != null &&
+            targetPlayer.Object != null && targetPlayer.Object.IsValid && targetPlayer.Object.HasInputAuthority &&
+            targetPlayer.IsAlive && !targetPlayer.IsReturningToMap;
+        if (!canShake)
+        {
+            ResetSpeedShake();
+            return;
+        }
+
+        // Multiple renders in one frame must not speed up the fade.
+        if (speedShakeUpdatedFrame != Time.frameCount)
+        {
+            speedShakeUpdatedFrame = Time.frameCount;
+            int stage = targetPlayer.CurrentSpeedStage;
+            float targetIntensity = stage >= 3 ? Mathf.Max(0f, speedShakeStage3Intensity)
+                : stage == 2 ? Mathf.Max(0f, speedShakeStage2Intensity) : 0f;
+            speedShakeIntensity = Mathf.Lerp(speedShakeIntensity, targetIntensity,
+                GetExponentialBlend(speedShakeTransitionSpeed));
+            if (Mathf.Abs(speedShakeIntensity - targetIntensity) < 0.0001f)
+                speedShakeIntensity = targetIntensity;
+        }
+        if (speedShakeIntensity <= 0.0001f) return;
+
+        float phase = Time.unscaledTime * Mathf.Max(0.01f, speedShakeFrequency);
+        Vector3 positionNoise = new Vector3(ShakeNoise(phase, 11f), ShakeNoise(phase, 29f), ShakeNoise(phase, 47f));
+        Vector3 rotationNoise = new Vector3(ShakeNoise(phase, 61f), ShakeNoise(phase, 83f), ShakeNoise(phase, 107f));
+        Vector3 localOffset = Vector3.Scale(positionNoise, speedShakePositionAmplitude) * speedShakeIntensity;
+        Quaternion localRotation = Quaternion.Euler(
+            Vector3.Scale(rotationNoise, speedShakeRotationAmplitude) * speedShakeIntensity);
+
+        // Only URP rendering sees the shaken view. Transform, mouseAimRotation,
+        // steering, lock-on tests and firing input continue using the unshaken pose.
+        Vector3 renderPosition = transform.position + transform.rotation * localOffset;
+        Quaternion renderRotation = transform.rotation * localRotation;
+        // Unity camera space looks along -Z, unlike Transform.forward (+Z).
+        viewCamera.worldToCameraMatrix = Matrix4x4.Scale(new Vector3(1f, 1f, -1f)) *
+            Matrix4x4.TRS(renderPosition, renderRotation, Vector3.one).inverse;
+        speedShakeViewApplied = true;
+    }
+
+    private void EndSpeedShakeRendering(ScriptableRenderContext context, Camera renderingCamera)
+    {
+        if (renderingCamera == viewCamera) RestoreSpeedShakeView();
+    }
+
+    private static float ShakeNoise(float phase, float seed)
+        => Mathf.PerlinNoise(phase, seed) * 2f - 1f;
+
+    private void RestoreSpeedShakeView()
+    {
+        if (!speedShakeViewApplied) return;
+        // Reset, rather than assigning last frame's matrix, so Transform tracking stays live.
+        if (viewCamera != null) viewCamera.ResetWorldToCameraMatrix();
+        speedShakeViewApplied = false;
+    }
+
+    private void ResetSpeedShake()
+    {
+        RestoreSpeedShakeView();
+        speedShakeIntensity = 0f;
+        speedShakeUpdatedFrame = -1;
     }
 
     private void UpdateCamera(bool forceSnap)

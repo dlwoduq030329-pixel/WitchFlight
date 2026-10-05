@@ -50,8 +50,8 @@ public sealed class FlightVisualBob : MonoBehaviour
     private float phase;
     private float blend;
     private float bankAngle;
-    private float previousYaw;
-    private bool hasPreviousYaw;
+    private Quaternion previousRotation;
+    private bool hasPreviousRotation;
     private bool hasAppliedOffset;
 
     private void Awake()
@@ -99,7 +99,7 @@ public sealed class FlightVisualBob : MonoBehaviour
             blend = 0f;
             phase = 0f;
             bankAngle = 0f;
-            hasPreviousYaw = false;
+            hasPreviousRotation = false;
             return;
         }
 
@@ -117,10 +117,16 @@ public sealed class FlightVisualBob : MonoBehaviour
 
         // Sample the rendered network root, not local keyboard input: opponents bank
         // too, without adding a second network movement/rotation system.
-        float yaw = transform.eulerAngles.y;
-        float yawDelta = hasPreviousYaw ? Mathf.DeltaAngle(previousYaw, yaw) : 0f;
-        previousYaw = yaw;
-        hasPreviousYaw = true;
+        // Euler Y jumps by 180 degrees across vertical flight. Measure the short
+        // quaternion rotation around the pilot's up axis instead (pitch/roll excluded).
+        Quaternion rotation = transform.rotation;
+        Quaternion delta = rotation * Quaternion.Inverse(hasPreviousRotation ? previousRotation : rotation);
+        if (delta.w < 0f) delta = new Quaternion(-delta.x, -delta.y, -delta.z, -delta.w);
+        delta.ToAngleAxis(out float angle, out Vector3 axis);
+        float yawDelta = angle > 0.001f && angle < 45f
+            ? angle * Vector3.Dot(axis, rotation * Vector3.up) : 0f;
+        previousRotation = rotation;
+        hasPreviousRotation = true;
         // Ignore pose snaps (e.g. a teleport), rather than banking for one frame.
         float yawSpeed = Time.deltaTime > 0f && Mathf.Abs(yawDelta) < 45f
             ? yawDelta / Time.deltaTime : 0f;
@@ -179,6 +185,6 @@ public sealed class FlightVisualBob : MonoBehaviour
         blend = 0f;
         phase = 0f;
         bankAngle = 0f;
-        hasPreviousYaw = false;
+        hasPreviousRotation = false;
     }
 }
