@@ -398,6 +398,27 @@ namespace MagicCustomizationChecks {
     f.Pick(HatType.Cosmic);f.Pick(BroomType.Speed);
     Check(f.errors==2,"reopening does not duplicate hat or broom listeners");
    }
+   foreach(bool fromHat in new[]{true,false}){
+    foreach(int slot in new[]{1,2}){
+     using(var f=new Fixture(automaticPanel:false)){
+      if(fromHat){f.hatSlot.onClick.Invoke();f.Pick(HatType.Cosmic);}
+      else{f.broomSlot.onClick.Invoke();f.Pick(BroomType.Speed);}
+      f.equip.onClick.Invoke();
+      if(slot==1)f.slot1.onClick.Invoke();else f.slot2.onClick.Invoke();
+      // Older designer callbacks on the shared list may still touch an icon.
+      // The registered selection callback must repair it and update the details.
+      f.choices[(int)MagicType.Mine-1].button.onClick.AddListener(()=>{
+       f.first.sprite=null;f.second.sprite=null;f.description.text="Old equipment text";f.details.SetActive(true);
+      });
+      f.Pick(MagicType.Mine);Life(f.ui,"LateUpdate");
+      Check(f.name.text=="Mine"&&f.description.text=="Description Mine"&&f.details.activeSelf,"equipment -> magic tab refreshes selected description in slot "+slot);
+      Check(f.first.sprite==f.Icon(MagicType.Fire)&&f.second.sprite==f.Icon(MagicType.Ice)&&f.changes==1,"equipment -> magic preview preserves both equipped icons and does not save");
+      f.equip.onClick.Invoke();
+      Check((slot==1?DataConfig.magic1Index:DataConfig.magic2Index)==(int)MagicType.Mine&&f.changes==2&&f.equips==1,"equipment -> magic confirmation writes only the selected slot");
+      Check(fromHat?DataConfig.hatIndex==5:DataConfig.broomIndex==3,"magic confirmation preserves previously equipped hat/broom");
+     }
+    }
+   }
    foreach(HatType hat in new[]{HatType.Classic,HatType.Twisted,HatType.Elemental,HatType.Serenity,HatType.Cosmic}){
     var config=PlayerConfig.Default;config.hatIndex=(int)hat;
     Check(config.Sanitized().hatIndex==(int)hat&&NetworkHatCheck.Normalize(hat)==hat,"save and network sanitizers retain "+hat);
