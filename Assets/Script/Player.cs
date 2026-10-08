@@ -144,6 +144,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     private NetworkId pendingTargetId;
     private TickTimer castTimer;
     private int castInputTick, pendingInputTick;
+    private Vector3 castAimDirection, pendingAimDirection;
     private float channelDamageTime;
     private bool channelNeedsRelease;
     public bool IsChanneling => ChannelMagic != MagicType.None;
@@ -717,6 +718,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     private void ProcessAuthoritativeCombat(NetworkInputData data, NetworkButtons buttons)
     {
         castInputTick = Runner.Tick.Raw;
+        castAimDirection = data.magicAimDirection;
         using var combatSample = combatMarker.Auto();
         if (buttons.WasPressed(previousButtons, PlayerInputButton.Parry)) TryStartParry();
         bool held = buttons.IsSet(PlayerInputButton.Lock);
@@ -971,6 +973,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         {
             pendingMagic = selectedMagic;
             pendingInputTick = castInputTick;
+            pendingAimDirection = castAimDirection;
             pendingTargetId = target != null ? target.Object.Id : default;
             castTimer = TickTimer.CreateFromSeconds(Runner, stats.castSeconds);
         }
@@ -1049,6 +1052,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         if (stats.requiresTarget && !IsValidLockTarget(target))
             return;
         castInputTick = pendingInputTick;
+        castAimDirection = pendingAimDirection;
         CastMagic(stats, target);
     }
 
@@ -1066,9 +1070,10 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     {
         Vector3 origin = MagicCastPosition;
         // Resolve the latest target position at execution time, including delayed casts.
-        // Hitscan, beams and mines keep their existing nose-forward behaviour.
+        // Locked projectiles use their target; only Vision/Dark instant spells use the Dot.
         Vector3 direction = MagicProjectile.ResolveLaunchDirection(stats.requiresTarget,
             transform.forward, transform.forward, target != null ? target.LockAimPoint - origin : Vector3.zero);
+        direction = ResolveDotCastDirection(stats, castAimDirection, direction);
         if (stats.projectileSpeed > 0f)
         {
             if (!magicProjectilePrefab.IsValid)
@@ -1103,6 +1108,29 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             victim.ReceiveMagicHit(stats, Object.InputAuthority, Object.Id);
 
         RPC_PresentCast(stats.magic, origin, end, 0f);
+    }
+
+    // Local input-only query: converge the physical cast root onto the point under the Dot.
+    // Use a thin camera ray for picking, then let the host perform the configured SphereCast
+    // from MagicCastPosition. This avoids shoulder-camera parallax and cannot bypass walls.
+    public Vector3 GetDotAimDirection(Ray cameraRay)
+    {
+        if (!IsFiniteDirection(cameraRay.direction) || cameraRay.direction.sqrMagnitude < 0.0001f)
+            return Vector3.zero;
+        // Both slots are considered so switching slots and firing in the same input tick works.
+        float range = Mathf.Max(0.1f, Mathf.Max(GetMagicStats(Magic1).range, GetMagicStats(Magic2).range));
+        MagicStatEntry aimQuery = new MagicStatEntry { range = range, hitscanRadius = 0f };
+        Vector3 point = TraceMagic(aimQuery, cameraRay.origin, cameraRay.direction.normalized, out _);
+        Vector3 offset = point - MagicCastPosition;
+        return offset.sqrMagnitude > 0.0001f ? offset.normalized : cameraRay.direction.normalized;
+    }
+
+    private static Vector3 ResolveDotCastDirection(MagicStatEntry stats, Vector3 dotDirection, Vector3 fallback)
+    {
+        if ((stats.magic == MagicType.Vision || stats.magic == MagicType.Dark) && stats.projectileSpeed <= 0f &&
+            IsFiniteDirection(dotDirection) && dotDirection.sqrMagnitude > 0.0001f)
+            return dotDirection.normalized;
+        return fallback;
     }
 
     // Shared authoritative sweep for hitscan and sustained straight beams.

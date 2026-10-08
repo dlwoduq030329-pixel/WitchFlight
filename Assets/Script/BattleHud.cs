@@ -44,7 +44,7 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private string respawnPrefix = "부활까지";
     [Header("Aim")]
     [SerializeField] private GameObject reticle;
-    [Tooltip("화면 중앙에 고정할 크로스헤어입니다. 움직이는 원과 별개로 연결합니다.")]
+    [Tooltip("화면 중앙에 고정할 Dot입니다. 암흑/비전 즉발 마법도 이 Dot을 기준으로 조준합니다. 움직이는 원과 별개로 연결합니다.")]
     [SerializeField] private RectTransform desiredAimMarker;
     [Tooltip("움직이는 원형 UI: 캐릭터의 실제 정면 발사 방향입니다.")]
     [SerializeField] private RectTransform forwardAimMarker;
@@ -607,6 +607,23 @@ public sealed class BattleHud : MonoBehaviour
         Vector2 half = new Vector2(Mathf.Max(0f, screen.width * 0.5f - padding),
             Mathf.Max(0f, screen.height * 0.5f - padding));
         return screen.center + Vector2.Scale(bearing, half);
+    }
+
+    // Input samples the assigned Dot, never the moving nose-direction circle.
+    // Only the owning client reads UI/camera state; the host receives a direction.
+    public static Ray GetMagicAimRay(Camera camera)
+    {
+        if (camera == null) return default;
+        Vector2 screenPoint = camera.pixelRect.center;
+        RectTransform dot = instance != null && instance.isActiveAndEnabled ? instance.desiredAimMarker : null;
+        if (dot != null && dot.gameObject.activeInHierarchy)
+        {
+            Canvas canvas = dot.GetComponentInParent<Canvas>();
+            Canvas root = canvas != null ? canvas.rootCanvas : null;
+            Camera uiCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
+            screenPoint = RectTransformUtility.WorldToScreenPoint(uiCamera, dot.TransformPoint(dot.rect.center));
+        }
+        return camera.ScreenPointToRay(screenPoint);
     }
 
     // Run after the network render pose/camera, avoiding a one-frame lag in the small circle.

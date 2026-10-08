@@ -897,12 +897,14 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 data.aimDirection = (follow.GetDisplayedAimPoint() - local.LockAimPoint).normalized;
                 if (follow.TryGetSteeringInput(out Vector3 direction, out Vector3 up))
                 {
-                    // Desired steering direction only. The host uses the actual nose for firing.
+                    // Desired steering direction only; Dot hitscan aim is sent separately below.
                     data.aimDirection = direction;
                     data.aimUp = up;
                     data.steerToAim = true;
                 }
             }
+            if (inputCamera != null && data.buttons.IsSet(PlayerInputButton.Lock))
+                data.magicAimDirection = local.GetDotAimDirection(BattleHud.GetMagicAimRay(inputCamera));
         }
 
         input.Set(data);

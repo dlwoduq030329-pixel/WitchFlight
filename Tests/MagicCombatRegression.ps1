@@ -58,7 +58,7 @@ public struct NetworkButtons {
  public bool IsSet(PlayerInputButton b)=>(Bits&(1<<(int)b))!=0;
  public bool WasPressed(NetworkButtons prev,PlayerInputButton b)=>IsSet(b)&&!prev.IsSet(b);
 }
-public struct NetworkInputData {public NetworkId lockTarget;public Vector3 aimDirection;}
+public struct NetworkInputData {public NetworkId lockTarget;public Vector3 aimDirection,magicAimDirection;}
 public class NetworkObject {
  public bool HasStateAuthority=true,IsValid=true; public PlayerRef InputAuthority;
  public NetworkId Id;public Player Owner;
@@ -93,6 +93,7 @@ public class Player {
  public TickTimer castTimer,ParryTimer,ParryCooldown,BindingTimer;
  public TickTimer nextHitMarkerFeedback;
  public int castInputTick,pendingInputTick;
+ public Vector3 castAimDirection,pendingAimDirection;
  public TimerArray MagicCooldowns=new();
  public bool IsAlive=true,IsHitStunned,IsReturningToMap,IsFullyLocked,channelNeedsRelease,Visible=true;
  public bool IsChanneling=>ChannelMagic!=MagicType.None;
@@ -104,7 +105,7 @@ public class Player {
  public Vector3 KnockbackVelocity,ChannelEnd;
  public Vector3 LockAimPoint=>transform.position;
  public Vector3 MagicCastPosition=>transform.position+CastOffset;
- public Vector3 CastOffset,LastTraceOrigin,LastCastOrigin;
+ public Vector3 CastOffset,LastTraceOrigin,LastCastOrigin,LastLaunchDirection;
  public NetworkButtons previousButtons;
  public MagicTestBot testBot;
  public PrefabRef magicProjectilePrefab=new();
@@ -120,7 +121,7 @@ public class Player {
  public bool HasLineOfSight(Player other)=>other.Visible;
  public bool IsFiniteDirection(Vector3 v)=>!float.IsNaN(v.x+v.y+v.z);
  public Vector3 TraceMagic(MagicStatEntry s,Vector3 o,Vector3 d,out Player victim){LastTraceOrigin=o;victim=TraceTarget;return o+d;}
- public void LaunchMagic(MagicStatEntry s,Player target){Launches++;LastLaunched=s;}
+ public void LaunchMagic(MagicStatEntry s,Player target){Launches++;LastLaunched=s;LastLaunchDirection=castAimDirection;}
  public int Predictions;
  public void TryPredictProjectile(MagicStatEntry s){Predictions++;}
  public void RPC_PresentCast(MagicType m,Vector3 a,Vector3 b,float v){LastCastOrigin=a;}
@@ -152,6 +153,16 @@ public static class Tests {
  static void Tick(Player p){p.Runner.Time+=p.Runner.DeltaTime;}
  public static int Run(){
   var table=new MagicStatTable();Check(table.magics.Length==10,"ten replacement spells");
+  var dotAim=new Vector3(1,0,0);
+  var aimed=Caster(MagicType.Vision);
+  aimed.ProcessAuthoritativeCombat(new NetworkInputData{aimDirection=Vector3.forward,magicAimDirection=dotAim},new NetworkButtons{Bits=1});
+  Check(aimed.Launches==1&&Near(aimed.LastLaunchDirection.x,1)&&Near(aimed.LastLaunchDirection.z,0),"instant cast consumes Dot input independently of forward steering");
+  var delayed=Caster(MagicType.Vision);delayed.magicStatTable.magics[2].castSeconds=.25f;
+  delayed.ProcessAuthoritativeCombat(new NetworkInputData{magicAimDirection=dotAim},new NetworkButtons{Bits=1});
+  Check(delayed.Launches==0&&Near(delayed.pendingAimDirection.x,1),"delayed cast captures original Dot input");
+  delayed.ProcessAuthoritativeCombat(new NetworkInputData{magicAimDirection=Vector3.forward},default);
+  delayed.Runner.Time=.3f;delayed.UpdatePendingCast();
+  Check(delayed.Launches==1&&Near(delayed.LastLaunchDirection.x,1)&&Near(delayed.LastLaunchDirection.z,0),"later input does not redirect a pending Dot cast");
   var hitShooter=Caster(MagicType.Fire);hitShooter.Object.Id=new NetworkId(20);hitShooter.Runner.Objects[20]=hitShooter.Object;
   var hitVictim=Enemy(hitShooter);hitVictim.Object.InputAuthority=PlayerRef.Two;
   hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
