@@ -193,11 +193,11 @@ namespace MagicCustomizationChecks {
     int previewCalls=f.StaffWrites;
     DataConfig.bangsLength=0.7f;
     Check(f.StaffWrites==previewCalls,"unrelated appearance changes do not reset equipment");
-    DataConfig.magic1Index=(int)MagicType.Smoke;
-    Check(f.first.sprite==f.Icon(MagicType.Smoke)&&f.staffs[(int)MagicType.Smoke].activeSelf,"external DataConfig edits refresh equipped UI and preview");
+    DataConfig.magic1Index=(int)MagicType.Binding;
+    Check(f.first.sprite==f.Icon(MagicType.Binding)&&f.staffs[(int)MagicType.Binding].activeSelf,"external DataConfig edits refresh equipped UI and preview");
     Life(f.ui,"OnDisable");
     DataConfig.magic1Index=(int)MagicType.Fire;
-    Check(f.first.sprite==f.Icon(MagicType.Smoke),"disabled controller unsubscribed from data");
+    Check(f.first.sprite==f.Icon(MagicType.Binding),"disabled controller unsubscribed from data");
     f.Pick(MagicType.Thunder);
     Check(f.ui.SelectedMagic==MagicType.None,"disabled controller removes button handlers");
     Life(f.ui,"OnEnable");
@@ -211,9 +211,9 @@ namespace MagicCustomizationChecks {
     f.ui.SelectMagic(1);f.ui.EquipSelectedMagic();
     Check(f.errors==2&&f.changes==0,"before login cannot select or equip");
     DatabaseManager.Instance.IsDataConfigReady=true;DatabaseManager.Instance.HasLoadedProfile=true;
-    using(DataConfig.BeginChangeBatch(false)){DataConfig.magic1Index=(int)MagicType.Decoy;}
+    using(DataConfig.BeginChangeBatch(false)){DataConfig.magic1Index=(int)MagicType.Curse;}
     Life(f.ui,"Update");
-    Check(f.choices[0].button.interactable&&f.first.sprite==f.Icon(MagicType.Decoy)&&f.changes==0,"silent login load refreshes on readiness transition without save");
+    Check(f.choices[0].button.interactable&&f.first.sprite==f.Icon(MagicType.Curse)&&f.changes==0,"silent login load refreshes on readiness transition without save");
     f.Pick(MagicType.Thunder);DatabaseManager.Instance.IsDataConfigReady=false;
     f.equip.onClick.Invoke();
     Check(f.errors==3&&f.changes==0,"profile lost after selection blocks confirmation");
@@ -267,9 +267,9 @@ namespace MagicCustomizationChecks {
    }
    using(var f=new Fixture(automaticPanel:false)){
     f.details.SetActive(false);int panelWrites=f.details.Writes;
-    f.Pick(MagicType.Flare);
+    f.Pick(MagicType.Healing);
     Check(!f.details.activeSelf&&f.details.Writes==panelWrites,"automatic panel OFF never opens a manually controlled description panel");
-    Check(f.name.text=="Flare"&&f.description.text=="Description Flare"&&f.selected.sprite==f.Icon(MagicType.Flare),"automatic panel OFF still updates all connected content");
+    Check(f.name.text=="Healing"&&f.description.text=="Description Healing"&&f.selected.sprite==f.Icon(MagicType.Healing),"automatic panel OFF still updates all connected content");
     f.Pick(MagicType.Ice);
     Check(f.name.text=="Ice"&&f.description.text=="Description Ice"&&f.changes==0,"switching spell updates content immediately without equipping");
     f.choices[(int)MagicType.Mine-1].button.onClick.AddListener(()=>{f.details.SetActive(true);f.name.text="Fire";f.description.text="Old fire text";});
@@ -299,10 +299,10 @@ namespace MagicCustomizationChecks {
     Check(Array.TrueForAll(f.staffs,s=>!s.activeSelf),"data changes outside customization keep flight equipment hidden");
     f.preview.SetFlightEquipmentVisible(true);
     Check(f.staffs[(int)MagicType.Mine].activeSelf,"reopening customization reveals latest equipped staff");
-    Life(f.preview,"OnDisable");DataConfig.magic2Index=(int)MagicType.Decoy;
+    Life(f.preview,"OnDisable");DataConfig.magic2Index=(int)MagicType.Curse;
     Check(f.staffs[(int)MagicType.Mine].activeSelf,"disabled model unsubscribes from local data");
     Life(f.preview,"OnEnable");
-    Check(f.staffs[(int)MagicType.Decoy].activeSelf,"re-enabled model catches up with local data");
+    Check(f.staffs[(int)MagicType.Curse].activeSelf,"re-enabled model catches up with local data");
     f.preview.ApplyLoadout(HatType.Classic,BroomType.Standard,MagicType.Ice,MagicType.Fire);
     int writes=f.StaffWrites;
     DataConfig.magic1Index=(int)MagicType.Thunder;

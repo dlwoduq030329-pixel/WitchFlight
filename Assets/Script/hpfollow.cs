@@ -9,7 +9,7 @@ using UnityEngine.UI;
 public sealed class hpfollow : MonoBehaviour
 {
     [Header("HP bar")]
-    [Tooltip("사용자가 제작한 UI 프리팹을 넣습니다. 비워 두면 체력바를 만들지 않습니다.")]
+    [Tooltip("사용자가 제작한 UI 프리팹을 넣습니다. 비워 두면 기본 체력바를 자동으로 만듭니다.")]
     [SerializeField] private GameObject hpBarPrefab;
     [Tooltip("머리 본입니다. 비어 있으면 Player 위치를 기준으로 표시합니다.")]
     [SerializeField] private Transform headAnchor;
@@ -21,6 +21,8 @@ public sealed class hpfollow : MonoBehaviour
     private Camera viewCamera;
     private GameObject viewRoot;
     private GameObject attemptedPrefab;
+    private bool attemptedCreation;
+    private RectTransform fallbackFill;
     private Canvas viewCanvas;
     private GridHPBar gridBar;
     private Slider slider;
@@ -53,13 +55,13 @@ public sealed class hpfollow : MonoBehaviour
     private void LateUpdate()
     {
         // Allow assigning/replacing the prefab in the Inspector during Play Mode.
-        if (attemptedPrefab != hpBarPrefab)
+        if (attemptedCreation && attemptedPrefab != hpBarPrefab)
         {
             ReleaseView();
             attemptedPrefab = null;
         }
 
-        if (hpBarPrefab == null || !CanShowToLocalPlayer())
+        if (!CanShowToLocalPlayer())
         {
             SetVisible(false);
             return;
@@ -82,7 +84,7 @@ public sealed class hpfollow : MonoBehaviour
             return;
         }
 
-        if (viewRoot == null && attemptedPrefab != hpBarPrefab)
+        if (viewRoot == null && !attemptedCreation)
             CreateView();
         if (viewRoot == null)
             return;
@@ -94,7 +96,8 @@ public sealed class hpfollow : MonoBehaviour
 
         if (!healthDirty) return;
         healthDirty = false;
-        if (gridBar != null)
+        if (fallbackFill != null) fallbackFill.anchorMax = new Vector2(healthFraction, 1f);
+        else if (gridBar != null)
             gridBar.UpdateHP(healthFraction);
         else if (slider != null)
             slider.SetValueWithoutNotify(healthFraction);
@@ -118,17 +121,19 @@ public sealed class hpfollow : MonoBehaviour
     {
         healthDirty = true;
         attemptedPrefab = hpBarPrefab;
+        attemptedCreation = true;
+        if (hpBarPrefab == null) { CreateFallback(); return; }
         if (hpBarPrefab.GetComponent<RectTransform>() == null)
         {
-            Debug.LogWarning("hpfollow: HP Bar Prefab must have a UI RectTransform root.", this);
-            return;
+            Debug.LogWarning("hpfollow: HP Bar Prefab must have a UI RectTransform root. Using fallback.", this);
+            CreateFallback(); return;
         }
         foreach (GridHPBar grid in hpBarPrefab.GetComponentsInChildren<GridHPBar>(true))
         {
             if (grid.gridParent != null)
                 continue;
-            Debug.LogWarning("hpfollow: assign GridHPBar.gridParent on the HP bar prefab.", this);
-            return;
+            Debug.LogWarning("hpfollow: assign GridHPBar.gridParent on the HP bar prefab. Using fallback.", this);
+            CreateFallback(); return;
         }
 
         // A separate scene object keeps flight pitch/scale and equipment visibility from moving the UI.
@@ -194,7 +199,37 @@ public sealed class hpfollow : MonoBehaviour
         }
 
         if (gridBar == null && slider == null && filledImage == null)
-            Debug.LogWarning("hpfollow: add GridHPBar, Slider, or a Filled Image to the HP bar prefab.", this);
+        {
+            Debug.LogWarning("hpfollow: add GridHPBar, Slider, or a Filled Image. Using fallback.", this);
+            Destroy(viewRoot);
+            CreateFallback();
+        }
+    }
+
+    private void CreateFallback()
+    {
+        viewRoot = new GameObject("Enemy HP (generated)", typeof(RectTransform), typeof(Canvas));
+        viewRoot.layer = 5;
+        viewCanvas = viewRoot.GetComponent<Canvas>();
+        viewCanvas.renderMode = RenderMode.WorldSpace;
+        ((RectTransform)viewRoot.transform).sizeDelta = new Vector2(120f, 12f);
+        var background = new GameObject("Background", typeof(RectTransform), typeof(Image));
+        background.transform.SetParent(viewRoot.transform, false);
+        var backgroundRect = (RectTransform)background.transform;
+        backgroundRect.anchorMin = Vector2.zero;
+        backgroundRect.anchorMax = Vector2.one;
+        backgroundRect.offsetMin = backgroundRect.offsetMax = Vector2.zero;
+        background.GetComponent<Image>().color = new Color(0.03f, 0.03f, 0.03f, 0.85f);
+        background.GetComponent<Image>().raycastTarget = false;
+        var fill = new GameObject("Health", typeof(RectTransform), typeof(Image));
+        fill.transform.SetParent(background.transform, false);
+        fallbackFill = (RectTransform)fill.transform;
+        fallbackFill.anchorMin = Vector2.zero;
+        fallbackFill.anchorMax = new Vector2(healthFraction, 1f);
+        fallbackFill.offsetMin = fallbackFill.offsetMax = Vector2.zero;
+        fill.GetComponent<Image>().color = new Color(0.9f, 0.2f, 0.25f);
+        fill.GetComponent<Image>().raycastTarget = false;
+        healthDirty = true;
     }
 
     private void SetVisible(bool visible)
@@ -226,5 +261,7 @@ public sealed class hpfollow : MonoBehaviour
         gridBar = null;
         slider = null;
         filledImage = null;
+        fallbackFill = null;
+        attemptedCreation = false;
     }
 }

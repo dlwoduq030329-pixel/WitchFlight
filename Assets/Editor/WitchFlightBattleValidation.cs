@@ -107,26 +107,27 @@ public static class WitchFlightBattleValidation
         foreach (MagicStatEntry spell in table.magics)
         {
             string name = spell.magic.ToString();
-            report.Check(Positive(spell.apCost) && NonNegative(spell.damage) && NonNegative(spell.castSeconds) &&
+            report.Check(NonNegative(spell.apCost) && NonNegative(spell.damage) && NonNegative(spell.castSeconds) &&
                 NonNegative(spell.cooldownSeconds) && NonNegative(spell.projectileSpeed), $"{name}: invalid mana/damage/timing/speed.");
             report.Check(!spell.requiresFullLock || spell.requiresTarget, $"{name}: full-lock requirement needs a target.");
             if (spell.requiresTarget)
                 report.Check(Positive(spell.lockChargeSeconds) && Positive(spell.range), $"{name}: lock duration and range must be positive.");
             if (spell.projectileSpeed > 0f)
                 report.Check(Positive(spell.projectileLifetime) && Positive(spell.projectileRadius), $"{name}: projectile lifetime/radius must be positive.");
-            if (spell.effect == MagicEffectKind.AreaDamage || spell.effect == MagicEffectKind.Mine || spell.effect == MagicEffectKind.Scan)
+            if (spell.effect == MagicEffectKind.AreaDamage || spell.effect == MagicEffectKind.Mine)
                 report.Check(Positive(spell.radius), $"{name}: area effect radius must be positive.");
             if (spell.effect == MagicEffectKind.Mine)
                 report.Check(Positive(spell.placementDistance) && Positive(spell.activationDelay), "Mine needs travel distance and arming delay.");
-            if (spell.effect == MagicEffectKind.Decoy)
-                report.Check(Positive(spell.activationDelay) && spell.effectDuration > spell.activationDelay,
-                    "Decoy's visible lifetime must outlast its short stealth interval.");
+            if (spell.IsChanneled)
+                report.Check(Positive(spell.damagePerSecond) && Positive(spell.channelTickSeconds) &&
+                    Positive(spell.ChannelManaPerSecond(100f)), "Channel needs DPS, interval and mana consumption.");
         }
         report.Check(table.magics.Any(x => x.requiresTarget) && table.magics.Any(x => !x.requiresTarget),
             "Both lock-on and non-lock-on spells must exist.");
-        report.Check(table.GetStats(MagicType.Dark).movementMultiplier > 1f, "Wind must increase movement.");
+        report.Check(Positive(table.GetStats(MagicType.Dark).healthCost) && Positive(table.GetStats(MagicType.Dark).healOnHit),
+            "Dark needs an editable health cost and on-hit healing.");
         report.Check(table.GetStats(MagicType.Ice).movementMultiplier > 0f && table.GetStats(MagicType.Ice).movementMultiplier < 1f,
-            "Ice must reduce turning with a multiplier between zero and one.");
+            "Ice must reduce movement/turning with a multiplier between zero and one.");
     }
 
     private static void ValidatePrefabs(EquipmentStatTable equipment, MagicStatTable magic, Report report)

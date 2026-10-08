@@ -887,7 +887,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 inputCameraFollow = inputCamera != null ? inputCamera.GetComponent<CameraFollow>() : null;
             }
             if (inputTargeting != null)
-                data.lockTarget = inputTargeting.GetInputTarget();
+            data.lockTarget = inputTargeting.GetInputTarget(data.buttons.IsSet(PlayerInputButton.Lock));
             // Missing camera means no validated aim, not automatic nose alignment.
             data.aimDirection = Vector3.zero;
             data.aimUp = local.transform.up;

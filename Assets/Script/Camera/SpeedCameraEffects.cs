@@ -10,18 +10,28 @@ using UnityEngine.Rendering.Universal;
 public sealed class SpeedCameraEffects : MonoBehaviour
 {
     [SerializeField] private Volume speedVolume;
+    [Header("Death presentation")]
+    [SerializeField] private bool deathGrayscale = true;
     [Header("Stage 3 effects")]
     [Tooltip("Keep Local Player Sharp가 켜져 있으면 캐릭터 제외를 위해 CameraAndObjects를 사용합니다.")]
     [SerializeField] private MotionBlurMode motionBlurMode = MotionBlurMode.CameraAndObjects;
-    [Tooltip("내 캐릭터와 장비의 모션벡터를 0으로 만들어 블러에서 제외합니다.")]
+    [Tooltip("내 캐릭터와 장비를 블러에서 제외합니다. 렌더러 기능이 투명 머리카락까지 별도로 처리합니다.")]
     [SerializeField] private bool keepLocalPlayerSharp = true;
     [SerializeField, Range(0f, 1f)] private float motionBlurIntensity = 1f;
     [Tooltip("배경이 번지는 거리 배율. 1은 기본 URP 길이입니다. 캐릭터의 0 모션벡터는 유지됩니다.")]
     [SerializeField, Range(1f, 3f)] private float motionBlurDistanceMultiplier = 1.8f;
     [SerializeField] private MotionBlurQuality motionBlurQuality = MotionBlurQuality.High;
     [SerializeField, Range(0f, 0.2f)] private float motionBlurClamp = 0.12f;
-    [SerializeField, Range(0f, 30f)] private float extraFieldOfView = 10f;
     [SerializeField, Min(0.01f)] private float transitionSpeed = 5f;
+    [Header("Stage-based field of view (added to the camera's base FOV)")]
+    [Tooltip("실제 속도/빗자루 종류가 아니라 전진 속도 단계로 정합니다. 정지/후진은 기본 FOV입니다.")]
+    [SerializeField, Range(0f, 30f)] private float stage1FieldOfViewIncrease = 3f;
+    [SerializeField, Range(0f, 30f)] private float stage2FieldOfViewIncrease = 6f;
+    [InspectorName("Stage 3 Field Of View Increase")]
+    [SerializeField, Range(0f, 30f)] private float extraFieldOfView = 10f;
+    [SerializeField, Min(0.01f)] private float fieldOfViewTransitionSpeed = 5f;
+    [Header("Player directional motion blur (separate from background)")]
+    [SerializeField] private PlayerDirectionalBlurSettings playerMotionBlur = new();
     [Header("Top speed peripheral blur")]
     [SerializeField] private bool enablePeripheralBlur = true;
     [Tooltip("빗자루 기본 최고속도 대비 추가 블러가 시작되는 실제 전진 속도 비율입니다.")]
@@ -64,6 +74,8 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private VolumeFrameworkUpdateMode originalVolumeUpdateMode;
     private LayerMask originalVolumeLayerMask;
     private float originalFieldOfView;
+    private float fieldOfViewIncrease;
+    private CameraFollow cameraFollow;
     private float effectWeight;
     private float peripheralWeight;
     private float currentInnerRadius;
@@ -82,22 +94,32 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private ColorAdjustments altitudeColor;
     private ColorAdjustments originalAltitudeColor;
     private Player altitudePlayer;
-    private bool altitudeBlackoutLatched;
+    private bool deathPresentationLatched;
     private float altitudeFullBlack;
     private Player protectedPlayer;
     private float nextRendererRefresh;
     private readonly List<Renderer> playerRenderers = new();
     private readonly Dictionary<Renderer, MotionVectorGenerationMode> originalMotionModes = new();
     private const float MaxExtendedBlurIntensity = 3f;
+    private PlayerDirectionalBlur playerBlur;
+    internal PlayerDirectionalBlur PlayerBlur => playerBlur;
+    private bool UsesMaskedBackgroundBlur => keepLocalPlayerSharp || playerMotionBlur.enabled;
+    internal Vector4 BackgroundBlurParameters => new Vector4(UsesMaskedBackgroundBlur ?
+        Mathf.Clamp01(motionBlurIntensity) * Mathf.Clamp(motionBlurDistanceMultiplier, 1f, MaxExtendedBlurIntensity) * effectWeight : 0f,
+        Mathf.Clamp(motionBlurClamp, 0f, 0.2f), (int)motionBlurQuality, 0f);
+    internal bool HasCustomBlur => HasPeripheralBlur || BackgroundBlurParameters.x > 0.001f ||
+        (playerBlur != null && playerBlur.HasBlur);
 
     private MotionBlurMode EffectiveBlurMode => keepLocalPlayerSharp
         ? MotionBlurMode.CameraAndObjects : motionBlurMode;
 
     private void OnEnable()
     {
+        playerBlur = new PlayerDirectionalBlur();
         hasInnerRadius = false;
         currentInnerRadius = Mathf.Clamp(peripheralBlurInnerRadius, 0f, 0.9f);
         viewCamera = GetComponent<Camera>();
+        cameraFollow = GetComponent<CameraFollow>();
         originalFieldOfView = viewCamera.fieldOfView;
         cameraData = viewCamera.GetUniversalAdditionalCameraData();
         originalPostProcessing = cameraData.renderPostProcessing;
@@ -111,6 +133,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         if (speedVolume != null)
             cameraData.volumeLayerMask = originalVolumeLayerMask.value | (1 << speedVolume.gameObject.layer);
         CreateRuntimeProfile();
+        UpdateFieldOfView(0, true);
         ApplyWeight(0f);
     }
 
@@ -165,18 +188,24 @@ public sealed class SpeedCameraEffects : MonoBehaviour
             !CombatPresentation.MenuOpen && player != null && player.Object != null &&
             player.Object.IsValid && player.Object.HasInputAuthority && player.IsAlive;
 
+        bool boundaryView = player != null && player.Object != null && player.Object.IsValid &&
+            (player.IsReturningToMap || (cameraFollow != null && cameraFollow.IsBoundaryPresentationActive));
+        playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur, playerMotionBlur, !boundaryView);
+
         if (!canShow)
         {
             peripheralWeight = 0f;
             hasInnerRadius = false;
             RestorePlayerMotionVectors();
             // Do not carry an FOV/blur tail into portraits, respawn or the menu.
+            UpdateFieldOfView(0, true);
             ApplyWeight(0f);
             return;
         }
 
         UpdatePlayerMotionVectors(player);
         UpdateInnerRadius(player.CurrentSpeedStage, player.IsBoosting);
+        UpdateFieldOfView(boundaryView ? 0 : player.CurrentSpeedStage);
 
         // Extra peripheral blur follows real forward speed; selecting stage 3 at rest
         // does not trigger it. Boost reaches the same capped maximum, never an overload.
@@ -224,18 +253,38 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private void ApplyWeight(float weight)
     {
         effectWeight = weight;
-        viewCamera.fieldOfView = Mathf.Clamp(originalFieldOfView + extraFieldOfView * weight, 1f, 179f);
         if (motionBlur != null)
         {
             motionBlur.mode.Override(EffectiveBlurMode);
             float distanceScale = Mathf.Clamp(motionBlurDistanceMultiplier, 1f, MaxExtendedBlurIntensity);
-            motionBlur.intensity.Override(Mathf.Clamp01(motionBlurIntensity) * distanceScale * weight);
+            // The masked renderer feature handles background blur when protecting the player.
+            // A second URP full-screen blur would smear the isolated character trail again.
+            motionBlur.intensity.Override(UsesMaskedBackgroundBlur ? 0f : Mathf.Clamp01(motionBlurIntensity) * distanceScale * weight);
             motionBlur.quality.Override(motionBlurQuality);
             motionBlur.clamp.Override(motionBlurClamp);
         }
         if (windLines != null)
             windLines.SetPresentation(showWindLines ? weight * windOpacity * (1f - altitudeFullBlack) : 0f,
                 windColor, windLineCount, windSpeed, windMinWidth, windMaxWidth);
+    }
+
+    private void UpdateFieldOfView(int stage, bool immediate = false)
+    {
+        float target = StageFieldOfViewIncrease(stage, stage1FieldOfViewIncrease,
+            stage2FieldOfViewIncrease, extraFieldOfView);
+        fieldOfViewIncrease = immediate ? target : Mathf.Lerp(fieldOfViewIncrease, target,
+            1f - Mathf.Exp(-Mathf.Max(0.01f, fieldOfViewTransitionSpeed) * Time.unscaledDeltaTime));
+        if (Mathf.Abs(fieldOfViewIncrease - target) < 0.001f) fieldOfViewIncrease = target;
+        viewCamera.fieldOfView = Mathf.Clamp(originalFieldOfView + fieldOfViewIncrease, 1f, 179f);
+    }
+
+    private static float StageFieldOfViewIncrease(int stage, float stage1, float stage2, float stage3)
+    {
+        if (stage <= 0) return 0f;
+        stage1 = Mathf.Clamp(stage1, 0f, 30f);
+        stage2 = Mathf.Clamp(stage2, stage1, 30f);
+        stage3 = Mathf.Clamp(stage3, stage2, 30f);
+        return stage == 1 ? stage1 : stage == 2 ? stage2 : stage3;
     }
 
     private void UpdateAltitudeEffects(Player player, BattleManager battle)
@@ -245,25 +294,22 @@ public sealed class SpeedCameraEffects : MonoBehaviour
             !NetworkGameManager.Instance.IsMatching)
         {
             altitudePlayer = null;
-            altitudeBlackoutLatched = false;
+            deathPresentationLatched = false;
         }
         else if (player != null && player.Object != null && player.Object.IsValid && player.Object.HasInputAuthority)
         {
             if (altitudePlayer != player)
             {
-                // A new network Player is spawned on respawn. Clear the previous death blackout.
+                // Remember death through the gap between despawn and the replacement Player.
                 altitudePlayer = player;
-                altitudeBlackoutLatched = false;
             }
-            if (player.DiedFromAltitude)
-                altitudeBlackoutLatched = true;
+            deathPresentationLatched = !player.IsAlive;
             MapBoundaryTable table = battle.MapBoundary;
             if (player.IsAlive && table != null)
                 darkness = table.GetAltitudeDarkness(player.transform.position.y);
         }
-        // Keep black even between despawning the dead object and spawning its replacement.
-        if (altitudeBlackoutLatched)
-            darkness = 1f;
+        // Death always wins over altitude, regardless of what caused it.
+        if (deathPresentationLatched) darkness = 0f;
         float edgeWeight = Mathf.SmoothStep(0f, 1f, darkness);
         altitudeFullBlack = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.8f, 1f, darkness));
 
@@ -271,6 +317,16 @@ public sealed class SpeedCameraEffects : MonoBehaviour
             return;
         RestoreVolumeComponent(altitudeVignette, originalAltitudeVignette);
         RestoreVolumeComponent(altitudeColor, originalAltitudeColor);
+        if (deathPresentationLatched)
+        {
+            // Restore the original color filter/vignette first, removing the altitude blackout.
+            if (deathGrayscale)
+            {
+                altitudeColor.active = true;
+                altitudeColor.saturation.Override(-100f);
+            }
+            return;
+        }
         if (darkness <= 0f)
             return;
 
@@ -337,12 +393,15 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnDisable()
     {
+        playerBlur?.Dispose();
+        playerBlur = null;
         RestorePlayerMotionVectors();
+        fieldOfViewIncrease = 0f;
         effectWeight = 0f;
         peripheralWeight = 0f;
         hasInnerRadius = false;
         altitudePlayer = null;
-        altitudeBlackoutLatched = false;
+        deathPresentationLatched = false;
         altitudeFullBlack = 0f;
         if (viewCamera != null)
             viewCamera.fieldOfView = originalFieldOfView;

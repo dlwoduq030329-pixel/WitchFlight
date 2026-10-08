@@ -17,52 +17,39 @@ public class enemyLockOn : MonoBehaviour
 
     private void Awake() => owner = GetComponent<Player>();
 
-    private void Update()
-    {
-        if (owner == null || owner.Object == null || !owner.Object.HasInputAuthority)
-            return;
+    // Called from OnInput, including latched clicks that happened between network ticks.
+    private bool wasHeld;
+    private MagicType sampledMagic;
+    public NetworkId GetInputTarget() => GetInputTarget(Input.GetMouseButton(0));
 
-        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            !owner.IsAlive || CombatPresentation.MenuOpen || !owner.SelectedMagicStats.requiresTarget ||
-            !TryGetAlignedAim(out _))
+    public NetworkId GetInputTarget(bool held)
+    {
+        if (owner == null || owner.Object == null || !owner.Object.IsValid ||
+            !owner.Object.HasInputAuthority || BattleManager.Instance == null ||
+            !BattleManager.Instance.IsGameplayActive || !owner.IsAlive || CombatPresentation.MenuOpen ||
+            !owner.CanAcquireMagicTarget() || !TryGetAlignedAim(out _))
         {
             currentTarget = null;
-            return;
+            wasHeld = false;
+            return default;
         }
 
-        // Keep the last selection for the release tick, but validate it again in GetInputTarget.
-        if (!Input.GetMouseButton(0))
-            return;
-
-        if (currentTarget != null && !IsVisible(currentTarget))
+        if (sampledMagic != owner.GetSelectedMagic())
+        {
+            sampledMagic = owner.GetSelectedMagic();
             currentTarget = null;
-
-        if (currentTarget == null && Time.unscaledTime >= nextRefreshTime)
+            wasHeld = false;
+        }
+        if (!wasHeld && held) currentTarget = FindClosestVisibleEnemy();
+        if (currentTarget != null && !IsVisible(currentTarget)) currentTarget = null;
+        if (held && currentTarget == null && Time.unscaledTime >= nextRefreshTime)
         {
             nextRefreshTime = Time.unscaledTime + targetRefreshInterval;
             currentTarget = FindClosestVisibleEnemy();
         }
-    }
-
-    public NetworkId GetInputTarget()
-    {
-        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            owner == null || !owner.IsAlive || CombatPresentation.MenuOpen ||
-            !owner.SelectedMagicStats.requiresTarget || !TryGetAlignedAim(out _))
-        {
-            currentTarget = null;
-            return default;
-        }
-
-        // A wall or screen exit invalidates even a fully charged target on the release frame.
-        if (currentTarget != null && !IsVisible(currentTarget))
-            currentTarget = null;
-        if (currentTarget == null && Input.GetMouseButton(0))
-            currentTarget = FindClosestVisibleEnemy();
-
         NetworkId result = currentTarget != null ? currentTarget.Object.Id : default;
-        if (!Input.GetMouseButton(0))
-            currentTarget = null;
+        wasHeld = held;
+        if (!held) currentTarget = null; // Return the last valid selection on the release tick.
         return result;
     }
 
@@ -71,12 +58,9 @@ public class enemyLockOn : MonoBehaviour
         Player best = null;
         float bestScore = float.PositiveInfinity;
         if (owner.Runner == null) return null;
-        foreach (PlayerRef playerRef in owner.Runner.ActivePlayers)
+        foreach (Player candidate in Player.ActiveCombatants)
         {
-            if (!owner.Runner.TryGetPlayerObject(playerRef, out NetworkObject networkPlayer) ||
-                networkPlayer == null || !networkPlayer.IsValid) continue;
-            Player candidate = networkPlayer.GetComponent<Player>();
-            if (!IsVisible(candidate))
+            if (candidate == null || candidate.Runner != owner.Runner || !IsVisible(candidate))
                 continue;
             Vector3 point = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
             float score = new Vector2(point.x - 0.5f, point.y - 0.5f).sqrMagnitude;
@@ -100,25 +84,24 @@ public class enemyLockOn : MonoBehaviour
             follow.IsBoundaryPresentationActive)
             return false;
 
-        // Check the circles actually displayed, and also the latest mouse goal so a
-        // rapid turn cannot retain last frame's lock before the camera renders again.
         Vector3 displayedDirection = (follow.GetDisplayedAimPoint() - owner.LockAimPoint).normalized;
         direction = follow.TryGetSteeringInput(out Vector3 desired, out _) ? desired : displayedDirection;
-        return owner.IsWithinLockAim(displayedDirection) && owner.IsWithinLockAim(direction);
+        // The new lock rule is the character's forward 180 degrees; circle alignment is cosmetic.
+        return direction.sqrMagnitude > 0.0001f;
     }
 
     public bool CanLockTarget(Player candidate)
     {
         return BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
             !CombatPresentation.MenuOpen && TryGetAlignedAim(out _) &&
-            owner.SelectedMagicStats.requiresTarget && IsVisible(candidate);
+            owner.CanAcquireMagicTarget() && IsVisible(candidate);
     }
 
     private bool IsVisible(Player candidate)
     {
         if (targetCamera == null)
             targetCamera = Camera.main;
-        if (targetCamera == null || candidate == null || candidate.Object == null ||
+        if (targetCamera == null || candidate == null || candidate.Object == null || !candidate.Object.IsValid ||
             !candidate.IsTargetableBy(owner))
             return false;
 
@@ -127,6 +110,10 @@ public class enemyLockOn : MonoBehaviour
         if ((candidate.LockAimPoint - owner.LockAimPoint).sqrMagnitude > range * range)
             return false;
 
+        Vector3 delta = candidate.LockAimPoint - owner.LockAimPoint;
+        if (Vector3.Dot(owner.transform.forward, delta) < 0f) return false;
+        if (stats.IsChanneled && (!TryGetAlignedAim(out Vector3 aim) ||
+            Vector3.Angle(aim, delta) > stats.autoAimHalfAngle)) return false;
         Vector3 point = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
         return point.z > 0f && point.x >= 0f && point.x <= 1f && point.y >= 0f && point.y <= 1f &&
             HasLineOfSight(targetCamera.transform.position, candidate) &&

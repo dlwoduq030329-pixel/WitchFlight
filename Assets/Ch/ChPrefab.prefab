@@ -5483,7 +5483,39 @@ Transform:
   - {fileID: 6013886973073483256}
   - {fileID: 1558668446950683776}
   - {fileID: 7997655109521306197}
+  - {fileID: 862026100900000002}
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &862026100900000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 862026100900000002}
+  m_Layer: 0
+  m_Name: MagicCastRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &862026100900000002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 862026100900000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.8, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5553512542147760588}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &6501619761298650140
 Animator:
@@ -5531,6 +5563,13 @@ MonoBehaviour:
   baseAcceleration: 60
   equipmentStatTable: {fileID: 11400000, guid: a949750258cc43b4aa2e9b6b2ab4ed68, type: 2}
   infoApSyncInterval: 0.1
+  headLook:
+    enabled: 1
+    headBone: {fileID: 8165883999008896482}
+    maxYaw: 70
+    maxPitch: 40
+    responseSpeed: 12
+    weight: 1
   lockAimAlignmentTolerance: 1.5
   lockAimOffset: 3
   maxLockDistance: 250
@@ -5538,6 +5577,7 @@ MonoBehaviour:
   lockObstructionMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  magicCastRoot: {fileID: 862026100900000002}
   magicStatTable: {fileID: 11400000, guid: d81c29d2f62042b1944c5e42544d9636, type: 2}
   magicProjectilePrefab:
     RawGuidValue: 1af9a38d86554be0a519edc0452ebc9f

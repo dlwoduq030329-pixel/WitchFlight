@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 5441730950209010142}
   - component: {fileID: 5524680251637342296}
   - component: {fileID: 6781391528095611282}
+  - component: {fileID: 902100009900001}
   m_Layer: 5
   m_Name: HPSlider
   m_TagString: Untagged
@@ -120,6 +121,31 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &902100009900001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 366736865354776657}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 453131cea0c04d642824764059482257, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  gridParent: {fileID: 3587376753190482031}
+  cellTemplate: {fileID: 4046926599639863883}
+  healthPerCell: 10
+  emptyCellAlpha: 0.15
+  legacyCellGroups:
+  - {fileID: 1465395493842554925}
+  currentPercent: 1
+  flashOnDamage: 1
+  damageFlashColor: {r: 1, g: 0.2, b: 0.2, a: 1}
+  damageFlashSeconds: 0.25
+  onDamaged:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &393495749511785972
 GameObject:
   m_ObjectHideFlags: 0

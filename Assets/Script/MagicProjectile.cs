@@ -9,49 +9,55 @@ public sealed class MagicProjectile : NetworkBehaviour
     private static readonly ProfilerMarker simulationMarker = new("WitchFlight.Projectile.Simulate");
     private static readonly HashSet<MagicProjectile> active = new();
     [Networked] public MagicType Magic { get; private set; }
+    [Networked] public NetworkId ShooterId { get; private set; }
     [Networked] public PlayerRef Shooter { get; private set; }
     [Networked] public int ShooterTeam { get; private set; }
     [Networked] public NetworkId TargetId { get; private set; }
     [Networked] public bool IsMine { get; private set; }
     [Networked] public bool Settled { get; private set; }
     [Networked] public bool Finished { get; private set; }
+    [Networked] public int PredictionInputTick { get; private set; }
+    [Networked] public float TravelledDistance { get; private set; }
     [Networked] private TickTimer Lifetime { get; set; }
     [Networked] private TickTimer ArmTimer { get; set; }
-    [Networked] private TickTimer RevealTimer { get; set; }
 
     private MagicStatEntry stats;
     private Vector3 direction;
-    private float travelled;
     private bool initialized;
-    private Renderer visual;
-    private Material material;
-    private TrailRenderer trail;
-    private MagicType visualMagic = MagicType.None;
+    private ProjectilePredictionView view;
+    private bool impactPresented;
     private readonly RaycastHit[] collisionHits = new RaycastHit[32];
     private readonly Collider[] overlapHits = new Collider[32];
     // Main-thread, non-reentrant visibility queries; no damage callbacks within them.
     private static readonly RaycastHit[] blastHits = new RaycastHit[32];
     private static readonly Collider[] blastOverlaps = new Collider[32];
-    public bool IsRevealed => RevealTimer.IsRunning && !RevealTimer.Expired(Runner);
 
     public override void Spawned()
     {
+        initialized = false;
+        impactPresented = false;
         // Projectiles remain server-simulated: even their shooter renders remote snapshots.
         Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
         active.Add(this);
     }
 
-    public void Initialize(Player shooter, Player target, MagicStatEntry entry, Vector3 aim)
+    public void Initialize(Player shooter, Player target, MagicStatEntry entry, Vector3 aim, int predictionInputTick = 0)
     {
         if (!Object.HasStateAuthority)
             return;
         stats = entry;
+        Settled = Finished = false;
+        ArmTimer = TickTimer.None;
+        PredictionInputTick = predictionInputTick;
+        TravelledDistance = 0f;
         Magic = entry.magic;
         Shooter = shooter.Object.InputAuthority;
+        ShooterId = shooter.Object.Id;
         ShooterTeam = shooter.TeamIndex;
         TargetId = target != null ? target.Object.Id : default;
         IsMine = entry.effect == MagicEffectKind.Mine;
-        direction = aim.normalized;
+        direction = ResolveLaunchDirection(entry.requiresTarget && !IsMine, aim,
+            shooter.transform.forward, target != null ? target.LockAimPoint - transform.position : Vector3.zero);
         if (direction.sqrMagnitude < 0.5f)
             direction = shooter.transform.forward;
         transform.rotation = Quaternion.LookRotation(direction);
@@ -90,16 +96,16 @@ public sealed class MagicProjectile : NetworkBehaviour
         }
 
         Player target = FindTarget();
-        if (target != null && stats.projectileTurnSpeed > 0f)
+        if (target != null && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
         {
             Vector3 desired = target.LockAimPoint - transform.position;
             if (desired.sqrMagnitude > 0.001f)
-                direction = Vector3.RotateTowards(direction, desired.normalized,
-                    stats.projectileTurnSpeed * Mathf.Deg2Rad * Runner.DeltaTime, 0f).normalized;
+                direction = ResolveHomingDirection(stats.requiresTarget, direction, desired,
+                    stats.projectileTurnSpeed, Runner.DeltaTime);
         }
 
         float limit = IsMine ? stats.placementDistance : stats.range;
-        float step = Mathf.Min(stats.projectileSpeed * Runner.DeltaTime, Mathf.Max(0f, limit - travelled));
+        float step = Mathf.Min(stats.projectileSpeed * Runner.DeltaTime, Mathf.Max(0f, limit - TravelledDistance));
         Vector3 next = transform.position + direction * step;
         if (TryGetInitialOverlap(out Collider overlap))
         {
@@ -121,14 +127,30 @@ public sealed class MagicProjectile : NetworkBehaviour
         }
 
         transform.SetPositionAndRotation(next, Quaternion.LookRotation(direction));
-        travelled += step;
-        if (travelled >= limit - 0.001f)
+        TravelledDistance += step;
+        if (TravelledDistance >= limit - 0.001f)
         {
             if (IsMine)
                 SettleMine();
             else
                 Impact(next);
         }
+    }
+
+    // Lock-on shots take the direct direction immediately, not a turn-speed-limited arc.
+    // Non-lock projectiles (including mines) retain their authored firing direction.
+    public static Vector3 ResolveLaunchDirection(bool locked, Vector3 aim, Vector3 forward, Vector3 targetDelta)
+    {
+        Vector3 result = locked && targetDelta.sqrMagnitude > 0.001f ? targetDelta : aim;
+        return result.sqrMagnitude > 0.001f ? result.normalized : forward.normalized;
+    }
+
+    public static Vector3 ResolveHomingDirection(bool locked, Vector3 current, Vector3 targetDelta,
+        float turnSpeed, float deltaTime)
+    {
+        if (targetDelta.sqrMagnitude <= 0.001f) return current;
+        return locked ? targetDelta.normalized : Vector3.RotateTowards(current, targetDelta.normalized,
+            Mathf.Max(0f, turnSpeed) * Mathf.Deg2Rad * deltaTime, 0f).normalized;
     }
 
     private Player FindTarget()
@@ -164,7 +186,7 @@ public sealed class MagicProjectile : NetworkBehaviour
             if (hit.collider == null || hit.transform.IsChildOf(transform))
                 continue;
             Player player = hit.collider.GetComponentInParent<Player>();
-            if (player != null && (!player.IsAlive || player.Object.InputAuthority == Shooter))
+            if (player != null && (!player.IsAlive || player.Object.Id.Equals(ShooterId)))
                 continue;
             if (hit.distance >= best)
                 continue;
@@ -191,7 +213,7 @@ public sealed class MagicProjectile : NetworkBehaviour
             if (collider == null || collider.transform.IsChildOf(transform))
                 continue;
             Player player = collider.GetComponentInParent<Player>();
-            if (player != null && (!player.IsAlive || player.Object.InputAuthority == Shooter))
+            if (player != null && (!player.IsAlive || player.Object.Id.Equals(ShooterId)))
                 continue;
             overlap = collider;
             return true;
@@ -212,9 +234,9 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         if (!ArmTimer.Expired(Runner))
             return;
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
+        foreach (Player player in Player.ActiveCombatants)
         {
-            Player player = Player.FindInRunner(Runner, playerRef);
+            if (player == null || player.Runner != Runner) continue;
             if (player != null && player.IsAlive && (player.LockAimPoint - transform.position).sqrMagnitude <= stats.radius * stats.radius &&
                 HasBlastSight(player))
             {
@@ -232,18 +254,18 @@ public sealed class MagicProjectile : NetworkBehaviour
         transform.position = point;
         if (IsMine || stats.effect == MagicEffectKind.AreaDamage)
         {
-            foreach (PlayerRef playerRef in Runner.ActivePlayers)
+            foreach (Player player in Player.ActiveCombatants)
             {
-                Player player = Player.FindInRunner(Runner, playerRef);
+                if (player == null || player.Runner != Runner) continue;
                 if (player == null || !player.IsAlive || (!IsMine && player.TeamIndex == ShooterTeam) ||
                     (player.LockAimPoint - point).sqrMagnitude > stats.radius * stats.radius || !HasBlastSight(player))
                     continue;
-                player.ReceiveMagicHit(stats, Shooter);
+                player.ReceiveMagicHit(stats, Shooter, ShooterId);
             }
         }
         else if (directHit != null && directHit.IsAlive && directHit.TeamIndex != ShooterTeam)
         {
-            directHit.ReceiveMagicHit(stats, Shooter);
+            directHit.ReceiveMagicHit(stats, Shooter, ShooterId);
         }
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
@@ -294,24 +316,41 @@ public sealed class MagicProjectile : NetworkBehaviour
         return true;
     }
 
-    public static void BreakTracking(Player target)
-    {
-        foreach (MagicProjectile shot in active)
-        {
-            if (shot != null && shot.Runner == target.Runner && shot.Object != null && shot.Object.HasStateAuthority &&
-                shot.TargetId.Equals(target.Object.Id))
-                shot.TargetId = default;
-        }
-    }
+    // Local read-only threat query; no RPCs, allocations, or extra network traffic.
+    public static bool TryGetIncomingThreat(Player observer, float range, out float distance)
+        => TryGetIncomingThreat(observer, range, out distance, out _);
 
-    public static void RevealMines(Player scanner, float radius, float duration)
+    public static bool TryGetIncomingThreat(Player observer, float range, out float distance, out MagicProjectile nearest,
+        float warningLeadSeconds = 0f, System.Predicate<MagicProjectile> candidateFilter = null)
     {
+        distance = range;
+        nearest = null;
+        if (observer == null || observer.Object == null || !observer.Object.IsValid) return false;
+        bool found = false;
+        float bestScore = float.PositiveInfinity;
         foreach (MagicProjectile shot in active)
         {
-            if (shot != null && shot.Runner == scanner.Runner && shot.Object != null && shot.Object.HasStateAuthority && shot.IsMine &&
-                (shot.transform.position - scanner.transform.position).sqrMagnitude <= radius * radius)
-                shot.RevealTimer = TickTimer.CreateFromSeconds(shot.Runner, Mathf.Max(0.1f, duration));
+            if (shot == null || shot.Runner != observer.Runner || shot.Object == null ||
+                !shot.Object.IsValid || shot.Finished || (!shot.IsMine && shot.ShooterTeam == observer.TeamIndex))
+                continue;
+            Vector3 delta = observer.LockAimPoint - shot.transform.position;
+            float sqr = delta.sqrMagnitude;
+            bool timed = shot.TryGetImpactTime(observer, out float impactSeconds);
+            if (sqr > range * range && (!timed || impactSeconds > warningLeadSeconds)) continue;
+            if (!shot.Settled && Vector3.Dot(shot.transform.forward, delta) <= 0f) continue;
+            // A visible foreground shot must not mask a different off-screen threat.
+            if (candidateFilter != null && !candidateFilter(shot)) continue;
+            if (!HasBlastSight(shot.transform.position, observer)) continue;
+            float candidateDistance = Mathf.Sqrt(sqr);
+            // Prefer the first predicted collision, not a nearby but slow/passing projectile.
+            float score = timed ? impactSeconds : 10000f + candidateDistance;
+            if (score >= bestScore) continue;
+            bestScore = score;
+            distance = candidateDistance;
+            nearest = shot;
+            found = true;
         }
+        return found;
     }
 
     public static bool HasMineOwnedBy(PlayerRef player, NetworkRunner runner = null)
@@ -323,62 +362,82 @@ public sealed class MagicProjectile : NetworkBehaviour
         return false;
     }
 
+    // Presentation estimate only: never delays a shot or grants a block. Hitscan spells
+    // have no MagicProjectile instance and therefore never enter this warning path.
+    public bool TryGetImpactTime(Player observer, out float seconds)
+    {
+        seconds = float.PositiveInfinity;
+        if (observer == null || observer.Object == null || !observer.Object.IsValid ||
+            Object == null || !Object.IsValid || Runner != observer.Runner || Finished || IsMine || Settled ||
+            ShooterTeam == observer.TeamIndex) return false;
+        MagicStatEntry entry = initialized ? stats : CombatPresentation.Stats(Magic);
+        if (entry.projectileSpeed <= 0f) return false;
+        Vector3 offset = transform.position - observer.LockAimPoint;
+        bool guidedToObserver = entry.requiresTarget && TargetId.Equals(observer.Object.Id);
+        Vector3 forward = guidedToObserver && offset.sqrMagnitude > 0.001f ? -offset.normalized : transform.forward;
+        Vector3 relativeVelocity = forward * entry.projectileSpeed - observer.ParryHintVelocity;
+        return TryEstimateImpactTime(offset, relativeVelocity,
+            Mathf.Max(0.02f, entry.projectileRadius) + observer.ParryHintRadius, guidedToObserver, out seconds);
+    }
+
+    public static bool TryEstimateImpactTime(Vector3 offset, Vector3 relativeVelocity,
+        float hitRadius, bool guided, out float seconds)
+    {
+        seconds = float.PositiveInfinity;
+        if (!IsFiniteEstimateVector(offset) || !IsFiniteEstimateVector(relativeVelocity) ||
+            float.IsNaN(hitRadius) || float.IsInfinity(hitRadius)) return false;
+        float radius = Mathf.Max(0f, hitRadius);
+        float c = offset.sqrMagnitude - radius * radius;
+        if (c <= 0f) { seconds = 0f; return true; }
+        float toward = Vector3.Dot(offset, relativeVelocity);
+        if (toward >= -0.0001f) return false;
+        if (guided)
+        {
+            // Homing re-aims each tick; current radial closing speed is the useful estimate.
+            float distance = offset.magnitude;
+            seconds = (distance - radius) / (-toward / distance);
+            return true;
+        }
+        float a = relativeVelocity.sqrMagnitude;
+        float discriminant = toward * toward - a * c;
+        if (a < 0.0001f || discriminant < 0f) return false; // A passing shot is not a cue.
+        // Stable form of the first ray/sphere contact root (avoids subtracting similar numbers).
+        seconds = c / (-toward + Mathf.Sqrt(discriminant));
+        return seconds >= 0f;
+    }
+
+    private static bool IsFiniteEstimateVector(Vector3 value)
+    {
+        return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+            !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+            !float.IsNaN(value.z) && !float.IsInfinity(value.z) && !float.IsInfinity(value.sqrMagnitude);
+    }
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_Impact(Vector3 position, MagicType magic)
     {
+        impactPresented = true;
+        if (view != null) view.ConfirmImpact();
         CombatPresentation.ShowImpact(position, magic);
     }
 
     public override void Render()
     {
-        if (Magic == MagicType.None)
-            return;
-        if (visual == null)
-            CreateVisual();
-        if (visualMagic != Magic)
-        {
-            visualMagic = Magic;
-            Color color = Magic == MagicType.Ice ? Color.cyan :
-                Magic == MagicType.Thunder ? new Color(0.7f, 0.35f, 1f) :
-                IsMine ? Color.yellow : new Color(1f, 0.25f, 0.05f);
-            material.color = color;
-            trail.startColor = color;
-            trail.endColor = new Color(color.r, color.g, color.b, 0f);
-        }
-        Player local = Player.LocalPlayer;
-        bool visible = !Finished && (!IsMine || local == null || local.TeamIndex == ShooterTeam || IsRevealed);
-        visual.enabled = visible;
-        trail.enabled = visible && !IsMine;
-    }
-
-    private void CreateVisual()
-    {
-        GameObject ball = GameObject.CreatePrimitive(IsMine ? PrimitiveType.Cube : PrimitiveType.Sphere);
-        ball.name = IsMine ? "Mine visual" : "Magic visual";
-        Collider collider = ball.GetComponent<Collider>();
-        collider.enabled = false;
-        Destroy(collider);
-        ball.transform.SetParent(transform, false);
-        ball.transform.localScale = Vector3.one * (IsMine ? 0.7f : 0.3f);
-        visual = ball.GetComponent<Renderer>();
-        material = CombatPresentation.CreateEffectMaterial(Color.white);
-        visual.sharedMaterial = material;
-        trail = ball.AddComponent<TrailRenderer>();
-        trail.sharedMaterial = material;
-        trail.time = 0.15f;
-        trail.startWidth = 0.22f;
-        trail.endWidth = 0f;
+        if (Magic == MagicType.None) return;
+        if (view == null) view = ProjectilePredictionView.Attach(this, CombatPresentation.Stats(Magic));
+        if (Finished || impactPresented) view.ConfirmImpact();
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         active.Remove(this);
+        if (view != null) Destroy(view.gameObject);
+        view = null;
+        initialized = false;
     }
 
     private void OnDestroy()
     {
         active.Remove(this);
-        if (material != null)
-            Destroy(material);
     }
 }

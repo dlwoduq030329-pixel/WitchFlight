@@ -32,19 +32,19 @@ public sealed class BattleMagicUI : MonoBehaviour
     [SerializeField] private Image parrySliderImage;
     [SerializeField] private Slider parryCooldownSlider;
 
-    [Header("Magic enum -> UI sprites (configured here, not in the stat table)")]
+    [Header("Optional sprite overrides (empty = MagicStatTable icon)")]
     [SerializeField] private MagicSpriteEntry[] magicSprites = new MagicSpriteEntry[]
     {
         new MagicSpriteEntry { magic = MagicType.Fire },
         new MagicSpriteEntry { magic = MagicType.Ice },
         new MagicSpriteEntry { magic = MagicType.Vision },
         new MagicSpriteEntry { magic = MagicType.Thunder },
-        new MagicSpriteEntry { magic = MagicType.Flare },
-        new MagicSpriteEntry { magic = MagicType.Smoke },
+        new MagicSpriteEntry { magic = MagicType.Healing },
+        new MagicSpriteEntry { magic = MagicType.Binding },
         new MagicSpriteEntry { magic = MagicType.Dark },
-        new MagicSpriteEntry { magic = MagicType.Decoy },
+        new MagicSpriteEntry { magic = MagicType.Curse },
         new MagicSpriteEntry { magic = MagicType.Mine },
-        new MagicSpriteEntry { magic = MagicType.Scane }
+        new MagicSpriteEntry { magic = MagicType.Razier }
     };
     [SerializeField] private Sprite parryBackSprite;
     [Tooltip("비워두면 Parry Back Sprite를 사용합니다.")]
@@ -100,18 +100,20 @@ public sealed class BattleMagicUI : MonoBehaviour
 
     private void ApplyMagicSprites(MagicType magic, Image backImage, Image sliderImage)
     {
+        Sprite tableIcon = CombatPresentation.Stats(magic).icon;
         if (magicSprites != null)
         {
             foreach (MagicSpriteEntry entry in magicSprites)
             {
                 if (entry.magic != magic) continue;
-                SetIcon(backImage, entry.backSprite);
-                SetIcon(sliderImage, entry.sliderSprite != null ? entry.sliderSprite : entry.backSprite);
+                Sprite back = entry.backSprite != null ? entry.backSprite : tableIcon;
+                SetIcon(backImage, back);
+                SetIcon(sliderImage, entry.sliderSprite != null ? entry.sliderSprite : back);
                 return;
             }
         }
-        SetIcon(backImage, null);
-        SetIcon(sliderImage, null);
+        SetIcon(backImage, tableIcon);
+        SetIcon(sliderImage, tableIcon);
     }
 
     // Reads actual remaining time every frame. Rejected casts never start a fake timer.

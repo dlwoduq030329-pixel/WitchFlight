@@ -121,7 +121,7 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     private static void SetVisible(GameObject root, bool value) { if (root != null && root.activeSelf != value) root.SetActive(value); }
     private static int ValidHat(int selected) => selected >= (int)HatType.Classic && selected <= (int)HatType.Cosmic ? selected : (int)HatType.Classic;
     private static int ValidBroom(int selected) => selected >= (int)BroomType.Slow && selected <= (int)BroomType.Speed ? selected : (int)BroomType.Standard;
-    private static int ValidMagic(int selected, int fallback) => selected >= (int)MagicType.Fire && selected <= (int)MagicType.Scane ? selected : fallback;
+    private static int ValidMagic(int selected, int fallback) => selected >= (int)MagicType.Fire && selected <= (int)MagicType.Razier ? selected : fallback;
 
     private void OnDisable()
     {

@@ -3,6 +3,7 @@ using UnityEngine.UI;
 
 // Lightweight UI geometry: no textures, particles, custom shaders or network objects.
 [AddComponentMenu("UI/WitchFlight Speed Wind Lines")]
+[RequireComponent(typeof(CanvasRenderer))]
 public sealed class SpeedWindLines : MaskableGraphic
 {
     private float opacity;

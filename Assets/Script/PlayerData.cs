@@ -3,7 +3,8 @@ using UnityEngine;
 
 public enum HatType { None, Classic, Twisted, Elemental, Serenity, Cosmic }
 public enum BroomType { None, Slow, Standard, Speed }
-public enum MagicType { None, Fire, Ice, Vision, Thunder, Flare, Smoke, Dark, Decoy, Mine, Scane }
+// Explicit IDs preserve existing saved loadouts. Removed spells are replaced in-place.
+public enum MagicType { None = 0, Fire = 1, Ice = 2, Vision = 3, Thunder = 4, Healing = 5, Binding = 6, Dark = 7, Curse = 8, Mine = 9, Razier = 10 }
 public enum Camp { A, B }
 
 public class PlayerData : NetworkBehaviour
@@ -189,7 +190,7 @@ public class PlayerData : NetworkBehaviour
     {
         // None (0) is an intentional empty slot and must survive backend/network loading.
         int value = (int)selectedMagic;
-        return value >= (int)MagicType.None && value <= (int)MagicType.Scane
+        return value >= (int)MagicType.None && value <= (int)MagicType.Razier
             ? selectedMagic
             : fallback;
     }
