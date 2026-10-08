@@ -22,6 +22,8 @@ public sealed class BattleIntroPresentation : MonoBehaviour
     [Tooltip("이름/장착 마법/프로필 UI. 비우면 Intro Panel 내부의 linkuserinfo를 사용합니다. 얼굴 RawImage는 기존 설정을 유지합니다.")]
     [SerializeField] private linkuserinfo introUserInfo;
     [SerializeField] private TMP_Text countdownText;
+    [Tooltip("3·2·1 카운트다운 폰트. Battle 씬에는 DungGeunMo SDF를 연결합니다.")]
+    [SerializeField] private TMP_FontAsset countdownFont;
     [SerializeField] private TMP_Text waitingText;
     [SerializeField] private TMP_Text soloText;
 
@@ -385,6 +387,7 @@ public sealed class BattleIntroPresentation : MonoBehaviour
     {
         bool intro = phase == BattleStartPhase.Intro;
         bool countdown = phase == BattleStartPhase.Countdown;
+        if (countdown) EnsureCountdownText();
         bool waiting = phase == BattleStartPhase.WaitingForPlayers;
         // Allow optional start buttons while waiting; lock flight input again for the countdown.
         if (phase != BattleStartPhase.Ended)
@@ -406,6 +409,33 @@ public sealed class BattleIntroPresentation : MonoBehaviour
         if (waitingText != null)
             waitingText.gameObject.SetActive(false);
         displayedCountdown = -1;
+    }
+
+    private void EnsureCountdownText()
+    {
+        if (countdownText == null)
+        {
+            var root = new GameObject("Battle countdown", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+            root.transform.SetParent(transform, false);
+            var canvas = root.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 90;
+            var scaler = root.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+            var label = new GameObject("3 2 1", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            label.transform.SetParent(root.transform, false);
+            countdownText = label.GetComponent<TextMeshProUGUI>();
+            countdownText.alignment = TextAlignmentOptions.Center;
+            countdownText.fontSize = 112f;
+            countdownText.color = Color.white;
+            countdownText.raycastTarget = false;
+            countdownText.rectTransform.anchorMin = countdownText.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            countdownText.rectTransform.sizeDelta = new Vector2(240f, 180f);
+            countdownText.rectTransform.anchoredPosition = Vector2.zero;
+        }
+        if (countdownFont != null) countdownText.font = countdownFont;
     }
 
     private void UpdatePortraitVisibility(BattleStartPhase phase)

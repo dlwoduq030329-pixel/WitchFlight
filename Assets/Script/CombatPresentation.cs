@@ -26,7 +26,11 @@ public sealed class CombatPresentation : MonoBehaviour
     private int lastHit;
     private int lastDeath;
     private int lastParry;
-    private bool wasParrying;
+    [SerializeField] private GameObject parryShieldVfxPrefab;
+    [SerializeField, Min(0.05f)] private float parryShieldDuration = 0.35f;
+    private CombatMagicVisual channelVisual;
+    private MagicType visualChannel;
+    private static MagicStatTable cachedMagicTable;
     private float hitFlashUntil;
     private bool wasFlashing;
     private float deathStarted = -1f;
@@ -123,19 +127,19 @@ public sealed class CombatPresentation : MonoBehaviour
             lastHit = owner.HitSequence;
             hitFlashUntil = Time.unscaledTime + hitFlashSeconds;
             BattleHud.ShowDamage(owner.LockAimPoint, owner.LastReceivedDamage);
-            ShowImpact(owner.LockAimPoint, MagicType.Fire);
+
         }
         if (lastDeath != owner.DeathSequence)
         {
             lastDeath = owner.DeathSequence;
             StartDeathFade();
         }
-        if ((!wasParrying && owner.IsParrying) || lastParry != owner.ParrySequence)
+        if (lastParry != owner.ParrySequence)
         {
             lastParry = owner.ParrySequence;
-            SpawnPulse(owner.LockAimPoint, new Color(0.25f, 0.9f, 1f, 0.65f), 2.5f, 0.3f);
+            CombatMagicVisual.Shield(owner, parryShieldVfxPrefab, parryShieldDuration);
         }
-        wasParrying = owner.IsParrying;
+        UpdateChannelVisual();
         UpdateMaterials();
     }
 
@@ -184,70 +188,76 @@ public sealed class CombatPresentation : MonoBehaviour
         }
     }
 
+    public static MagicStatEntry Stats(MagicType magic)
+    {
+        if (cachedMagicTable == null) cachedMagicTable = Resources.Load<MagicStatTable>("MagicStatTable");
+        return cachedMagicTable != null ? cachedMagicTable.GetStats(magic) : MagicStatTable.DefaultEntry(magic);
+    }
+
+    // Author VFX here / in MagicStatTable. Prefabs must be visual-only, without NetworkObject.
+    public static GameObject InstantiateVfx(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null)
+    {
+        if (prefab == null) return null;
+        if (prefab.GetComponentInChildren<Fusion.NetworkObject>(true) != null)
+        {
+            Debug.LogWarning("Magic VFX must not contain a NetworkObject: " + prefab.name);
+            return null;
+        }
+        GameObject view = Instantiate(prefab, position, rotation, parent);
+        foreach (Collider collider in view.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+        view.SetActive(true);
+        return view;
+    }
+
     public void ShowCast(MagicType magic, Vector3 origin, Vector3 end)
     {
-        Color color = MagicColor(magic);
-        SpawnPulse(origin, color, 0.7f, 0.18f);
-        if (magic != MagicType.Vision)
-            return;
+        MagicStatEntry stats = Stats(magic);
+        GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation);
+        if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));
+        else SpawnPulse(origin, MagicColor(magic), magic == MagicType.Healing ? 2f : 0.7f, 0.25f);
+        if (stats.projectileSpeed > 0f || magic == MagicType.Healing) return;
+        if (stats.beamVfxPrefab == null) CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic));
+        else
+        {
+            CombatMagicVisual beam = CombatMagicVisual.Beam(magic, stats.beamVfxPrefab);
+            beam.SetEndpoints(origin, end);
+            Destroy(beam.gameObject, 0.2f);
+        }
+        ShowImpact(end, magic);
+    }
 
-        CombatTransientEffect.PlayBeam(origin, end, color);
+    private void UpdateChannelVisual()
+    {
+        MagicType current = owner.IsAlive && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive
+            ? owner.ChannelMagic : MagicType.None;
+        if (visualChannel != current)
+        {
+            if (channelVisual != null) Destroy(channelVisual.gameObject);
+            visualChannel = current;
+            channelVisual = current == MagicType.None ? null : CombatMagicVisual.Beam(current, Stats(current).beamVfxPrefab);
+        }
+        if (channelVisual == null) return;
+        Vector3 end = owner.ChannelEnd;
+        if (current == MagicType.Curse && owner.Runner.TryFindObject(owner.ChannelTargetId, out Fusion.NetworkObject target) && target != null)
+        {
+            Player targetPlayer = target.GetComponent<Player>();
+            if (targetPlayer != null && targetPlayer.IsAlive) end = targetPlayer.LockAimPoint;
+        }
+        else if (current == MagicType.Razier)
+        {
+            // Preserve authoritative hit distance but anchor direction to the interpolated render pose.
+            float distance = Vector3.Distance(owner.MagicCastPosition, end);
+            end = owner.MagicCastPosition + owner.transform.forward * distance;
+        }
+        channelVisual.SetEndpoints(owner.MagicCastPosition, end);
     }
 
     public static void ShowImpact(Vector3 position, MagicType magic)
     {
-        SpawnPulse(position, MagicColor(magic), 1.25f, 0.25f);
-    }
-
-    public void ShowScan(float radius)
-    {
-        SpawnPulse(transform.position, new Color(0.15f, 0.9f, 1f, 0.18f), Mathf.Max(1f, radius) * 2f, 0.65f);
-    }
-
-    public void ShowDecoy(float duration)
-    {
-        GameObject decoy = new GameObject("Magic decoy visual");
-        decoy.transform.SetPositionAndRotation(transform.position, transform.rotation);
-        var materials = new List<Material>();
-        var ownedMeshes = new List<Mesh>();
-        foreach (Visual visual in visuals)
-        {
-            Renderer source = visual.renderer;
-            // A remote peer may receive this RPC after stealth disabled its renderers.
-            // Clone the authored active outfit, not the temporary visibility state.
-            if (source == null || !visual.authoredEnabled || !source.gameObject.activeInHierarchy)
-                continue;
-            Mesh mesh = null;
-            if (source is SkinnedMeshRenderer skinned && skinned.sharedMesh != null)
-            {
-                mesh = new Mesh { name = "Decoy posed mesh" };
-                skinned.BakeMesh(mesh);
-                ownedMeshes.Add(mesh);
-            }
-            else if (source.TryGetComponent(out MeshFilter sourceFilter))
-            {
-                mesh = sourceFilter.sharedMesh;
-            }
-            if (mesh == null)
-                continue;
-
-            GameObject part = new GameObject(source.name);
-            part.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
-            part.transform.localScale = source.transform.lossyScale;
-            part.transform.SetParent(decoy.transform, true);
-            part.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var renderer = part.AddComponent<MeshRenderer>();
-            var clones = new Material[visual.originals.Length];
-            for (int i = 0; i < clones.Length; i++)
-            {
-                clones[i] = CreateFadeMaterial(visual.originals[i]);
-                materials.Add(clones[i]);
-            }
-            renderer.sharedMaterials = clones;
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-        }
-        decoy.AddComponent<CombatTransientEffect>().Initialize(
-            Mathf.Max(0.1f, duration), Vector3.one, Vector3.one, materials.ToArray(), ownedMeshes.ToArray(), 0.2f);
+        MagicStatEntry stats = Stats(magic);
+        GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity);
+        if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));
+        else SpawnPulse(position, MagicColor(magic), stats.radius > 0f ? stats.radius * 2f : 1.25f, 0.3f);
     }
 
     private static void SpawnPulse(Vector3 position, Color color, float diameter, float duration)
@@ -294,6 +304,11 @@ public sealed class CombatPresentation : MonoBehaviour
             MagicType.Fire => new Color(1f, 0.3f, 0.08f, 0.85f),
             MagicType.Ice => new Color(0.2f, 0.75f, 1f, 0.8f),
             MagicType.Vision => new Color(0.95f, 0.3f, 1f, 0.85f),
+            MagicType.Dark => new Color(0.6f, 0.08f, 0.9f, 0.9f),
+            MagicType.Binding => new Color(1f, 0.65f, 0.15f, 0.8f),
+            MagicType.Curse => new Color(0.85f, 0.15f, 0.65f, 0.8f),
+            MagicType.Razier => new Color(0.2f, 0.8f, 1f, 0.9f),
+            MagicType.Mine => new Color(1f, 0.65f, 0.15f, 0.85f),
             MagicType.Thunder => new Color(1f, 0.9f, 0.25f, 0.85f),
             _ => new Color(0.4f, 1f, 0.8f, 0.6f)
         };
@@ -301,6 +316,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (channelVisual != null) Destroy(channelVisual.gameObject);
         foreach (Visual visual in visuals)
         {
             if (visual.fading == null)

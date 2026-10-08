@@ -15,19 +15,31 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private Vector3 followOffset = new Vector3(0f, 2f, -5f);
     [SerializeField] private Vector3 aimOffset = new Vector3(0.65f, 1.8f, -4f);
 
-    [Header("Local speed shake (forward stages 2 and 3)")]
+    [Header("Acceleration camera kick (local presentation only)")]
+    [InspectorName("Enable Acceleration Kick")]
+    [SerializeField] private bool enableTopSpeedKick = true;
+    [Tooltip("전진 단계를 올릴 때마다 추가로 뒤로 빠지는 거리입니다. 유지/감속 중에는 반복하지 않습니다.")]
+    [InspectorName("Stage Up Kick Distance")]
+    [SerializeField, Min(0f)] private float topSpeedKickDistance = 0.45f;
+    [Tooltip("3단계에서 실제 Shift 부스트를 시작할 때의 추가 거리입니다. 단계 상승과 겹치면 이것만 적용합니다.")]
+    [SerializeField, Min(0f)] private float boostKickDistance = 0.8f;
+    [InspectorName("Kick Out Seconds")]
+    [SerializeField, Min(0.01f)] private float topSpeedKickOutSeconds = 0.12f;
+    [InspectorName("Kick Return Seconds")]
+    [SerializeField, Min(0.01f)] private float topSpeedKickReturnSeconds = 0.55f;
+
+    [Header("Local speed shake (stage 3 + boost only)")]
     [SerializeField] private bool enableSpeedShake = true;
-    [Tooltip("2단계에서 목표로 하는 흔들림 배율입니다. 0이면 해당 단계에서 끕니다.")]
-    [SerializeField, Min(0f)] private float speedShakeStage2Intensity = 0.15f;
-    [Tooltip("3단계에서 목표로 하는 흔들림 배율입니다.")]
-    [SerializeField, Min(0f)] private float speedShakeStage3Intensity = 0.35f;
+    [Tooltip("전진 3단계 + 실제 Shift 부스트 중에만 적용합니다. 0이면 흔들림을 끕니다.")]
+    [InspectorName("Boost Shake Intensity")]
+    [SerializeField, Range(0f, 1f)] private float speedShakeStage3Intensity = 1f;
     [Tooltip("강도 1일 때 카메라 로컬 X/Y/Z 이동 폭(미터)입니다. 렌더링에만 적용됩니다.")]
-    [SerializeField] private Vector3 speedShakePositionAmplitude = new Vector3(0.008f, 0.008f, 0f);
+    [SerializeField] private Vector3 speedShakePositionAmplitude = new Vector3(0.006f, 0.004f, 0f);
     [Tooltip("강도 1일 때 X/Y/Z 회전 폭(도)입니다. 에임 방향에는 적용되지 않습니다.")]
-    [SerializeField] private Vector3 speedShakeRotationAmplitude = new Vector3(0.06f, 0.06f, 0f);
-    [SerializeField, Min(0.01f)] private float speedShakeFrequency = 4f;
-    [Tooltip("강도가 목표값으로 변하는 반응 속도입니다. 낮을수록 천천히 켜지고 꺼집니다.")]
-    [SerializeField, Min(0.01f)] private float speedShakeTransitionSpeed = 2f;
+    [SerializeField] private Vector3 speedShakeRotationAmplitude = new Vector3(0.035f, 0.025f, 0f);
+    [SerializeField, Min(0.01f)] private float speedShakeFrequency = 6f;
+    [Tooltip("부스트 흔들림이 켜지는 반응 속도입니다. 부스트 해제/단계 하락 시에는 즉시 끕니다.")]
+    [SerializeField, Min(0.01f)] private float speedShakeTransitionSpeed = 5f;
 
     [Header("Mouse aim flight")]
     [Tooltip("큰 조준점의 방향으로 캐릭터가 선회합니다. 끄면 이전 자유 시점/직접 피치 조작을 사용합니다.")]
@@ -79,6 +91,10 @@ public class CameraFollow : MonoBehaviour
     private float speedShakeIntensity;
     private int speedShakeUpdatedFrame = -1;
     private bool speedShakeViewApplied;
+    private int lastKickSpeedStage = int.MinValue;
+    private bool lastKickBoosting;
+    private float topSpeedKickStartedAt = float.NegativeInfinity;
+    private float topSpeedKickStartDistance, topSpeedKickPeakDistance;
 
     public bool IsBoundaryPresentationActive => boundaryCameraFrozen || boundaryReturnBlending;
     public float AimProjectionDistance => targetPlayer != null && targetPlayer.Object != null && targetPlayer.Object.IsValid
@@ -116,6 +132,7 @@ public class CameraFollow : MonoBehaviour
         if (portraitLayer >= 0)
             viewCamera.cullingMask &= ~(1 << portraitLayer);
         ResetSpeedShake();
+        ResetTopSpeedKick();
         RenderPipelineManager.beginCameraRendering += BeginSpeedShakeRendering;
         RenderPipelineManager.endCameraRendering += EndSpeedShakeRendering;
     }
@@ -125,6 +142,7 @@ public class CameraFollow : MonoBehaviour
         RenderPipelineManager.beginCameraRendering -= BeginSpeedShakeRendering;
         RenderPipelineManager.endCameraRendering -= EndSpeedShakeRendering;
         ResetSpeedShake();
+        ResetTopSpeedKick();
         mouseOrbitYaw = 0f;
         boundaryCameraFrozen = false;
         boundaryReturnBlending = false;
@@ -135,6 +153,7 @@ public class CameraFollow : MonoBehaviour
     public void SetTarget(GameObject targetObject)
     {
         ResetSpeedShake();
+        ResetTopSpeedKick();
         mouseOrbitYaw = 0f;
         boundaryCameraFrozen = false;
         boundaryReturnBlending = false;
@@ -225,7 +244,8 @@ public class CameraFollow : MonoBehaviour
         bool canShake = isActiveAndEnabled && enableSpeedShake && battle != null && battle.IsGameplayActive &&
             !CombatPresentation.MenuOpen && !IsBoundaryPresentationActive && targetPlayer != null &&
             targetPlayer.Object != null && targetPlayer.Object.IsValid && targetPlayer.Object.HasInputAuthority &&
-            targetPlayer.IsAlive && !targetPlayer.IsReturningToMap;
+            targetPlayer.IsAlive && !targetPlayer.IsReturningToMap &&
+            ShouldApplySpeedShake(targetPlayer.CurrentSpeedStage, targetPlayer.IsBoosting);
         if (!canShake)
         {
             ResetSpeedShake();
@@ -236,9 +256,7 @@ public class CameraFollow : MonoBehaviour
         if (speedShakeUpdatedFrame != Time.frameCount)
         {
             speedShakeUpdatedFrame = Time.frameCount;
-            int stage = targetPlayer.CurrentSpeedStage;
-            float targetIntensity = stage >= 3 ? Mathf.Max(0f, speedShakeStage3Intensity)
-                : stage == 2 ? Mathf.Max(0f, speedShakeStage2Intensity) : 0f;
+            float targetIntensity = Mathf.Clamp01(speedShakeStage3Intensity);
             speedShakeIntensity = Mathf.Lerp(speedShakeIntensity, targetIntensity,
                 GetExponentialBlend(speedShakeTransitionSpeed));
             if (Mathf.Abs(speedShakeIntensity - targetIntensity) < 0.0001f)
@@ -271,6 +289,64 @@ public class CameraFollow : MonoBehaviour
     private static float ShakeNoise(float phase, float seed)
         => Mathf.PerlinNoise(phase, seed) * 2f - 1f;
 
+    private static bool ShouldApplySpeedShake(int stage, bool isBoosting)
+    {
+        return stage == 3 && isBoosting;
+    }
+
+    private void ResetTopSpeedKick()
+    {
+        lastKickSpeedStage = int.MinValue;
+        lastKickBoosting = false;
+        topSpeedKickStartedAt = float.NegativeInfinity;
+        topSpeedKickStartDistance = 0f;
+        topSpeedKickPeakDistance = 0f;
+    }
+
+    private float UpdateTopSpeedKick(bool presentationAllowed)
+    {
+        if (!presentationAllowed || !enableTopSpeedKick || targetPlayer == null ||
+            targetPlayer.Object == null || !targetPlayer.Object.IsValid || !targetPlayer.Object.HasInputAuthority ||
+            !targetPlayer.IsAlive || targetPlayer.IsReturningToMap)
+        {
+            ResetTopSpeedKick();
+            return 0f;
+        }
+        int stage = targetPlayer.CurrentSpeedStage;
+        bool boostingAtTopStage = stage == 3 && targetPlayer.IsBoosting;
+        bool hasPreviousState = lastKickSpeedStage != int.MinValue;
+        bool stageRaised = hasPreviousState && stage > 0 && stage > lastKickSpeedStage;
+        bool boostStarted = hasPreviousState && boostingAtTopStage && !lastKickBoosting;
+        float currentDistance = EvaluateTopSpeedKick(Time.unscaledTime - topSpeedKickStartedAt,
+            topSpeedKickPeakDistance, topSpeedKickOutSeconds, topSpeedKickReturnSeconds, topSpeedKickStartDistance);
+        if (stageRaised || boostStarted)
+        {
+            float requestedDistance = Mathf.Max(0f, boostStarted ? boostKickDistance : topSpeedKickDistance);
+            // Retrigger from the currently displayed distance, never from zero. A boost
+            // can strengthen an unfinished stage-up pulse without a snap or additive stacking.
+            topSpeedKickStartDistance = currentDistance;
+            topSpeedKickPeakDistance = Mathf.Max(currentDistance, requestedDistance);
+            topSpeedKickStartedAt = Time.unscaledTime;
+        }
+        // Binding a new/respawned player never fakes an input edge. Holding a stage/Shift
+        // cannot loop the pulse; downshift or release allows its smooth return to finish.
+        lastKickSpeedStage = stage;
+        lastKickBoosting = boostingAtTopStage;
+        return currentDistance;
+    }
+
+    private static float EvaluateTopSpeedKick(float age, float distance, float outSeconds, float returnSeconds, float startDistance = 0f)
+    {
+        if (age < 0f || float.IsNaN(age) || float.IsInfinity(age)) return 0f;
+        outSeconds = Mathf.Max(0.01f, outSeconds);
+        returnSeconds = Mathf.Max(0.01f, returnSeconds);
+        if (age >= outSeconds + returnSeconds) return 0f;
+        distance = Mathf.Max(0f, distance);
+        return age < outSeconds
+            ? Mathf.Lerp(Mathf.Clamp(startDistance, 0f, distance), distance, Mathf.SmoothStep(0f, 1f, age / outSeconds))
+            : distance * (1f - Mathf.SmoothStep(0f, 1f, (age - outSeconds) / returnSeconds));
+    }
+
     private void RestoreSpeedShakeView()
     {
         if (!speedShakeViewApplied) return;
@@ -293,6 +369,7 @@ public class CameraFollow : MonoBehaviour
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
         if (returning)
         {
+            ResetTopSpeedKick();
             if (!boundaryCameraFrozen)
             {
                 boundaryViewDirection = transform.forward;
@@ -323,6 +400,7 @@ public class CameraFollow : MonoBehaviour
         Transform targetTransform = target.transform;
         if (IsFaceView())
         {
+            ResetTopSpeedKick();
             mouseOrbitYaw = 0f;
             mouseAimRotation = targetTransform.rotation;
             Vector3 lookAt = head != null ? head.position : targetTransform.position + Vector3.up * fallbackHeadHeight;
@@ -376,7 +454,13 @@ public class CameraFollow : MonoBehaviour
         // makes the pilot drift against the camera, especially with variable frame times.
         // Translate and rotate from exactly the same displayed pose instead.
         followAnchorPosition = rawPosition;
-        Vector3 desiredPosition = rawPosition + rawRotation * currentLocalOffset;
+        bool canKick = !snap && !boundaryReturnBlending && !CombatPresentation.MenuOpen &&
+            BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        float kickDistance = UpdateTopSpeedKick(canKick);
+        // Keep the baseline offset and mouse steering unchanged; add the temporary
+        // dolly only to the displayed camera pose, so it cannot accumulate or drift.
+        Vector3 displayOffset = currentLocalOffset + Vector3.back * kickDistance;
+        Vector3 desiredPosition = rawPosition + rawRotation * displayOffset;
         if (boundaryReturnBlending)
         {
             float progress = Mathf.Clamp01((Time.unscaledTime - boundaryReturnBlendStarted) /

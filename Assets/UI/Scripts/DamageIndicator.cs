@@ -16,6 +16,10 @@ public class DamageIndicator : MonoBehaviour
     [Header("Dependencies")]
     [Tooltip("Camera used to orient indicators in screen space. Usually your active player or gameplay camera.")]
     public Transform playerCamera;
+    [Tooltip("피격 플레이어의 기준 위치. 비워 두면 카메라 위치를 사용합니다.")]
+    [SerializeField] private Transform playerOrigin;
+    [Tooltip("비행 중 카메라의 상하/롤 회전을 반영합니다. BattleHud 연결 시 자동 활성화됩니다.")]
+    [SerializeField] private bool useCameraRelativeDirection;
 
     [Tooltip("Optional parent RectTransform for all spawned indicators. If empty, this object transform is used.")]
     [SerializeField] private RectTransform indicatorsParent = null;
@@ -44,15 +48,20 @@ public class DamageIndicator : MonoBehaviour
     #region Unity Callbacks
     private void Awake()
     {
+        if (_instance == null) _instance = this;
+        if (playerCamera == null && Camera.main != null) playerCamera = Camera.main.transform;
         BuildPool();
     }
 
     private void OnDestroy()
     {
         CleanupPoolInstances();
+        if (_instance == this) _instance = null;
     }
 
-    private void Update()
+    private void OnDisable() => ClearAllIndicators();
+
+    private void LateUpdate()
     {
         if (playerCamera == null || pool == null || activeIndicatorsCount == 0)
         {
@@ -89,11 +98,19 @@ public class DamageIndicator : MonoBehaviour
             {
                 DeactivateSlot(slot);
             }
+            else UpdateFlightDirection(slot);
         }
     }
     #endregion
 
     #region Public API
+    public void SetReceiver(Transform camera, Transform receiver)
+    {
+        playerCamera = camera;
+        playerOrigin = receiver;
+        useCameraRelativeDirection = true;
+    }
+
     /// <summary>
     /// Triggers a damage indicator at the specified world position with the given color and optional reuse key.
     /// @param damagePosition World position the indicator should point to.
@@ -204,6 +221,7 @@ public class DamageIndicator : MonoBehaviour
         {
             slot.rootObject.SetActive(true);
         }
+        UpdateFlightDirection(slot);
 
         if (!wasActiveBeforeActivation)
         {
@@ -300,6 +318,23 @@ public class DamageIndicator : MonoBehaviour
     #endregion
 
     #region Private Methods
+
+    private void UpdateFlightDirection(DamageIndicatorSlot slot)
+    {
+        if (!useCameraRelativeDirection || playerCamera == null || slot.rect == null) return;
+        Vector3 origin = playerOrigin != null ? playerOrigin.position : playerCamera.position;
+        // slot.damagePosition is a Vector3 copy. The attacker is never followed after impact.
+        float angle = CalculateFlightDirection(playerCamera.InverseTransformDirection(slot.damagePosition - origin));
+        slot.rect.localEulerAngles = new Vector3(0f, 0f, -angle);
+    }
+
+    private static float CalculateFlightDirection(Vector3 local)
+    {
+        if (local.sqrMagnitude < 0.0001f) return 0f;
+        // Front/top is above the reticle; back is below. Camera-local axes work during rolls.
+        float vertical = local.z < 0f ? -Mathf.Abs(local.y) - Mathf.Abs(local.z) : local.y + local.z;
+        return Mathf.Atan2(local.x, vertical) * Mathf.Rad2Deg;
+    }
 
     private DamageIndicatorSlot FindAvailableSlot()
     {

@@ -861,7 +861,7 @@ public class DatabaseManager : MonoBehaviour
     }
 
     private static int NormalizeMagicIndex(int value, int fallback)
-        => value >= (int)MagicType.None && value <= (int)MagicType.Scane ? value : fallback;
+        => value >= (int)MagicType.None && value <= (int)MagicType.Razier ? value : fallback;
 
 
     // =========================================================

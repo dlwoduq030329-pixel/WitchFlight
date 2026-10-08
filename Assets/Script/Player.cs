@@ -23,16 +23,23 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     [Tooltip("PlayerData 정보 UI용 마나 복사 주기입니다. 실제 전투 마나/이동의 틱 주기는 변경하지 않습니다.")]
     [SerializeField, Min(0.05f)] private float infoApSyncInterval = 0.1f;
 
+    [Header("Head look (visual only; flight / lower body unchanged)")]
+    [SerializeField] private PlayerHeadLook headLook = new PlayerHeadLook();
+    // Two quantized angles reuse the existing aim input, with no per-frame RPC.
+    [Networked] private Vector2 HeadLookAngles { get; set; }
+
     [Header("Lock on")]
-    [Tooltip("큰 원(목표 방향)과 작은 원(실제 정면)이 일치했다고 보는 허용 각도입니다. HUD와 록온이 함께 사용합니다.")]
+    [Tooltip("큰 원(목표 방향)과 작은 원(실제 정면)이 일치했다고 보는 허용 각도입니다. HUD의 정렬 색상에 사용합니다.")]
     [SerializeField, Range(0.1f, 10f)] private float lockAimAlignmentTolerance = 1.5f;
-    [Tooltip("록온에만 추가하는 허용각(도)입니다. 정렬 허용각 + Offset 이내면 록온되며, 초록색 정렬 표시는 기존 허용각을 사용합니다.")]
+    [Tooltip("이전 IsWithinLockAim 호출과의 호환용 값. 새 마법의 정면 180도 록온 판정에는 사용하지 않습니다.")]
     [SerializeField, Range(0f, 45f)] private float lockAimOffset = 3f;
     [SerializeField, Min(1f)] private float maxLockDistance = 250f;
     [SerializeField, Min(0f)] private float lockAimHeight = 0.8f;
     [SerializeField] private LayerMask lockObstructionMask = ~0;
 
     [Header("Combat")]
+    [Tooltip("마법이 출발하는 위치입니다. ChPrefab 아래 MagicCastRoot의 Position을 조절하세요. 비우면 기존 LockAimPoint를 사용하며, 발사 방향은 기존 조준/록온 규칙을 유지합니다. 네트워크 판정 일치를 위해 애니메이션 본이 아닌 Player 바로 아래에 둡니다.")]
+    [SerializeField] private Transform magicCastRoot;
     [SerializeField] private MagicStatTable magicStatTable;
     [SerializeField] private NetworkPrefabRef magicProjectilePrefab;
     [SerializeField, Min(0.01f)] private float parryWindowSeconds = 0.3f;
@@ -62,13 +69,14 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     [Networked] public bool IsBoosting { get; private set; }
     [Networked] public bool IsReturningToMap { get; private set; }
     [Networked] public bool DiedFromAltitude { get; private set; }
+    [Networked] public TickTimer RespawnTimer { get; private set; }
     [Networked] private TickTimer HitStunTimer { get; set; }
     [Networked] private TickTimer SlowTimer { get; set; }
-    [Networked] private TickTimer WindTimer { get; set; }
-    [Networked] private TickTimer StealthTimer { get; set; }
-    [Networked] private TickTimer RevealTimer { get; set; }
+    [Networked] private TickTimer BindingTimer { get; set; }
+    [Networked] public MagicType ChannelMagic { get; private set; }
+    [Networked] public Vector3 ChannelEnd { get; private set; }
+    [Networked] public NetworkId ChannelTargetId { get; private set; }
     [Networked] private float SlowMultiplier { get; set; }
-    [Networked] private float WindMultiplier { get; set; }
     [Networked] private Vector3 KnockbackVelocity { get; set; }
 
     [Networked, OnChangedRender(nameof(NotifyHealthChanged))] public float MaxHp { get; set; }
@@ -111,15 +119,12 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     private bool controllerNeedsRenderReset;
     private PlayerAppearance appearance;
     private Animator animator;
-    private Renderer[] visualRenderers;
-    private bool[] defaultRendererEnabled;
     [Networked] private NetworkButtons previousButtons { get; set; }
     private int lastMagicSlot = -1;
     private int renderedLoadoutVersion = -1;
     private int renderedHitSequence;
     private int renderedDeathSequence;
     private bool hasRenderedCombatState;
-    private bool lastVisualHidden;
     [Networked] private float currentPitch { get; set; }
     [Networked] private float currentYaw { get; set; }
     [Networked] private float currentAimTurnSpeed { get; set; }
@@ -138,10 +143,16 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     private MagicType pendingMagic;
     private NetworkId pendingTargetId;
     private TickTimer castTimer;
+    private int castInputTick, pendingInputTick;
+    private float channelDamageTime;
+    private bool channelNeedsRelease;
+    public bool IsChanneling => ChannelMagic != MagicType.None;
+    public bool IsBound => TimerIsActive(BindingTimer);
     private CombatPresentation presentation;
     private readonly RaycastHit[] lockHits = new RaycastHit[32];
     private readonly RaycastHit[] instantShotHits = new RaycastHit[32];
     private TickTimer nextInfoApSync;
+    private TickTimer nextHitMarkerFeedback;
     private float publishedHp = float.NaN, publishedMaxHp = float.NaN;
     public event System.Action<float, float> HealthChanged;
 
@@ -155,6 +166,11 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         HealthChanged?.Invoke(publishedHp, publishedMaxHp);
     }
 
+    private static readonly System.Collections.Generic.HashSet<Player> combatants = new();
+    public static System.Collections.Generic.IEnumerable<Player> ActiveCombatants => combatants;
+    private MagicTestBot testBot;
+    public bool IsTestBot => testBot != null;
+
     public static Player LocalPlayer { get; private set; }
     public bool IsPresentationReady => Object != null && Object.IsValid && LoadoutVersion > 0 &&
         renderedLoadoutVersion == LoadoutVersion && TeamIndex > 0 && IsAlive;
@@ -165,18 +181,30 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     // Use the exact server-selected broom constant, also on the predicting owner.
     public float ForwardCruiseSpeedRatio => Mathf.Clamp01(Mathf.Max(0f, Speed) /
         Mathf.Max(1f, flightMaxSpeed));
+
     public float SteeringTurnRate => Mathf.Max(0f, turnSpeed * GetTurnMultiplier());
     public MagicStatEntry SelectedMagicStats => GetMagicStats(GetSelectedMagic());
     public MagicStatTable MagicTable => magicStatTable;
     public float SelectedMagicApCost => CurrentMagicSlot == 3
         ? (magicStatTable != null ? magicStatTable.parryApCost : 8f) : SelectedMagicStats.apCost;
-
     public bool IsParrying => TimerIsActive(ParryTimer);
+    // Read-only HUD eligibility; actual input and damage still run on StateAuthority.
+    public float ParryWindowSeconds => Mathf.Max(0f,
+        magicStatTable != null ? magicStatTable.parryWindowSeconds : parryWindowSeconds);
+    public bool CanStartParryNow => Object != null && Object.IsValid && IsAlive && !IsReturningToMap &&
+        BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
+        !IsHitStunned && !TimerIsActive(ParryCooldown) &&
+        NowAp >= Mathf.Max(0f, magicStatTable != null ? magicStatTable.parryApCost : 8f);
+    public Vector3 ParryHintVelocity => (IsBound || IsHitStunned || IsTestBot ? Vector3.zero : transform.forward * Speed) + KnockbackVelocity;
+    public float ParryHintRadius => characterController != null
+        ? characterController.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.z))
+        : collisionRadius;
     public bool IsHitStunned => TimerIsActive(HitStunTimer);
-    public bool IsStealthed => TimerIsActive(StealthTimer) && !TimerIsActive(RevealTimer);
+    public bool IsStealthed => false; // Compatibility for external presentation components.
     public bool HasActiveMine => Object != null && MagicProjectile.HasMineOwnedBy(Object.InputAuthority, Runner);
     public float MaxLockDistance => maxLockDistance;
     public Vector3 LockAimPoint => transform.position + Vector3.up * lockAimHeight;
+    public Vector3 MagicCastPosition => magicCastRoot != null ? magicCastRoot.position : LockAimPoint;
 
     public bool IsAimAligned(Vector3 desiredDirection)
     {
@@ -193,6 +221,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void Awake()
     {
+        testBot = GetComponent<MagicTestBot>();
         characterController = GetComponent<CharacterController>();
         if (characterController == null)
         {
@@ -207,8 +236,6 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         equipment ??= GetComponent<PlayerEquipment>();
         appearance = GetComponent<PlayerAppearance>();
         animator = GetComponent<Animator>();
-        visualRenderers = GetComponentsInChildren<Renderer>(true);
-        defaultRendererEnabled = System.Array.ConvertAll(visualRenderers, renderer => renderer.enabled);
         presentation = GetComponent<CombatPresentation>();
     }
 
@@ -254,19 +281,23 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         boostNeedsRelease = false;
         IsReturningToMap = false;
         DiedFromAltitude = false;
+        RespawnTimer = TickTimer.None;
+        nextHitMarkerFeedback = TickTimer.None;
         HitStunTimer = TickTimer.None;
         SlowTimer = TickTimer.None;
-        WindTimer = TickTimer.None;
-        StealthTimer = TickTimer.None;
-        RevealTimer = TickTimer.None;
+        BindingTimer = TickTimer.None;
+        ChannelMagic = MagicType.None;
+        ChannelTargetId = default;
+        channelDamageTime = 0f;
+        channelNeedsRelease = false;
         SlowMultiplier = 1f;
-        WindMultiplier = 1f;
         KnockbackVelocity = default;
         currentPitch = NormalizePitch(transform.eulerAngles.x);
         currentYaw = transform.eulerAngles.y;
         currentAimTurnSpeed = 0f;
         currentTurnSpeed = 0f;
         previousButtons = default;
+        HeadLookAngles = Vector2.zero;
         pendingMagic = MagicType.None;
         castTimer = TickTimer.None;
 
@@ -322,17 +353,21 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         if (magicStatTable != null)
             return magicStatTable.GetStats(magic);
 
-        Debug.LogError("ChPrefab has no MagicStatTable. The selected spell cannot be cast.", this);
-        return default;
+        magicStatTable = Resources.Load<MagicStatTable>("MagicStatTable");
+        return magicStatTable != null ? magicStatTable.GetStats(magic) : MagicStatTable.DefaultEntry(magic);
     }
 
     public override void Spawned()
     {
+        combatants.Add(this);
+        if (testBot != null && Object.HasStateAuthority) InitializeTestBot();
+        if (presentation == null) presentation = gameObject.AddComponent<CombatPresentation>();
         // Predicted input owners use Fusion's local timeline; remote characters
         // interpolate server snapshots. The fallback remains available for A/B tests.
         Object.ForceRemoteRenderTimeframe = !SimulatesMovement;
         publishedHp = publishedMaxHp = float.NaN;
         NotifyHealthChanged(); // OnChangedRender does not initialize the spawn snapshot.
+        if (GetComponent<hpfollow>() == null) gameObject.AddComponent<hpfollow>();
         // Network characters must never follow this client's global lobby settings.
         appearance ??= GetComponent<PlayerAppearance>();
         appearance?.UnbindFromDataConfig();
@@ -371,6 +406,12 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             return;
         using var simulationSample = flightMarker.Auto();
 
+        HeadLookAngles = Vector2.zero;
+
+        if (Object.HasStateAuthority && (BattleManager.Instance == null ||
+            !BattleManager.Instance.IsGameplayActive || !IsAlive || IsReturningToMap || IsHitStunned))
+            StopChannel();
+
         // Every tick must receive a held input to sustain boost.
         IsBoosting = false;
 
@@ -397,6 +438,11 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         }
 
         ResetControllerAfterRender();
+        if (testBot != null)
+        {
+            if (Object.HasStateAuthority) testBot.Simulate(this);
+            return;
+        }
         if (CheckAltitudeLimit())
             return;
         if (Object.HasStateAuthority && hasPendingPortalTeleport)
@@ -418,6 +464,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
         if (!GetInput(out NetworkInputData data))
         {
+            if (Object.HasStateAuthority) StopChannel();
             ContinueWithoutActions();
             if (CheckAltitudeLimit())
                 return;
@@ -426,6 +473,8 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         }
 
         ProcessInput(data);
+        if (!data.suppressActions && !IsReturningToMap && !IsHitStunned)
+            HeadLookAngles = headLook.GetAngles(transform, data.aimDirection);
         if (CheckAltitudeLimit())
             return;
         if (!IsBoosting)
@@ -606,6 +655,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
         if (data.suppressActions)
         {
+            if (Object.HasStateAuthority) StopChannel();
             ClearLockTargetInternal();
             pendingMagic = MagicType.None;
             previousButtons = default;
@@ -642,8 +692,14 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         // Never replay attacks, spawning, damage, RPCs or another player's state
         // while predicting/re-simulating this owner's movement.
         if (Object.HasStateAuthority) ProcessAuthoritativeCombat(data, buttons);
+        else if (Object.HasInputAuthority) ProcessPredictedProjectileInput(data, buttons);
 
-        if (IsHitStunned)
+        if (IsBound)
+        {
+            Speed = 0f;
+            KnockbackVelocity = Vector3.zero;
+        }
+        else if (IsHitStunned)
         {
             Speed = Mathf.MoveTowards(Speed, 0f, brakeSpeed * Runner.DeltaTime);
         }
@@ -660,31 +716,89 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void ProcessAuthoritativeCombat(NetworkInputData data, NetworkButtons buttons)
     {
+        castInputTick = Runner.Tick.Raw;
         using var combatSample = combatMarker.Auto();
         if (buttons.WasPressed(previousButtons, PlayerInputButton.Parry)) TryStartParry();
-        bool lockHeld = buttons.IsSet(PlayerInputButton.Lock);
-        if (lockHeld || previousButtons.IsSet(PlayerInputButton.Lock))
+        bool held = buttons.IsSet(PlayerInputButton.Lock);
+        bool pressed = buttons.WasPressed(previousButtons, PlayerInputButton.Lock);
+        bool released = !held && previousButtons.IsSet(PlayerInputButton.Lock);
+        MagicStatEntry stats = SelectedMagicStats;
+
+        if (!held) channelNeedsRelease = false;
+        if (IsHitStunned) { StopChannel(); ClearLockTargetInternal(); return; }
+
+        if (stats.IsChanneled)
         {
-            if (IsWithinLockAim(data.aimDirection)) SetInputLockTarget(data.lockTarget);
-            else ClearLockTargetInternal();
-        }
-        if (lockHeld) UpdateLockCharge();
-        else if (previousButtons.IsSet(PlayerInputButton.Lock))
-        {
-            TryCastSelectedMagic();
             ClearLockTargetInternal();
+            if (held && !channelNeedsRelease) UpdateChannel(stats, data.lockTarget, data.aimDirection);
+            else StopChannel();
+            return;
         }
+        StopChannel();
+        if (stats.requiresTarget)
+        {
+            if (held || released) SetInputLockTarget(data.lockTarget);
+            if (held) UpdateLockCharge();
+            if (released)
+            {
+                TryCastSelectedMagic();
+                ClearLockTargetInternal();
+            }
+        }
+        else
+        {
+            ClearLockTargetInternal();
+            // Instant spells fire on press. Only lock-on spells fire on release.
+            if (pressed) TryCastSelectedMagic();
+        }
+    }
+
+    // Only lock progress is rollback-predicted here. No gameplay cast, mana mutation,
+    // damage, NetworkObject spawn or RPC may run on the predicting client.
+    private void ProcessPredictedProjectileInput(NetworkInputData data, NetworkButtons buttons)
+    {
+        MagicStatEntry stats = SelectedMagicStats;
+        bool held = buttons.IsSet(PlayerInputButton.Lock);
+        bool released = !held && previousButtons.IsSet(PlayerInputButton.Lock);
+        bool pressed = buttons.WasPressed(previousButtons, PlayerInputButton.Lock);
+        if (IsHitStunned || CurrentMagicSlot == 3 || stats.IsChanneled)
+        { ClearLockTargetInternal(); return; }
+        if (stats.requiresTarget)
+        {
+            if (held || released) SetInputLockTarget(data.lockTarget);
+            if (held) UpdateLockCharge();
+            if (released)
+            {
+                if (!stats.requiresFullLock || IsFullyLocked) TryPredictProjectile(stats);
+                ClearLockTargetInternal();
+            }
+        }
+        else
+        {
+            ClearLockTargetInternal();
+            if (pressed) TryPredictProjectile(stats);
+        }
+    }
+
+    private void TryPredictProjectile(MagicStatEntry stats)
+    {
+        int magicIndex = (int)stats.magic;
+        if (!Runner.IsForward || !magicProjectilePrefab.IsValid || stats.projectileSpeed <= 0f ||
+            (magicStatTable != null && !magicStatTable.predictLocalProjectiles) ||
+            magicIndex <= 0 || magicIndex >= MagicCooldowns.Length || stats.IsChanneled ||
+            TimerIsActive(MagicCooldowns[magicIndex]) || NowAp < stats.apCost ||
+            (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
+        Player target = null;
+        if (stats.requiresTarget && !TryGetValidLockTarget(out target)) return;
+        ProjectilePredictionView.Predict(this, target, stats, Runner.Tick.Raw);
     }
 
     private void ContinueWithoutActions()
     {
+        if (IsBound) { Speed = 0f; KnockbackVelocity = Vector3.zero; return; }
         if (IsHitStunned)
             Speed = Mathf.MoveTowards(Speed, 0f, brakeSpeed * Runner.DeltaTime);
-        else
-        {
-            UpdateSpeed();
-            GoForward();
-        }
+        else { UpdateSpeed(); GoForward(); }
         ApplyKnockback();
     }
 
@@ -694,6 +808,12 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             return;
 
         CurrentMagicSlot = slot;
+        if (Object.HasStateAuthority)
+        {
+            StopChannel();
+            pendingMagic = MagicType.None;
+            channelNeedsRelease = previousButtons.IsSet(PlayerInputButton.Lock);
+        }
         ClearLockTargetInternal();
     }
 
@@ -716,16 +836,12 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private float GetMovementMultiplier()
     {
-        float result = 1f;
-        if (TimerIsActive(WindTimer))
-            result *= Mathf.Max(1f, WindMultiplier);
-        return result;
+        return TimerIsActive(SlowTimer) ? Mathf.Clamp(SlowMultiplier, 0.05f, 1f) : 1f;
     }
 
     private float GetTurnMultiplier()
     {
-        return GetMovementMultiplier() *
-            (TimerIsActive(SlowTimer) ? Mathf.Clamp(SlowMultiplier, 0.05f, 1f) : 1f);
+        return GetMovementMultiplier();
     }
 
     private void UpdateHeldBoost(bool held)
@@ -735,7 +851,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             boostNeedsRelease = false;
             return;
         }
-        if (boostNeedsRelease || IsHitStunned)
+        if (boostNeedsRelease || IsHitStunned || IsBound)
             return;
 
         float cost = boostApCostPerSecond * Runner.DeltaTime;
@@ -772,10 +888,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     private void UpdateLockCharge()
     {
         MagicStatEntry stats = GetMagicStats(GetSelectedMagic());
-        if (!stats.requiresTarget || stats.magic == MagicType.None)
-            return;
-
-        if (!TryGetValidLockTarget(out _))
+        if (!CanAcquireMagicTarget() || !stats.requiresTarget || !TryGetValidLockTarget(out _))
         {
             ClearLockTargetInternal();
             return;
@@ -788,7 +901,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void SetInputLockTarget(NetworkId targetId)
     {
-        if (!SelectedMagicStats.requiresTarget ||
+        if (!CanAcquireMagicTarget() || !SelectedMagicStats.requiresTarget ||
             !Runner.TryFindObject(targetId, out NetworkObject targetObject) ||
             targetObject == null || !IsValidLockTarget(targetObject.GetComponent<Player>()))
         {
@@ -839,13 +952,17 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
                 return;
         }
 
-        if (stats.effect == MagicEffectKind.Stealth &&
-            stats.minimumEnemyDistance > 0f &&
-            HasEnemyWithin(stats.minimumEnemyDistance))
-            return;
+        if (stats.IsChanneled || (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
+        if (stats.effect == MagicEffectKind.Healing && NowHp >= MaxHp) return;
+        if (stats.projectileSpeed > 0f && !magicProjectilePrefab.IsValid) return;
 
         if (!TryConsumeAp(stats.apCost))
             return;
+        if (stats.healthCost > 0f)
+        {
+            NowHp -= stats.healthCost; // A cost is not a hit and cannot be parried.
+            SyncHealthToPlayerData();
+        }
 
         MagicCooldowns.Set(magicIndex, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.cooldownSeconds)));
         LastCastMagic = selectedMagic;
@@ -853,6 +970,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         if (stats.castSeconds > 0f)
         {
             pendingMagic = selectedMagic;
+            pendingInputTick = castInputTick;
             pendingTargetId = target != null ? target.Object.Id : default;
             castTimer = TickTimer.CreateFromSeconds(Runner, stats.castSeconds);
         }
@@ -865,6 +983,19 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     public MagicType GetSelectedMagic()
     {
         return GetMagicInSlot(CurrentMagicSlot);
+    }
+
+    // Shared by local selection/HUD, rollback prediction and authoritative input/RPCs.
+    // A cooldown must prevent charging, not just reject the eventual release.
+    public bool CanAcquireMagicTarget()
+    {
+        if (Object == null || !Object.IsValid || Runner == null || !IsAlive ||
+            IsHitStunned || IsReturningToMap)
+            return false;
+
+        int index = (int)GetSelectedMagic();
+        return index > 0 && index < MagicCooldowns.Length &&
+            SelectedMagicStats.UsesAutoTarget && !TimerIsActive(MagicCooldowns[index]);
     }
 
     public MagicType GetMagicInSlot(int slot)
@@ -917,58 +1048,27 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             ? obj.GetComponent<Player>() : null;
         if (stats.requiresTarget && !IsValidLockTarget(target))
             return;
+        castInputTick = pendingInputTick;
         CastMagic(stats, target);
     }
 
     private void CastMagic(MagicStatEntry stats, Player target)
     {
-        switch (stats.effect)
+        if (stats.effect == MagicEffectKind.Healing)
         {
-            case MagicEffectKind.DirectDamage:
-            case MagicEffectKind.SlowDamage:
-            case MagicEffectKind.AreaDamage:
-                LaunchMagic(stats, target);
-                break;
-
-            case MagicEffectKind.Interrupt:
-                ClearAllLocksTargetingMe();
-                MagicProjectile.BreakTracking(this);
-                RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, 0f);
-                break;
-
-            case MagicEffectKind.Stealth:
-                ActivateStealth(stats.effectDuration);
-                break;
-
-            case MagicEffectKind.MovementBuff:
-                WindMultiplier = Mathf.Max(1f, stats.movementMultiplier);
-                WindTimer = TickTimer.CreateFromSeconds(Runner, stats.effectDuration);
-                RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, stats.effectDuration);
-                break;
-
-            case MagicEffectKind.Decoy:
-                ActivateStealth(stats.activationDelay);
-                RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, stats.effectDuration);
-                break;
-
-            case MagicEffectKind.Mine:
-                LaunchMagic(stats, null);
-                break;
-
-            case MagicEffectKind.Scan:
-                RevealEnemies(stats);
-                MagicProjectile.RevealMines(this, stats.radius, stats.effectDuration);
-                RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, stats.radius);
-                break;
+            RestoreHealth(stats.healing);
+            RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, 0f);
         }
+        else LaunchMagic(stats, target);
     }
 
     private void LaunchMagic(MagicStatEntry stats, Player target)
     {
-        // Desired aim steers the pilot; it never bends a shot away from the actual nose.
-        // Resolve at execution time, including spells with a delayed cast.
-        Vector3 direction = transform.forward;
-        Vector3 origin = LockAimPoint;
+        Vector3 origin = MagicCastPosition;
+        // Resolve the latest target position at execution time, including delayed casts.
+        // Hitscan, beams and mines keep their existing nose-forward behaviour.
+        Vector3 direction = MagicProjectile.ResolveLaunchDirection(stats.requiresTarget,
+            transform.forward, transform.forward, target != null ? target.LockAimPoint - origin : Vector3.zero);
         if (stats.projectileSpeed > 0f)
         {
             if (!magicProjectilePrefab.IsValid)
@@ -979,84 +1079,181 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             NetworkObject shot = Runner.Spawn(magicProjectilePrefab, origin,
                 Quaternion.LookRotation(direction), Object.InputAuthority);
             if (shot != null)
-                shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, direction);
+            {
+                shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, direction,
+                    IsTestBot ? 0 : castInputTick);
+                RPC_PresentCast(stats.magic, origin, origin, 0f);
+            }
             return;
         }
 
-        // Vision is an aimed instant shot, not an invisible target-only damage call.
-        float range = Mathf.Max(0.1f, stats.range);
-        Vector3 end = origin + direction * range;
-        float radius = Mathf.Max(0.01f, stats.projectileRadius);
-        int hitCount = Physics.SphereCastNonAlloc(origin, radius, direction, instantShotHits,
-            range, lockObstructionMask, QueryTriggerInteraction.Ignore);
-        RaycastHit[] hits = instantShotHits;
-        if (hitCount == hits.Length)
-        {
-            // Overflow must not lose a closer wall or change hit/occlusion rules.
-            hits = Physics.SphereCastAll(origin, radius, direction, range,
-                lockObstructionMask, QueryTriggerInteraction.Ignore);
-            hitCount = hits.Length;
-        }
-        int nearestIndex = -1;
-        float nearestDistance = float.PositiveInfinity;
-        for (int i = 0; i < hitCount; i++)
-        {
-            RaycastHit hit = hits[i];
-            if (hit.collider == null || hit.transform.IsChildOf(transform) || hit.distance >= nearestDistance)
-                continue;
-            nearestIndex = i;
-            nearestDistance = hit.distance;
-        }
-        if (nearestIndex >= 0)
-        {
-            RaycastHit hit = hits[nearestIndex];
-            Player victim = hit.collider.GetComponentInParent<Player>();
-            end = hit.point;
-            if (stats.effect != MagicEffectKind.AreaDamage &&
-                victim != null && victim.IsAlive && victim.TeamIndex != TeamIndex)
-                victim.ReceiveMagicHit(stats, Object.InputAuthority);
-            if (stats.effect == MagicEffectKind.AreaDamage)
-                end = origin + direction * Mathf.Max(0f, hit.distance - 0.02f);
-        }
+        Vector3 end = TraceMagic(stats, origin, direction, out Player victim);
         if (stats.effect == MagicEffectKind.AreaDamage)
         {
-            foreach (PlayerRef playerRef in Runner.ActivePlayers)
+            foreach (Player enemy in combatants)
             {
-                Player victim = FindInRunner(Runner, playerRef);
-                if (victim != null && victim.IsAlive && victim.TeamIndex != TeamIndex &&
-                    (victim.LockAimPoint - end).sqrMagnitude <= stats.radius * stats.radius &&
-                    MagicProjectile.HasBlastSight(end, victim))
-                    victim.ReceiveMagicHit(stats, Object.InputAuthority);
+                if (enemy == null || enemy.Runner != Runner) continue;
+                if (enemy != null && enemy.IsEnemyOf(this) &&
+                    (enemy.LockAimPoint - end).sqrMagnitude <= stats.radius * stats.radius &&
+                    MagicProjectile.HasBlastSight(end, enemy))
+                    enemy.ReceiveMagicHit(stats, Object.InputAuthority, Object.Id);
             }
         }
+        else if (victim != null && victim.IsEnemyOf(this))
+            victim.ReceiveMagicHit(stats, Object.InputAuthority, Object.Id);
+
         RPC_PresentCast(stats.magic, origin, end, 0f);
     }
 
-    // Called only by authoritative projectiles/rays; Ice's status cannot pass through a parry.
-    public void ReceiveMagicHit(MagicStatEntry stats, PlayerRef attacker)
+    // Shared authoritative sweep for hitscan and sustained straight beams.
+    // Independent from projectileRadius: widening hitscan never changes flying spells.
+    private Vector3 TraceMagic(MagicStatEntry stats, Vector3 origin, Vector3 direction, out Player victim)
     {
-        if (Object == null || !Object.HasStateAuthority || !IsAlive)
+        victim = null;
+        float range = Mathf.Max(0.1f, stats.range);
+        float radius = Mathf.Max(0f, stats.hitscanRadius);
+        int count = radius > 0f
+            ? Physics.SphereCastNonAlloc(origin, radius, direction, instantShotHits, range, lockObstructionMask, QueryTriggerInteraction.Ignore)
+            : Physics.RaycastNonAlloc(origin, direction, instantShotHits, range, lockObstructionMask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = instantShotHits;
+        if (count == hits.Length)
+        {
+            hits = radius > 0f
+                ? Physics.SphereCastAll(origin, radius, direction, range, lockObstructionMask, QueryTriggerInteraction.Ignore)
+                : Physics.RaycastAll(origin, direction, range, lockObstructionMask, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
+        }
+        float nearest = range;
+        Vector3 end = origin + direction * range;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || hit.transform.IsChildOf(transform) || hit.distance >= nearest ||
+                hit.collider.GetComponentInParent<MagicProjectile>() != null) continue;
+            nearest = hit.distance;
+            victim = hit.collider.GetComponentInParent<Player>();
+            end = origin + direction * Mathf.Max(0f, hit.distance - 0.02f);
+        }
+        return end;
+    }
+
+    public void RestoreHealth(float amount)
+    {
+        if (!Object.HasStateAuthority || !IsAlive || amount <= 0f) return;
+        NowHp = Mathf.Min(MaxHp, NowHp + amount);
+        SyncHealthToPlayerData();
+    }
+
+    private void UpdateChannel(MagicStatEntry stats, NetworkId inputTarget, Vector3 aimDirection)
+    {
+        if (pendingMagic != MagicType.None || IsHitStunned || IsReturningToMap) { StopChannel(); return; }
+        int index = (int)stats.magic;
+        if (index <= 0 || index >= MagicCooldowns.Length) { StopChannel(); return; }
+        if (!IsChanneling && TimerIsActive(MagicCooldowns[index])) return;
+
+        Player target = null;
+        Vector3 end;
+        if (stats.effect == MagicEffectKind.GuidedChannel)
+        {
+            if (!Runner.TryFindObject(inputTarget, out NetworkObject obj) || obj == null ||
+                (target = obj.GetComponent<Player>()) == null || !IsValidLockTarget(target) ||
+                !IsFiniteDirection(aimDirection) || aimDirection.sqrMagnitude < 0.001f ||
+                Vector3.Angle(aimDirection, target.LockAimPoint - LockAimPoint) > stats.autoAimHalfAngle)
+            { StopChannel(); return; }
+            end = target.LockAimPoint;
+        }
+        else end = TraceMagic(stats, MagicCastPosition, transform.forward, out target);
+
+        float perSecond = stats.ChannelManaPerSecond(MaxAp);
+        float paidTime = perSecond > 0f ? Mathf.Min(Runner.DeltaTime, NowAp / perSecond) : Runner.DeltaTime;
+        if (paidTime <= 0.000001f) { StopChannel(); channelNeedsRelease = true; return; }
+        if (!TryConsumeAp(perSecond * paidTime)) { StopChannel(); channelNeedsRelease = true; return; }
+        if (!IsChanneling)
+        {
+            ChannelMagic = stats.magic;
+            LastCastMagic = stats.magic;
+            CastSequence++;
+            channelDamageTime = 0f;
+        }
+        // Do not carry damage time from an old victim across a wall or target change.
+        NetworkId nextTarget = target != null && target.IsEnemyOf(this) ? target.Object.Id : default;
+        if (!ChannelTargetId.Equals(nextTarget)) channelDamageTime = 0f;
+        ChannelTargetId = nextTarget;
+        ChannelEnd = end;
+        channelDamageTime += paidTime;
+        bool exhausted = perSecond > 0f && NowAp <= 0.0001f;
+        if (channelDamageTime + 0.00001f >= Mathf.Max(0.02f, stats.channelTickSeconds) || exhausted)
+        {
+            if (target != null && target.IsEnemyOf(this))
+            {
+                MagicStatEntry tick = stats;
+                tick.damage = Mathf.Max(0f, stats.damagePerSecond) * channelDamageTime;
+                tick.hitStunSeconds = 0f; // A beam must not stun-lock every damage tick.
+                tick.knockbackForce = 0f;
+                int parries = target.ParrySequence;
+                target.ReceiveMagicHit(tick, Object.InputAuthority, Object.Id);
+                if (target.ParrySequence != parries)
+                {
+                    StopChannel();
+                    channelNeedsRelease = true;
+                    return;
+                }
+            }
+            channelDamageTime = 0f;
+        }
+        if (exhausted) { StopChannel(); channelNeedsRelease = true; }
+    }
+
+    private void StopChannel()
+    {
+        if (!Object.HasStateAuthority) return;
+        if (ChannelMagic != MagicType.None)
+        {
+            int index = (int)ChannelMagic;
+            if (index > 0 && index < MagicCooldowns.Length)
+                MagicCooldowns.Set(index, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, GetMagicStats(ChannelMagic).cooldownSeconds)));
+        }
+        ChannelMagic = MagicType.None;
+        ChannelTargetId = default;
+        channelDamageTime = 0f;
+    }
+
+    // Called only by authoritative projectiles/rays; Ice's status cannot pass through a parry.
+    public void ReceiveMagicHit(MagicStatEntry stats, PlayerRef attacker, NetworkId attackerId = default)
+    {
+        if (Object == null || !Object.HasStateAuthority || !IsAlive ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
+        // Binding also counts as an incoming magic hit, despite its zero damage.
+        if (IsParrying)
+        {
+            ParrySequence++;
             return;
-        bool parried = IsParrying && attacker != PlayerRef.None;
+        }
+        if (stats.effect == MagicEffectKind.Binding)
+        {
+            BindingTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.effectDuration));
+            Speed = 0f;
+            KnockbackVelocity = Vector3.zero;
+            NotifyDamageDirection(attacker, attackerId);
+            NotifyConfirmedMagicHit(attacker, attackerId);
+            return;
+        }
         int hitBefore = HitSequence;
-        TakeDamage(stats.damage, attacker, stats.magic, true, stats.knockbackForce, stats.hitStunSeconds);
-        if (!parried && HitSequence != hitBefore && IsAlive && stats.effect == MagicEffectKind.SlowDamage)
+        TakeDamage(stats.damage, attacker, stats.magic, false, stats.knockbackForce, stats.hitStunSeconds, attackerId);
+        if (HitSequence == hitBefore) return;
+        NotifyConfirmedMagicHit(attacker, attackerId);
+        if (IsAlive && stats.effect == MagicEffectKind.SlowDamage)
             ApplySlow(stats.movementMultiplier, stats.effectDuration);
+        if (stats.effect == MagicEffectKind.LifeSteal && stats.healOnHit > 0f)
+            FindPlayer(attacker)?.RestoreHealth(stats.healOnHit);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_PresentCast(MagicType magic, Vector3 origin, Vector3 end, float value)
     {
         presentation ??= GetComponent<CombatPresentation>();
-        if (magic == MagicType.Decoy)
-            presentation?.ShowDecoy(value);
-        else if (magic == MagicType.Scane)
-            presentation?.ShowScan(value);
-        else
-            presentation?.ShowCast(magic, origin, end);
+        presentation?.ShowCast(magic, origin, end);
     }
-
-
 
     private void ApplySlow(float multiplier, float duration)
     {
@@ -1075,69 +1272,14 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         HitStunTimer = TickTimer.CreateFromSeconds(Runner, duration);
     }
 
-    private void ActivateStealth(float duration)
-    {
-        if (!Object.HasStateAuthority)
-            return;
-
-        StealthTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, duration));
-        RevealTimer = TickTimer.None;
-        ClearAllLocksTargetingMe();
-        MagicProjectile.BreakTracking(this);
-        RPC_PresentCast(MagicType.Smoke, LockAimPoint, LockAimPoint, duration);
-    }
-
-
-
-
-    private void RevealEnemies(MagicStatEntry stats)
-    {
-        float radius = Mathf.Max(stats.radius, stats.range);
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
-        {
-            Player candidate = FindInRunner(Runner, playerRef);
-            if (candidate == null || !candidate.IsEnemyOf(this))
-                continue;
-
-            if (Vector3.SqrMagnitude(candidate.transform.position - transform.position) > radius * radius)
-                continue;
-
-            candidate.RevealFor(stats.effectDuration);
-        }
-    }
-
-    private void RevealFor(float duration)
-    {
-        if (!Object.HasStateAuthority)
-            return;
-
-        StealthTimer = TickTimer.None;
-        RevealTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, duration));
-    }
-
-    private bool HasEnemyWithin(float distance)
-    {
-        float distanceSqr = distance * distance;
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
-        {
-            Player candidate = FindInRunner(Runner, playerRef);
-            if (candidate == null || !candidate.IsEnemyOf(this))
-                continue;
-
-            if (Vector3.SqrMagnitude(candidate.transform.position - transform.position) <= distanceSqr)
-                return true;
-        }
-
-        return false;
-    }
-
     public void TakeDamage(
         float damage,
         PlayerRef attacker,
         MagicType sourceMagic = MagicType.None,
         bool canBeParried = true,
         float knockbackForce = 0f,
-        float hitStunSeconds = -1f)
+        float hitStunSeconds = -1f,
+        NetworkId attackerId = default)
     {
         if (!Object.HasStateAuthority || !IsAlive || damage <= 0f ||
             (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive))
@@ -1145,14 +1287,15 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
         if (canBeParried && attacker != PlayerRef.None && IsParrying)
         {
-            ReflectDamage(attacker, damage, sourceMagic, knockbackForce, hitStunSeconds);
+            ParrySequence++; // Successful block: no reflected damage.
             return;
         }
 
         LastAttacker = attacker;
         LastReceivedDamage = damage;
         HitSequence++;
-        NowHp = Mathf.Max(NowHp - damage, 0f);
+        NotifyDamageDirection(attacker, attackerId);
+        NowHp = Mathf.Max(NowHp - damage, testBot != null && testBot.Immortal ? 1f : 0f);
         ApplyHitStun(hitStunSeconds >= 0f ? hitStunSeconds : defaultHitStunSeconds);
         ApplyKnockbackFrom(attacker, knockbackForce);
         SyncHealthToPlayerData();
@@ -1161,31 +1304,58 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             Die();
     }
 
-    private void ReflectDamage(
-        PlayerRef attacker,
-        float damage,
-        MagicType sourceMagic,
-        float knockbackForce,
-        float hitStunSeconds)
+    private void NotifyDamageDirection(PlayerRef attacker, NetworkId attackerId)
     {
-        ParrySequence++;
-
-        // Friendly-fire mines may have been cast by this defender; parry still means zero damage.
-        if (attacker == Object.InputAuthority)
-            return;
-
-        Player attackerPlayer = FindPlayer(attacker);
-        if (attackerPlayer != null)
+        if (!Object.HasStateAuthority || testBot != null || Object.InputAuthority == PlayerRef.None) return;
+        Player source = null;
+        if (!attackerId.Equals(default(NetworkId)))
         {
-            attackerPlayer.TakeDamage(
-                damage,
-                Object.InputAuthority,
-                sourceMagic,
-                false,
-                knockbackForce,
-                hitStunSeconds
-            );
+            // NetworkId also identifies bots, which do not have a PlayerRef.
+            // Never substitute a respawned character if this exact shooter has disappeared.
+            if (Runner.TryFindObject(attackerId, out NetworkObject sourceObject) && sourceObject != null && sourceObject.IsValid)
+                source = sourceObject.GetComponent<Player>();
         }
+        else if (attacker != PlayerRef.None) source = FindPlayer(attacker);
+        if (source == null || source == this || source.Object == null || !source.Object.IsValid || source.TeamIndex == TeamIndex)
+            return;
+        // Snapshot on the authority at impact time, not at cast time or RPC reception time.
+        RPC_ReceivedDamageDirection(source.LockAimPoint);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority, Channel = RpcChannel.Reliable)]
+    private void RPC_ReceivedDamageDirection(Vector3 attackerPositionAtHit)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasInputAuthority) return;
+        BattleHud.ShowReceivedDamage(this, attackerPositionAtHit);
+    }
+
+    // Runs after an accepted damage/status hit, including lethal hits and immortal dummies.
+    // Do not use IsEnemyOf here: it excludes a victim that just died from this hit.
+    private void NotifyConfirmedMagicHit(PlayerRef attacker, NetworkId attackerId)
+    {
+        if (Object == null || !Object.HasStateAuthority) return;
+        Player source = null;
+        if (!attackerId.Equals(default(NetworkId)))
+        {
+            if (Runner.TryFindObject(attackerId, out NetworkObject sourceObject) && sourceObject != null && sourceObject.IsValid)
+                source = sourceObject.GetComponent<Player>();
+        }
+        else if (attacker != PlayerRef.None) source = FindPlayer(attacker);
+        if (source == null || source == this || source.Object == null || !source.Object.IsValid ||
+            !source.Object.HasStateAuthority || source.Object.InputAuthority == PlayerRef.None) return;
+        bool enemy = TeamIndex > 0 && source.TeamIndex > 0
+            ? TeamIndex != source.TeamIndex : Object.InputAuthority != source.Object.InputAuthority;
+        if (!enemy || source.TimerIsActive(source.nextHitMarkerFeedback)) return;
+        // Coalesce same-tick AOE / very fast beam hits. No per-frame polling or broadcasts.
+        source.nextHitMarkerFeedback = TickTimer.CreateFromSeconds(Runner, 0.05f);
+        source.RPC_ConfirmedMagicHit();
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority, Channel = RpcChannel.Reliable)]
+    private void RPC_ConfirmedMagicHit()
+    {
+        if (Object == null || !Object.IsValid || !Object.HasInputAuthority) return;
+        BattleHud.ShowHitMarker(this);
     }
 
     private void ApplyKnockbackFrom(PlayerRef attacker, float knockbackForce)
@@ -1237,12 +1407,51 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             ? playerObject.GetComponent<Player>() : null;
     }
 
+
+    private void InitializeTestBot()
+    {
+        MaxHp = Mathf.Max(1f, testBot.MaximumHealth);
+        NowHp = MaxHp;
+        MaxAp = NowAp = 100f;
+        TeamIndex = testBot.Team;
+        IsAlive = true;
+        Magic1 = testBot.AttackMagic;
+        Magic2 = MagicType.None;
+        CurrentMagicSlot = 1;
+        SlowMultiplier = 1f;
+        Speed = 0f;
+        SpeedStage = 0;
+        LoadoutVersion = 1;
+    }
+
+    // Called only by the host-driven test bot. No user input/PlayerData or match slot is required.
+    public bool FireTestBotMagic(MagicType magic, Player target)
+    {
+        if (testBot == null || !Object.HasStateAuthority || !IsAlive || IsHitStunned ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
+            target == null || target.Runner != Runner || !target.IsTargetableBy(this)) return false;
+        MagicStatEntry stats = GetMagicStats(magic);
+        if (!stats.requiresTarget || stats.projectileSpeed <= 0f || !magicProjectilePrefab.IsValid ||
+            (target.LockAimPoint - LockAimPoint).sqrMagnitude > stats.range * stats.range ||
+            !HasLineOfSight(target)) return false;
+        Vector3 direction = target.LockAimPoint - LockAimPoint;
+        if (direction.sqrMagnitude > 0.001f) transform.rotation = Quaternion.LookRotation(direction);
+        LastCastMagic = magic;
+        CastSequence++;
+        LaunchMagic(stats, target);
+        return true;
+    }
+
     private void Die()
     {
         if (!IsAlive)
             return;
 
+        StopChannel();
         IsAlive = false;
+        RespawnTimer = testBot == null && BattleManager.Instance != null
+            ? TickTimer.CreateFromSeconds(Runner, BattleManager.Instance.RespawnDelaySeconds)
+            : TickTimer.None;
         IsReturningToMap = false;
         IsBoosting = false;
         if (characterController != null)
@@ -1252,18 +1461,20 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         pendingMagic = MagicType.None;
         DeathSequence++;
         ClearLockTargetInternal();
-        BattleManager.Instance?.PlayerKilled(Object.InputAuthority, LastAttacker);
+        if (testBot == null) BattleManager.Instance?.PlayerKilled(Object.InputAuthority, LastAttacker);
     }
 
     private void SyncHealthToPlayerData()
     {
+        NotifyHealthChanged(); // Host UI is event-driven too, including training dummies.
+        if (testBot != null) return;
         PlayerData data = NetworkGameManager.Instance?.GetPlayerData(Object.InputAuthority);
         data?.SetBattleHealth(MaxHp, NowHp);
     }
 
     private void SyncApToPlayerData()
     {
-        if (!Object.HasStateAuthority) return;
+        if (!Object.HasStateAuthority || testBot != null) return;
         PlayerData data = NetworkGameManager.Instance?.GetPlayerData(Object.InputAuthority);
         if (data == null) return;
         bool changed = data.BattleCurrentAp != NowAp || data.BattleMaxAp != MaxAp ||
@@ -1311,7 +1522,8 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void RegenerateAp()
     {
-        if (MaxAp <= 0f || NowAp >= MaxAp || ApRecoveryPerSecond <= 0f)
+        if (IsChanneling || (SelectedMagicStats.IsChanneled && previousButtons.IsSet(PlayerInputButton.Lock)) ||
+            MaxAp <= 0f || NowAp >= MaxAp || ApRecoveryPerSecond <= 0f)
             return;
 
         NowAp = Mathf.Min(MaxAp, NowAp + ApRecoveryPerSecond * Runner.DeltaTime);
@@ -1364,7 +1576,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     // HUD lookup uses Fusion's registry, not a scene-wide allocating search.
     public Player GetDisplayedLockTarget()
     {
-        if (Object == null || !Object.IsValid || Runner == null ||
+        if (!CanAcquireMagicTarget() ||
             !Runner.TryFindObject(LockTargetId, out NetworkObject target) || target == null)
             return null;
         return target.GetComponent<Player>();
@@ -1374,7 +1586,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     private void RPC_SetLockTarget(NetworkId targetId, Vector3 desiredDirection)
     {
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            !SelectedMagicStats.requiresTarget || !IsWithinLockAim(desiredDirection))
+            !CanAcquireMagicTarget() || !SelectedMagicStats.requiresTarget || !IsFiniteDirection(desiredDirection))
         {
             ClearLockTargetInternal();
             return;
@@ -1424,7 +1636,8 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private bool IsValidLockTarget(Player target)
     {
-        if (target == null || !target.IsTargetableBy(this))
+        if (target == null || !target.IsTargetableBy(this) ||
+            Vector3.Dot(transform.forward, target.LockAimPoint - LockAimPoint) < 0f)
             return false;
 
         float range = SelectedMagicStats.range > 0f
@@ -1437,7 +1650,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private bool HasLineOfSight(Player target)
     {
-        Vector3 origin = LockAimPoint;
+        Vector3 origin = MagicCastPosition;
         Vector3 destination = target.LockAimPoint;
         Vector3 direction = destination - origin;
         float distance = direction.magnitude;
@@ -1493,9 +1706,9 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void ClearAllLocksTargetingMe()
     {
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
+        foreach (Player candidate in combatants)
         {
-            Player candidate = FindInRunner(Runner, playerRef);
+            if (candidate == null || candidate.Runner != Runner) continue;
             if (candidate == null || candidate == this || !candidate.Object.HasStateAuthority)
                 continue;
 
@@ -1603,15 +1816,41 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             characterController.enabled = false;
         ApplyReplicatedLoadout();
         ApplyEquipmentSlot();
-        ApplyStealthVisibility();
         ApplyCombatAnimation();
     }
+
+    private void Update()
+    {
+        // Remove only last frame's cosmetic offset before Animator evaluates the new pose.
+        // This also prevents drift if animation is disabled or culled.
+        headLook.RestorePose();
+    }
+
+    private void LateUpdate()
+    {
+        bool canLook = Object != null && Object.IsValid && IsAlive && !IsTestBot &&
+            BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
+            !IsReturningToMap && !IsHitStunned;
+        Vector2 angles = canLook ? HeadLookAngles : Vector2.zero;
+        if (canLook && Object.HasInputAuthority)
+        {
+            // Local head responds at display rate, independently of tick / network latency.
+            angles = !CombatPresentation.MenuOpen && localCameraFollow != null &&
+                !localCameraFollow.IsBoundaryPresentationActive &&
+                localCameraFollow.TryGetSteeringInput(out Vector3 aim, out _)
+                ? headLook.GetAngles(transform, aim) : Vector2.zero;
+        }
+        headLook.Apply(transform, animator, angles, canLook, Time.deltaTime);
+    }
+
+    private void OnDisable() => headLook.Reset();
 
     private void ApplyReplicatedLoadout()
     {
         if (LoadoutVersion <= 0 || renderedLoadoutVersion == LoadoutVersion)
             return;
 
+        if (testBot != null) { renderedLoadoutVersion = LoadoutVersion; return; }
         equipment ??= GetComponent<PlayerEquipment>();
         if (equipment == null)
         {
@@ -1634,26 +1873,6 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         lastMagicSlot = CurrentMagicSlot;
         equipment ??= GetComponent<PlayerEquipment>();
         equipment?.ChangeMagic(CurrentMagicSlot);
-    }
-
-    private void ApplyStealthVisibility()
-    {
-        bool shouldHide = IsStealthed && !Object.HasInputAuthority;
-        if (lastVisualHidden == shouldHide)
-            return;
-
-        if (visualRenderers == null || visualRenderers.Length == 0)
-            visualRenderers = GetComponentsInChildren<Renderer>(true);
-
-        for (int index = 0; index < visualRenderers.Length; index++)
-        {
-            Renderer renderer = visualRenderers[index];
-            if (renderer != null)
-                renderer.enabled = !shouldHide &&
-                    (defaultRendererEnabled == null || index >= defaultRendererEnabled.Length || defaultRendererEnabled[index]);
-        }
-
-        lastVisualHidden = shouldHide;
     }
 
     private void ApplyCombatAnimation()
@@ -1696,7 +1915,15 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        headLook.Reset();
+        combatants.Remove(this);
         if (LocalPlayer == this)
             LocalPlayer = null;
+    }
+
+    private void OnDestroy()
+    {
+        combatants.Remove(this);
+        if (LocalPlayer == this) LocalPlayer = null;
     }
 }

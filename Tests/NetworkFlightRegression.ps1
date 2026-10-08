@@ -29,19 +29,27 @@ public struct NetworkButtons {
 }
 public struct NetworkInputData {public NetworkButtons buttons;public bool suppressActions;}
 public class RunnerState {public float DeltaTime=1f/64f;public float Time;}
-public class Obj {public bool HasStateAuthority;}
+public class Obj {public bool HasStateAuthority,HasInputAuthority=true;}
 public struct TickTimer {public bool IsRunning;public float End;public bool Expired(RunnerState r)=>r.Time>=End;}
 public class FlightProbe {
  public RunnerState Runner=new RunnerState(); public Obj Object=new Obj();
  public bool SimulatesMovement=true,IsAlive=true,IsHitStunned,IsBoosting,boostNeedsRelease;
  public float Speed,Position,flightMaxSpeed=60,brakeSpeed=20,stageTransitionSpeed=15,boostMultiplier=1.35f;
  public float boostApCostPerSecond=20,NowAp=100,MaxAp=100,ApRecoveryPerSecond=10;
- public float WindMultiplier=1,SlowMultiplier=1;
- public TickTimer WindTimer,SlowTimer; public NetworkButtons previousButtons;
+ public float SlowMultiplier=1;
+ public TickTimer SlowTimer; public NetworkButtons previousButtons;
+ public bool IsBound,IsChanneling,channelNeedsRelease;
+ public Vec KnockbackVelocity;
+ public struct Vec { public static Vec zero => default; }
+ public static class Vector3 { public static Vec zero => default; }
+ public struct Stats { public bool IsChanneled; }
+ public Stats SelectedMagicStats;
+ void StopChannel(){IsChanneling=false;}
  public int SpeedStage,CurrentMagicSlot=1,CombatCalls,TurnCalls,KnockbackCalls,LockClears;
  public MagicType pendingMagic;
  void ClearLockTargetInternal(){LockClears++;} void PlayerTurn(NetworkInputData d,NetworkButtons b){TurnCalls++;}
  void ProcessAuthoritativeCombat(NetworkInputData d,NetworkButtons b){CombatCalls++;}
+ void ProcessPredictedProjectileInput(NetworkInputData d,NetworkButtons b){}
  void GoForward(){Position+=Speed*Runner.DeltaTime;} void ApplyKnockback(){KnockbackCalls++;}
  public void Step(int bits=0,bool suppressed=false,bool hasInput=true){
   IsBoosting=false;
@@ -91,6 +99,12 @@ public static class Tests {
    Check(restored.CombatCalls==snapshot.CombatCalls,"rollback never duplicates attacks: "+replay);
   }
   Check(host.CombatCalls==history.Length,"host still executes combat once per input tick");
+  p=new FlightProbe{IsBound=true,Speed=60,SpeedStage=3};p.Step(boost);
+  Check(p.Position==0&&p.Speed==0&&!p.IsBoosting,"binding stops translation and boost");
+  p.Step(hasInput:false);Check(p.Position==0,"binding also stops missing-input movement");
+  p=new FlightProbe{NowAp=50,IsChanneling=true};p.Step();Check(p.NowAp==50,"no mana regen while channeling");
+  p=new FlightProbe{SpeedStage=3,SlowMultiplier=.5f,SlowTimer=new TickTimer{IsRunning=true,End=100}};
+  for(int i=0;i<300;i++)p.Step();Check(p.Speed<=30.001f,"Ice reduces movement speed");
   return n;
  }
 }}

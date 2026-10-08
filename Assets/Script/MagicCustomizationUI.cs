@@ -80,12 +80,12 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         new MagicChoice { magic = MagicType.Ice },
         new MagicChoice { magic = MagicType.Vision },
         new MagicChoice { magic = MagicType.Thunder },
-        new MagicChoice { magic = MagicType.Flare },
-        new MagicChoice { magic = MagicType.Smoke },
+        new MagicChoice { magic = MagicType.Healing },
+        new MagicChoice { magic = MagicType.Binding },
         new MagicChoice { magic = MagicType.Dark },
-        new MagicChoice { magic = MagicType.Decoy },
+        new MagicChoice { magic = MagicType.Curse },
         new MagicChoice { magic = MagicType.Mine },
-        new MagicChoice { magic = MagicType.Scane }
+        new MagicChoice { magic = MagicType.Razier }
     };
     [Tooltip("비우면 Resources/MagicStatTable을 사용합니다. 마법 수치는 변경하지 않습니다.")]
     [SerializeField] private MagicStatTable magicTable;
@@ -543,7 +543,9 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     {
         EquipmentCategory.Hat => FindHatChoice(SelectedHat)?.description,
         EquipmentCategory.Broom => FindBroomChoice(SelectedBroom)?.description,
-        _ => FindChoice(SelectedMagic)?.description
+        _ => !string.IsNullOrWhiteSpace(FindChoice(SelectedMagic)?.description)
+            ? FindChoice(SelectedMagic).description
+            : magicTable != null ? magicTable.GetStats(SelectedMagic).description : string.Empty
     }) ?? string.Empty;
 
     private MagicChoice FindChoice(MagicType magic)
@@ -567,11 +569,11 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         string name = FindChoice(magic)?.displayName;
         if (string.IsNullOrWhiteSpace(name) && magicTable != null) name = magicTable.GetStats(magic).displayName;
         if (!string.IsNullOrWhiteSpace(name)) return name;
-        return magic == MagicType.Dark ? "Wind" : magic == MagicType.Scane ? "Scan" : magic.ToString();
+        return magic.ToString();
     }
 
     private static MagicType EquippedMagic(int slot) => (MagicType)(slot == 1 ? DataConfig.magic1Index : DataConfig.magic2Index);
-    private static bool IsSelectableMagic(MagicType magic) => magic >= MagicType.Fire && magic <= MagicType.Scane;
+    private static bool IsSelectableMagic(MagicType magic) => magic >= MagicType.Fire && magic <= MagicType.Razier;
     private static bool IsSelectableHat(HatType hat) => hat >= HatType.Classic && hat <= HatType.Cosmic;
     private static bool IsSelectableBroom(BroomType broom) => broom >= BroomType.Slow && broom <= BroomType.Speed;
     private string EditBlockedMessage() => !ProfileReady ? "로그인 및 유저 정보 불러오기를 먼저 완료해주세요." : "매칭 중이거나 방에 입장한 상태에서는 장비를 변경할 수 없습니다.";
