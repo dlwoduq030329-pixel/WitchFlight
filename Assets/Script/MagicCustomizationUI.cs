@@ -209,6 +209,17 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private void Bind(Button button, UnityAction action)
     {
+        /*
+        if (button == null)
+        {
+            Debug.LogWarning("[MagicCustomizationUI] 버튼이 NULL이라 연결 실패");
+            return;
+        }
+        */
+        button.onClick.AddListener(action);
+        listeners.Add((button, action));
+
+        Debug.Log($"[MagicCustomizationUI] 버튼 연결 완료: {button.name}");
         if (button == null) return;
         button.onClick.AddListener(action);
         listeners.Add((button, action));
