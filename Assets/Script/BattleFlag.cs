@@ -621,9 +621,17 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         position = default;
         if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing ||
             observer == null || observer.Object == null || !observer.Object.IsValid ||
-            observer.Runner != Runner || !observer.IsAlive || Carrier == PlayerRef.None) return false;
+            observer.Runner != Runner || !observer.IsAlive || IsConcealedBySmoke()) return false;
+        // Keep following a dropped/falling flag using its interpolated render pose.
+        // Do not use LastCarrier: the previous owner no longer carries the flag.
+        if (Carrier == PlayerRef.None)
+        {
+            position = transform.position;
+            return true;
+        }
+        if (Carrier == observer.Object.InputAuthority) return false;
         Player carrier = GetCarrierPlayer();
-        if (carrier == null || !carrier.IsAlive || IsConcealedBySmoke()) return false;
+        if (carrier == null || carrier == observer || !carrier.IsAlive) return false;
         position = carrier.LockAimPoint;
         return true;
     }

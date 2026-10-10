@@ -38,7 +38,7 @@ public enum PlayerRef {None,One,Two}
 public enum BattleStartPhase {Waiting,Playing,Intermission,Ended}
 public enum ShadowCastingMode {Off,On,TwoSided}
 public class Renderer {public bool forceRenderingOff;public ShadowCastingMode shadowCastingMode;}
-public class NetworkObject {public bool IsValid=true,HasInputAuthority;}
+public class NetworkObject {public bool IsValid=true,HasInputAuthority;public PlayerRef InputAuthority;}
 public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
 public class Player {
  public static Player LocalPlayer; public NetworkObject Object=new(); public object Runner;
@@ -64,11 +64,20 @@ $source += @'
 public static class Tests {
  static int count;static void Check(bool ok,string name){if(!ok)throw new Exception(name);count++;}
  public static int Run(){
-  var flag=new Flag();var me=new Player{Runner=flag.Runner,TeamIndex=1};me.Object.HasInputAuthority=true;Player.LocalPlayer=me;
+  var flag=new Flag();var me=new Player{Runner=flag.Runner,TeamIndex=1};me.Object.HasInputAuthority=true;me.Object.InputAuthority=PlayerRef.One;Player.LocalPlayer=me;
   var enemy=new Player{Runner=flag.Runner,TeamIndex=2,LockAimPoint=new(0,0,20)};
+  enemy.Object.InputAuthority=PlayerRef.Two;
   flag.PlayerCarrier=enemy;flag.Carrier=PlayerRef.Two;flag.transform.position=enemy.LockAimPoint;
   Check(flag.TryGetCarrierMarker(me,out var pos)&&pos.z==20,"carrier marker uses the current carrier render position");
-  flag.Carrier=PlayerRef.None;Check(!flag.TryGetCarrierMarker(me,out _),"unclaimed flag has no carrier marker");
+  Check(!flag.TryGetCarrierMarker(enemy,out _),"carrier never sees their own location marker");
+  flag.Carrier=PlayerRef.One;flag.PlayerCarrier=null;
+  Check(!flag.TryGetCarrierMarker(me,out _),"own carrier ID suppresses marker while carrier object resolves");
+  flag.Carrier=PlayerRef.None;flag.transform.position=new(4,12,25);
+  Check(flag.TryGetCarrierMarker(me,out pos)&&pos.y==12&&pos.z==25,"dropped flag has a marker at its render position");
+  enemy.IsAlive=false;flag.transform.position=new(4,5,25);
+  Check(flag.TryGetCarrierMarker(me,out pos)&&pos.y==5,"marker follows descent after former carrier dies");enemy.IsAlive=true;
+  Check(flag.TryGetCarrierMarker(enemy,out _),"former carrier sees dropped flag again after respawn");
+  flag.transform.position=enemy.LockAimPoint;
   flag.Carrier=PlayerRef.Two;flag.PlayerCarrier=null;Check(!flag.TryGetCarrierMarker(me,out _),"missing/despawned carrier hidden");flag.PlayerCarrier=enemy;
   enemy.IsAlive=false;Check(!flag.TryGetCarrierMarker(me,out _),"dead carrier marker hidden");enemy.IsAlive=true;
   me.IsAlive=false;Check(!flag.TryGetCarrierMarker(me,out _),"dead observer gets no marker");me.IsAlive=true;
@@ -79,7 +88,10 @@ public static class Tests {
   Check(flag.IsConcealedBySmoke()&&!flag.TryGetCarrierMarker(me,out _),"smoke hides both flag and location marker");
   flag.transform.position=new(0,0,30);Check(flag.IsConcealedBySmoke(),"carrier inside smoke hides flag even when offset outside");
   enemy.LockAimPoint=new(0,0,40);flag.transform.position=new(0,0,20);Check(flag.IsConcealedBySmoke(),"flag itself inside smoke is hidden");
-  flag.Carrier=PlayerRef.None;Check(flag.IsConcealedBySmoke(),"dropped flag inside smoke is hidden too");flag.Carrier=PlayerRef.Two;
+  flag.Carrier=PlayerRef.None;Check(flag.IsConcealedBySmoke()&&!flag.TryGetCarrierMarker(me,out _),"dropped flag and marker inside smoke are hidden too");
+  flag.transform.position=new(0,0,50);
+  Check(flag.TryGetCarrierMarker(me,out pos)&&pos.z==50,"fallen flag marker returns when outside smoke");
+  flag.transform.position=new(0,0,20);flag.Carrier=PlayerRef.Two;
   flag.flagRenderers=new[]{new Renderer{shadowCastingMode=ShadowCastingMode.On},new Renderer{forceRenderingOff=true,shadowCastingMode=ShadowCastingMode.TwoSided}};
   flag.originalRenderingOff=new[]{false,true};flag.originalShadows=new[]{ShadowCastingMode.On,ShadowCastingMode.TwoSided};
   flag.UpdateFlagVisibility();Check(flag.flagRenderers[0].forceRenderingOff&&flag.flagRenderers[0].shadowCastingMode==ShadowCastingMode.Off,"flag render and shadow suppressed locally");

@@ -50,8 +50,8 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private TextMeshProUGUI enemyRoundWinsText;
     [SerializeField] private TMP_Text matchTimeText;
     [SerializeField] private TMP_Text flagText;
-    [Header("Flag carrier position (hidden in smoke)")]
-    [Tooltip("깃발 소유자를 따라가는 UI. 비우면 기본 깃발 표식을 생성합니다. 이 컨트롤러와 별도 자식 UI를 넣으세요.")]
+    [Header("Flag position (hidden for carrier / in smoke)")]
+    [Tooltip("상대가 소지하거나 떨어진 깃발을 따라가는 UI. 본인이 소지하면 숨깁니다. 비우면 기본 표식을 생성합니다. 이 컨트롤러와 별도 자식 UI를 넣으세요.")]
     [SerializeField] private RectTransform flagCarrierMarker;
     [Tooltip("자동 생성 표식의 Sprite. 비우면 기본 깃발 도형을 사용합니다.")]
     [SerializeField] private Sprite flagCarrierSprite;
@@ -59,6 +59,8 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private Vector3 flagCarrierMarkerOffset = new Vector3(0f, 1.1f, 0f);
     [SerializeField, Min(16f)] private float flagCarrierMarkerSize = 42f;
     [SerializeField, Min(0f)] private float flagCarrierEdgePadding = 84f;
+    [Tooltip("깃발 표식/거리 글자가 Dot과 움직이는 크로스헤어를 가리지 않도록 확보하는 화면 픽셀 여백입니다.")]
+    [SerializeField, Min(0f)] private float flagMarkerAimPadding = 24f;
     [Header("Match result / respawn")]
     [SerializeField] private TMP_Text resultText;
     [SerializeField] private TMP_Text respawnText;
@@ -161,6 +163,7 @@ public sealed class BattleHud : MonoBehaviour
     private Color hitMarkerBaseColor;
     private float hitMarkerStarted = float.NegativeInfinity;
     private int displayedFlagDistance = -1;
+    private readonly Vector3[] flagMarkerCorners = new Vector3[4];
 
     private sealed class DamageSlot
     {
@@ -703,7 +706,6 @@ public sealed class BattleHud : MonoBehaviour
     {
         Player pilot = Player.LocalPlayer;
         if (worldCamera == null) worldCamera = Camera.main;
-        UpdateFlagCarrierMarker();
         CameraFollow follow = worldCamera != null ? worldCamera.GetComponent<CameraFollow>() : null;
         bool show = isActiveAndEnabled && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
             !MenuOpen && pilot != null && pilot.Object != null && pilot.Object.IsValid && pilot.IsAlive &&
@@ -734,6 +736,8 @@ public sealed class BattleHud : MonoBehaviour
         else HideThreatIndicator();
         if (show) PlaceHitMarker();
         else ClearHitMarker();
+        // Avoid the current frame's actual Dot/crosshair rectangles, after they move.
+        UpdateFlagCarrierMarker();
     }
 
     private void UpdateFlagCarrierMarker()
@@ -762,16 +766,98 @@ public sealed class BattleHud : MonoBehaviour
             screen.x <= pixels.xMax - padding && screen.y >= pixels.yMin + padding && screen.y <= pixels.yMax - padding;
         Vector2 point = inside ? (Vector2)screen : GetThreatScreenPoint(
             GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation, position), pixels, padding);
-        bool placed = PlaceScreen(flagCarrierMarker, point);
-        Visible(flagCarrierMarker.gameObject, placed);
-        Visible(flagCarrierDistanceText.gameObject, placed &&
-            PlaceScreen(flagCarrierDistanceText.rectTransform, point + Vector2.down * (flagCarrierMarkerSize * 0.5f + 18f)));
         int distance = Mathf.RoundToInt(Vector3.Distance(local.LockAimPoint, position - flagCarrierMarkerOffset));
         if (distance != displayedFlagDistance)
         {
             displayedFlagDistance = distance;
             flagCarrierDistanceText.text = $"깃발 {distance}m";
         }
+        Vector2 textPoint = point + Vector2.down * (flagCarrierMarkerSize * 0.5f + 18f);
+        bool placed = PlaceScreen(flagCarrierMarker, point) && PlaceScreen(flagCarrierDistanceText.rectTransform, textPoint);
+        if (placed)
+        {
+            // Include the label, not just the icon; respect authored pivots, Canvas scale
+            // and screen-space camera canvases. All offsets are presentation-only.
+            Rect markerBounds = UnionScreenRects(GetScreenRect(flagCarrierMarker), GetScreenRect(flagCarrierDistanceText.rectTransform));
+            placed = TryOffsetFlagMarker(markerBounds, GetFlagMarkerClearArea(), pixels, out Vector2 offset);
+            if (placed)
+                placed = PlaceScreen(flagCarrierMarker, point + offset) &&
+                    PlaceScreen(flagCarrierDistanceText.rectTransform, textPoint + offset);
+        }
+        Visible(flagCarrierMarker.gameObject, placed);
+        Visible(flagCarrierDistanceText.gameObject, placed);
+    }
+
+    private Rect GetFlagMarkerClearArea()
+    {
+        Vector2 center = worldCamera.pixelRect.center;
+        Rect area = new Rect(center - Vector2.one, Vector2.one * 2f);
+        area = IncludeActiveAimRect(area, desiredAimMarker);
+        area = IncludeActiveAimRect(area, forwardAimMarker);
+        area = IncludeActiveAimRect(area, reticle != null ? reticle.transform as RectTransform : null);
+        float padding = Mathf.Max(0f, flagMarkerAimPadding);
+        return Rect.MinMaxRect(area.xMin - padding, area.yMin - padding, area.xMax + padding, area.yMax + padding);
+    }
+
+    private Rect IncludeActiveAimRect(Rect area, RectTransform aim)
+    {
+        return aim != null && aim.gameObject.activeInHierarchy ? UnionScreenRects(area, GetScreenRect(aim)) : area;
+    }
+
+    private Rect GetScreenRect(RectTransform rect)
+    {
+        Canvas canvas = rect.GetComponentInParent<Canvas>();
+        Canvas root = canvas != null ? canvas.rootCanvas : null;
+        Camera uiCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
+        rect.GetWorldCorners(flagMarkerCorners);
+        Vector2 min = RectTransformUtility.WorldToScreenPoint(uiCamera, flagMarkerCorners[0]);
+        Vector2 max = min;
+        for (int i = 1; i < flagMarkerCorners.Length; i++)
+        {
+            Vector2 corner = RectTransformUtility.WorldToScreenPoint(uiCamera, flagMarkerCorners[i]);
+            min = Vector2.Min(min, corner);
+            max = Vector2.Max(max, corner);
+        }
+        return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+    }
+
+    private static Rect UnionScreenRects(Rect a, Rect b)
+    {
+        return Rect.MinMaxRect(Mathf.Min(a.xMin, b.xMin), Mathf.Min(a.yMin, b.yMin),
+            Mathf.Max(a.xMax, b.xMax), Mathf.Max(a.yMax, b.yMax));
+    }
+
+    private static bool TryOffsetFlagMarker(Rect marker, Rect clearArea, Rect viewport, out Vector2 offset)
+    {
+        offset = Vector2.zero;
+        if (marker.width > viewport.width || marker.height > viewport.height) return false;
+        Vector2 original = marker.position;
+        marker.position = new Vector2(Mathf.Clamp(marker.x, viewport.xMin, viewport.xMax - marker.width),
+            Mathf.Clamp(marker.y, viewport.yMin, viewport.yMax - marker.height));
+        if (!marker.Overlaps(clearArea))
+        {
+            offset = marker.position - original;
+            return true;
+        }
+        float bestDistance = float.PositiveInfinity;
+        // Move icon and label together to the nearest free side. If the viewport is
+        // too small, hide the flag marker instead of ever covering the aiming UI.
+        for (int side = 0; side < 4; side++)
+        {
+            Rect candidate = marker;
+            if (side == 0) candidate.x = clearArea.xMin - marker.width;
+            else if (side == 1) candidate.x = clearArea.xMax;
+            else if (side == 2) candidate.y = clearArea.yMax;
+            else candidate.y = clearArea.yMin - marker.height;
+            candidate.position = new Vector2(Mathf.Clamp(candidate.x, viewport.xMin, viewport.xMax - candidate.width),
+                Mathf.Clamp(candidate.y, viewport.yMin, viewport.yMax - candidate.height));
+            if (candidate.Overlaps(clearArea)) continue;
+            Vector2 move = candidate.position - original;
+            if (move.sqrMagnitude >= bestDistance) continue;
+            bestDistance = move.sqrMagnitude;
+            offset = move;
+        }
+        return !float.IsPositiveInfinity(bestDistance);
     }
 
     private void HideFlagCarrierMarker()
