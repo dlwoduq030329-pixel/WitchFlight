@@ -166,6 +166,25 @@ public sealed class MagicProjectile : NetworkBehaviour
         return target;
     }
 
+    // Only existing hostile homing shots lose their target. No teleport, invulnerability,
+    // damage cancellation, or immunity to newly fired shots. Continue on the last heading.
+    public static int BreakHomingFor(Player defender)
+    {
+        if (defender == null || defender.Object == null || !defender.Object.IsValid ||
+            !defender.Object.HasStateAuthority) return 0;
+        int count = 0;
+        foreach (MagicProjectile shot in active)
+        {
+            if (shot == null || shot.Runner != defender.Runner || shot.Object == null ||
+                !shot.Object.IsValid || !shot.Object.HasStateAuthority || !shot.initialized ||
+                shot.Finished || shot.IsMine || !shot.stats.requiresTarget ||
+                shot.ShooterTeam == defender.TeamIndex || !shot.TargetId.Equals(defender.Object.Id)) continue;
+            shot.TargetId = default;
+            count++;
+        }
+        return count;
+    }
+
     private bool TryGetCollision(float distance, out RaycastHit nearest)
     {
         nearest = default;

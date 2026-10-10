@@ -85,7 +85,9 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         new MagicChoice { magic = MagicType.Dark },
         new MagicChoice { magic = MagicType.Curse },
         new MagicChoice { magic = MagicType.Mine },
-        new MagicChoice { magic = MagicType.Razier }
+        new MagicChoice { magic = MagicType.Razier },
+        new MagicChoice { magic = MagicType.Flare },
+        new MagicChoice { magic = MagicType.Smoke }
     };
     [Tooltip("비우면 Resources/MagicStatTable을 사용합니다. 마법 수치는 변경하지 않습니다.")]
     [SerializeField] private MagicStatTable magicTable;
@@ -209,17 +211,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private void Bind(Button button, UnityAction action)
     {
-        /*
-        if (button == null)
-        {
-            Debug.LogWarning("[MagicCustomizationUI] 버튼이 NULL이라 연결 실패");
-            return;
-        }
-        */
-        button.onClick.AddListener(action);
-        listeners.Add((button, action));
-
-        Debug.Log($"[MagicCustomizationUI] 버튼 연결 완료: {button.name}");
+        // Unused choices/optional controls can be empty. Bind each assigned button once.
         if (button == null) return;
         button.onClick.AddListener(action);
         listeners.Add((button, action));
@@ -584,7 +576,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     }
 
     private static MagicType EquippedMagic(int slot) => (MagicType)(slot == 1 ? DataConfig.magic1Index : DataConfig.magic2Index);
-    private static bool IsSelectableMagic(MagicType magic) => magic >= MagicType.Fire && magic <= MagicType.Razier;
+    private static bool IsSelectableMagic(MagicType magic) => magic >= MagicType.Fire && magic <= MagicType.Smoke;
     private static bool IsSelectableHat(HatType hat) => hat >= HatType.Classic && hat <= HatType.Cosmic;
     private static bool IsSelectableBroom(BroomType broom) => broom >= BroomType.Slow && broom <= BroomType.Speed;
     private string EditBlockedMessage() => !ProfileReady ? "로그인 및 유저 정보 불러오기를 먼저 완료해주세요." : "매칭 중이거나 방에 입장한 상태에서는 장비를 변경할 수 없습니다.";

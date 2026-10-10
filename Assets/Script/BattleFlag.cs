@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
-public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended }
+public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission }
 
 // One existing network flag owns the replicated match clock, carrier and result.
 public class BattleFlag : NetworkBehaviour, IAfterRender
@@ -24,6 +24,20 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     [Networked] public int ExpectedPlayerCount { get; private set; }
     [Networked] private bool IsPrepared { get; set; }
     [Networked] private TickTimer PhaseTimer { get; set; }
+    [Networked] public int RoundNumber { get; private set; }
+    [Networked] public int Team1Wins { get; private set; }
+    [Networked] public int Team2Wins { get; private set; }
+    [Networked] public int LastRoundWinner { get; private set; }
+    [Networked] public int AllowedMagicChanges { get; private set; }
+    [Networked] public bool IsOvertime { get; private set; }
+    public const int WinsRequired = 2;
+
+    // Bounded persistent areas; only creation changes network state (no per-frame RPCs).
+    public const int MaxSmokeClouds = 16;
+    [Networked, Capacity(MaxSmokeClouds)] private NetworkArray<SmokeCloudState> SmokeClouds => default;
+    [Networked] private int SmokeSequence { get; set; }
+    private readonly GameObject[] smokeViews = new GameObject[MaxSmokeClouds];
+    private readonly int[] smokeViewSequences = new int[MaxSmokeClouds];
 
     private readonly HashSet<PlayerRef> readyPlayers = new();
     private bool startRequested;
@@ -32,6 +46,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     private float initialFlagHeight;
     private float fallStopHeight;
     private float fallSpeed;
+    private Vector3 roundFlagPosition;
+    private float magicChangeSeconds;
 
     private struct PositionSample
     {
@@ -60,7 +76,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             flagCollider.isTrigger = true;
     }
 
-    public void PrepareMatch(Vector3 position, float durationSeconds, int requiredPlayers, float presentationSeconds)
+    public void PrepareMatch(Vector3 position, float durationSeconds, int requiredPlayers, float presentationSeconds,
+        float changeSeconds = 40f, int changeLimit = 2)
     {
         if (!Object.HasStateAuthority || IsPrepared)
             return;
@@ -71,6 +88,12 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         ExpectedPlayerCount = Mathf.Max(1, requiredPlayers);
         matchSeconds = Mathf.Max(1f, durationSeconds);
         introSeconds = Mathf.Max(0.1f, presentationSeconds);
+        roundFlagPosition = position;
+        magicChangeSeconds = Mathf.Max(1f, changeSeconds);
+        AllowedMagicChanges = Mathf.Clamp(changeLimit, 1, 2);
+        RoundNumber = 1;
+        Team1Wins = Team2Wins = LastRoundWinner = 0;
+        IsOvertime = false;
         Phase = BattleStartPhase.WaitingForPlayers;
         PhaseTimer = TickTimer.None;
         MatchTimer = TickTimer.None;
@@ -182,6 +205,11 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     {
         if (!Object.HasStateAuthority || !IsPrepared || HasEnded)
             return;
+        if (Phase == BattleStartPhase.Intermission)
+        {
+            if (PhaseTimer.Expired(Runner)) PrepareNextRound();
+            return;
+        }
         if (Phase != BattleStartPhase.Playing)
         {
             TickPreparation();
@@ -189,11 +217,13 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         }
         if (MatchTimer.Expired(Runner))
         {
-            HasEnded = true;
-            Phase = BattleStartPhase.Ended;
-            WinningTeam = LastCarrierTeam;
-            BattleManager.Instance?.NotifyBattleEnded(WinningTeam);
-            return;
+            if (LastCarrierTeam == 1 || LastCarrierTeam == 2)
+            {
+                FinishRound(LastCarrierTeam);
+                return;
+            }
+            // No draw rounds: after an unclaimed flag timer expires, the first pickup wins.
+            IsOvertime = true;
         }
 
         BattleManager.Instance?.TickRespawns();
@@ -209,6 +239,88 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         UpdateDescent();
         CheckPickupAndRecordPositions();
         transform.position = WorldPosition;
+        if (IsOvertime && LastCarrierTeam > 0) FinishRound(LastCarrierTeam);
+    }
+
+    private void FinishRound(int team)
+    {
+        if (!Object.HasStateAuthority || Phase != BattleStartPhase.Playing || HasEnded ||
+            (team != 1 && team != 2)) return;
+        LastRoundWinner = team;
+        if (team == 1) Team1Wins++; else Team2Wins++;
+        MatchTimer = TickTimer.None;
+        HasStarted = false;
+        IsOvertime = false;
+        Carrier = PlayerRef.None;
+        CarrierObjectId = default;
+        ClearRoundSmoke();
+        if (Team1Wins >= WinsRequired || Team2Wins >= WinsRequired)
+        {
+            EndSeries(team);
+            return;
+        }
+        Phase = BattleStartPhase.Intermission;
+        PhaseTimer = TickTimer.CreateFromSeconds(Runner, magicChangeSeconds);
+        BattleManager.Instance?.BeginMagicChange();
+    }
+
+    private void PrepareNextRound()
+    {
+        if (!Object.HasStateAuthority || Phase != BattleStartPhase.Intermission ||
+            !PhaseTimer.Expired(Runner)) return;
+        RoundNumber++;
+        WorldPosition = roundFlagPosition;
+        transform.position = roundFlagPosition;
+        LastCarrier = Carrier = PlayerRef.None;
+        LastCarrierTeam = 0;
+        CarrierObjectId = default;
+        IsDescending = IsOvertime = HasStarted = false;
+        previousPositions.Clear();
+        readyPlayers.Clear();
+        PhaseTimer = MatchTimer = TickTimer.None;
+        Phase = BattleStartPhase.WaitingForPlayers;
+        startRequested = true; // Subsequent rounds always repeat readiness -> VS -> countdown.
+        BattleManager.Instance?.ResetPlayersForNextRound();
+    }
+
+    public bool CanChangeMagic(int round) => Object != null && Object.IsValid &&
+        Object.HasStateAuthority && !HasEnded && Phase == BattleStartPhase.Intermission &&
+        round == RoundNumber && PhaseTimer.IsRunning && !PhaseTimer.Expired(Runner);
+
+    public void EndSeriesByForfeit(int team)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || HasEnded ||
+            (team != 1 && team != 2)) return;
+        if (team == 1) Team1Wins = WinsRequired; else Team2Wins = WinsRequired;
+        EndSeries(team);
+    }
+
+    private void EndSeries(int team)
+    {
+        WinningTeam = team;
+        HasEnded = true;
+        Phase = BattleStartPhase.Ended;
+        PhaseTimer = MatchTimer = TickTimer.None;
+        ClearRoundSmoke();
+        BattleManager.Instance?.NotifyBattleEnded(team);
+    }
+
+    // Snapshot names/profile IDs at the kill, before either PlayerData can disappear.
+    public void AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || Phase != BattleStartPhase.Playing) return;
+        RPC_AnnounceKill(killerName, killerProfile, victimName, victimProfile);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All, Channel = RpcChannel.Reliable)]
+    private void RPC_AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile)
+    {
+        BattleKillFeed.Instance?.ShowKill(killerName, killerProfile, victimName, victimProfile);
+    }
+
+    private void ClearRoundSmoke()
+    {
+        for (int i = 0; i < SmokeClouds.Length; i++) SmokeClouds.Set(i, default);
     }
 
     private Player GetCarrierPlayer()
@@ -411,6 +523,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
 
     public override void Render()
     {
+        RenderSmoke();
         if (!IsPrepared)
             return;
         BattleManager.Instance?.RegisterFlag(this);
@@ -442,9 +555,79 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        ClearSmokeViews();
         readyPlayers.Clear();
         previousPositions.Clear();
         if (Instance == this)
             Instance = null;
+    }
+
+    public bool CanCreateSmoke(NetworkRunner expectedRunner) => Object != null && Object.IsValid &&
+        Object.HasStateAuthority && Runner == expectedRunner && Phase == BattleStartPhase.Playing &&
+        FindFreeSmokeSlot() >= 0;
+
+    private int FindFreeSmokeSlot()
+    {
+        for (int i = 0; i < SmokeClouds.Length; i++)
+            if (!SmokeClouds[i].Lifetime.IsRunning || SmokeClouds[i].Lifetime.Expired(Runner)) return i;
+        return -1;
+    }
+
+    public bool CreateSmoke(Player caster, MagicStatEntry stats)
+    {
+        if (caster == null || caster.Object == null || !caster.Object.IsValid ||
+            !caster.Object.HasStateAuthority || !caster.IsAlive || !CanCreateSmoke(caster.Runner) ||
+            !SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration)) return false;
+        int slot = FindFreeSmokeSlot();
+        SmokeSequence++;
+        SmokeClouds.Set(slot, new SmokeCloudState {
+            Center = caster.LockAimPoint, Radius = Mathf.Min(stats.radius, 100f),
+            Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Min(stats.effectDuration, 120f)),
+            Sequence = SmokeSequence
+        });
+        return true;
+    }
+
+    public bool ContainsSmoke(Vector3 point)
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing) return false;
+        for (int i = 0; i < SmokeClouds.Length; i++)
+        {
+            SmokeCloudState cloud = SmokeClouds[i];
+            if (cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
+        }
+        return false;
+    }
+
+    private void RenderSmoke()
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing)
+        { ClearSmokeViews(); return; }
+        for (int i = 0; i < SmokeClouds.Length; i++)
+        {
+            SmokeCloudState cloud = SmokeClouds[i];
+            bool active = cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner);
+            if (smokeViews[i] != null && (!active || smokeViewSequences[i] != cloud.Sequence))
+            { Destroy(smokeViews[i]); smokeViews[i] = null; }
+            if (!active || smokeViews[i] != null) continue;
+            smokeViewSequences[i] = cloud.Sequence;
+            smokeViews[i] = UtilityMagicVisual.CreateSmoke(cloud.Center, cloud.Radius,
+                CombatPresentation.Stats(MagicType.Smoke).utilityVfxPrefab);
+        }
+    }
+
+    private void ClearSmokeViews()
+    {
+        for (int i = 0; i < smokeViews.Length; i++)
+        {
+            if (smokeViews[i] != null) Destroy(smokeViews[i]);
+            smokeViews[i] = null;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        ClearSmokeViews();
+        if (Instance == this) Instance = null;
     }
 }

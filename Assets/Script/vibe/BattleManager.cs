@@ -4,6 +4,8 @@ using Fusion;
 using UnityEngine;
 
 [RequireComponent(typeof(BattleIntroPresentation))]
+[RequireComponent(typeof(BattleRoundUI))]
+[RequireComponent(typeof(BattleKillFeed))]
 public class BattleManager : MonoBehaviour
 {
     [Header("Network Prefab")]
@@ -24,8 +26,14 @@ public class BattleManager : MonoBehaviour
     [Tooltip("Face-versus-face presentation duration, before the shared three-second countdown.")]
     [SerializeField, Min(0.1f)] private float introDurationSeconds = 5f;
 
+    [Header("Best of three / between-round magic changes")]
+    [Tooltip("라운드 사이 마법 교체 시간(초). 호스트 설정을 모든 클라이언트에 적용합니다.")]
+    [SerializeField, Min(1f)] private float magicChangeDurationSeconds = 40f;
+    [Tooltip("직전 라운드 장비 대비 변경 가능한 마법 슬롯 수입니다. 같은 슬롯은 제한 시간 내 다시 선택할 수 있습니다.")]
+    [SerializeField, Range(1, 2)] private int maxMagicChangesPerRound = 2;
+
     [Header("Flag Match / Respawn")]
-    [Tooltip("Match duration in seconds. The last flag holder wins when time expires.")]
+    [Tooltip("한 라운드 시간(초). 종료 시 마지막 깃발 소유자가 승리합니다. 2승 시 경기 종료.")]
     [SerializeField, Min(1f)] private float matchDurationSeconds = 180f;
     [SerializeField, Min(0f)] private float deathDespawnDelay = 2f;
     [Tooltip("Time measured from death, not from disappearance.")]
@@ -63,6 +71,12 @@ public class BattleManager : MonoBehaviour
         battleFlag.Object.IsValid && battleFlag.HasEnded;
     public float RemainingSeconds => battleFlag != null ? battleFlag.RemainingSeconds : 0f;
     public int WinningTeam => IsBattleEnded ? battleFlag.WinningTeam : 0;
+    public int RoundNumber => HasValidFlag ? battleFlag.RoundNumber : 1;
+    public int Team1Wins => HasValidFlag ? battleFlag.Team1Wins : 0;
+    public int Team2Wins => HasValidFlag ? battleFlag.Team2Wins : 0;
+    public int LastRoundWinner => HasValidFlag ? battleFlag.LastRoundWinner : 0;
+    public int AllowedMagicChanges => HasValidFlag ? battleFlag.AllowedMagicChanges : maxMagicChangesPerRound;
+    public bool IsOvertime => HasValidFlag && battleFlag.IsOvertime;
     public float RespawnDelaySeconds => respawnDelaySeconds;
     public event Action<int> BattleEnded;
 
@@ -214,7 +228,50 @@ public class BattleManager : MonoBehaviour
             return;
         }
         RegisterFlag(flag);
-        flag.PrepareMatch(position, matchDurationSeconds, ExpectedPlayerCount, introDurationSeconds);
+        flag.PrepareMatch(position, matchDurationSeconds, ExpectedPlayerCount, introDurationSeconds,
+            magicChangeDurationSeconds, maxMagicChangesPerRound);
+    }
+
+    public void BeginMagicChange()
+    {
+        if (runner == null || !runner.IsServer || Phase != BattleStartPhase.Intermission) return;
+        pendingRespawns.Clear();
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null && data.Object != null && data.Object.IsValid)
+                data.BeginRoundMagicChange(RoundNumber);
+    }
+
+    public void ResetPlayersForNextRound()
+    {
+        if (runner == null || !runner.IsServer || Phase != BattleStartPhase.WaitingForPlayers) return;
+        pendingRespawns.Clear();
+        // Respawn, rather than reusing dead/faded instances: reset HP/MP, cooldowns,
+        // physics, camera binding, cached portraits and all status effects together.
+        var oldPlayers = new List<NetworkObject>(spawnedPlayers.Values);
+        spawnedPlayers.Clear();
+        foreach (NetworkObject old in oldPlayers)
+            if (old != null && old.IsValid) runner.Despawn(old);
+        SpawnBattlePlayers(playerPrefab);
+    }
+
+    public bool TryChangeRoundMagic(PlayerData data, int round, MagicType first, MagicType second, out string error)
+    {
+        error = "마법 교체 시간이 아닙니다.";
+        if (runner == null || !runner.IsServer || !HasValidFlag || !battleFlag.CanChangeMagic(round) ||
+            data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner ||
+            !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.Object.InputAuthority) ||
+            !playerDatas.TryGetValue(data.Object.InputAuthority, out PlayerData registered) || registered != data ||
+            data.MagicChangeRound != round) return false;
+        if (!BattleRoundRules.IsAllowedLoadout(data.MagicChangeBase1, data.MagicChangeBase2,
+            first, second, battleFlag.AllowedMagicChanges))
+        {
+            error = $"유효한 마법을 선택해주세요. 변경 가능한 슬롯은 최대 {battleFlag.AllowedMagicChanges}개입니다.";
+            return false;
+        }
+        data.magic1 = first;
+        data.magic2 = second;
+        error = string.Empty;
+        return true;
     }
 
     // BattleFlag.Spawned also calls this on remote clients.
@@ -234,6 +291,12 @@ public class BattleManager : MonoBehaviour
             return;
 
         Player deadPilot = deadObject.GetComponent<Player>();
+        playerDatas.TryGetValue(deadPlayer, out PlayerData victim);
+        playerDatas.TryGetValue(killerPlayer, out PlayerData killer);
+        battleFlag?.AnnounceKill(killer != null ? killer.playerName.ToString() : "환경 / 더미",
+            killer != null ? killer.playerprofile : -1,
+            victim != null ? victim.playerName.ToString() : $"Player {deadPlayer.PlayerId}",
+            victim != null ? victim.playerprofile : -1);
         battleFlag?.DropCarrier(deadPlayer, deadObject.transform.position,
             deadPilot != null && deadPilot.DiedFromAltitude);
         pendingRespawns.Add(new PendingRespawn
@@ -253,6 +316,13 @@ public class BattleManager : MonoBehaviour
         if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject playerObject) && playerObject != null)
             battleFlag?.DropCarrier(playerRef, playerObject.transform.position);
         pendingRespawns.RemoveAll(pending => pending.PlayerRef == playerRef);
+        if (ExpectedPlayerCount > 1 && !IsBattleEnded)
+            foreach (var pair in playerDatas)
+                if (pair.Key != playerRef && pair.Value != null && IsConnected(pair.Key))
+                {
+                    battleFlag?.EndSeriesByForfeit(pair.Value.teamIndex);
+                    break;
+                }
     }
 
     // Called from the authoritative flag's network tick: no scene-lifetime coroutines.

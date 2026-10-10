@@ -31,6 +31,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         !isGameStarting && !IsBattleSceneLoaded;
 
     [Header("Scene")]
+    [SerializeField] private int mainSceneIndex = 0;
     [SerializeField] private int battleSceneIndex = 1;
 
     [Header("Room")]
@@ -427,6 +428,39 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             if (this != null) SetMatchStatus("매칭을 취소했습니다.");
         }
         finally { stopInProgress = false; }
+    }
+
+    // A final-result UI calls this. Shutdown the session before reloading Main;
+    // let Main create a fresh manager with its own live scene UI references.
+    public async Task<bool> ReturnToMainMenuAsync()
+    {
+        if (stopInProgress || startInProgress) return false;
+        if (!Application.CanStreamedLevelBeLoaded(mainSceneIndex))
+        {
+            Debug.LogError("Main Scene Index가 Build Settings의 활성 씬을 가리키는지 확인해주세요.", this);
+            return false;
+        }
+        stopInProgress = true;
+        try
+        {
+            await ShutdownSession(_runner);
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            int index = mainSceneIndex;
+            if (instance == this) instance = null;
+            AsyncOperation loading = SceneManager.LoadSceneAsync(index, LoadSceneMode.Single);
+            if (loading == null) throw new InvalidOperationException("메인 씬 로드를 시작하지 못했습니다.");
+            Destroy(gameObject);
+            await loading;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            if (this != null && instance == null) instance = this;
+            Debug.LogException(exception);
+            return false;
+        }
+        finally { if (this != null) stopInProgress = false; }
     }
 
     private async Task ShutdownSession(NetworkRunner sessionRunner)

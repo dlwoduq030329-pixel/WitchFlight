@@ -52,27 +52,19 @@ internal static class WitchFlightIntroBinding
                 if (icon.FindPropertyRelative("icon").objectReferenceValue == null)
                     throw new InvalidOperationException("Missing source magic icon: " + i);
             }
-            // Same default profile as Main's existing waiting-room bridge. Do not invent IDs.
-            Sprite defaultProfile = AssetDatabase.LoadAssetAtPath<Sprite>(AssetDatabase.GUIDToAssetPath("14d78f580487acb47b0a4e0eb94f98c3"));
-            if (defaultProfile == null) throw new InvalidOperationException("Main default profile sprite missing.");
-            var profiles = data.FindProperty("profileSprites");
-            if (profiles.arraySize == 0)
-            {
-                profiles.arraySize = 1;
-                profiles.GetArrayElementAtIndex(0).objectReferenceValue = defaultProfile;
-            }
-            if (data.FindProperty("fallbackProfileSprite").objectReferenceValue == null)
-                data.FindProperty("fallbackProfileSprite").objectReferenceValue = defaultProfile;
+            ProfileImageTable profileTable = AssetDatabase.LoadAssetAtPath<ProfileImageTable>("Assets/Resources/ProfileImageTable.asset");
+            if (profileTable == null) throw new InvalidOperationException("Shared profile image table missing.");
+            data.FindProperty("profileTable").objectReferenceValue = profileTable;
             data.ApplyModifiedPropertiesWithoutUndo();
             string backup = "Temp/BattleUI-before-intro-binding-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".prefab";
             File.Copy(path, backup);
             PrefabUtility.SaveAsPrefabAsset(contents, path, out bool saved);
             if (!saved) throw new InvalidOperationException("Prefab save failed.");
             var verified = new SerializedObject(AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponentInChildren<linkuserinfo>(true));
-            string[] fields = { "localNameText", "opponentNameText", "localProfileImage", "opponentProfileImage", "localMagic1Image", "localMagic2Image", "opponentMagic1Image", "opponentMagic2Image" };
+            string[] fields = { "localNameText", "opponentNameText", "localProfileImage", "opponentProfileImage", "localMagic1Image", "localMagic2Image", "opponentMagic1Image", "opponentMagic2Image", "profileTable" };
             foreach (string field in fields)
                 if (verified.FindProperty(field).objectReferenceValue == null) throw new InvalidOperationException("Saved reference missing: " + field);
-            File.WriteAllText("Temp/WitchFlightIntroBinding.report.txt", "VERIFIED: 8 intro UI references; " + icons.arraySize + " magic icons; profile 0 + fallback. Existing portrait RawImages and scenes untouched. Backup: " + backup);
+            File.WriteAllText("Temp/WitchFlightIntroBinding.report.txt", "VERIFIED: 8 intro UI references; " + icons.arraySize + " magic icons; shared ProfileImageTable. Existing portrait RawImages and scenes untouched. Backup: " + backup);
         }
         catch (Exception e)
         {

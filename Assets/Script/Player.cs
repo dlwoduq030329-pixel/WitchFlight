@@ -43,7 +43,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     [SerializeField] private MagicStatTable magicStatTable;
     [SerializeField] private NetworkPrefabRef magicProjectilePrefab;
     [SerializeField, Min(0.01f)] private float parryWindowSeconds = 0.3f;
-    [SerializeField, Min(0f)] private float parryCooldownSeconds = 2f;
+    [SerializeField, Min(0f)] private float parryCooldownSeconds = 0.3f;
     [SerializeField, Min(0f)] private float defaultHitStunSeconds = 0.25f;
     [SerializeField, Min(0.01f)] private float knockbackDamping = 30f;
     [SerializeField] private string hitReactionState = "AS_Broom_SitFly_Arm_Hit_React";
@@ -62,8 +62,8 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     [Networked] private PlayerConfig AppearanceConfig { get; set; }
     [Networked] private int LoadoutVersion { get; set; }
     [Networked] private NetworkId LockTargetId { get; set; }
-    // Index = MagicType (0=None, 1..10=spells). Duplicate equipped spells share a timer.
-    [Networked, Capacity(11)] private NetworkArray<TickTimer> MagicCooldowns => default;
+    // Index = MagicType (0=None, 1..12=spells). Duplicate equipped spells share a timer.
+    [Networked, Capacity(13)] private NetworkArray<TickTimer> MagicCooldowns => default;
     [Networked] private TickTimer ParryTimer { get; set; }
     [Networked] private TickTimer ParryCooldown { get; set; }
     [Networked] public bool IsBoosting { get; private set; }
@@ -187,7 +187,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     public MagicStatEntry SelectedMagicStats => GetMagicStats(GetSelectedMagic());
     public MagicStatTable MagicTable => magicStatTable;
     public float SelectedMagicApCost => CurrentMagicSlot == 3
-        ? (magicStatTable != null ? magicStatTable.parryApCost : 8f) : SelectedMagicStats.apCost;
+        ? (magicStatTable != null ? magicStatTable.parryApCost : 16f) : SelectedMagicStats.apCost;
     public bool IsParrying => TimerIsActive(ParryTimer);
     // Read-only HUD eligibility; actual input and damage still run on StateAuthority.
     public float ParryWindowSeconds => Mathf.Max(0f,
@@ -195,13 +195,19 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     public bool CanStartParryNow => Object != null && Object.IsValid && IsAlive && !IsReturningToMap &&
         BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
         !IsHitStunned && !TimerIsActive(ParryCooldown) &&
-        NowAp >= Mathf.Max(0f, magicStatTable != null ? magicStatTable.parryApCost : 8f);
+        NowAp >= Mathf.Max(0f, magicStatTable != null ? magicStatTable.parryApCost : 16f);
     public Vector3 ParryHintVelocity => (IsBound || IsHitStunned || IsTestBot ? Vector3.zero : transform.forward * Speed) + KnockbackVelocity;
     public float ParryHintRadius => characterController != null
         ? characterController.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.z))
         : collisionRadius;
     public bool IsHitStunned => TimerIsActive(HitStunTimer);
     public bool IsStealthed => false; // Compatibility for external presentation components.
+    // Smoke is presentation-only concealment, NOT stealth / untargetability.
+    public bool IsHiddenBySmokeFor(Player observer) => Object != null && Object.IsValid &&
+        observer != null && observer.Object != null &&
+        observer.Object.IsValid && observer.Runner == Runner && observer != this &&
+        TeamIndex > 0 && observer.TeamIndex > 0 && TeamIndex != observer.TeamIndex && BattleFlag.Instance != null &&
+        BattleFlag.Instance.Runner == Runner && BattleFlag.Instance.ContainsSmoke(LockAimPoint);
     public bool HasActiveMine => Object != null && MagicProjectile.HasMineOwnedBy(Object.InputAuthority, Runner);
     public float MaxLockDistance => maxLockDistance;
     public Vector3 LockAimPoint => transform.position + Vector3.up * lockAimHeight;
@@ -323,7 +329,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         {
             hat = HatType.None,
             maxAp = 100f,
-            apRecoveryPerSecond = 10f
+            apRecoveryPerSecond = 5f
         };
     }
 
@@ -345,7 +351,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             speedStageTransitionSpeed = 60f,
             brakeSpeed = 80f,
             boostMultiplier = 1.35f,
-            boostApCostPerSecond = 20f
+            boostApCostPerSecond = 40f
         };
     }
 
@@ -878,7 +884,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         if (TimerIsActive(ParryCooldown) || IsHitStunned)
             return;
 
-        float cost = magicStatTable != null ? magicStatTable.parryApCost : 8f;
+        float cost = magicStatTable != null ? magicStatTable.parryApCost : 16f;
         if (!TryConsumeAp(cost))
             return;
         ParryTimer = TickTimer.CreateFromSeconds(Runner,
@@ -956,6 +962,9 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
         if (stats.IsChanneled || (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
         if (stats.effect == MagicEffectKind.Healing && NowHp >= MaxHp) return;
+        if (stats.effect == MagicEffectKind.Smoke &&
+            (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
+             BattleFlag.Instance == null || !BattleFlag.Instance.CanCreateSmoke(Runner))) return;
         if (stats.projectileSpeed > 0f && !magicProjectilePrefab.IsValid) return;
 
         if (!TryConsumeAp(stats.apCost))
@@ -969,7 +978,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         MagicCooldowns.Set(magicIndex, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.cooldownSeconds)));
         LastCastMagic = selectedMagic;
         CastSequence++;
-        if (stats.castSeconds > 0f)
+        if (stats.castSeconds > 0f && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke)
         {
             pendingMagic = selectedMagic;
             pendingInputTick = castInputTick;
@@ -1058,7 +1067,17 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void CastMagic(MagicStatEntry stats, Player target)
     {
-        if (stats.effect == MagicEffectKind.Healing)
+        if (stats.effect == MagicEffectKind.Flare)
+        {
+            MagicProjectile.BreakHomingFor(this);
+            RPC_PresentCast(stats.magic, LockAimPoint, -transform.forward, 0f);
+        }
+        else if (stats.effect == MagicEffectKind.Smoke)
+        {
+            // Persistent replicated area survives the caster's death/despawn.
+            BattleFlag.Instance?.CreateSmoke(this, stats);
+        }
+        else if (stats.effect == MagicEffectKind.Healing)
         {
             RestoreHealth(stats.healing);
             RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, 0f);

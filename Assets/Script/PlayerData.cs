@@ -4,11 +4,16 @@ using UnityEngine;
 public enum HatType { None, Classic, Twisted, Elemental, Serenity, Cosmic }
 public enum BroomType { None, Slow, Standard, Speed }
 // Explicit IDs preserve existing saved loadouts. Removed spells are replaced in-place.
-public enum MagicType { None = 0, Fire = 1, Ice = 2, Vision = 3, Thunder = 4, Healing = 5, Binding = 6, Dark = 7, Curse = 8, Mine = 9, Razier = 10 }
+public enum MagicType { None = 0, Fire = 1, Ice = 2, Vision = 3, Thunder = 4, Healing = 5, Binding = 6, Dark = 7, Curse = 8, Mine = 9, Razier = 10, Flare = 11, Smoke = 12 }
 public enum Camp { A, B }
 
 public class PlayerData : NetworkBehaviour
 {
+    public static PlayerData Local { get; private set; }
+    [Networked] public int MagicChangeRound { get; private set; }
+    [Networked] public MagicType MagicChangeBase1 { get; private set; }
+    [Networked] public MagicType MagicChangeBase2 { get; private set; }
+    public event System.Action<int, int, bool, string> RoundMagicChangeResult;
     // Lobby presentation acknowledgements are host-local; PlayerData is still the RPC owner.
     private PlayerData previewedOpponent;
     private int previewedOpponentProfile, previewedOwnProfile;
@@ -103,6 +108,7 @@ public class PlayerData : NetworkBehaviour
             IsRoomOwner = Runner.IsServer && Object.InputAuthority == Runner.LocalPlayer;
         if (Object.HasInputAuthority)
         {
+            Local = this;
             // Only the local owner's loaded DataConfig supplies this player's name.
             RPC_SetLoadout(DataConfig.GetPlayerConfig(),
                 (MagicType)DataConfig.magic1Index, (MagicType)DataConfig.magic2Index,
@@ -123,6 +129,8 @@ public class PlayerData : NetworkBehaviour
     private void RPC_SetLoadout(PlayerConfig selectedConfig,
         MagicType selectedMagic1, MagicType selectedMagic2, int selectedProfile, string selectedName)
     {
+        // Initial account snapshot only. Mid-match changes use the validated round RPC below.
+        if (IsLoadoutInitialized) return;
         selectedConfig = selectedConfig.Sanitized();
         hat = NormalizeHat((HatType)selectedConfig.hatIndex);
         broom = NormalizeBroom((BroomType)selectedConfig.broomIndex);
@@ -190,10 +198,38 @@ public class PlayerData : NetworkBehaviour
     {
         // None (0) is an intentional empty slot and must survive backend/network loading.
         int value = (int)selectedMagic;
-        return value >= (int)MagicType.None && value <= (int)MagicType.Razier
+        return value >= (int)MagicType.None && value <= (int)MagicType.Smoke
             ? selectedMagic
             : fallback;
     }
+
+    public void BeginRoundMagicChange(int round)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
+        MagicChangeBase1 = magic1;
+        MagicChangeBase2 = magic2;
+        MagicChangeRound = round;
+    }
+
+    public bool RequestRoundMagicChange(int round, MagicType first, MagicType second, int requestId)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasInputAuthority || !IsLoadoutInitialized) return false;
+        RPC_ChangeRoundMagic(round, first, second, requestId);
+        return true;
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_ChangeRoundMagic(int round, MagicType first, MagicType second, int requestId)
+    {
+        string error = "전투 정보를 불러오지 못했습니다.";
+        bool accepted = BattleManager.Instance != null &&
+            BattleManager.Instance.TryChangeRoundMagic(this, round, first, second, out error);
+        RPC_RoundMagicChangeResult(requestId, round, accepted, error);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    private void RPC_RoundMagicChangeResult(int requestId, int round, bool accepted, string error)
+        => RoundMagicChangeResult?.Invoke(requestId, round, accepted, error);
 
     public void SetBattleHealth(float maxHp, float currentHp)
     {
@@ -216,6 +252,9 @@ public class PlayerData : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        if (Local == this) Local = null;
         NetworkGameManager.Instance?.UnregisterPlayerData(this);
     }
+
+    private void OnDestroy() { if (Local == this) Local = null; }
 }

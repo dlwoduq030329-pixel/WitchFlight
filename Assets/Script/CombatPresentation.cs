@@ -13,6 +13,8 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         public Renderer renderer;
         public bool authoredEnabled;
+        public bool authoredForceRenderingOff;
+        public ShadowCastingMode authoredShadows;
         public Material[] originals;
         public Material[] fading;
         public Color[] colors;
@@ -34,6 +36,7 @@ public sealed class CombatPresentation : MonoBehaviour
     private float hitFlashUntil;
     private bool wasFlashing;
     private float deathStarted = -1f;
+    private bool visibilityInitialized, lastSmokeHidden, lastFadeHidden;
 
     public static bool MenuOpen => BattleHud.MenuOpen;
 
@@ -51,6 +54,8 @@ public sealed class CombatPresentation : MonoBehaviour
             {
                 renderer = renderer,
                 authoredEnabled = renderer.enabled,
+                authoredForceRenderingOff = renderer.forceRenderingOff,
+                authoredShadows = renderer.shadowCastingMode,
                 originals = materials,
                 colors = new Color[materials.Length],
                 originalBlocks = new MaterialPropertyBlock[materials.Length]
@@ -141,6 +146,35 @@ public sealed class CombatPresentation : MonoBehaviour
         }
         UpdateChannelVisual();
         UpdateMaterials();
+        UpdateSmokeVisibility();
+    }
+
+    private void UpdateSmokeVisibility()
+    {
+        bool hidden = owner.IsHiddenBySmokeFor(Player.LocalPlayer);
+        bool faded = deathStarted >= 0f && Time.unscaledTime - deathStarted >= deathFadeSeconds;
+        if (visibilityInitialized && hidden == lastSmokeHidden && faded == lastFadeHidden) return;
+        visibilityInitialized = true;
+        lastSmokeHidden = hidden;
+        lastFadeHidden = faded;
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer == null) continue;
+            // Never touch colliders/layers/GameObjects or shared customization materials.
+            visual.renderer.forceRenderingOff = visual.authoredForceRenderingOff || hidden || faded;
+            visual.renderer.shadowCastingMode = hidden ? ShadowCastingMode.Off : visual.authoredShadows;
+        }
+    }
+
+    private void OnDisable()
+    {
+        visibilityInitialized = false;
+        foreach (Visual visual in visuals)
+        {
+            if (visual.renderer == null) continue;
+            visual.renderer.forceRenderingOff = visual.authoredForceRenderingOff;
+            visual.renderer.shadowCastingMode = visual.authoredShadows;
+        }
     }
 
     private void StartDeathFade()
@@ -212,6 +246,13 @@ public sealed class CombatPresentation : MonoBehaviour
     public void ShowCast(MagicType magic, Vector3 origin, Vector3 end)
     {
         MagicStatEntry stats = Stats(magic);
+        if (stats.effect == MagicEffectKind.Flare)
+        {
+            // end is the authoritative rear direction for this self-cast, not a hit point.
+            UtilityMagicVisual.PlayFlare(owner, origin, end, stats);
+            return;
+        }
+        if (stats.effect == MagicEffectKind.Smoke) return; // Persistent BattleFlag snapshot owns its VFX.
         GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation);
         if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));
         else SpawnPulse(origin, MagicColor(magic), magic == MagicType.Healing ? 2f : 0.7f, 0.25f);
@@ -310,6 +351,8 @@ public sealed class CombatPresentation : MonoBehaviour
             MagicType.Razier => new Color(0.2f, 0.8f, 1f, 0.9f),
             MagicType.Mine => new Color(1f, 0.65f, 0.15f, 0.85f),
             MagicType.Thunder => new Color(1f, 0.9f, 0.25f, 0.85f),
+            MagicType.Flare => new Color(1f, 0.65f, 0.18f, 1f),
+            MagicType.Smoke => new Color(0.52f, 0.56f, 0.64f, 0.2f),
             _ => new Color(0.4f, 1f, 0.8f, 0.6f)
         };
     }

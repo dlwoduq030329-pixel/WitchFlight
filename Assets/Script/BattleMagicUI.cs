@@ -44,7 +44,9 @@ public sealed class BattleMagicUI : MonoBehaviour
         new MagicSpriteEntry { magic = MagicType.Dark },
         new MagicSpriteEntry { magic = MagicType.Curse },
         new MagicSpriteEntry { magic = MagicType.Mine },
-        new MagicSpriteEntry { magic = MagicType.Razier }
+        new MagicSpriteEntry { magic = MagicType.Razier },
+        new MagicSpriteEntry { magic = MagicType.Flare },
+        new MagicSpriteEntry { magic = MagicType.Smoke }
     };
     [SerializeField] private Sprite parryBackSprite;
     [Tooltip("비워두면 Parry Back Sprite를 사용합니다.")]

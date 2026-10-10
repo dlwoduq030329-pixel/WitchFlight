@@ -113,7 +113,7 @@ namespace MagicCustomizationChecks {
    public Button hatSlot=new Button(),broomSlot=new Button();
    public TMP_Text name=new TMP_Text(),description=new TMP_Text(),label=new TMP_Text(),status=new TMP_Text();
    public PlayerEquipment preview=new PlayerEquipment();
-   public GameObject[] staffs=new GameObject[11];
+   public GameObject[] staffs=new GameObject[(int)MagicType.Smoke+1];
    public GameObject[] hats=new GameObject[6],brooms=new GameObject[4];
    public int StaffWrites {get {int result=0;foreach(var staff in staffs)result+=staff.Writes;return result;}}
    public Sprite empty=new Sprite();
@@ -162,6 +162,14 @@ namespace MagicCustomizationChecks {
    public void Dispose(){Life(ui,"OnDisable");preview.UnbindFromDataConfig();DataConfig.Changed-=Changed;}
   }
   public static int Run(){
+   foreach(var magic in new[]{MagicType.Flare,MagicType.Smoke}){
+    using(var f=new Fixture()){
+     f.Pick(magic);f.slot2.onClick.Invoke();f.equip.onClick.Invoke();
+     Check(DataConfig.magic1Index==(int)MagicType.Fire&&DataConfig.magic2Index==(int)magic,"new utility equips in the selected slot");
+     Check(f.changes==1&&f.equips==1&&f.second.sprite==f.Icon(magic),"utility updates data and icon once");
+     Check(f.staffs[(int)magic].activeSelf,"utility changes weapon preview through DataConfig");
+    }
+   }
    using(var f=new Fixture()){
     Check(f.ui.SelectedSlot==1&&f.ui.SelectedMagic==MagicType.None,"opens in slot 1 without pending magic");
     Check(!f.details.activeSelf&&!f.equip.gameObject.activeSelf,"details and confirm start hidden");

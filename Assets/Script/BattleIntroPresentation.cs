@@ -392,7 +392,8 @@ public sealed class BattleIntroPresentation : MonoBehaviour
         // Allow optional start buttons while waiting; lock flight input again for the countdown.
         if (phase != BattleStartPhase.Ended)
         {
-            bool showCursor = waiting || (phase == BattleStartPhase.Playing && CombatPresentation.MenuOpen);
+            bool showCursor = waiting || phase == BattleStartPhase.Intermission ||
+                (phase == BattleStartPhase.Playing && CombatPresentation.MenuOpen);
             Cursor.lockState = showCursor ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = showCursor;
         }

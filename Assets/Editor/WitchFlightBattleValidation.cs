@@ -98,10 +98,11 @@ public static class WitchFlightBattleValidation
     private static void ValidateMagic(MagicStatTable table, Report report)
     {
         if (table == null) return;
-        report.Check(table.magics != null && table.magics.Length == 10, "Magic table must define all ten spells.");
+        int spellCount = (int)MagicType.Smoke;
+        report.Check(table.magics != null && table.magics.Length == spellCount, $"Magic table must define all {spellCount} spells.");
         if (table.magics == null) return;
-        report.Check(table.magics.Select(x => (int)x.magic).OrderBy(x => x).SequenceEqual(Enumerable.Range(1, 10)),
-            "Magic IDs 1..10 must each occur once.");
+        report.Check(table.magics.Select(x => (int)x.magic).OrderBy(x => x).SequenceEqual(Enumerable.Range(1, spellCount)),
+            $"Magic IDs 1..{spellCount} must each occur once.");
         report.Check(Positive(table.parryApCost) && Positive(table.parryWindowSeconds) && NonNegative(table.parryCooldownSeconds),
             "Parry must have valid mana cost, window and cooldown.");
         foreach (MagicStatEntry spell in table.magics)
@@ -118,6 +119,19 @@ public static class WitchFlightBattleValidation
                 report.Check(Positive(spell.radius), $"{name}: area effect radius must be positive.");
             if (spell.effect == MagicEffectKind.Mine)
                 report.Check(Positive(spell.placementDistance) && Positive(spell.activationDelay), "Mine needs travel distance and arming delay.");
+            if (spell.effect == MagicEffectKind.Flare || spell.effect == MagicEffectKind.Smoke)
+            {
+                report.Check(!spell.requiresTarget && spell.castSeconds == 0f && spell.projectileSpeed == 0f,
+                    $"{name}: utility spells must be instant self-casts, not lock-on projectiles.");
+                report.Check(spell.utilityVfxPrefab == null || spell.utilityVfxPrefab.GetComponentInChildren<NetworkObject>(true) == null,
+                    $"{name}: utility VFX must be local visuals without NetworkObject components.");
+            }
+            if (spell.effect == MagicEffectKind.Flare)
+                report.Check(Positive(spell.vfxLifetime) && NonNegative(spell.flareVfxBackOffset) && NonNegative(spell.flareVfxSpeed),
+                    "Flare needs a valid visual lifetime, rear offset and emission speed.");
+            if (spell.effect == MagicEffectKind.Smoke)
+                report.Check(SmokeCloudState.ValidSettings(spell.radius, spell.effectDuration) && spell.radius <= 100f && spell.effectDuration <= 120f,
+                    "Smoke needs a positive radius (max 100) and duration (max 120 seconds).");
             if (spell.IsChanneled)
                 report.Check(Positive(spell.damagePerSecond) && Positive(spell.channelTickSeconds) &&
                     Positive(spell.ChannelManaPerSecond(100f)), "Channel needs DPS, interval and mana consumption.");
@@ -137,6 +151,7 @@ public static class WitchFlightBattleValidation
         GameObject flag = ValidateNetworkPrefab<BattleFlag>(FlagPath, false, report);
         report.Check(flag == null || flag.GetComponent<Collider>() != null, "Flag prefab needs its pickup collider.");
         report.Check(AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/CombatFade.shader") != null, "Combat fade shader is missing.");
+        report.Check(AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/UtilityMagicParticle.shader") != null, "Utility magic particle shader is missing.");
         if (character == null) return;
         report.Check(character.GetComponent<CharacterController>() != null, "ChPrefab root needs CharacterController.");
         report.Check(character.GetComponent<CombatPresentation>() != null, "ChPrefab root needs CombatPresentation.");
@@ -158,7 +173,7 @@ public static class WitchFlightBattleValidation
         var slots = new SerializedObject(visualEquipment);
         CheckSlots(slots.FindProperty("hatPrefabs"), 3, character.transform, "hat", report);
         CheckSlots(slots.FindProperty("broomPrefabs"), 3, character.transform, "broom", report);
-        CheckSlots(slots.FindProperty("magicStaffPrefabs"), 10, character.transform, "magic", report);
+        CheckSlots(slots.FindProperty("magicStaffPrefabs"), (int)MagicType.Smoke, character.transform, "magic", report);
     }
 
     private static GameObject ValidateNetworkPrefab<T>(string path, bool needsTransform, Report report) where T : NetworkBehaviour
@@ -219,6 +234,13 @@ public static class WitchFlightBattleValidation
         report.Check(battle.Script("Assets/Script/Camera/CameraFollow.cs") != null && battle.Script("Assets/Script/Camera/CameraManager.cs") != null,
             "Saved Battle scene needs CameraFollow and CameraManager.");
         if (manager == null) return;
+        report.Check(battle.Script("Assets/Script/BattleRoundUI.cs") != null,
+            "Battle scene needs an always-active BattleRoundUI for intermission/final result.");
+        report.Check(battle.Script("Assets/Script/BattleKillFeed.cs") != null,
+            "Battle scene needs an always-active BattleKillFeed.");
+        report.Check(Positive(ReadFloat(manager, "magicChangeDurationSeconds")), "Magic change duration must be positive.");
+        report.Check(ReadFloat(manager, "maxMagicChangesPerRound") == 1f || ReadFloat(manager, "maxMagicChangesPerRound") == 2f,
+            "Magic change limit must be one or two slots.");
         report.Check(ReadPrefabGuid(manager, "flagPrefab") == AssetDatabase.AssetPathToGUID(FlagPath), "BattleManager.flagPrefab does not reference FlagOBJ.");
         report.Check(Positive(ReadFloat(manager, "matchDurationSeconds")), "Match duration must be positive.");
         report.Check(Mathf.Approximately(ReadFloat(manager, "deathDespawnDelay"), 2f), "Death presentation/despawn delay must be 2 seconds.");

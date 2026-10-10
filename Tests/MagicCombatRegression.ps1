@@ -41,6 +41,7 @@ namespace UnityEngine {
   public static float SqrMagnitude(Vector3 a)=>a.sqrMagnitude;
   public static Vector3 operator+(Vector3 a,Vector3 b)=>new Vector3(a.x+b.x,a.y+b.y,a.z+b.z);
   public static Vector3 operator-(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
+  public static Vector3 operator-(Vector3 a)=>new Vector3(-a.x,-a.y,-a.z);
   public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;
   public static float Distance(Vector3 a,Vector3 b)=>(float)Math.Sqrt((a-b).sqrMagnitude);
   public static float Angle(Vector3 a,Vector3 b)=>(float)(Math.Acos(Math.Clamp(Dot(a,b)/Math.Sqrt(a.sqrMagnitude*b.sqrMagnitude),-1,1))*180/Math.PI);
@@ -75,9 +76,16 @@ public struct TickTimer {
  public bool Expired(RunnerState r)=>IsRunning&&r.Time+0.000001f>=End;
  public static TickTimer CreateFromSeconds(RunnerState r,float t)=>new TickTimer{End=r.Time+t,IsRunning=true};
 }
-public class TimerArray {private TickTimer[] values=new TickTimer[11];public int Length=>values.Length;
+public class TimerArray {private TickTimer[] values=new TickTimer[13];public int Length=>values.Length;
  public TickTimer this[int i]=>values[i];public void Set(int i,TickTimer t){values[i]=t;}}
 public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
+public static class SmokeCloudState {public static bool ValidSettings(float r,float s)=>r>0&&s>0&&!float.IsInfinity(r+s)&&!float.IsNaN(r+s);}
+public class BattleFlag {
+ public static BattleFlag Instance=new();public bool Space=true;public int Clouds;
+ public bool CanCreateSmoke(RunnerState runner)=>Space;
+ public bool CreateSmoke(Player caster,MagicStatEntry stats){Clouds++;return true;}
+}
+public static class MagicProjectile {public static int Breaks;public static int BreakHomingFor(Player defender){Breaks++;return 1;}}
 public class MagicTestBot {public bool Immortal;}
 public class PrefabRef {public bool IsValid=true;}
 public class Marker {public IDisposable Auto()=>new Scope();private class Scope:IDisposable {public void Dispose(){}}}
@@ -110,7 +118,7 @@ public class Player {
  public MagicTestBot testBot;
  public PrefabRef magicProjectilePrefab=new();
  public Player TraceTarget,Attacker;
- public float maxLockDistance=250,defaultHitStunSeconds=.25f,parryWindowSeconds=.3f,parryCooldownSeconds=2;
+ public float maxLockDistance=250,defaultHitStunSeconds=.25f,parryWindowSeconds=.3f,parryCooldownSeconds=.3f;
  public float AppliedSlow=1;public MagicStatEntry LastLaunched;
  public Marker combatMarker=new();
  public MagicStatEntry SelectedMagicStats=>GetMagicStats(GetSelectedMagic());
@@ -152,7 +160,39 @@ public static class Tests {
   e.transform.position=new UnityEngine.Vector3(0,0,10);p.Runner.Objects[2]=e.Object;return e;}
  static void Tick(Player p){p.Runner.Time+=p.Runner.DeltaTime;}
  public static int Run(){
-  var table=new MagicStatTable();Check(table.magics.Length==10,"ten replacement spells");
+  var table=new MagicStatTable();Check(table.magics.Length==12,"twelve spells including utility counters");
+  Check(Near(table.GetStats(MagicType.Smoke).radius,24),"smoke radius increased from 8 to 24");
+  float[] oldCooldowns={2.5f,1.8f,.6f,4f,12f,12f,3f,.25f,5f,.25f,3f,10f};
+  for(int i=0;i<oldCooldowns.Length;i++)
+   Check(Near(table.GetStats((MagicType)(i+1)).cooldownSeconds,oldCooldowns[i]*1.5f),"cooldown increased exactly 1.5 times for spell "+(i+1));
+  Check(Near(table.parryCooldownSeconds,.3f),"parry has a separate 0.3 second cooldown");
+  var parrying=Caster(MagicType.Fire);parrying.TryStartParry();
+  Check(Near(parrying.ParryCooldown.End,.3f)&&Near(parrying.NowAp,84),"parry starts cooldown and spends MP once");
+  parrying.Runner.Time=.299f;parrying.TryStartParry();
+  Check(Near(parrying.NowAp,84)&&Near(parrying.ParryCooldown.End,.3f),"parry cannot repeat or spend MP before cooldown expires");
+  parrying.Runner.Time=.3f;parrying.TryStartParry();
+  Check(Near(parrying.NowAp,68)&&Near(parrying.ParryCooldown.End,.6f),"parry can repeat exactly at cooldown expiry");
+  parrying=Caster(MagicType.Fire);parrying.magicStatTable=null;parrying.TryStartParry();
+  Check(Near(parrying.ParryCooldown.End,.3f),"missing table still uses 0.3 second parry fallback");
+  Check((int)MagicType.Flare==11&&(int)MagicType.Smoke==12,"new IDs append without changing saved old IDs");
+  var utility=Caster(MagicType.Flare);
+  utility.Input(true);
+  Check(utility.Launches==0&&MagicProjectile.Breaks==1&&Near(utility.NowAp,76),"Flare instantly breaks homing without launching hitscan or moving player");
+  utility.Input(true);utility.Input(false);utility.Input(true);
+  Check(MagicProjectile.Breaks==1,"holding or reclicking during flare cooldown cannot spam");
+  utility.Runner.Time=utility.MagicCooldowns[(int)MagicType.Flare].End;utility.Input(false);utility.Input(true);
+  Check(MagicProjectile.Breaks==2,"flare can be used again after configurable cooldown");
+  utility=Caster(MagicType.Smoke);BattleFlag.Instance.Space=false;utility.Input(true);
+  Check(utility.CastSequence==0&&Near(utility.NowAp,100),"full smoke area pool rejects before mana and cooldown");
+  BattleFlag.Instance.Space=true;utility.Input(false);utility.Input(true);
+  Check(BattleFlag.Instance.Clouds==1&&utility.Launches==0&&Near(utility.NowAp,60),"Smoke is immediate area creation, not a hitscan");
+  utility.Input(false);utility.Input(true);Check(BattleFlag.Instance.Clouds==1,"Smoke cooldown prevents duplicate areas");
+  utility=Caster(MagicType.Smoke);utility.magicStatTable.magics[11].radius=0;utility.Input(true);
+  Check(utility.CastSequence==0&&Near(utility.NowAp,100),"invalid smoke settings do not consume mana");
+  utility=Caster(MagicType.Flare);utility.NowAp=0;utility.Input(true);
+  Check(utility.CastSequence==0&&MagicProjectile.Breaks==2,"utility still requires mana");
+  utility=Caster(MagicType.Flare);utility.Object.HasStateAuthority=false;utility.Input(true);
+  Check(utility.CastSequence==0&&MagicProjectile.Breaks==2,"predicting client cannot execute utility gameplay");
   var dotAim=new Vector3(1,0,0);
   var aimed=Caster(MagicType.Vision);
   aimed.ProcessAuthoritativeCombat(new NetworkInputData{aimDirection=Vector3.forward,magicAimDirection=dotAim},new NetworkButtons{Bits=1});
@@ -217,7 +257,7 @@ public static class Tests {
   foreach(var magic in new[]{MagicType.Vision,MagicType.Dark,MagicType.Thunder,MagicType.Razier})
    Check(Near(table.GetStats(magic).hitscanRadius,.3f),"adjustable hitscan radius default "+magic);
   Check(Near(table.GetStats(MagicType.Fire).projectileRadius,.12f)&&Near(table.GetStats(MagicType.Mine).projectileRadius,.3f),"flying projectile sizes unchanged");
-  Check(Near(table.GetStats(MagicType.Curse).ChannelManaPerSecond(150),37.5f),"Curse drains any hat capacity in four seconds");
+  Check(Near(table.GetStats(MagicType.Curse).ChannelManaPerSecond(150),75f),"Curse drains any hat capacity in two seconds");
   foreach(float hp in new[]{0f,49f,50f}){
    var p=Caster(MagicType.Dark);p.NowHp=hp;p.TryCastSelectedMagic();Check(p.Launches==0&&p.NowHp==hp&&p.CastSequence==0,"Dark low HP blocked "+hp);
   }
@@ -230,7 +270,7 @@ public static class Tests {
   victim.Runner.Time=.31f;victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(victim.NowHp==135&&d.NowHp==110,"damage resumes after parry window");
   d=Caster(MagicType.Dark);d.NowHp=100;d.TryCastSelectedMagic();victim=Enemy(d);victim.NowHp=1;
   victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(!victim.IsAlive&&d.NowHp==110,"killing hit still heals");
-  d=Caster(MagicType.Healing);d.NowHp=190;d.Input(true);Check(d.NowHp==200&&d.NowAp==90,"Healing caps at max on press");
+  d=Caster(MagicType.Healing);d.NowHp=190;d.Input(true);Check(d.NowHp==200&&d.NowAp==80,"Healing caps at max on press");
   d=Caster(MagicType.Healing);d.Input(true);Check(d.NowAp==100&&d.CastSequence==0,"full HP healing does not consume resources");
   d=Caster(MagicType.Binding);victim=Enemy(d);victim.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.One);
   Check(victim.NowHp==200&&Near(victim.BindingTimer.End,3)&&victim.Speed==0,"Binding roots three seconds without damage");
@@ -253,6 +293,7 @@ public static class Tests {
   Check(d.CanAcquireMagicTarget()&&d.LockProgress>0&&d.LockProgress<.1f,"held input begins fresh charge at expiry");
   Check(d.GetDisplayedLockTarget()==victim,"HUD returns acquired target after cooldown");
   d.Input(false,false,victim.Object.Id);Check(d.Launches==1,"release immediately after expiry still requires full charge");
+  d.NowAp=100; // Isolate cooldown/lock behavior from the newly doubled cast cost.
   for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}d.Input(false,false,victim.Object.Id);
   Check(d.Launches==2,"normal full lock and release work after cooldown");
   d.Selected=MagicType.Ice;Check(d.CanAcquireMagicTarget(),"another ready spell remains selectable while Fire cools down");
@@ -278,16 +319,16 @@ public static class Tests {
   d=Caster(MagicType.Thunder);d.Input(true);Check(d.Launches==0&&d.pendingMagic==MagicType.Thunder,"Thunder cast delay");
   d.Runner.Time=.31f;d.UpdatePendingCast();Check(d.Launches==1&&d.LastLaunched.effect==MagicEffectKind.AreaDamage,"Thunder delayed AOE");
   d=Caster(MagicType.Curse);victim=Enemy(d);victim.MaxHp=victim.NowHp=1000;
-  for(int i=0;i<200;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
-  Check(Near(d.NowAp,0)&&!d.IsChanneling&&d.channelNeedsRelease,"Curse spends full mana in four seconds without regen");
-  Check(Near(victim.NowHp,952),"Curse DPS integrated over four seconds");
+  for(int i=0;i<100;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
+  Check(Near(d.NowAp,0)&&!d.IsChanneling&&d.channelNeedsRelease,"Curse spends full mana in two seconds without regen");
+  Check(Near(victim.NowHp,976),"Curse DPS unchanged but channel duration is halved");
   d.NowAp=20;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"exhaustion requires release");
   d.Input(false);d.Runner.Time+=1;d.Input(true,false,victim.Object.Id);Check(d.IsChanneling,"channel restarts after release");
   victim.Visible=false;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"Curse ends behind wall");
   d=Caster(MagicType.Razier);victim=Enemy(d);d.TraceTarget=victim;
   d.CastOffset=new Vector3(3,2,1);
   for(int i=0;i<50;i++){d.Input(true);d.RegenerateAp();Tick(d);}
-  Check(Near(d.NowAp,80)&&Near(victim.NowHp,182),"Razier DPS and MP per second");
+  Check(Near(d.NowAp,60)&&Near(victim.NowHp,182),"Razier DPS unchanged and MP per second doubled");
   Check(d.LastTraceOrigin.x==3&&d.LastTraceOrigin.y==2,"straight channel traces from the editable cast root");
   d.CastOffset=new Vector3(4,5,6);d.Input(true);Check(d.LastTraceOrigin.x==4&&d.LastTraceOrigin.y==5,"channel follows the current cast root each tick");
   d.Input(false);Check(!d.IsChanneling&&d.TimerIsActive(d.MagicCooldowns[(int)MagicType.Razier]),"release ends channel and starts cooldown");
@@ -308,3 +349,25 @@ public static class Tests {
 $nl = [Environment]::NewLine
 Add-Type -TypeDefinition ($stubs + $nl + 'namespace CombatChecks {' + $nl + $table + $nl + $enum + $nl + '}' + $nl + $probe)
 "Magic combat behavior checks passed: $([CombatChecks.Tests]::Run())"
+
+# Inspect the saved asset too: Unity keeps serialized values instead of C# defaults.
+$savedMagicTable = Get-Content Assets/Resources/MagicStatTable.asset -Raw
+$savedEntries = [regex]::Matches($savedMagicTable, '(?ms)^  - magic: (\d+)\r?\n(.*?)(?=^  - magic:|\z)')
+if ($savedEntries.Count -ne 12) { throw 'Expected 12 saved spells' }
+$defaultMagicTable = [CombatChecks.MagicStatTable]::new()
+foreach ($entry in $savedEntries) {
+    $id = [int]$entry.Groups[1].Value
+    if ($id -eq 12 -and $entry.Groups[2].Value -notmatch '(?m)^    radius: 24\r?$') { throw 'Saved smoke radius must be 24' }
+    $cooldown = [float][regex]::Match($entry.Groups[2].Value, '(?m)^    cooldownSeconds: ([\d.]+)').Groups[1].Value
+    if ([Math]::Abs($cooldown - $defaultMagicTable.GetStats([CombatChecks.MagicType]$id).cooldownSeconds) -gt 0.001) {
+        throw "Saved cooldown differs from updated default for magic $id"
+    }
+}
+if ($savedMagicTable -notmatch '(?m)^  parryCooldownSeconds: 0\.3\r?$' -or
+    $savedMagicTable -notmatch '(?m)^  parryWindowSeconds: 0\.5\r?$') {
+    throw 'Parry cooldown must be 0.3 seconds without changing the current 0.5 second success window'
+}
+foreach ($prefab in 'Assets/Ch/ChPrefab.prefab','Assets/Prefab/MagicDummy_LockOnAttacker.prefab','Assets/Prefab/MagicDummy_Immortal.prefab') {
+    if ((Get-Content $prefab -Raw) -notmatch '(?m)^  parryCooldownSeconds: 0\.3\r?$') { throw "Stale parry fallback in $prefab" }
+}
+'Saved cooldowns and prefab fallbacks passed.'

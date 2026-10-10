@@ -39,11 +39,11 @@ public sealed class linkuserinfo : MonoBehaviour
     [SerializeField] private PlayerData localPlayerData;
     [SerializeField] private PlayerData opponentPlayerData;
 
-    [Header("Profile UI (sprite array index = playerprofile)")]
+    [Header("Profile UI (table index = playerprofile)")]
     [SerializeField] private Image localProfileImage;
     [SerializeField] private Image opponentProfileImage;
-    [SerializeField] private Sprite[] profileSprites = Array.Empty<Sprite>();
-    [SerializeField] private Sprite fallbackProfileSprite;
+    [Tooltip("공용 프로필 테이블. 비우면 Resources/ProfileImageTable을 자동 사용합니다.")]
+    [SerializeField] private ProfileImageTable profileTable;
     [Tooltip("Enable on exactly one active MAIN lobby UI bridge, not the Battle intro panel. Random matchmaking waits for both peers to display the opponent for one second.")]
     [SerializeField] private bool confirmRandomMatchPreview;
 
@@ -230,9 +230,14 @@ public sealed class linkuserinfo : MonoBehaviour
     private Sprite GetProfileSprite(PlayerData data)
     {
         if (!IsReady(data)) return null;
-        int id = data.profileimage;
-        return profileSprites != null && id >= 0 && id < profileSprites.Length && profileSprites[id] != null
-            ? profileSprites[id] : fallbackProfileSprite;
+        return ResolveProfileSprite(data.profileimage);
+    }
+
+    public Sprite ResolveProfileSprite(int id)
+    {
+        // Every profile icon, including fallback images, comes from the shared table.
+        if (profileTable == null) profileTable = ProfileImageTable.Default;
+        return profileTable != null ? profileTable.GetSprite(id) : null;
     }
 
     private void ApplyProfile(Image target, PlayerData data)
@@ -243,7 +248,7 @@ public sealed class linkuserinfo : MonoBehaviour
     private Sprite GetMagicIcon(MagicType magic)
     {
         // Empty slots must stay empty, not fall back to Fire or another player's icon.
-        if (magic < MagicType.Fire || magic > MagicType.Razier) return null;
+        if (magic < MagicType.Fire || magic > MagicType.Smoke) return null;
         if (magicIcons != null)
             foreach (MagicIconEntry entry in magicIcons)
                 if (entry.magic == magic && entry.icon != null) return entry.icon;

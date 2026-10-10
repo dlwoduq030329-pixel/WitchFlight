@@ -114,7 +114,8 @@ public sealed class hpfollow : MonoBehaviour
                local != null && local.Object != null && local.Object.IsValid &&
                local != owner && !owner.Object.HasInputAuthority &&
                local.TeamIndex > 0 && owner.TeamIndex > 0 && local.TeamIndex != owner.TeamIndex &&
-               local.IsAlive && owner.IsAlive && maxHealth > 0f && !owner.IsStealthed;
+               local.IsAlive && owner.IsAlive && maxHealth > 0f && !owner.IsStealthed &&
+               !owner.IsHiddenBySmokeFor(local);
     }
 
     private void CreateView()

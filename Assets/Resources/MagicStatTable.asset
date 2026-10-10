@@ -28,9 +28,9 @@ MonoBehaviour:
   projectileSatelliteLeadDistance: 3
   projectileMergeStartDistance: 18
   projectileMergeEndDistance: 3
-  parryApCost: 8
+  parryApCost: 16
   parryWindowSeconds: 0.5
-  parryCooldownSeconds: 0
+  parryCooldownSeconds: 0.3
   parryIcon: {fileID: 0}
   fallback:
     magic: 0
@@ -71,6 +71,9 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 0
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   magics:
   - magic: 1
     displayName: Fire
@@ -78,8 +81,8 @@ MonoBehaviour:
       \uB85D\uC628\uD55C \uB4A4 \uBC84\uD2BC\uC744 \uB193\uC544 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: a170a08214b94864cb5aa94b432d4244, type: 3}
     effect: 0
-    apCost: 30
-    cooldownSeconds: 2.5
+    apCost: 60
+    cooldownSeconds: 3.75
     lockChargeSeconds: 0.8
     castSeconds: 0
     projectileSpeed: 75
@@ -111,14 +114,17 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 2
     displayName: Ice
     description: "\uBE60\uB974\uAC8C \uB85D\uC628\uD558\uC5EC \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
       \uC801\uC911\uD55C \uC801\uC758 \uC774\uB3D9 \uC18D\uB3C4\uB97C \uB0AE\uCDA5\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 03e34f30a8068f045a4132237dd9ea86, type: 3}
     effect: 1
-    apCost: 18
-    cooldownSeconds: 1.8
+    apCost: 36
+    cooldownSeconds: 2.7
     lockChargeSeconds: 0.35
     castSeconds: 0
     projectileSpeed: 85
@@ -150,14 +156,17 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 3
     displayName: Vision
     description: "\uC801\uC740 \uB9C8\uB098\uB85C \uAE34 \uC0AC\uAC70\uB9AC\uC758
       \uC989\uBC1C \uAD11\uC120\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 483f402404d997e47b833359b4130930, type: 3}
     effect: 0
-    apCost: 8
-    cooldownSeconds: 0.6
+    apCost: 16
+    cooldownSeconds: 0.9
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 0
@@ -189,14 +198,17 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 4
     displayName: Thunder
     description: "\uC9E7\uC740 \uC2DC\uC804 \uD6C4 \uC815\uBA74 \uC870\uC900 \uC9C0\uC810\uC5D0
       \uAD11\uC5ED \uD53C\uD574\uB97C \uC90D\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: aece16bd1eb03fe4ab6583a486a6154c, type: 3}
     effect: 2
-    apCost: 40
-    cooldownSeconds: 4
+    apCost: 80
+    cooldownSeconds: 6
     lockChargeSeconds: 1
     castSeconds: 0.3
     projectileSpeed: 0
@@ -228,14 +240,17 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 5
     displayName: Healing
     description: "\uCCB4\uB825 40\uC744 \uC989\uC2DC \uD68C\uBCF5\uD569\uB2C8\uB2E4.
       \uC7AC\uC0AC\uC6A9 \uB300\uAE30 \uC2DC\uAC04\uC774 \uAE41\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: 0da4074812881bd4cb1d3bb307908a3f, type: 3}
+    icon: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
     effect: 3
-    apCost: 10
-    cooldownSeconds: 12
+    apCost: 20
+    cooldownSeconds: 18
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 0
@@ -267,15 +282,18 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 6
     displayName: Binding
     description: "\uB85D\uC628 \uD6C4 \uC720\uB3C4 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
       \uD53C\uD574 \uC5C6\uC774 3\uCD08 \uB3D9\uC548 \uC801\uC758 \uC774\uB3D9\uC744
       \uB9C9\uC2B5\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: e8c522cb9966a2949a71f4ec5084be50, type: 3}
+    icon: {fileID: 21300000, guid: 470e6d85bf64c224b8b8add626b4f506, type: 3}
     effect: 4
-    apCost: 25
-    cooldownSeconds: 12
+    apCost: 50
+    cooldownSeconds: 18
     lockChargeSeconds: 0.6
     castSeconds: 0
     projectileSpeed: 75
@@ -307,15 +325,18 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 7
     displayName: Dark
     description: "\uCCB4\uB825 50\uC744 \uC18C\uBAA8\uD558\uB294 \uC989\uBC1C \uACF5\uACA9.
       \uC801\uC5D0\uAC8C \uD53C\uD574\uB97C \uC785\uD788\uBA74 \uCCB4\uB825 60\uC744
       \uD68C\uBCF5\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
+    icon: {fileID: 21300000, guid: e8c522cb9966a2949a71f4ec5084be50, type: 3}
     effect: 5
     apCost: 0
-    cooldownSeconds: 3
+    cooldownSeconds: 4.5
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 0
@@ -347,15 +368,18 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 8
     displayName: Curse
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uAC00\uAE4C\uC6B4 \uC801\uC744
       \uC790\uB3D9 \uCD94\uC801\uD569\uB2C8\uB2E4. \uBCBD\uC774\uB098 \uD654\uBA74
       \uBC16\uC73C\uB85C \uBC97\uC5B4\uB098\uBA74 \uB04A\uC5B4\uC9D1\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: 470e6d85bf64c224b8b8add626b4f506, type: 3}
+    icon: {fileID: 21300000, guid: 82d5cbd78bedbed4b882e96a4030dff0, type: 3}
     effect: 6
     apCost: 0
-    cooldownSeconds: 0.25
+    cooldownSeconds: 0.375
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 0
@@ -379,7 +403,7 @@ MonoBehaviour:
     healOnHit: 0
     damagePerSecond: 12
     apPerSecond: 0
-    maxApFractionPerSecond: 0.25
+    maxApFractionPerSecond: 0.5
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
     castVfxPrefab: {fileID: 0}
@@ -387,15 +411,18 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 9
     displayName: Mine
     description: "\uC804\uBC29\uC5D0 \uAE30\uB8B0\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
       \uBB34\uC7A5 \uD6C4 \uC790\uC2E0\uACFC \uC544\uAD70\uC744 \uD3EC\uD568\uD55C
       \uB204\uAD6C\uB4E0 \uC811\uADFC\uD558\uBA74 \uD3ED\uBC1C\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: 82d5cbd78bedbed4b882e96a4030dff0, type: 3}
+    icon: {fileID: 21300000, guid: 0da4074812881bd4cb1d3bb307908a3f, type: 3}
     effect: 7
-    apCost: 25
-    cooldownSeconds: 5
+    apCost: 50
+    cooldownSeconds: 7.5
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 20
@@ -427,14 +454,17 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 10
     displayName: Razier
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uC815\uBA74\uC5D0 \uC9C1\uC120
       \uAD11\uC120\uC744 \uC720\uC9C0\uD558\uBA70 \uB9C8\uB098\uB97C \uC18C\uBAA8\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
+    icon: {fileID: 21300000, guid: 82d5cbd78bedbed4b882e96a4030dff0, type: 3}
     effect: 8
     apCost: 0
-    cooldownSeconds: 0.25
+    cooldownSeconds: 0.375
     lockChargeSeconds: 1
     castSeconds: 0
     projectileSpeed: 0
@@ -457,7 +487,7 @@ MonoBehaviour:
     healing: 0
     healOnHit: 0
     damagePerSecond: 18
-    apPerSecond: 20
+    apPerSecond: 40
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
@@ -466,3 +496,93 @@ MonoBehaviour:
     impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+  - magic: 11
+    displayName: "\uD50C\uB808\uC5B4"
+    description: "\uB4F1 \uB4A4\uB85C \uD50C\uB808\uC5B4\uB97C \uBC29\uCD9C\uD574
+      \uC774\uBBF8 \uC790\uC2E0\uC744 \uCD94\uC801 \uC911\uC778 \uC720\uB3C4\uD0C4\uC758
+      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \uBB34\uC801\uC774\uB098 \uD68C\uD53C
+      \uC774\uB3D9\uC740 \uBD80\uC5EC\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
+    effect: 9
+    apCost: 24
+    cooldownSeconds: 4.5
+    lockChargeSeconds: 1
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 0
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    castVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    vfxLifetime: 3
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+  - magic: 12
+    displayName: "\uC5F0\uB9C9"
+    description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
+      \uB0B4\uBD80\uC758 \uCE90\uB9AD\uD130\uB294 \uC801\uC5D0\uAC8C \uBCF4\uC774\uC9C0
+      \uC54A\uC9C0\uB9CC \uB85D\uC628\uACFC \uD53C\uACA9 \uD310\uC815\uC740 \uC720\uC9C0\uB429\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
+    effect: 10
+    apCost: 40
+    cooldownSeconds: 15
+    lockChargeSeconds: 1
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 0
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 5
+    radius: 24
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    castVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    vfxLifetime: 1.2
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0

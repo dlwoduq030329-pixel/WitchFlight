@@ -11,6 +11,7 @@ public sealed class BattleHud : MonoBehaviour
     [Header("UI style")]
     [Tooltip("DungGeunMo SDF: 자동 생성되는 경고/록온/부활 텍스트에 사용합니다.")]
     [SerializeField] private TMP_FontAsset feedbackFont;
+    public TMP_FontAsset FeedbackFont => feedbackFont;
     [Header("Panels (keep this component outside these panels)")]
     [SerializeField] private GameObject hudRoot;
     [SerializeField] private GameObject playerPanel;
@@ -19,6 +20,8 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private GameObject menuPanel;
     [SerializeField] private Button resumeButton;
     [Header("Player")]
+    [Tooltip("내 닉네임을 표시할 TextMeshPro UI. 현재 접속자의 PlayerData.playerName을 사용합니다.")]
+    [SerializeField] private TMP_Text playerNameText;
     [SerializeField] private GridHPBar hpGridBar;
     [SerializeField] private Slider hpSlider;
     [SerializeField] private Image hpFill;
@@ -37,6 +40,10 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private TMP_Text selectedMagicText;
     [SerializeField] private TMP_Text magicCostText;
     [Header("Match")]
+    [Tooltip("내 진영의 라운드 승리 횟수만 표시합니다. 팀 번호와 무관하게 로컬 플레이어 기준입니다.")]
+    [SerializeField] private TextMeshProUGUI myRoundWinsText;
+    [Tooltip("상대 진영의 라운드 승리 횟수만 표시합니다. VS 문구는 별도 UI로 두세요.")]
+    [SerializeField] private TextMeshProUGUI enemyRoundWinsText;
     [SerializeField] private TMP_Text matchTimeText;
     [SerializeField] private TMP_Text flagText;
     [SerializeField] private TMP_Text resultText;
@@ -188,6 +195,8 @@ public sealed class BattleHud : MonoBehaviour
     private void Update()
     {
         BattleManager battle = BattleManager.Instance;
+        // Update even during intermission/VS and while the local character is despawned.
+        BindRoundScores();
         bool show = battle != null && (battle.IsGameplayActive || battle.IsBattleEnded);
         if (!show)
         {
@@ -224,7 +233,7 @@ public sealed class BattleHud : MonoBehaviour
         Visible(hudRoot, true);
         Visible(playerPanel, valid);
         if (matchTimeText != null)
-            SetText(matchTimeText, TimeSpan.FromSeconds(Mathf.Max(0f, battle.RemainingSeconds)).ToString(@"mm\:ss"));
+            SetText(matchTimeText, battle.IsOvertime ? "연장전" : TimeSpan.FromSeconds(Mathf.Max(0f, battle.RemainingSeconds)).ToString(@"mm\:ss"));
         BattleFlag flag = BattleFlag.Instance;
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null) SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
@@ -248,8 +257,39 @@ public sealed class BattleHud : MonoBehaviour
         UpdateHitMarker(valid && owner.IsAlive && battle.IsGameplayActive && !MenuOpen);
     }
 
+    private void BindRoundScores()
+    {
+        PlayerData data = PlayerData.Local;
+        BattleFlag flag = BattleFlag.Instance;
+        int myWins = 0, enemyWins = 0;
+        if (data != null && data.Object != null && data.Object.IsValid && data.Object.HasInputAuthority &&
+            data.IsLoadoutInitialized && (data.teamIndex == 1 || data.teamIndex == 2) &&
+            flag != null && flag.Object != null && flag.Object.IsValid)
+        {
+            myWins = data.teamIndex == 1 ? flag.Team1Wins : flag.Team2Wins;
+            enemyWins = data.teamIndex == 1 ? flag.Team2Wins : flag.Team1Wins;
+        }
+        SetRoundWinsText(myRoundWinsText, myWins);
+        SetRoundWinsText(enemyRoundWinsText, enemyWins);
+    }
+
+    private static void SetRoundWinsText(TextMeshProUGUI label, int wins)
+    {
+        if (label == null) return;
+        // Best-of-three digits are constant strings: no per-frame number allocations.
+        string value = wins <= 0 ? "0" : wins == 1 ? "1" : "2";
+        if (label.text != value) label.text = value;
+    }
+
     private void BindPlayer(bool valid)
     {
+        if (playerNameText != null)
+        {
+            PlayerData data = PlayerData.Local;
+            playerNameText.richText = false;
+            SetText(playerNameText, data != null && data.Object != null && data.Object.IsValid &&
+                data.IsLoadoutInitialized ? data.playerName.ToString() : string.Empty);
+        }
         SetBar(apSlider, apFill, valid ? owner.NowAp / Mathf.Max(1f, owner.MaxAp) : 0f);
         if (apText != null) SetText(apText, valid ? $"{owner.NowAp:0} / {owner.MaxAp:0}" : "");
         if (manaPercentText != null)
