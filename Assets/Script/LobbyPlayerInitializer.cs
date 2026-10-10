@@ -11,6 +11,11 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
     [Tooltip("Main의 커스터마이징 창. 이 창이 열려 있을 때만 미리보기 빗자루/지팡이를 표시합니다.")]
     [SerializeField] private GameObject customizationPanel;
     [SerializeField] private TMP_Text nicknameText;
+    [Header("Lobby profile")]
+    [Tooltip("메인 화면 좌상단 프로필 Image. 로그인 후 DataConfig.playerprofile 번호로 표시합니다.")]
+    [SerializeField] private Image playerProfileImage;
+    [Tooltip("비워두면 Resources/ProfileImageTable을 자동으로 사용합니다. 배틀/VS와 같은 테이블을 지정하세요.")]
+    [SerializeField] private ProfileImageTable profileTable;
     [Header("Local preview and bangs slider (0..1)")]
     [SerializeField] private PlayerAppearance appearance;
     [SerializeField] private Slider bangsLengthSlider;
@@ -73,7 +78,25 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         RefreshCustomizationUI();
     }
 
-    private void LateUpdate() => RefreshEquipmentVisibility();
+    private void LateUpdate()
+    {
+        RefreshEquipmentVisibility();
+        // Login snapshots and logout resets can be silent DataConfig changes.
+        RefreshPlayerProfile();
+    }
+
+    private void RefreshPlayerProfile()
+    {
+        if (playerProfileImage == null) return;
+        Sprite sprite = null;
+        if (CanCustomize)
+        {
+            if (profileTable == null) profileTable = ProfileImageTable.Default;
+            if (profileTable != null) sprite = profileTable.GetSprite(DataConfig.playerprofile);
+        }
+        if (playerProfileImage.sprite != sprite) playerProfileImage.sprite = sprite;
+        if (playerProfileImage.enabled != (sprite != null)) playerProfileImage.enabled = sprite != null;
+    }
 
     private void RefreshEquipmentVisibility()
     {
@@ -194,6 +217,7 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
 
     private void RefreshCustomizationUI()
     {
+        RefreshPlayerProfile();
         bool ready = CanCustomize;
         if (ready) CurrentConfig = DataConfig.GetPlayerConfig();
         RefreshSlider(bangsLengthSlider, bangsLengthText, DataConfig.bangsLength, ready);

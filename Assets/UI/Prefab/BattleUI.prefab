@@ -2939,39 +2939,7 @@ MonoBehaviour:
   parryBackImage: {fileID: 0}
   parrySliderImage: {fileID: 0}
   parryCooldownSlider: {fileID: 0}
-  magicSprites:
-  - magic: 1
-    backSprite: {fileID: 21300000, guid: a170a08214b94864cb5aa94b432d4244, type: 3}
-    sliderSprite: {fileID: 21300000, guid: a170a08214b94864cb5aa94b432d4244, type: 3}
-  - magic: 2
-    backSprite: {fileID: 21300000, guid: 03e34f30a8068f045a4132237dd9ea86, type: 3}
-    sliderSprite: {fileID: 21300000, guid: 03e34f30a8068f045a4132237dd9ea86, type: 3}
-  - magic: 3
-    backSprite: {fileID: 21300000, guid: 483f402404d997e47b833359b4130930, type: 3}
-    sliderSprite: {fileID: 21300000, guid: 483f402404d997e47b833359b4130930, type: 3}
-  - magic: 4
-    backSprite: {fileID: 21300000, guid: aece16bd1eb03fe4ab6583a486a6154c, type: 3}
-    sliderSprite: {fileID: 21300000, guid: aece16bd1eb03fe4ab6583a486a6154c, type: 3}
-  - magic: 5
-    backSprite: {fileID: 21300000, guid: 0da4074812881bd4cb1d3bb307908a3f, type: 3}
-    sliderSprite: {fileID: 21300000, guid: 0da4074812881bd4cb1d3bb307908a3f, type: 3}
-  - magic: 6
-    backSprite: {fileID: 21300000, guid: e8c522cb9966a2949a71f4ec5084be50, type: 3}
-    sliderSprite: {fileID: 21300000, guid: e8c522cb9966a2949a71f4ec5084be50, type: 3}
-  - magic: 7
-    backSprite: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
-    sliderSprite: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
-  - magic: 8
-    backSprite: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
-    sliderSprite: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
-  - magic: 9
-    backSprite: {fileID: 21300000, guid: 470e6d85bf64c224b8b8add626b4f506, type: 3}
-    sliderSprite: {fileID: 21300000, guid: 470e6d85bf64c224b8b8add626b4f506, type: 3}
-  - magic: 10
-    backSprite: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
-    sliderSprite: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
-  parryBackSprite: {fileID: 0}
-  parrySliderSprite: {fileID: 0}
+  magicTable: {fileID: 11400000, guid: d81c29d2f62042b1944c5e42544d9636, type: 2}
 --- !u!1 &4196592707277954606
 GameObject:
   m_ObjectHideFlags: 0
@@ -9864,8 +9832,8 @@ MonoBehaviour:
   refreshInterval: 0.2
   localPlayerData: {fileID: 0}
   opponentPlayerData: {fileID: 0}
-  localProfileImage: {fileID: 0}
-  opponentProfileImage: {fileID: 0}
+  localProfileImage: {fileID: 8220298834494429444}
+  opponentProfileImage: {fileID: 8220298834494429445}
   profileTable: {fileID: 11400000, guid: 37691fc4619c43d2b0525e0e9b8de71f, type: 2}
   confirmRandomMatchPreview: 0
   localNameText: {fileID: 6098724821656807811}
@@ -9874,7 +9842,6 @@ MonoBehaviour:
   localMagic2Image: {fileID: 2253606112948550386}
   opponentMagic1Image: {fileID: 6050412748207802302}
   opponentMagic2Image: {fileID: 7464103300669555692}
-  magicIcons: []
   magicTable: {fileID: 11400000, guid: d81c29d2f62042b1944c5e42544d9636, type: 2}
   waitingRoomPanel: {fileID: 0}
   waitingRoomSlots: []
@@ -9895,6 +9862,28 @@ MonoBehaviour:
   onUsersChanged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &8220298834494429444 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 347984970694060090, guid: 7e152cf3226fafd4a8877a6fd9ac6943, type: 3}
+  m_PrefabInstance: {fileID: 3037583284370875108}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+--- !u!114 &8220298834494429445 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3394237715348283178, guid: 7e152cf3226fafd4a8877a6fd9ac6943, type: 3}
+  m_PrefabInstance: {fileID: 3037583284370875108}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
 --- !u!114 &6050412748207802302 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 8777739638203540826, guid: 7e152cf3226fafd4a8877a6fd9ac6943, type: 3}

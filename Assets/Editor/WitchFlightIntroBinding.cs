@@ -39,19 +39,6 @@ internal static class WitchFlightIntroBinding
             Bind<Image>(data, "opponentMagic2Image", opponent, "MagicIcon02");
             data.FindProperty("confirmRandomMatchPreview").boolValue = false;
             data.FindProperty("magicTable").objectReferenceValue = AssetDatabase.LoadAssetAtPath<MagicStatTable>("Assets/Resources/MagicStatTable.asset");
-            GameObject lobby = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/UI/Prefab/IntroAndRobby.prefab");
-            var choices = new SerializedObject(lobby.GetComponentInChildren<MagicCustomizationUI>(true)).FindProperty("magicChoices");
-            var icons = data.FindProperty("magicIcons");
-            icons.arraySize = choices.arraySize;
-            for (int i = 0; i < choices.arraySize; i++)
-            {
-                var choice = choices.GetArrayElementAtIndex(i);
-                var icon = icons.GetArrayElementAtIndex(i);
-                icon.FindPropertyRelative("magic").intValue = choice.FindPropertyRelative("magic").intValue;
-                icon.FindPropertyRelative("icon").objectReferenceValue = choice.FindPropertyRelative("icon").objectReferenceValue;
-                if (icon.FindPropertyRelative("icon").objectReferenceValue == null)
-                    throw new InvalidOperationException("Missing source magic icon: " + i);
-            }
             ProfileImageTable profileTable = AssetDatabase.LoadAssetAtPath<ProfileImageTable>("Assets/Resources/ProfileImageTable.asset");
             if (profileTable == null) throw new InvalidOperationException("Shared profile image table missing.");
             data.FindProperty("profileTable").objectReferenceValue = profileTable;
@@ -61,10 +48,10 @@ internal static class WitchFlightIntroBinding
             PrefabUtility.SaveAsPrefabAsset(contents, path, out bool saved);
             if (!saved) throw new InvalidOperationException("Prefab save failed.");
             var verified = new SerializedObject(AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponentInChildren<linkuserinfo>(true));
-            string[] fields = { "localNameText", "opponentNameText", "localProfileImage", "opponentProfileImage", "localMagic1Image", "localMagic2Image", "opponentMagic1Image", "opponentMagic2Image", "profileTable" };
+            string[] fields = { "localNameText", "opponentNameText", "localProfileImage", "opponentProfileImage", "localMagic1Image", "localMagic2Image", "opponentMagic1Image", "opponentMagic2Image", "profileTable", "magicTable" };
             foreach (string field in fields)
                 if (verified.FindProperty(field).objectReferenceValue == null) throw new InvalidOperationException("Saved reference missing: " + field);
-            File.WriteAllText("Temp/WitchFlightIntroBinding.report.txt", "VERIFIED: 8 intro UI references; " + icons.arraySize + " magic icons; shared ProfileImageTable. Existing portrait RawImages and scenes untouched. Backup: " + backup);
+            File.WriteAllText("Temp/WitchFlightIntroBinding.report.txt", "VERIFIED: 8 intro UI references; shared MagicStatTable and ProfileImageTable. Existing portrait RawImages and scenes untouched. Backup: " + backup);
         }
         catch (Exception e)
         {

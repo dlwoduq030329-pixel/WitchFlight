@@ -22,6 +22,10 @@ public sealed class BattleHud : MonoBehaviour
     [Header("Player")]
     [Tooltip("내 닉네임을 표시할 TextMeshPro UI. 현재 접속자의 PlayerData.playerName을 사용합니다.")]
     [SerializeField] private TMP_Text playerNameText;
+    [Tooltip("체력바 옆에 내 프로필을 표시할 UI Image. PlayerData.playerprofile 번호로 공용 테이블에서 가져옵니다.")]
+    [SerializeField] private Image playerProfileImage;
+    [Tooltip("비워두면 Resources/ProfileImageTable을 자동으로 사용합니다.")]
+    [SerializeField] private ProfileImageTable profileTable;
     [SerializeField] private GridHPBar hpGridBar;
     [SerializeField] private Slider hpSlider;
     [SerializeField] private Image hpFill;
@@ -283,6 +287,7 @@ public sealed class BattleHud : MonoBehaviour
 
     private void BindPlayer(bool valid)
     {
+        BindPlayerProfile();
         if (playerNameText != null)
         {
             PlayerData data = PlayerData.Local;
@@ -302,6 +307,20 @@ public sealed class BattleHud : MonoBehaviour
         if (speedText != null) SetText(speedText, valid ? $"{owner.CurrentSpeed:0.0} m/s" : "");
         if (selectedMagicText != null) SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
         if (magicCostText != null) SetText(magicCostText, valid ? owner.SelectedMagicApCost.ToString("0") : "");
+    }
+
+    private void BindPlayerProfile()
+    {
+        if (playerProfileImage == null) return;
+        if (profileTable == null) profileTable = ProfileImageTable.Default;
+
+        // PlayerData survives character death/respawn; do not depend on the living Player.
+        PlayerData data = PlayerData.Local;
+        bool ready = data != null && data.Object != null && data.Object.IsValid &&
+            data.Object.HasInputAuthority && data.IsLoadoutInitialized;
+        Sprite sprite = ready && profileTable != null ? profileTable.GetSprite(data.playerprofile) : null;
+        if (playerProfileImage.sprite != sprite) playerProfileImage.sprite = sprite;
+        if (playerProfileImage.enabled != (sprite != null)) playerProfileImage.enabled = sprite != null;
     }
 
     private void BindOwner(Player next)

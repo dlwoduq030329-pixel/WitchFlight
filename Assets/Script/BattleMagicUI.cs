@@ -7,15 +7,6 @@ using UnityEngine.Serialization;
 [DisallowMultipleComponent]
 public sealed class BattleMagicUI : MonoBehaviour
 {
-    [System.Serializable]
-    public struct MagicSpriteEntry
-    {
-        public MagicType magic;
-        public Sprite backSprite;
-        [Tooltip("비워두면 Back Sprite를 사용합니다.")]
-        public Sprite sliderSprite;
-    }
-
     [Header("Magic 1 UI")]
     [FormerlySerializedAs("magic1Image")]
     [SerializeField] private Image magic1BackImage;
@@ -32,25 +23,9 @@ public sealed class BattleMagicUI : MonoBehaviour
     [SerializeField] private Image parrySliderImage;
     [SerializeField] private Slider parryCooldownSlider;
 
-    [Header("Optional sprite overrides (empty = MagicStatTable icon)")]
-    [SerializeField] private MagicSpriteEntry[] magicSprites = new MagicSpriteEntry[]
-    {
-        new MagicSpriteEntry { magic = MagicType.Fire },
-        new MagicSpriteEntry { magic = MagicType.Ice },
-        new MagicSpriteEntry { magic = MagicType.Vision },
-        new MagicSpriteEntry { magic = MagicType.Thunder },
-        new MagicSpriteEntry { magic = MagicType.Healing },
-        new MagicSpriteEntry { magic = MagicType.Binding },
-        new MagicSpriteEntry { magic = MagicType.Dark },
-        new MagicSpriteEntry { magic = MagicType.Curse },
-        new MagicSpriteEntry { magic = MagicType.Mine },
-        new MagicSpriteEntry { magic = MagicType.Razier },
-        new MagicSpriteEntry { magic = MagicType.Flare },
-        new MagicSpriteEntry { magic = MagicType.Smoke }
-    };
-    [SerializeField] private Sprite parryBackSprite;
-    [Tooltip("비워두면 Parry Back Sprite를 사용합니다.")]
-    [SerializeField] private Sprite parrySliderSprite;
+    [Header("Shared magic icons")]
+    [Tooltip("모든 마법 아이콘과 Parry Icon은 이 테이블에서 가져옵니다. 비우면 Resources/MagicStatTable을 사용합니다.")]
+    [SerializeField] private MagicStatTable magicTable;
 
     private Player owner;
     private MagicType displayedMagic1, displayedMagic2;
@@ -84,7 +59,7 @@ public sealed class BattleMagicUI : MonoBehaviour
     }
 
     // Auto-called when gameplay starts, the local player respawns, or loadout changes.
-    // Can also be wired to a UnityEvent. Sprites are mapped by enum in this Inspector.
+    // Can also be wired to a UnityEvent. Sprites are mapped by enum in MagicStatTable.
     public void magicInit()
     {
         Player local = Player.LocalPlayer;
@@ -94,28 +69,25 @@ public sealed class BattleMagicUI : MonoBehaviour
         displayedMagic2 = owner.GetMagicInSlot(2);
         ApplyMagicSprites(displayedMagic1, magic1BackImage, magic1SliderImage);
         ApplyMagicSprites(displayedMagic2, magic2BackImage, magic2SliderImage);
-        SetIcon(parryBackImage, parryBackSprite);
-        SetIcon(parrySliderImage, parrySliderSprite != null ? parrySliderSprite : parryBackSprite);
+        ApplyParrySprites();
         for (int i = 0; i < previousRemaining.Length; i++) previousRemaining[i] = -1f;
         magiccoolDown();
     }
 
     private void ApplyMagicSprites(MagicType magic, Image backImage, Image sliderImage)
     {
-        Sprite tableIcon = CombatPresentation.Stats(magic).icon;
-        if (magicSprites != null)
-        {
-            foreach (MagicSpriteEntry entry in magicSprites)
-            {
-                if (entry.magic != magic) continue;
-                Sprite back = entry.backSprite != null ? entry.backSprite : tableIcon;
-                SetIcon(backImage, back);
-                SetIcon(sliderImage, entry.sliderSprite != null ? entry.sliderSprite : back);
-                return;
-            }
-        }
+        if (magicTable == null) magicTable = MagicStatTable.Default;
+        Sprite tableIcon = magicTable != null ? magicTable.GetIcon(magic) : null;
         SetIcon(backImage, tableIcon);
         SetIcon(sliderImage, tableIcon);
+    }
+
+    private void ApplyParrySprites()
+    {
+        if (magicTable == null) magicTable = MagicStatTable.Default;
+        Sprite icon = magicTable != null ? magicTable.parryIcon : null;
+        SetIcon(parryBackImage, icon);
+        SetIcon(parrySliderImage, icon);
     }
 
     // Reads actual remaining time every frame. Rejected casts never start a fake timer.

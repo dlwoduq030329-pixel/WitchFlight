@@ -15,13 +15,6 @@ public sealed class linkuserinfo : MonoBehaviour
     public sealed class PlayerDataEvent : UnityEvent<PlayerData> { }
 
     [Serializable]
-    public struct MagicIconEntry
-    {
-        public MagicType magic;
-        public Sprite icon;
-    }
-
-    [Serializable]
     public sealed class WaitingRoomSlot
     {
         public GameObject occupiedRoot;
@@ -54,9 +47,7 @@ public sealed class linkuserinfo : MonoBehaviour
     [SerializeField] private Image localMagic2Image;
     [SerializeField] private Image opponentMagic1Image;
     [SerializeField] private Image opponentMagic2Image;
-    [Tooltip("장착 마법 enum에 대응하는 아이콘. 배열 순서가 아니라 Magic 값으로 찾습니다.")]
-    [SerializeField] private MagicIconEntry[] magicIcons = Array.Empty<MagicIconEntry>();
-    [Tooltip("Magic Icons가 비어 있으면 이 테이블의 icon을 사용합니다. 비우면 Resources/MagicStatTable입니다.")]
+    [Tooltip("마법 아이콘은 이 공용 테이블만 사용합니다. 비우면 Resources/MagicStatTable입니다.")]
     [SerializeField] private MagicStatTable magicTable;
 
     [Header("Code waiting room (optional, MAIN only)")]
@@ -136,7 +127,7 @@ public sealed class linkuserinfo : MonoBehaviour
 
     private void OnEnable()
     {
-        if (magicTable == null) magicTable = Resources.Load<MagicStatTable>("MagicStatTable");
+        if (magicTable == null) magicTable = MagicStatTable.Default;
         if (waitingRoomPanel != null && transform.IsChildOf(waitingRoomPanel.transform))
             Debug.LogWarning("Waiting Room Panel must not contain its linkuserinfo controller. Place the controller on an always-active sibling; automatic panel visibility is skipped for this hierarchy.", this);
         hasSnapshot = false;
@@ -249,10 +240,8 @@ public sealed class linkuserinfo : MonoBehaviour
     {
         // Empty slots must stay empty, not fall back to Fire or another player's icon.
         if (magic < MagicType.Fire || magic > MagicType.Smoke) return null;
-        if (magicIcons != null)
-            foreach (MagicIconEntry entry in magicIcons)
-                if (entry.magic == magic && entry.icon != null) return entry.icon;
-        return magicTable != null ? magicTable.GetStats(magic).icon : null;
+        if (magicTable == null) magicTable = MagicStatTable.Default;
+        return magicTable != null ? magicTable.GetIcon(magic) : null;
     }
 
     private void ApplyIntroCard(PlayerData data, TMP_Text nameText, Image first, Image second)

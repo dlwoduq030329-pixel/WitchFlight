@@ -20,8 +20,6 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         public Button button;
         [Tooltip("목록 버튼의 아이콘 Image(선택). 버튼 배경/테두리 Image와 구분해서 연결하세요.")]
         public Image buttonImage;
-        [Tooltip("목록 버튼, 미리보기, 장착 슬롯에 사용할 이미지. 비우면 MagicStatTable의 icon을 사용합니다.")]
-        public Sprite icon;
         [Tooltip("비우면 MagicStatTable의 displayName 또는 enum 이름을 표시합니다.")]
         public string displayName;
         [TextArea] public string description;
@@ -89,7 +87,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         new MagicChoice { magic = MagicType.Flare },
         new MagicChoice { magic = MagicType.Smoke }
     };
-    [Tooltip("비우면 Resources/MagicStatTable을 사용합니다. 마법 수치는 변경하지 않습니다.")]
+    [Tooltip("목록/미리보기/장착 슬롯의 마법 아이콘은 이 테이블만 사용합니다. 비우면 Resources/MagicStatTable을 사용합니다.")]
     [SerializeField] private MagicStatTable magicTable;
 
     [Header("Editable slots (1 and 2; slot 3 remains fixed parry)")]
@@ -149,7 +147,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private void OnEnable()
     {
-        if (magicTable == null) magicTable = Resources.Load<MagicStatTable>("MagicStatTable");
+        if (magicTable == null) magicTable = MagicStatTable.Default;
         SelectedSlot = Mathf.Clamp(defaultSlot, 1, 2);
         SelectedCategory = EquipmentCategory.Magic;
         ClearPendingSelection();
@@ -398,8 +396,9 @@ public sealed class MagicCustomizationUI : MonoBehaviour
                 if (choice?.button == null) continue;
                 choice.button.interactable = lastCanEdit && IsSelectableMagic(choice.magic);
                 Sprite icon = MagicIcon(choice.magic);
-                // Preserve designer-authored button art when no replacement is assigned.
-                if (icon != null && !IsEquippedSlotImage(choice.buttonImage)) SetIcon(choice.buttonImage, icon);
+                // Only the assigned icon Image changes; never replace the button border.
+                // A missing table icon clears stale spell art instead of keeping an old mapping.
+                if (!IsEquippedSlotImage(choice.buttonImage)) SetIcon(choice.buttonImage, icon);
             }
         }
         if (hatChoices != null)
@@ -562,9 +561,8 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private Sprite MagicIcon(MagicType magic)
     {
         if (!IsSelectableMagic(magic)) return null;
-        MagicChoice choice = FindChoice(magic);
-        if (choice?.icon != null) return choice.icon;
-        return magicTable != null ? magicTable.GetStats(magic).icon : null;
+        if (magicTable == null) magicTable = MagicStatTable.Default;
+        return magicTable != null ? magicTable.GetIcon(magic) : null;
     }
 
     private string MagicName(MagicType magic)

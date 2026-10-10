@@ -45,7 +45,7 @@ public sealed class BattleRoundUI : MonoBehaviour
     private void Awake()
     {
         if (uiFont == null) uiFont = GetComponent<BattleHud>()?.FeedbackFont;
-        if (magicTable == null) magicTable = Resources.Load<MagicStatTable>("MagicStatTable");
+        if (magicTable == null) magicTable = MagicStatTable.Default;
         ValidatePanel(ref magicSwapPanel);
         ValidatePanel(ref finalResultPanel);
         Show(magicSwapPanel, false);
@@ -269,7 +269,8 @@ public sealed class BattleRoundUI : MonoBehaviour
     private void Icon(Image image, MagicType magic)
     {
         if (image == null) return;
-        Sprite sprite = magicTable != null ? magicTable.GetStats(magic).icon : null;
+        if (magicTable == null) magicTable = MagicStatTable.Default;
+        Sprite sprite = magicTable != null ? magicTable.GetIcon(magic) : null;
         if (image.sprite != sprite) image.sprite = sprite;
         image.enabled = sprite != null;
     }

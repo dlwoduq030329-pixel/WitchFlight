@@ -87,6 +87,22 @@ public struct MagicStatEntry
 [CreateAssetMenu(fileName = "MagicStatTable", menuName = "WitchFlight/Combat/Magic Stat Table")]
 public sealed class MagicStatTable : ScriptableObject
 {
+    private static MagicStatTable defaultTable;
+    public static MagicStatTable Default
+    {
+        get
+        {
+            if (defaultTable == null) defaultTable = Resources.Load<MagicStatTable>("MagicStatTable");
+            return defaultTable;
+        }
+    }
+
+    // All magic UI uses this lookup. None/invalid IDs must never show a fallback spell.
+    public Sprite GetIcon(MagicType magic)
+    {
+        return magic >= MagicType.Fire && magic <= MagicType.Smoke ? GetStats(magic).icon : null;
+    }
+
     [Header("Local projectile prediction (visual only; server decides hits)")]
     public bool predictLocalProjectiles = true;
     [Tooltip("서버 확인을 받지 못한 임시 투사체를 제거할 때까지의 시간입니다.")]
@@ -152,21 +168,21 @@ public sealed class MagicStatTable : ScriptableObject
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "빠르게 록온하여 발사합니다. 적중한 적의 이동 속도를 낮춥니다."; break;
             case MagicType.Vision:
-                e.effect = MagicEffectKind.DirectDamage; e.damage = 30; e.apCost = 16;
+                e.effect = MagicEffectKind.DirectDamage; e.damage = 45; e.apCost = 16;
                 e.range = 260; e.cooldownSeconds = 0.9f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "적은 마나로 긴 사거리의 즉발 광선을 발사합니다."; break;
             case MagicType.Thunder:
-                e.effect = MagicEffectKind.AreaDamage; e.damage = 35; e.apCost = 80;
+                e.effect = MagicEffectKind.AreaDamage; e.damage = 52.5f; e.apCost = 80;
                 e.range = 100; e.cooldownSeconds = 6; e.castSeconds = 0.3f; e.radius = 12;
                 e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "짧은 시전 후 정면 조준 지점에 광역 피해를 줍니다."; break;
             case MagicType.Mine:
-                e.effect = MagicEffectKind.Mine; e.damage = 70; e.apCost = 50;
+                e.effect = MagicEffectKind.Mine; e.damage = 105; e.apCost = 50;
                 e.cooldownSeconds = 7.5f; e.projectileSpeed = 20; e.placementDistance = 20;
                 e.activationDelay = 0.5f; e.effectDuration = 15; e.radius = 8; e.projectileRadius = 0.3f;
                 e.description = "전방에 기뢰를 발사합니다. 무장 후 자신과 아군을 포함한 누구든 접근하면 폭발합니다."; break;
             case MagicType.Dark:
-                e.effect = MagicEffectKind.LifeSteal; e.damage = 65; e.healthCost = 50; e.healOnHit = 60;
+                e.effect = MagicEffectKind.LifeSteal; e.damage = 97.5f; e.healthCost = 50; e.healOnHit = 60;
                 e.range = 180; e.cooldownSeconds = 4.5f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "체력 50을 소모하는 즉발 공격. 적에게 피해를 입히면 체력 60을 회복합니다."; break;
             case MagicType.Healing:
@@ -179,11 +195,11 @@ public sealed class MagicStatTable : ScriptableObject
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "록온 후 유도 마법을 발사합니다. 피해 없이 3초 동안 적의 이동을 막습니다."; break;
             case MagicType.Curse:
-                e.effect = MagicEffectKind.GuidedChannel; e.range = 35; e.damagePerSecond = 12;
+                e.effect = MagicEffectKind.GuidedChannel; e.range = 35; e.damagePerSecond = 18;
                 e.maxApFractionPerSecond = 0.5f; e.cooldownSeconds = 0.375f;
                 e.description = "누르는 동안 가까운 적을 자동 추적합니다. 벽이나 화면 밖으로 벗어나면 끊어집니다."; break;
             case MagicType.Razier:
-                e.effect = MagicEffectKind.BeamChannel; e.range = 100; e.damagePerSecond = 18;
+                e.effect = MagicEffectKind.BeamChannel; e.range = 100; e.damagePerSecond = 27;
                 e.apPerSecond = 40; e.cooldownSeconds = 0.375f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "누르는 동안 정면에 직선 광선을 유지하며 마나를 소모합니다."; break;
             case MagicType.Flare:

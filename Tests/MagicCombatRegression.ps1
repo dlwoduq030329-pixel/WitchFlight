@@ -21,6 +21,7 @@ namespace UnityEngine {
  public class GameObject:Object {}
  public class Sprite:Object {}
  public class ScriptableObject:Object {}
+ public static class Resources {public static T Load<T>(string path) where T:class=>null;}
  public class SerializeField:Attribute {}
  public class HeaderAttribute:Attribute {public HeaderAttribute(string s){}}
  public class TooltipAttribute:Attribute {public TooltipAttribute(string s){}}
@@ -161,6 +162,18 @@ public static class Tests {
  static void Tick(Player p){p.Runner.Time+=p.Runner.DeltaTime;}
  public static int Run(){
   var table=new MagicStatTable();Check(table.magics.Length==12,"twelve spells including utility counters");
+  float[] originalDamage={45,18,30,35,0,0,65,0,70,0,0,0};
+  float[] originalDps={0,0,0,0,0,0,0,12,0,18,0,0};
+  for(int i=0;i<originalDamage.Length;i++) {
+   var stats=table.GetStats((MagicType)(i+1));
+   bool lockOn=i==0||i==1||i==5;
+   float multiplier=lockOn?1f:1.5f;
+   Check(stats.requiresTarget==lockOn&&stats.requiresFullLock==lockOn,"lock-on classification unchanged for spell "+(i+1));
+   Check(Near(stats.damage,originalDamage[i]*multiplier),"non-lock-on hit damage increased exactly once for spell "+(i+1));
+   Check(Near(stats.damagePerSecond,originalDps[i]*multiplier),"non-lock-on channel DPS increased exactly once for spell "+(i+1));
+  }
+  Check(Near(table.GetStats(MagicType.Healing).healing,40),"healing is not damage and stays unchanged");
+  Check(Near(table.GetStats(MagicType.Dark).healthCost,50)&&Near(table.GetStats(MagicType.Dark).healOnHit,60),"Dark health cost and lifesteal stay unchanged");
   Check(Near(table.GetStats(MagicType.Smoke).radius,24),"smoke radius increased from 8 to 24");
   float[] oldCooldowns={2.5f,1.8f,.6f,4f,12f,12f,3f,.25f,5f,.25f,3f,10f};
   for(int i=0;i<oldCooldowns.Length;i++)
@@ -262,12 +275,12 @@ public static class Tests {
    var p=Caster(MagicType.Dark);p.NowHp=hp;p.TryCastSelectedMagic();Check(p.Launches==0&&p.NowHp==hp&&p.CastSequence==0,"Dark low HP blocked "+hp);
   }
   var d=Caster(MagicType.Dark);d.NowHp=51;d.TryCastSelectedMagic();Check(d.NowHp==1&&d.Launches==1,"Dark pays 50 above threshold");
-  var victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==61&&victim.NowHp==135,"Dark actual hit heals 60");
+  var victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==61&&Near(victim.NowHp,102.5f),"Dark boosted hit still heals only 60");
   d=Caster(MagicType.Dark);d.NowHp=80;d.magicStatTable.magics[6].healthCost=20;d.magicStatTable.magics[6].healOnHit=30;
   d.TryCastSelectedMagic();victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==90,"edited cost and healing honored");
   d=Caster(MagicType.Dark);d.NowHp=100;d.TryCastSelectedMagic();victim=Enemy(d);victim.TryStartParry();
   victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(victim.NowHp==200&&d.NowHp==50&&victim.ParrySequence==1,"parry nullifies Dark and prevents lifesteal, no reflection");
-  victim.Runner.Time=.31f;victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(victim.NowHp==135&&d.NowHp==110,"damage resumes after parry window");
+  victim.Runner.Time=.31f;victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(Near(victim.NowHp,102.5f)&&d.NowHp==110,"boosted damage resumes after parry window");
   d=Caster(MagicType.Dark);d.NowHp=100;d.TryCastSelectedMagic();victim=Enemy(d);victim.NowHp=1;
   victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(!victim.IsAlive&&d.NowHp==110,"killing hit still heals");
   d=Caster(MagicType.Healing);d.NowHp=190;d.Input(true);Check(d.NowHp==200&&d.NowAp==80,"Healing caps at max on press");
@@ -321,14 +334,14 @@ public static class Tests {
   d=Caster(MagicType.Curse);victim=Enemy(d);victim.MaxHp=victim.NowHp=1000;
   for(int i=0;i<100;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
   Check(Near(d.NowAp,0)&&!d.IsChanneling&&d.channelNeedsRelease,"Curse spends full mana in two seconds without regen");
-  Check(Near(victim.NowHp,976),"Curse DPS unchanged but channel duration is halved");
+  Check(Near(victim.NowHp,964),"Curse deals 1.5 times DPS over the same channel duration");
   d.NowAp=20;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"exhaustion requires release");
   d.Input(false);d.Runner.Time+=1;d.Input(true,false,victim.Object.Id);Check(d.IsChanneling,"channel restarts after release");
   victim.Visible=false;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"Curse ends behind wall");
   d=Caster(MagicType.Razier);victim=Enemy(d);d.TraceTarget=victim;
   d.CastOffset=new Vector3(3,2,1);
   for(int i=0;i<50;i++){d.Input(true);d.RegenerateAp();Tick(d);}
-  Check(Near(d.NowAp,60)&&Near(victim.NowHp,182),"Razier DPS unchanged and MP per second doubled");
+  Check(Near(d.NowAp,60)&&Near(victim.NowHp,173),"Razier deals 1.5 times DPS without increasing MP consumption");
   Check(d.LastTraceOrigin.x==3&&d.LastTraceOrigin.y==2,"straight channel traces from the editable cast root");
   d.CastOffset=new Vector3(4,5,6);d.Input(true);Check(d.LastTraceOrigin.x==4&&d.LastTraceOrigin.y==5,"channel follows the current cast root each tick");
   d.Input(false);Check(!d.IsChanneling&&d.TimerIsActive(d.MagicCooldowns[(int)MagicType.Razier]),"release ends channel and starts cooldown");
@@ -357,6 +370,11 @@ if ($savedEntries.Count -ne 12) { throw 'Expected 12 saved spells' }
 $defaultMagicTable = [CombatChecks.MagicStatTable]::new()
 foreach ($entry in $savedEntries) {
     $id = [int]$entry.Groups[1].Value
+    $stats = $defaultMagicTable.GetStats([CombatChecks.MagicType]$id)
+    foreach ($field in 'damage','damagePerSecond','healthCost','healOnHit','healing','apCost','apPerSecond','maxApFractionPerSecond') {
+        $savedValue = [float][regex]::Match($entry.Groups[2].Value, "(?m)^    ${field}: ([\d.]+)").Groups[1].Value
+        if ([Math]::Abs($savedValue - $stats.$field) -gt 0.001) { throw "Saved $field differs from default for magic $id" }
+    }
     if ($id -eq 12 -and $entry.Groups[2].Value -notmatch '(?m)^    radius: 24\r?$') { throw 'Saved smoke radius must be 24' }
     $cooldown = [float][regex]::Match($entry.Groups[2].Value, '(?m)^    cooldownSeconds: ([\d.]+)').Groups[1].Value
     if ([Math]::Abs($cooldown - $defaultMagicTable.GetStats([CombatChecks.MagicType]$id).cooldownSeconds) -gt 0.001) {
@@ -370,4 +388,4 @@ if ($savedMagicTable -notmatch '(?m)^  parryCooldownSeconds: 0\.3\r?$' -or
 foreach ($prefab in 'Assets/Ch/ChPrefab.prefab','Assets/Prefab/MagicDummy_LockOnAttacker.prefab','Assets/Prefab/MagicDummy_Immortal.prefab') {
     if ((Get-Content $prefab -Raw) -notmatch '(?m)^  parryCooldownSeconds: 0\.3\r?$') { throw "Stale parry fallback in $prefab" }
 }
-'Saved cooldowns and prefab fallbacks passed.'
+'Saved damage, costs, cooldowns and prefab fallbacks passed.'

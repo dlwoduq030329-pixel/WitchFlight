@@ -103,6 +103,7 @@ namespace MagicCustomizationChecks {
   sealed class Fixture:IDisposable {
    public MagicCustomizationUI ui=new MagicCustomizationUI();
    public MagicCustomizationUI.MagicChoice[] choices;
+   public MagicStatTable magicTable=new MagicStatTable();
    public MagicCustomizationUI.HatChoice[] hatChoices;
    public MagicCustomizationUI.BroomChoice[] broomChoices;
    public Image first=new Image(),second=new Image(),selected=new Image();
@@ -124,7 +125,9 @@ namespace MagicCustomizationChecks {
     NetworkGameManager.Instance=null;
     DataConfig.ResetToDefaults();
     choices=Get<MagicCustomizationUI.MagicChoice[]>(ui,"magicChoices");
-    foreach(var c in choices){c.button=new Button();c.buttonImage=new Image();c.icon=new Sprite();c.displayName=c.magic.ToString();c.description="Description "+c.magic;}
+    foreach(var c in choices){c.button=new Button();c.buttonImage=new Image();c.displayName=c.magic.ToString();c.description="Description "+c.magic;}
+    for(int i=0;i<magicTable.magics.Length;i++)magicTable.magics[i].icon=new Sprite();
+    Set(ui,"magicTable",magicTable);
     hatChoices=Get<MagicCustomizationUI.HatChoice[]>(ui,"hatChoices");
     foreach(var c in hatChoices){c.button=new Button();c.buttonImage=new Image();c.icon=new Sprite();c.displayName=c.hat.ToString();c.description="Description "+c.hat;}
     broomChoices=Get<MagicCustomizationUI.BroomChoice[]>(ui,"broomChoices");
@@ -154,7 +157,7 @@ namespace MagicCustomizationChecks {
    }
    void Changed(){changes++;}
    public void Pick(MagicType magic)=>Array.Find(choices,c=>c.magic==magic).button.onClick.Invoke();
-   public Sprite Icon(MagicType magic)=>Array.Find(choices,c=>c.magic==magic).icon;
+   public Sprite Icon(MagicType magic)=>magicTable.GetIcon(magic);
    public void Pick(HatType hat)=>Array.Find(hatChoices,c=>c.hat==hat).button.onClick.Invoke();
    public Sprite Icon(HatType hat)=>Array.Find(hatChoices,c=>c.hat==hat).icon;
    public void Pick(BroomType broom)=>Array.Find(broomChoices,c=>c.broom==broom).button.onClick.Invoke();
@@ -317,12 +320,17 @@ namespace MagicCustomizationChecks {
     Check(f.staffs[(int)MagicType.Ice].activeSelf&&f.StaffWrites==writes,"replicated battle loadout unsubscribes and ignores local DataConfig");
    }
    using(var f=new Fixture()){
-    var fire=f.choices[0];fire.icon=null;
+    var fire=f.choices[0];
     var fallbackIcon=new Sprite();
     var table=new MagicStatTable{magics=new[]{new MagicStatEntry{magic=MagicType.Fire,icon=fallbackIcon,displayName="Fallback Fire"}}};
     fire.displayName=null;Set(f.ui,"magicTable",table);f.ui.RefreshFromDataConfig();f.Pick(MagicType.Fire);
-    Check(f.first.sprite==fallbackIcon&&f.selected.sprite==fallbackIcon&&f.name.text=="Fallback Fire","table fallback supports icon and name");
+    Check(f.first.sprite==fallbackIcon&&f.selected.sprite==fallbackIcon&&f.name.text=="Fallback Fire","shared table supplies icon and name");
     Check(fire.button.image.sprite==null&&fire.buttonImage.sprite==fallbackIcon,"icon does not replace designer button border/background");
+    var changedIcon=new Sprite();table.magics[0].icon=changedIcon;f.ui.RefreshFromDataConfig();
+    Check(f.first.sprite==changedIcon&&f.selected.sprite==changedIcon&&fire.buttonImage.sprite==changedIcon,"editing table updates slot, selected preview and list together");
+    table.magics[0].icon=null;f.ui.RefreshFromDataConfig();
+    Check(fire.buttonImage.sprite==null&&!fire.buttonImage.enabled&&f.selected.sprite==null,"missing table icon clears stale list and preview art");
+    Check(f.first.sprite==f.empty&&f.changes==0,"missing icon does not change equipment and uses only the empty-slot placeholder");
     Set(f.ui,"selectionPanel",f.ui.gameObject);f.ui.CancelSelection();
     Check(f.ui.gameObject.activeSelf,"mistaken self panel assignment cannot disable controller");
     Set(f.ui,"magicChoices",new MagicCustomizationUI.MagicChoice[]{null,fire});f.ui.SelectMagic((int)MagicType.Ice);
