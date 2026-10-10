@@ -5772,6 +5772,17 @@ MonoBehaviour:
   headAnchor: {fileID: 8165883999008896482}
   worldOffset: {x: 0, y: 0.3, z: 0}
   worldSpaceScale: 0.01
+  minimumScreenHeight: 8
+  showEnemyHalo: 1
+  enemyHaloSprite: {fileID: 0}
+  enemyHaloColor: {r: 1, g: 0.08, b: 0.12, a: 0.6}
+  enemyHaloSize: {x: 3.2, y: 3.2}
+  enemyHaloOffset: {x: 0, y: -0.25, z: 0}
+  enemyHaloDepthOffset: 0.6
+  obstructionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  visibilityRefreshInterval: 0.1
 --- !u!114 &8619302157754221904
 MonoBehaviour:
   m_ObjectHideFlags: 0

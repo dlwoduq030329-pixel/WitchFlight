@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission }
 
@@ -9,6 +10,13 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
 {
     [SerializeField, Min(0.1f)] private float pickupRadius = 0.85f;
     [SerializeField] private Vector3 carryOffset = new Vector3(0f, 1.3f, -0.5f);
+    [Header("Carried flag appearance (pickup radius stays unchanged)")]
+    [Tooltip("깃발 모델을 묶은 자식 Transform입니다. NetworkObject 루트가 아닌 모델 전용 자식을 연결하세요.")]
+    [SerializeField] private Transform flagVisualRoot;
+    [Tooltip("소지 중에만 원래 모델 크기에 곱할 배율입니다. 드랍 시 원래 크기로 복구됩니다.")]
+    [SerializeField, Range(0.05f, 1f)] private float carriedVisualScale = 0.35f;
+    [Tooltip("소지 중 모델 위치. 다른 플레이어는 깃발 루트 기준, 내 깃발은 카메라의 오른쪽/위/앞 방향 기준으로 적용합니다.")]
+    [SerializeField] private Vector3 carriedVisualOffset = new Vector3(1.1f, -0.3f, 0f);
 
     [Networked] public PlayerRef Carrier { get; private set; }
     [Networked] public PlayerRef LastCarrier { get; private set; }
@@ -48,6 +56,13 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     private float fallSpeed;
     private Vector3 roundFlagPosition;
     private float magicChangeSeconds;
+    private Renderer[] flagRenderers;
+    private bool[] originalRenderingOff;
+    private ShadowCastingMode[] originalShadows;
+    private bool flagSmokeHidden;
+    private Vector3 originalVisualPosition, originalVisualScale;
+    private bool visualTransformCached;
+    private Camera carrierViewCamera;
 
     private struct PositionSample
     {
@@ -71,6 +86,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         worldPositionReader = GetPropertyReader<Vector3>(nameof(WorldPosition));
         carrierIdReader = GetPropertyReader<NetworkId>(nameof(CarrierObjectId));
         Instance = this;
+        CacheFlagRenderers();
+        CacheFlagVisualTransform();
         BattleManager.Instance?.RegisterFlag(this);
         foreach (Collider flagCollider in GetComponentsInChildren<Collider>())
             flagCollider.isTrigger = true;
@@ -551,10 +568,114 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         transform.position = carrier != null ? carrier.transform.TransformPoint(carryOffset) : position;
         if (carrier != null)
             transform.rotation = Quaternion.Euler(0f, carrier.transform.eulerAngles.y, 0f);
+        UpdateCarriedVisual(carrier);
+        UpdateFlagVisibility();
+    }
+
+    private void CacheFlagVisualTransform()
+    {
+        if (visualTransformCached) RestoreFlagVisualTransform();
+        visualTransformCached = flagVisualRoot != null && flagVisualRoot != transform && flagVisualRoot.IsChildOf(transform);
+        if (!visualTransformCached) return;
+        originalVisualPosition = flagVisualRoot.localPosition;
+        originalVisualScale = flagVisualRoot.localScale;
+    }
+
+    private void UpdateCarriedVisual(Player carrier)
+    {
+        if (!visualTransformCached || flagVisualRoot == null) return;
+        if (carrier == null || !carrier.IsAlive)
+        {
+            RestoreFlagVisualTransform();
+            return;
+        }
+        // Never resize the NetworkObject root or its authoritative pickup sphere.
+        // Always multiply the saved scale, not last frame's already-shrunken scale.
+        flagVisualRoot.localScale = originalVisualScale * Mathf.Clamp(carriedVisualScale, 0.05f, 1f);
+        flagVisualRoot.localPosition = originalVisualPosition + carriedVisualOffset;
+        if (carrier != Player.LocalPlayer) return;
+        if (carrierViewCamera == null || !carrierViewCamera.isActiveAndEnabled) carrierViewCamera = Camera.main;
+        if (carrierViewCamera == null) return;
+        // My camera can orbit independently of the pilot. Keep the flag to its right
+        // instead of letting a body-relative side offset swing across the crosshair.
+        flagVisualRoot.position = carrier.LockAimPoint + carrierViewCamera.transform.TransformDirection(carriedVisualOffset);
+    }
+
+    private void RestoreFlagVisualTransform()
+    {
+        if (!visualTransformCached || flagVisualRoot == null) return;
+        flagVisualRoot.localPosition = originalVisualPosition;
+        flagVisualRoot.localScale = originalVisualScale;
+    }
+
+    // Local-only visibility. The authoritative pickup, carrier and colliders never change.
+    public bool IsConcealedBySmoke()
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing) return false;
+        Player carrier = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
+        return ContainsSmoke(transform.position) || (carrier != null && ContainsSmoke(carrier.LockAimPoint));
+    }
+
+    public bool TryGetCarrierMarker(Player observer, out Vector3 position)
+    {
+        position = default;
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing ||
+            observer == null || observer.Object == null || !observer.Object.IsValid ||
+            observer.Runner != Runner || !observer.IsAlive || Carrier == PlayerRef.None) return false;
+        Player carrier = GetCarrierPlayer();
+        if (carrier == null || !carrier.IsAlive || IsConcealedBySmoke()) return false;
+        position = carrier.LockAimPoint;
+        return true;
+    }
+
+    private void CacheFlagRenderers()
+    {
+        flagRenderers = GetComponentsInChildren<Renderer>(true);
+        originalRenderingOff = new bool[flagRenderers.Length];
+        originalShadows = new ShadowCastingMode[flagRenderers.Length];
+        for (int i = 0; i < flagRenderers.Length; i++)
+        {
+            originalRenderingOff[i] = flagRenderers[i].forceRenderingOff;
+            originalShadows[i] = flagRenderers[i].shadowCastingMode;
+        }
+        flagSmokeHidden = false;
+    }
+
+    private void UpdateFlagVisibility()
+    {
+        bool hidden = IsConcealedBySmoke();
+        if (hidden == flagSmokeHidden || flagRenderers == null) return;
+        flagSmokeHidden = hidden;
+        for (int i = 0; i < flagRenderers.Length; i++)
+        {
+            if (flagRenderers[i] == null) continue;
+            flagRenderers[i].forceRenderingOff = originalRenderingOff[i] || hidden;
+            flagRenderers[i].shadowCastingMode = hidden ? ShadowCastingMode.Off : originalShadows[i];
+        }
+    }
+
+    private void RestoreFlagVisibility()
+    {
+        if (flagRenderers == null) return;
+        for (int i = 0; i < flagRenderers.Length; i++)
+        {
+            if (flagRenderers[i] == null) continue;
+            flagRenderers[i].forceRenderingOff = originalRenderingOff[i];
+            flagRenderers[i].shadowCastingMode = originalShadows[i];
+        }
+        flagSmokeHidden = false;
+    }
+
+    private void OnDisable()
+    {
+        RestoreFlagVisibility();
+        RestoreFlagVisualTransform();
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        RestoreFlagVisibility();
+        RestoreFlagVisualTransform();
         ClearSmokeViews();
         readyPlayers.Clear();
         previousPositions.Clear();

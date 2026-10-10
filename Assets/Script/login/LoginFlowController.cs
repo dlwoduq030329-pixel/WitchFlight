@@ -22,6 +22,7 @@ public sealed class LoginFlowController : MonoBehaviour
     public bool IsLobbyReady { get; private set; }
     private bool processing;
     private LonginLink loginForm;
+    private LoginManager subscribedLoginManager;
 
     private void Awake()
     {
@@ -30,32 +31,50 @@ public sealed class LoginFlowController : MonoBehaviour
 
     private void OnEnable()
     {
-        if (loginManager == null) loginManager = FindFirstObjectByType<LoginManager>();
-        if (databaseManager == null) databaseManager = FindFirstObjectByType<DatabaseManager>();
-        if (loginManager != null)
-        {
-            loginManager.OnLoginSuccess.AddListener(ContinueAfterLogin);
-            loginManager.OnLoginStarted.AddListener(ShowLogin);
-            loginManager.OnLoggedOut.AddListener(ShowLogin);
-            loginManager.OnLoginFailed.AddListener(Fail);
-        }
+        ResolveSessionManagers();
     }
 
     private void Start()
     {
+        // Main contains scene references to duplicate managers. Their Awake destroys
+        // them on a return trip; always use the surviving authenticated singletons.
+        ResolveSessionManagers();
         if (loginManager != null && loginManager.IsLoggedIn) ContinueAfterLogin();
         else ShowLogin();
     }
 
     private void OnDisable()
     {
-        if (loginManager != null)
+        UnsubscribeLogin();
+    }
+
+    private void ResolveSessionManagers()
+    {
+        LoginManager live = LoginManager.Instance != null ? LoginManager.Instance :
+            loginManager != null ? loginManager : FindFirstObjectByType<LoginManager>();
+        databaseManager = DatabaseManager.Instance != null ? DatabaseManager.Instance :
+            databaseManager != null ? databaseManager : FindFirstObjectByType<DatabaseManager>();
+        loginManager = live;
+        if (subscribedLoginManager == live) return;
+        UnsubscribeLogin();
+        subscribedLoginManager = live;
+        if (live == null) return;
+        live.OnLoginSuccess.AddListener(ContinueAfterLogin);
+        live.OnLoginStarted.AddListener(ShowLogin);
+        live.OnLoggedOut.AddListener(ShowLogin);
+        live.OnLoginFailed.AddListener(Fail);
+    }
+
+    private void UnsubscribeLogin()
+    {
+        if (subscribedLoginManager != null)
         {
-            loginManager.OnLoginSuccess.RemoveListener(ContinueAfterLogin);
-            loginManager.OnLoginStarted.RemoveListener(ShowLogin);
-            loginManager.OnLoggedOut.RemoveListener(ShowLogin);
-            loginManager.OnLoginFailed.RemoveListener(Fail);
+            subscribedLoginManager.OnLoginSuccess.RemoveListener(ContinueAfterLogin);
+            subscribedLoginManager.OnLoginStarted.RemoveListener(ShowLogin);
+            subscribedLoginManager.OnLoggedOut.RemoveListener(ShowLogin);
+            subscribedLoginManager.OnLoginFailed.RemoveListener(Fail);
         }
+        subscribedLoginManager = null;
     }
 
     private void ShowLogin()
@@ -73,6 +92,7 @@ public sealed class LoginFlowController : MonoBehaviour
     public void ContinueAfterLogin()
     {
         if (processing || IsLobbyReady) return;
+        ResolveSessionManagers();
         if (loginManager == null || !loginManager.IsLoggedIn)
         {
             Fail("먼저 로그인해주세요.");
@@ -86,7 +106,9 @@ public sealed class LoginFlowController : MonoBehaviour
         processing = true;
         try
         {
-            if (!databaseManager.TryLoadPlayerSetting(false))
+            // Do not clear a valid session or discard an in-flight customization save
+            // when returning from Battle. HasLoadedProfile checks the account identity.
+            if (!databaseManager.HasLoadedProfile && !databaseManager.TryLoadPlayerSetting(false))
             {
                 Fail(databaseManager.LastError);
                 return;
@@ -114,7 +136,9 @@ public sealed class LoginFlowController : MonoBehaviour
         SetActive(lobbyRoot, true);
         try
         {
-            if (lobbyInitializer == null || !lobbyInitializer.InitializeFromLoadedData())
+            if (databaseManager.IsDataConfigReady)
+                lobbyInitializer.RefreshFromDataConfig();
+            else if (!lobbyInitializer.InitializeFromLoadedData())
             {
                 Fail(databaseManager.LastError);
                 return;

@@ -106,6 +106,10 @@ namespace FeedbackChecks {
                 Check(Math.Abs(Math.Sqrt(length.x*length.x+length.y*length.y)-18)<.001&&Math.Abs(Math.Sqrt(width.x*width.x+width.y*width.y)-3)<.001,"Each marker is a thin radial diamond");
             }
             Check(vertices.Positions.TrueForAll(p=>p.x*p.x+p.y*p.y>300),"Hit marker keeps center dot unobscured");
+            graphic.Flag=true;graphic.Populate(vertices);
+            Check(vertices.Positions.Count==7&&vertices.Indices.Count==9,"Fallback flag has a pole and triangular pennant");
+            Check(vertices.Indices.TrueForAll(i=>i>=0&&i<7),"Flag triangle indices valid");
+            Check(vertices.Colors.TrueForAll(c=>c.a==1),"Flag visible without assigned sprite or font");
             return count;
         }
     }

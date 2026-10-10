@@ -50,6 +50,16 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private TextMeshProUGUI enemyRoundWinsText;
     [SerializeField] private TMP_Text matchTimeText;
     [SerializeField] private TMP_Text flagText;
+    [Header("Flag carrier position (hidden in smoke)")]
+    [Tooltip("깃발 소유자를 따라가는 UI. 비우면 기본 깃발 표식을 생성합니다. 이 컨트롤러와 별도 자식 UI를 넣으세요.")]
+    [SerializeField] private RectTransform flagCarrierMarker;
+    [Tooltip("자동 생성 표식의 Sprite. 비우면 기본 깃발 도형을 사용합니다.")]
+    [SerializeField] private Sprite flagCarrierSprite;
+    [SerializeField] private TMP_Text flagCarrierDistanceText;
+    [SerializeField] private Vector3 flagCarrierMarkerOffset = new Vector3(0f, 1.1f, 0f);
+    [SerializeField, Min(16f)] private float flagCarrierMarkerSize = 42f;
+    [SerializeField, Min(0f)] private float flagCarrierEdgePadding = 84f;
+    [Header("Match result / respawn")]
     [SerializeField] private TMP_Text resultText;
     [SerializeField] private TMP_Text respawnText;
     [SerializeField] private string respawnPrefix = "부활까지";
@@ -150,6 +160,7 @@ public sealed class BattleHud : MonoBehaviour
     private CombatFeedbackGraphic generatedHitMarker;
     private Color hitMarkerBaseColor;
     private float hitMarkerStarted = float.NegativeInfinity;
+    private int displayedFlagDistance = -1;
 
     private sealed class DamageSlot
     {
@@ -362,9 +373,11 @@ public sealed class BattleHud : MonoBehaviour
         else lockTarget = owner.GetDisplayedLockTarget();
         bool locked = show && owner.SelectedMagicStats.requiresTarget && lockTarget != null &&
             lockTarget.Object != null && lockTarget.Object.IsValid;
+        // Smoke preserves lock-on gameplay, but a world-space ring must not reveal the target.
+        bool targetVisible = locked && !lockTarget.IsHiddenBySmokeFor(owner);
         if (show && (lockMarker == null || lockChargeMarker == null)) EnsureLockFeedback();
-        bool completed = locked && owner.IsFullyLocked;
-        bool charging = locked && !completed;
+        bool completed = targetVisible && owner.IsFullyLocked;
+        bool charging = targetVisible && !completed;
         if (completed && lockMarker != null) completed = Place(lockMarker, lockTarget.LockAimPoint);
         if (charging && lockChargeMarker != null)
         {
@@ -690,6 +703,7 @@ public sealed class BattleHud : MonoBehaviour
     {
         Player pilot = Player.LocalPlayer;
         if (worldCamera == null) worldCamera = Camera.main;
+        UpdateFlagCarrierMarker();
         CameraFollow follow = worldCamera != null ? worldCamera.GetComponent<CameraFollow>() : null;
         bool show = isActiveAndEnabled && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
             !MenuOpen && pilot != null && pilot.Object != null && pilot.Object.IsValid && pilot.IsAlive &&
@@ -720,6 +734,51 @@ public sealed class BattleHud : MonoBehaviour
         else HideThreatIndicator();
         if (show) PlaceHitMarker();
         else ClearHitMarker();
+    }
+
+    private void UpdateFlagCarrierMarker()
+    {
+        BattleFlag flag = BattleFlag.Instance;
+        Player local = Player.LocalPlayer;
+        if (!isActiveAndEnabled || MenuOpen || worldCamera == null || flag == null ||
+            !flag.TryGetCarrierMarker(local, out Vector3 position))
+        {
+            HideFlagCarrierMarker();
+            return;
+        }
+        if (flagCarrierMarker == null)
+        {
+            flagCarrierMarker = CreateFeedbackRing("Flag carrier marker", new Color(1f, 0.8f, 0.22f),
+                flagCarrierMarkerSize, flagCarrierSprite);
+            if (flagCarrierMarker.TryGetComponent(out CombatFeedbackGraphic fallback)) fallback.Flag = true;
+        }
+        if (flagCarrierDistanceText == null)
+            flagCarrierDistanceText = CreateCentralPrompt("Flag carrier distance", 0f, 18f);
+        position += flagCarrierMarkerOffset;
+        Vector3 screen = worldCamera.WorldToScreenPoint(position);
+        float padding = Mathf.Max(flagCarrierEdgePadding, flagCarrierMarkerSize * 0.5f + 24f);
+        Rect pixels = worldCamera.pixelRect;
+        bool inside = screen.z > worldCamera.nearClipPlane && screen.x >= pixels.xMin + padding &&
+            screen.x <= pixels.xMax - padding && screen.y >= pixels.yMin + padding && screen.y <= pixels.yMax - padding;
+        Vector2 point = inside ? (Vector2)screen : GetThreatScreenPoint(
+            GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation, position), pixels, padding);
+        bool placed = PlaceScreen(flagCarrierMarker, point);
+        Visible(flagCarrierMarker.gameObject, placed);
+        Visible(flagCarrierDistanceText.gameObject, placed &&
+            PlaceScreen(flagCarrierDistanceText.rectTransform, point + Vector2.down * (flagCarrierMarkerSize * 0.5f + 18f)));
+        int distance = Mathf.RoundToInt(Vector3.Distance(local.LockAimPoint, position - flagCarrierMarkerOffset));
+        if (distance != displayedFlagDistance)
+        {
+            displayedFlagDistance = distance;
+            flagCarrierDistanceText.text = $"깃발 {distance}m";
+        }
+    }
+
+    private void HideFlagCarrierMarker()
+    {
+        Visible(flagCarrierMarker != null ? flagCarrierMarker.gameObject : null, false);
+        Visible(flagCarrierDistanceText != null ? flagCarrierDistanceText.gameObject : null, false);
+        displayedFlagDistance = -1;
     }
 
     public void ToggleMenu() => SetMenuOpen(!MenuOpen);
@@ -899,7 +958,8 @@ public sealed class BattleHud : MonoBehaviour
             if (slot.Label == null || !slot.Active) continue;
             float age = Mathf.Clamp01((Time.unscaledTime - slot.Started) / Mathf.Max(0.1f, damageDuration));
             if (age >= 1f) { ResetDamage(slot); continue; }
-            Visible(slot.Label.gameObject, !MenuOpen && Place(slot.Label.rectTransform, slot.Position + Vector3.up * age * damageRise));
+            bool concealed = BattleFlag.Instance != null && BattleFlag.Instance.ContainsSmoke(slot.Position);
+            Visible(slot.Label.gameObject, !MenuOpen && !concealed && Place(slot.Label.rectTransform, slot.Position + Vector3.up * age * damageRise));
             slot.Label.transform.localScale = slot.Scale * Mathf.Lerp(1f, 0.5f, age);
             Color tint = slot.Color;
             tint.a *= 1f - age;
@@ -960,6 +1020,7 @@ public sealed class BattleHud : MonoBehaviour
 
     private void HideViews()
     {
+        HideFlagCarrierMarker();
         ClearHitMarker();
         Visible(lockChargeMarker != null ? lockChargeMarker.gameObject : null, false);
         UpdateThreatWarning(false);

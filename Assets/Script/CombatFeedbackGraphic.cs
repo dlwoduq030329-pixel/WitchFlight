@@ -10,6 +10,7 @@ public sealed class CombatFeedbackGraphic : MaskableGraphic
     public bool Glow;
     public bool CornerFrame;
     public bool HitMarker;
+    public bool Flag;
     public Vector4 HitMarkerAngles = new Vector4(-30f, -120f, 30f, 120f);
     public float HitMarkerRadius = 28f;
     public float HitMarkerLength = 18f;
@@ -18,6 +19,16 @@ public sealed class CombatFeedbackGraphic : MaskableGraphic
     {
         vh.Clear();
         Rect rect = rectTransform.rect;
+        if (Flag)
+        {
+            AddBar(vh, rect, -0.28f, -0.45f, -0.2f, 0.45f);
+            int start = vh.currentVertCount;
+            vh.AddVert(rect.center + Vector2.Scale(new Vector2(-0.2f, 0.45f), rect.size), color, Vector2.zero);
+            vh.AddVert(rect.center + Vector2.Scale(new Vector2(0.4f, 0.24f), rect.size), color, Vector2.zero);
+            vh.AddVert(rect.center + Vector2.Scale(new Vector2(-0.2f, 0.03f), rect.size), color, Vector2.zero);
+            vh.AddTriangle(start, start + 1, start + 2);
+            return;
+        }
         if (HitMarker)
         {
             for (int i = 0; i < 4; i++)

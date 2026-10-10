@@ -131,7 +131,8 @@ public sealed class CombatPresentation : MonoBehaviour
         {
             lastHit = owner.HitSequence;
             hitFlashUntil = Time.unscaledTime + hitFlashSeconds;
-            BattleHud.ShowDamage(owner.LockAimPoint, owner.LastReceivedDamage);
+            if (!owner.IsHiddenBySmokeFor(Player.LocalPlayer))
+                BattleHud.ShowDamage(owner.LockAimPoint, owner.LastReceivedDamage);
 
         }
         if (lastDeath != owner.DeathSequence)
