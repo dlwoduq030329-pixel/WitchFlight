@@ -8020,6 +8020,7 @@ GameObject:
   - component: {fileID: 8413288716552741006}
   - component: {fileID: 2341126580621865883}
   - component: {fileID: 4619057725064610266}
+  - component: {fileID: 6270146558752014301}
   m_Layer: 5
   m_Name: AccountSetUI
   m_TagString: Untagged
@@ -8027,6 +8028,49 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 0
+--- !u!114 &6270146558752014301
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2851684271224730712}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9d0bf5432dc4c4e9fbce019822b5251, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  currentProfileImage: {fileID: 2136619251969987451}
+  profileTable: {fileID: 11400000, guid: 37691fc4619c43d2b0525e0e9b8de71f, type: 2}
+  profileChoices:
+  - profileIndex: 0
+    button: {fileID: 5212827968811321037}
+    icon: {fileID: 7041451440914767489}
+  - profileIndex: 1
+    button: {fileID: 8055198807437013145}
+    icon: {fileID: 1733303315118949538}
+  - profileIndex: 2
+    button: {fileID: 8798906368766572307}
+    icon: {fileID: 2140089081877201046}
+  - profileIndex: 3
+    button: {fileID: 3969363067827449386}
+    icon: {fileID: 3334024668619644501}
+  - profileIndex: 4
+    button: {fileID: 321296305261266733}
+    icon: {fileID: 7347122636233278802}
+  - profileIndex: 5
+    button: {fileID: 2302156866211101583}
+    icon: {fileID: 912151168837936176}
+  confirmButton: {fileID: 0}
+  profileCategoryButton: {fileID: 6081685205195268008}
+  titleCategoryButton: {fileID: 4721147708358975417}
+  titleChoicesRoot: {fileID: 8107975712417886532}
+  onProfileChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onSelectionFailed:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!224 &8413288716552741006
 RectTransform:
   m_ObjectHideFlags: 0

@@ -28,4 +28,6 @@ public struct NetworkInputData : INetworkInput
     public NetworkBool steerToAim;
     public NetworkId lockTarget;
     public NetworkBool suppressActions;
+    // Perk selection consumes only mouse combat; flight and camera remain responsive.
+    public NetworkBool suppressCombat;
 }

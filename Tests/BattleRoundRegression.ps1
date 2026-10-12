@@ -37,6 +37,7 @@ public static class Mathf {
 }
 public class Player {public bool IsAlive=true,DiedFromAltitude;public Transform transform=new();}
 public class PlayerData {
+ public void PerkLoadoutChanged(){}
  public NetworkRunner Runner;public NetworkObject Object=new();public bool IsLoadoutInitialized=true;
  public int MagicChangeRound=1;public MagicType MagicChangeBase1=MagicType.Fire,MagicChangeBase2=MagicType.Ice;
  public MagicType magic1=MagicType.Fire,magic2=MagicType.Ice;
