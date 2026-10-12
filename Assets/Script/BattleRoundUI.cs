@@ -5,6 +5,9 @@ using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem.UI;
+#endif
 
 // Place on the always-active battlemanager, not inside either managed panel.
 [DefaultExecutionOrder(120)]
@@ -50,6 +53,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         ValidatePanel(ref finalResultPanel);
         Show(magicSwapPanel, false);
         Show(finalResultPanel, false);
+        EnsureUIInput();
         if (equipButton != null) equipButton.onClick.AddListener(EquipSelectedMagic);
         if (returnToMainButton != null) returnToMainButton.onClick.AddListener(ReturnToMain);
     }
@@ -283,6 +287,22 @@ public sealed class BattleRoundUI : MonoBehaviour
     }
     private static void Show(GameObject panel, bool show) { if (panel != null && panel.activeSelf != show) panel.SetActive(show); }
 
+    private void EnsureUIInput()
+    {
+        // Custom panels need input too. Do not tie EventSystem creation to generated UI.
+        // Reuse scene-owned input and its configured actions without adding a second module.
+        if (EventSystem.current != null) return;
+        var root = new GameObject("Battle UI EventSystem", typeof(EventSystem));
+        // Keep it outside panels which are hidden between phases, and unload it with this scene.
+        root.transform.SetParent(transform, false);
+#if ENABLE_INPUT_SYSTEM
+        // OnEnable assigns/enables the package's default UI actions on a new module.
+        root.AddComponent<InputSystemUIInputModule>();
+#else
+        root.AddComponent<StandaloneInputModule>();
+#endif
+    }
+
     private void EnsureCanvas()
     {
         if (generatedCanvas != null) return;
@@ -295,8 +315,6 @@ public sealed class BattleRoundUI : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
         scaler.matchWidthOrHeight = 0.5f;
-        if (EventSystem.current == null)
-            new GameObject("Round UI EventSystem", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(transform);
     }
 
     private GameObject Panel(string name)
@@ -350,6 +368,7 @@ public sealed class BattleRoundUI : MonoBehaviour
 
     private void EnsureSwapPanel()
     {
+        EnsureUIInput();
         if (magicSwapPanel != null) return;
         magicSwapPanel = Panel("Between rounds - magic changes");
         Transform root = magicSwapPanel.transform;
@@ -378,6 +397,7 @@ public sealed class BattleRoundUI : MonoBehaviour
 
     private void EnsureResultPanel()
     {
+        EnsureUIInput();
         if (finalResultPanel != null) return;
         finalResultPanel = Panel("Final result");
         generatedResultGroup = finalResultPanel.AddComponent<CanvasGroup>();

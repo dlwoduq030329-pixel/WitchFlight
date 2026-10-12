@@ -24,6 +24,7 @@ public sealed class CombatPresentation : MonoBehaviour
     private readonly List<Visual> visuals = new();
     private MaterialPropertyBlock block;
     private Player owner;
+    private Outline enemyOutline;
     private bool initialized;
     private int lastHit;
     private int lastDeath;
@@ -45,6 +46,7 @@ public sealed class CombatPresentation : MonoBehaviour
         // Unity native objects cannot be created from MonoBehaviour field initializers.
         block = new MaterialPropertyBlock();
         owner = GetComponent<Player>();
+        enemyOutline = GetComponent<Outline>();
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
         {
             if (renderer is not MeshRenderer && renderer is not SkinnedMeshRenderer)
@@ -114,6 +116,8 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void LateUpdate()
     {
+        // This is viewer-local, never a replicated enable flag: each client sees only its enemy.
+        UpdateEnemyOutline();
         if (owner == null || owner.Object == null || !owner.Object.IsValid)
             return;
 
@@ -150,6 +154,25 @@ public sealed class CombatPresentation : MonoBehaviour
         UpdateSmokeVisibility();
     }
 
+    private bool CanShowEnemyOutline()
+    {
+        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return false;
+        Player local = Player.LocalPlayer;
+        return owner != null && owner.Object != null && owner.Object.IsValid && owner.IsAlive &&
+            local != null && local.Object != null && local.Object.IsValid && local.IsAlive &&
+            owner != local && !owner.Object.HasInputAuthority && owner.Runner == local.Runner &&
+            owner.TeamIndex > 0 && local.TeamIndex > 0 && owner.TeamIndex != local.TeamIndex &&
+            !owner.IsHiddenBySmokeFor(local);
+    }
+
+    private void UpdateEnemyOutline()
+    {
+        if (enemyOutline == null) return;
+        bool visible = CanShowEnemyOutline();
+        // QuickOutline changes materials on enable/disable; do that only on actual state changes.
+        if (enemyOutline.enabled != visible) enemyOutline.enabled = visible;
+    }
+
     private void UpdateSmokeVisibility()
     {
         bool hidden = owner.IsHiddenBySmokeFor(Player.LocalPlayer);
@@ -169,6 +192,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void OnDisable()
     {
+        if (enemyOutline != null && enemyOutline.enabled) enemyOutline.enabled = false;
         visibilityInitialized = false;
         foreach (Visual visual in visuals)
         {

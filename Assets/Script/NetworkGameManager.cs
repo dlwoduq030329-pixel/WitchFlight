@@ -103,7 +103,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
         LatchButton(PlayerInputButton.Accelerate, Input.GetKeyDown(KeyCode.W));
         LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
-        LatchButton(PlayerInputButton.Parry, Input.GetMouseButtonDown(1));
+        if (BattlePerkUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
+        else LatchButton(PlayerInputButton.Parry, Input.GetMouseButtonDown(1));
         LatchButton(PlayerInputButton.Boost, Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift));
         LatchButton(PlayerInputButton.MagicSlot1, Input.GetKeyDown(KeyCode.Alpha1));
         LatchButton(PlayerInputButton.MagicSlot2, Input.GetKeyDown(KeyCode.Alpha2));
@@ -905,6 +906,12 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         latchedButtons = default;
         data.look = accumulatedLook;
+        data.suppressCombat = BattlePerkUI.BlocksCombatInput;
+        if (data.suppressCombat)
+        {
+            data.buttons.Set(PlayerInputButton.Lock,false);
+            data.buttons.Set(PlayerInputButton.Parry,false);
+        }
         accumulatedLook = Vector2.zero;
         Player local = Player.LocalPlayer;
         if (local != null)

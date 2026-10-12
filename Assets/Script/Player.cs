@@ -2,7 +2,7 @@ using Fusion;
 using UnityEngine;
 using Unity.Profiling;
 
-public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAllTicks
+public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAllTicks
 {
     private static readonly ProfilerMarker flightMarker = new("WitchFlight.Player.Simulate");
     private static readonly ProfilerMarker combatMarker = new("WitchFlight.Player.AuthoritativeCombat");
@@ -66,6 +66,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     [Networked, Capacity(13)] private NetworkArray<TickTimer> MagicCooldowns => default;
     [Networked] private TickTimer ParryTimer { get; set; }
     [Networked] private TickTimer ParryCooldown { get; set; }
+    [Networked] private TickTimer WallDamageTimer { get; set; }
     [Networked] public bool IsBoosting { get; private set; }
     [Networked] public bool IsReturningToMap { get; private set; }
     [Networked] public bool DiedFromAltitude { get; private set; }
@@ -139,7 +140,6 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     [Networked] private float boostMultiplier { get; set; }
     [Networked] private float boostApCostPerSecond { get; set; }
     [Networked] private bool boostNeedsRelease { get; set; }
-    private float lastWallDamageTime = float.NegativeInfinity;
     private MagicType pendingMagic;
     private NetworkId pendingTargetId;
     private TickTimer castTimer;
@@ -149,6 +149,22 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     private bool channelNeedsRelease;
     public bool IsChanneling => ChannelMagic != MagicType.None;
     public bool IsBound => TimerIsActive(BindingTimer);
+
+    // Read existing replicated timers; the HUD must not start its own duration or
+    // send extra RPCs. New status categories need only an enum entry and a query here.
+    public bool HasStatusEffect(StatusEffectType status)
+    {
+        if (Object == null || !Object.IsValid || Runner == null || !Runner.IsRunning || !IsAlive)
+            return false;
+        return status switch
+        {
+            StatusEffectType.Binding => TimerIsActive(BindingTimer),
+            StatusEffectType.Slow => TimerIsActive(SlowTimer),
+            StatusEffectType.HitStun => TimerIsActive(HitStunTimer),
+            _ => false
+        };
+    }
+
     private CombatPresentation presentation;
     private readonly RaycastHit[] lockHits = new RaycastHit[32];
     private readonly RaycastHit[] instantShotHits = new RaycastHit[32];
@@ -284,6 +300,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         for (int i = 0; i < MagicCooldowns.Length; i++) MagicCooldowns.Set(i, TickTimer.None);
         ParryTimer = TickTimer.None;
         ParryCooldown = TickTimer.None;
+        WallDamageTimer = TickTimer.None;
         IsBoosting = false;
         boostNeedsRelease = false;
         IsReturningToMap = false;
@@ -315,6 +332,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         AppearanceConfig = data.GetPlayerConfig().Sanitized();
         LoadoutVersion++;
 
+        InitializePerkVitals(data);
         SyncHealthToPlayerData();
         SyncApToPlayerData();
     }
@@ -357,11 +375,15 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private MagicStatEntry GetMagicStats(MagicType magic)
     {
-        if (magicStatTable != null)
-            return magicStatTable.GetStats(magic);
+        int slot = GetMagicInSlot(CurrentMagicSlot) == magic ? CurrentMagicSlot : Magic1 == magic ? 1 : Magic2 == magic ? 2 : 0;
+        return GetPerkMagicStats(magic, slot);
+    }
 
-        magicStatTable = Resources.Load<MagicStatTable>("MagicStatTable");
-        return magicStatTable != null ? magicStatTable.GetStats(magic) : MagicStatTable.DefaultEntry(magic);
+    private MagicStatEntry GetPerkMagicStats(MagicType magic, int slot)
+    {
+        if (magicStatTable == null) magicStatTable = Resources.Load<MagicStatTable>("MagicStatTable");
+        MagicStatEntry raw = magicStatTable != null ? magicStatTable.GetStats(magic) : MagicStatTable.DefaultEntry(magic);
+        return ApplyPerkStats(raw, slot);
     }
 
     public override void Spawned()
@@ -415,6 +437,9 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
         HeadLookAngles = Vector2.zero;
 
+        // Also invalidate a charged lock on ticks with no input, before mana regeneration.
+        if (!CanAcquireMagicTarget()) ClearLockTargetInternal();
+
         if (Object.HasStateAuthority && (BattleManager.Instance == null ||
             !BattleManager.Instance.IsGameplayActive || !IsAlive || IsReturningToMap || IsHitStunned))
             StopChannel();
@@ -445,6 +470,8 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         }
 
         ResetControllerAfterRender();
+        TickPerkEffects();
+        if (!IsAlive) return;
         if (testBot != null)
         {
             if (Object.HasStateAuthority) testBot.Simulate(this);
@@ -467,8 +494,6 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             RegenerateAp();
             return;
         }
-        if (Object.HasStateAuthority) UpdatePendingCast();
-
         if (!GetInput(out NetworkInputData data))
         {
             if (Object.HasStateAuthority) StopChannel();
@@ -479,6 +504,9 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             return;
         }
 
+        // Read suppression BEFORE executing a delayed cast: opening Space must not release/fire it.
+        if (data.suppressCombat || data.suppressActions) CancelCombatForPerks();
+        else if (Object.HasStateAuthority) UpdatePendingCast();
         ProcessInput(data);
         if (!data.suppressActions && !IsReturningToMap && !IsHitStunned)
             HeadLookAngles = headLook.GetAngles(transform, data.aimDirection);
@@ -698,7 +726,8 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
         // Never replay attacks, spawning, damage, RPCs or another player's state
         // while predicting/re-simulating this owner's movement.
-        if (Object.HasStateAuthority) ProcessAuthoritativeCombat(data, buttons);
+        if (data.suppressCombat) CancelCombatForPerks();
+        else if (Object.HasStateAuthority) ProcessAuthoritativeCombat(data, buttons);
         else if (Object.HasInputAuthority) ProcessPredictedProjectileInput(data, buttons);
 
         if (IsBound)
@@ -838,7 +867,8 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         if (reversing)
             targetSpeed = 0f;
         float rate = reversing || Mathf.Abs(targetSpeed) < Mathf.Abs(Speed)
-            ? brakeSpeed : stageTransitionSpeed * GetMovementMultiplier();
+            ? brakeSpeed * (1f + CommonAmount(PerkId.BrakingRune)) : stageTransitionSpeed * GetMovementMultiplier() *
+                (Mathf.Abs(SpeedStage) == 1 && Mathf.Abs(Speed) < flightMaxSpeed / 3f ? 1f + CommonAmount(PerkId.FirstWind) : 1f);
         Speed = Mathf.MoveTowards(Speed, targetSpeed, rate * Runner.DeltaTime);
     }
 
@@ -849,7 +879,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private float GetTurnMultiplier()
     {
-        return GetMovementMultiplier();
+        return GetMovementMultiplier() * (1f + CommonAmount(PerkId.WindTurning));
     }
 
     private void UpdateHeldBoost(bool held)
@@ -862,7 +892,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         if (boostNeedsRelease || IsHitStunned || IsBound)
             return;
 
-        float cost = boostApCostPerSecond * Runner.DeltaTime;
+        float cost = boostApCostPerSecond * Runner.DeltaTime * (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind)));
         if (!TryConsumeMovementAp(cost))
         {
             // Exhaust the remaining fraction and avoid rapid on/off boosting as AP regenerates.
@@ -961,7 +991,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         }
 
         if (stats.IsChanneled || (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
-        if (stats.effect == MagicEffectKind.Healing && NowHp >= MaxHp) return;
+        if (stats.effect == MagicEffectKind.Healing && NowHp >= MaxHp && !CanCleanse(stats)) return;
         if (stats.effect == MagicEffectKind.Smoke &&
             (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
              BattleFlag.Instance == null || !BattleFlag.Instance.CanCreateSmoke(Runner))) return;
@@ -978,9 +1008,12 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         MagicCooldowns.Set(magicIndex, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.cooldownSeconds)));
         LastCastMagic = selectedMagic;
         CastSequence++;
+        stats.perkCast = CastSequence;
+        stats.perkAttacker = Object.InputAuthority;
         if (stats.castSeconds > 0f && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke)
         {
             pendingMagic = selectedMagic;
+            pendingPerkStats = stats;
             pendingInputTick = castInputTick;
             pendingAimDirection = castAimDirection;
             pendingTargetId = target != null ? target.Object.Id : default;
@@ -998,16 +1031,33 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     }
 
     // Shared by local selection/HUD, rollback prediction and authoritative input/RPCs.
-    // A cooldown must prevent charging, not just reject the eventual release.
+    // Unusable spells must not show candidates or charge a lock just to reject the release.
     public bool CanAcquireMagicTarget()
     {
-        if (Object == null || !Object.IsValid || Runner == null || !IsAlive ||
-            IsHitStunned || IsReturningToMap)
+        if (Object == null || !Object.IsValid || Runner == null || !Runner.IsRunning || !IsAlive ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
+            IsHitStunned || IsReturningToMap || pendingMagic != MagicType.None)
             return false;
 
         int index = (int)GetSelectedMagic();
-        return index > 0 && index < MagicCooldowns.Length &&
-            SelectedMagicStats.UsesAutoTarget && !TimerIsActive(MagicCooldowns[index]);
+        if (index <= 0 || index >= MagicCooldowns.Length || TimerIsActive(MagicCooldowns[index]))
+            return false;
+
+        MagicStatEntry stats = SelectedMagicStats;
+        if (stats.magic == MagicType.None || !stats.UsesAutoTarget) return false;
+        // Channels pay continuously, including a partial final tick, not their one-shot apCost.
+        if (stats.IsChanneled)
+            return !channelNeedsRelease && (stats.ChannelManaPerSecond(MaxAp) <= 0f || NowAp > 0f);
+
+        // Match the resource/configuration checks in TryCastSelectedMagic without spending anything.
+        if (NowAp < Mathf.Max(0f, stats.apCost) || (stats.healthCost > 0f && NowHp <= stats.healthCost))
+            return false;
+        if (stats.projectileSpeed > 0f && !magicProjectilePrefab.IsValid) return false;
+        if (stats.effect == MagicEffectKind.Healing && NowHp >= MaxHp && !CanCleanse(stats)) return false;
+        if (stats.effect == MagicEffectKind.Smoke &&
+            (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
+             BattleFlag.Instance == null || !BattleFlag.Instance.CanCreateSmoke(Runner))) return false;
+        return true;
     }
 
     public MagicType GetMagicInSlot(int slot)
@@ -1039,7 +1089,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     {
         if (slot == 3) return Mathf.Max(0f, magicStatTable != null ? magicStatTable.parryCooldownSeconds : parryCooldownSeconds);
         MagicType magic = GetMagicInSlot(slot);
-        return magic == MagicType.None || magicStatTable == null ? 0f : Mathf.Max(0f, magicStatTable.GetStats(magic).cooldownSeconds);
+        return magic == MagicType.None ? 0f : Mathf.Max(0f, GetPerkMagicStats(magic, slot).cooldownSeconds);
     }
 
     private void UpdatePendingCast()
@@ -1054,7 +1104,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         if (!castTimer.Expired(Runner))
             return;
 
-        MagicStatEntry stats = GetMagicStats(pendingMagic);
+        MagicStatEntry stats = pendingPerkStats;
         pendingMagic = MagicType.None;
         Player target = Runner.TryFindObject(pendingTargetId, out NetworkObject obj) && obj != null
             ? obj.GetComponent<Player>() : null;
@@ -1069,7 +1119,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
     {
         if (stats.effect == MagicEffectKind.Flare)
         {
-            MagicProjectile.BreakHomingFor(this);
+            StartPerkFlare(stats);
             RPC_PresentCast(stats.magic, LockAimPoint, -transform.forward, 0f);
         }
         else if (stats.effect == MagicEffectKind.Smoke)
@@ -1079,6 +1129,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         }
         else if (stats.effect == MagicEffectKind.Healing)
         {
+            ApplyPerkCleanse(stats);
             RestoreHealth(stats.healing);
             RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, 0f);
         }
@@ -1120,11 +1171,16 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
                 if (enemy != null && enemy.IsEnemyOf(this) &&
                     (enemy.LockAimPoint - end).sqrMagnitude <= stats.radius * stats.radius &&
                     MagicProjectile.HasBlastSight(end, enemy))
-                    enemy.ReceiveMagicHit(stats, Object.InputAuthority, Object.Id);
+                    enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(enemy.LockAimPoint, end)), Object.InputAuthority, Object.Id);
             }
         }
         else if (victim != null && victim.IsEnemyOf(this))
+        {
+            int hit = victim.HitSequence;
             victim.ReceiveMagicHit(stats, Object.InputAuthority, Object.Id);
+            if (victim.HitSequence == hit) ResetVisionMiss(stats);
+        }
+        else ResetVisionMiss(stats);
 
         RPC_PresentCast(stats.magic, origin, end, 0f);
     }
@@ -1193,6 +1249,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void UpdateChannel(MagicStatEntry stats, NetworkId inputTarget, Vector3 aimDirection)
     {
+        if (IsChanneling) stats = channelPerkStats;
         if (pendingMagic != MagicType.None || IsHitStunned || IsReturningToMap) { StopChannel(); return; }
         int index = (int)stats.magic;
         if (index <= 0 || index >= MagicCooldowns.Length) { StopChannel(); return; }
@@ -1220,8 +1277,12 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             ChannelMagic = stats.magic;
             LastCastMagic = stats.magic;
             CastSequence++;
+            stats.perkCast = CastSequence; stats.perkAttacker = Object.InputAuthority;
+            channelPerkStats = stats;
             channelDamageTime = 0f;
         }
+        else stats = channelPerkStats;
+        TrackPerkBeam(target, paidTime, stats);
         // Do not carry damage time from an old victim across a wall or target change.
         NetworkId nextTarget = target != null && target.IsEnemyOf(this) ? target.Object.Id : default;
         if (!ChannelTargetId.Equals(nextTarget)) channelDamageTime = 0f;
@@ -1258,11 +1319,12 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         {
             int index = (int)ChannelMagic;
             if (index > 0 && index < MagicCooldowns.Length)
-                MagicCooldowns.Set(index, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, GetMagicStats(ChannelMagic).cooldownSeconds)));
+                MagicCooldowns.Set(index, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, channelPerkStats.cooldownSeconds)));
         }
         ChannelMagic = MagicType.None;
         ChannelTargetId = default;
         channelDamageTime = 0f;
+        beamContact = 0f; beamVictim = default; beamLastContact = -100f;
     }
 
     // Called only by authoritative projectiles/rays; Ice's status cannot pass through a parry.
@@ -1276,19 +1338,27 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             ParrySequence++;
             return;
         }
+        Player perkSource = null;
+        if (Runner.TryFindObject(attackerId, out NetworkObject perkSourceObject) && perkSourceObject != null)
+            perkSource = perkSourceObject.GetComponent<Player>();
         if (stats.effect == MagicEffectKind.Binding)
         {
-            BindingTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.effectDuration));
+            bool wasBound = IsBound;
+            BindingTimer = TickTimer.CreateFromSeconds(Runner, StatusPerkDuration(stats.effectDuration));
+            if (!wasBound && IsBound) PlayerData.FindPerkData(Runner,attacker)?.AwardPerkBinding(this);
             Speed = 0f;
             KnockbackVelocity = Vector3.zero;
             NotifyDamageDirection(attacker, attackerId);
             NotifyConfirmedMagicHit(attacker, attackerId);
+            OnAcceptedPerkHit(stats, perkSource, attackerId);
             return;
         }
+        stats = IncomingPerkDamage(stats, perkSource, attackerId);
         int hitBefore = HitSequence;
         TakeDamage(stats.damage, attacker, stats.magic, false, stats.knockbackForce, stats.hitStunSeconds, attackerId);
         if (HitSequence == hitBefore) return;
         NotifyConfirmedMagicHit(attacker, attackerId);
+        OnAcceptedPerkHit(stats, perkSource, attackerId);
         if (IsAlive && stats.effect == MagicEffectKind.SlowDamage)
             ApplySlow(stats.movementMultiplier, stats.effectDuration);
         if (stats.effect == MagicEffectKind.LifeSteal && stats.healOnHit > 0f)
@@ -1308,7 +1378,7 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
             return;
 
         SlowMultiplier = Mathf.Clamp(multiplier, 0.05f, 1f);
-        SlowTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, duration));
+        SlowTimer = TickTimer.CreateFromSeconds(Runner, StatusPerkDuration(duration));
     }
 
     private void ApplyHitStun(float duration)
@@ -1342,7 +1412,9 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
         LastReceivedDamage = damage;
         HitSequence++;
         NotifyDamageDirection(attacker, attackerId);
+        float hpBefore = NowHp;
         NowHp = Mathf.Max(NowHp - damage, testBot != null && testBot.Immortal ? 1f : 0f);
+        PlayerData.FindPerkData(Runner,attacker)?.AwardPerkDamage(this, hpBefore-NowHp, lifeStartMaxHp > 0f ? lifeStartMaxHp : MaxHp);
         ApplyHitStun(hitStunSeconds >= 0f ? hitStunSeconds : defaultHitStunSeconds);
         ApplyKnockbackFrom(attacker, knockbackForce);
         SyncHealthToPlayerData();
@@ -1847,13 +1919,29 @@ public class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, IAfterAll
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        if (!Object || !Object.HasStateAuthority || !IsAlive || Mathf.Abs(Speed) < wallDamageSpeedThreshold)
+        if (Object == null || !Object.IsValid || !SimulatesMovement || !IsAlive || IsReturningToMap ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive || hit.collider == null)
             return;
 
-        if (Mathf.Abs(hit.normal.y) > 0.5f || Time.time < lastWallDamageTime + wallDamageCooldown)
+        // Keep floor/ceiling contacts and other players/projectiles out of wall-impact handling.
+        if (Mathf.Abs(hit.normal.y) > 0.5f || Vector3.Dot(hit.moveDirection, hit.normal) >= -0.01f ||
+            hit.collider.GetComponentInParent<Player>() != null || hit.collider.GetComponentInParent<MagicProjectile>() != null)
             return;
 
-        lastWallDamageTime = Time.time;
+        float impactSpeed = Mathf.Abs(Speed);
+        // Stop on BOTH the host and predicting owner, even below the damage threshold or during cooldown.
+        SpeedStage = 0;
+        Speed = 0f;
+        IsBoosting = false;
+        boostNeedsRelease = true; // Holding Shift must not switch the stopped player back to stage 1.
+        if (Vector3.Dot(KnockbackVelocity, hit.normal) < 0f)
+            KnockbackVelocity = Vector3.ProjectOnPlane(KnockbackVelocity, hit.normal);
+
+        // Health remains host-authoritative. Multiple contacts in one Move cannot apply repeated damage.
+        if (!Object.HasStateAuthority || impactSpeed < Mathf.Max(0.01f, wallDamageSpeedThreshold) || TimerIsActive(WallDamageTimer))
+            return;
+
+        WallDamageTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, wallDamageCooldown));
         TakeDamage(wallDamage, PlayerRef.None);
     }
 

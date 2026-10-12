@@ -11,6 +11,10 @@ public enum MagicEffectKind
 [Serializable]
 public struct MagicStatEntry
 {
+    // Authority-only cast snapshot; never serialized into the balancing asset.
+    [NonSerialized] public int perkSlot, perkCast;
+    [NonSerialized] public PerkDefinition perkFirst, perkSecond;
+    [NonSerialized] public Fusion.PlayerRef perkAttacker;
     public MagicType magic;
     public string displayName;
     [TextArea] public string description;

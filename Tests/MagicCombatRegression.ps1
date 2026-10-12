@@ -53,6 +53,12 @@ namespace CombatChecks {
 using UnityEngine;
 using System.Collections.Generic;
 public enum PlayerRef {None,One,Two}
+public class PerkDefinition {}
+public class PlayerData {
+ public static PlayerData FindPerkData(RunnerState runner,PlayerRef who)=>null;
+ public void AwardPerkBinding(Player victim){}
+ public void AwardPerkDamage(Player victim,float damage,float maximum){}
+}
 public enum PlayerInputButton {Lock,Parry}
 public struct NetworkId {public int Id; public NetworkId(int id){Id=id;} public bool Equals(NetworkId other)=>Id==other.Id;}
 public struct NetworkButtons {
@@ -67,6 +73,7 @@ public class NetworkObject {
  public T GetComponent<T>() where T:class=>Owner as T;
 }
 public class RunnerState {
+ public bool IsRunning=true;
  public struct TickValue {public int Raw;} public TickValue Tick;
  public float DeltaTime=.02f,Time;
  public readonly Dictionary<int,NetworkObject> Objects=new();
@@ -95,6 +102,16 @@ public class Marker {public IDisposable Auto()=>new Scope();private class Scope:
 $probe = @'
 namespace CombatChecks { using UnityEngine;
 public class Player {
+ public MagicStatEntry pendingPerkStats,channelPerkStats;
+ public float beamContact,beamLastContact,lifeStartMaxHp;public NetworkId beamVictim;
+ public bool IsBound=>TimerIsActive(BindingTimer);
+ public bool CanCleanse(MagicStatEntry s)=>false;
+ public void ApplyPerkCleanse(MagicStatEntry s){}
+ public float StatusPerkDuration(float duration)=>duration;
+ public void StartPerkFlare(MagicStatEntry s)=>MagicProjectile.BreakHomingFor(this);
+ public void TrackPerkBeam(Player p,float t,MagicStatEntry s){}
+ public MagicStatEntry IncomingPerkDamage(MagicStatEntry s,Player p,NetworkId id)=>s;
+ public void OnAcceptedPerkHit(MagicStatEntry s,Player p,NetworkId id){}
  public RunnerState Runner=new();public NetworkObject Object=new();public Transform transform=new();
  public MagicStatTable magicStatTable=new();
  public MagicType Selected=MagicType.Vision,pendingMagic,LastCastMagic,ChannelMagic;
@@ -301,6 +318,7 @@ public static class Tests {
   d.UpdateLockCharge();Check(d.LockProgress==0&&!d.IsFullyLocked&&d.LockTargetId.Id==0,"cooldown clears stale completed lock");
   d.Input(false,false,victim.Object.Id);Check(d.Launches==1,"release during cooldown does not cast");
   float cooldownEnd=d.MagicCooldowns[(int)MagicType.Fire].End;
+  d.NowAp=100; // This group isolates cooldown expiry; resource eligibility is checked separately below.
   d.Runner.Time=cooldownEnd-.05f;d.Input(true,false,victim.Object.Id);Check(d.LockProgress==0,"cannot precharge just before cooldown expires");
   d.Runner.Time=cooldownEnd;d.Input(true,false,victim.Object.Id);
   Check(d.CanAcquireMagicTarget()&&d.LockProgress>0&&d.LockProgress<.1f,"held input begins fresh charge at expiry");
@@ -322,6 +340,44 @@ public static class Tests {
   d.Runner.Time=1;d.ProcessPredictedProjectileInput(lockInput,heldButtons);
   Check(d.LockProgress>0&&d.LockTargetId.Equals(victim.Object.Id),"prediction reacquires after expiry");
   d.Object.IsValid=false;Check(!d.CanAcquireMagicTarget(),"despawned player cannot acquire targets");
+  foreach(var magic in new[]{MagicType.Fire,MagicType.Ice,MagicType.Binding}) {
+   d=Caster(magic);victim=Enemy(d);float cost=d.SelectedMagicStats.apCost;
+   d.NowAp=cost-.01f;
+   Check(!d.CanAcquireMagicTarget(),"insufficient MP hides candidates for "+magic);
+   d.Input(true,false,victim.Object.Id);
+   Check(d.LockProgress==0&&d.LockTargetId.Id==0,"insufficient MP cannot charge "+magic);
+   d.RPC_SetLockTarget(victim.Object.Id,Vector3.forward);
+   Check(d.LockTargetId.Id==0,"RPC cannot bypass mana check for "+magic);
+   d.NowAp=cost;Check(d.CanAcquireMagicTarget(),"exact MP cost allows target acquisition for "+magic);
+   for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}
+   Check(d.IsFullyLocked,"affordable spell charges normally for "+magic);
+   d.NowAp=cost-.01f;
+   Check(d.GetDisplayedLockTarget()==null,"resource loss immediately hides completed lock for "+magic);
+   d.Input(true,false,victim.Object.Id);
+   Check(d.LockProgress==0&&!d.IsFullyLocked&&d.LockTargetId.Id==0,"resource loss cancels completed lock for "+magic);
+   d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"unaffordable release cannot cast "+magic);
+   d.NowAp=cost;d.Input(true,false,victim.Object.Id);
+   Check(d.LockProgress>0&&d.LockProgress<.1f&&!d.IsFullyLocked,"restored MP starts a fresh charge for "+magic);
+   d.Object.HasStateAuthority=false;d.NowAp=0;d.ProcessPredictedProjectileInput(new NetworkInputData{lockTarget=victim.Object.Id},new NetworkButtons{Bits=1});
+   Check(d.LockProgress==0&&d.LockTargetId.Id==0,"owner prediction also cancels unaffordable lock for "+magic);
+  }
+  d=Caster(MagicType.Fire);victim=Enemy(d);
+  d.magicStatTable.magics[0].healthCost=50;d.NowHp=50;
+  Check(!d.CanAcquireMagicTarget(),"lock-on health cost cannot kill caster");d.NowHp=50.01f;
+  Check(d.CanAcquireMagicTarget(),"strictly more than health cost is enough");
+  d.BindingTimer=TickTimer.CreateFromSeconds(d.Runner,3);Check(d.CanAcquireMagicTarget(),"Binding is movement root, not silence");
+  d.magicProjectilePrefab.IsValid=false;Check(!d.CanAcquireMagicTarget(),"missing projectile cannot charge a shot");d.magicProjectilePrefab.IsValid=true;
+  d.pendingMagic=MagicType.Thunder;Check(!d.CanAcquireMagicTarget(),"pending cast prevents another lock");d.pendingMagic=MagicType.None;
+  d.IsHitStunned=true;Check(!d.CanAcquireMagicTarget(),"hit stun blocks lock");d.IsHitStunned=false;
+  d.IsReturningToMap=true;Check(!d.CanAcquireMagicTarget(),"map return blocks lock");d.IsReturningToMap=false;
+  d.IsAlive=false;Check(!d.CanAcquireMagicTarget(),"dead caster cannot lock");d.IsAlive=true;
+  d.Runner.IsRunning=false;Check(!d.CanAcquireMagicTarget(),"stopped runner cannot lock");d.Runner.IsRunning=true;
+  BattleManager.Instance.IsGameplayActive=false;Check(!d.CanAcquireMagicTarget(),"intermission cannot lock");BattleManager.Instance.IsGameplayActive=true;
+  d=Caster(MagicType.Curse);d.NowAp=0;Check(!d.CanAcquireMagicTarget(),"paid channel needs some mana even when apCost is zero");
+  d.NowAp=.01f;Check(d.CanAcquireMagicTarget(),"channel permits a paid partial final tick");
+  d.channelNeedsRelease=true;Check(!d.CanAcquireMagicTarget(),"exhausted channel must release before reacquiring");d.channelNeedsRelease=false;
+  d.magicStatTable.magics[7].maxApFractionPerSecond=0;d.NowAp=0;
+  Check(d.CanAcquireMagicTarget(),"configured free channel remains usable without mana");
   d=Caster(MagicType.Fire);victim=Enemy(d);for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}
   victim.Visible=false;d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"wall invalidates completed lock");
   victim.Visible=true;victim.transform.position=new UnityEngine.Vector3(0,0,-10);Check(!d.IsValidLockTarget(victim),"rear hemisphere cannot lock");
@@ -360,7 +416,7 @@ public static class Tests {
 }}
 '@
 $nl = [Environment]::NewLine
-Add-Type -TypeDefinition ($stubs + $nl + 'namespace CombatChecks {' + $nl + $table + $nl + $enum + $nl + '}' + $nl + $probe)
+Add-Type -TypeDefinition ($stubs + $nl + 'namespace CombatChecks {' + $nl + $table.Replace('Fusion.PlayerRef','PlayerRef') + $nl + $enum + $nl + '}' + $nl + $probe)
 "Magic combat behavior checks passed: $([CombatChecks.Tests]::Run())"
 
 # Inspect the saved asset too: Unity keeps serialized values instead of C# defaults.

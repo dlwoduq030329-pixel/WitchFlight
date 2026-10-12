@@ -27,7 +27,7 @@ public class enemyLockOn : MonoBehaviour
         if (owner == null || owner.Object == null || !owner.Object.IsValid ||
             !owner.Object.HasInputAuthority || BattleManager.Instance == null ||
             !BattleManager.Instance.IsGameplayActive || !owner.IsAlive || CombatPresentation.MenuOpen ||
-            !owner.CanAcquireMagicTarget() || !TryGetAlignedAim(out _))
+            BattlePerkUI.BlocksCombatInput || !owner.CanAcquireMagicTarget() || !TryGetAlignedAim(out _))
         {
             currentTarget = null;
             wasHeld = false;
@@ -93,7 +93,7 @@ public class enemyLockOn : MonoBehaviour
     public bool CanLockTarget(Player candidate)
     {
         return BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
-            !CombatPresentation.MenuOpen && TryGetAlignedAim(out _) &&
+            !CombatPresentation.MenuOpen && !BattlePerkUI.BlocksCombatInput && TryGetAlignedAim(out _) &&
             owner.CanAcquireMagicTarget() && IsVisible(candidate);
     }
 

@@ -216,9 +216,8 @@ public class lilToonSetting : ScriptableObject
     public static void SaveShaderSetting(lilToonSetting shaderSetting)
     {
         string shaderSettingPath = lilDirectoryManager.GetShaderSettingPath();
-        var sw = new StreamWriter(shaderSettingPath, false);
-        sw.Write(JsonUtility.ToJson(shaderSetting, true));
-        sw.Close();
+        // Serialize before opening the file, and do not truncate a build-mapped file.
+        lilSettingFileWriter.WriteJson(shaderSettingPath, JsonUtility.ToJson(shaderSetting, true));
     }
 
     internal static void LoadShaderSetting(ref lilToonSetting shaderSetting)
@@ -987,8 +986,11 @@ public class lilToonSetting : ScriptableObject
         {
             if(string.IsNullOrEmpty(lilEditorParameters.instance.modifiedShaders)) return;
             var shaders = lilEditorParameters.instance.modifiedShaders.Split(',').Select(n => Shader.Find(n)).Where(s => s != null).ToList();
-            lilEditorParameters.instance.modifiedShaders = "";
-            if(!ShouldOptimization()) return;
+            if(!ShouldOptimization())
+            {
+                lilEditorParameters.instance.modifiedShaders = "";
+                return;
+            }
             lilEditorParameters.instance.forceOptimize = false;
             lilToonSetting shaderSetting = null;
             InitializeShaderSetting(ref shaderSetting);
@@ -1004,6 +1006,8 @@ public class lilToonSetting : ScriptableObject
                 TurnOnAllShaderSetting(ref shaderSetting);
                 ApplyShaderSetting(shaderSetting, "[lilToon] PostprocessBuild", shaders, false);
             }
+            // Keep the pending restoration on failure so the deferred callback can retry.
+            lilEditorParameters.instance.modifiedShaders = "";
         }
         catch(Exception e)
         {

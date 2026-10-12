@@ -77,9 +77,10 @@ namespace UnityEngine.UI {
  }
 }
 namespace TMPro {public class TMP_Text:UnityEngine.MonoBehaviour {public string text;}}
-namespace Fusion {public interface INetworkStruct {}}
+namespace Fusion {public interface INetworkStruct {} public struct PlayerRef {}}
 namespace MagicCustomizationChecks {
  using UnityEngine;
+ public class PerkDefinition {}
  public class DatabaseManager {
   public static DatabaseManager Instance;public bool IsDataConfigReady,HasLoadedProfile;
  }
@@ -165,6 +166,28 @@ namespace MagicCustomizationChecks {
    public void Dispose(){Life(ui,"OnDisable");preview.UnbindFromDataConfig();DataConfig.Changed-=Changed;}
   }
   public static int Run(){
+   using(var f=new Fixture()){
+    var firstObject=new GameObject{activeSelf=false};
+    var secondObject=new GameObject{activeSelf=false};
+    Set(f.ui,"slot1EquippedObject",firstObject);Set(f.ui,"slot2EquippedObject",secondObject);
+    int firstCalls=0,secondCalls=0;
+    Get<UnityEvent>(f.ui,"onSlot1Equipped").AddListener(()=>{Check(firstObject.activeSelf,"slot 1 object activates before callback");firstCalls++;});
+    Get<UnityEvent>(f.ui,"onSlot2Equipped").AddListener(()=>{Check(secondObject.activeSelf,"slot 2 object activates before callback");secondCalls++;});
+    f.Pick(MagicType.Mine);f.slot2.onClick.Invoke();
+    Check(!firstObject.activeSelf&&!secondObject.activeSelf&&firstCalls==0&&secondCalls==0,"preview and slot selection do not trigger equip actions");
+    f.equip.onClick.Invoke();
+    Check(!firstObject.activeSelf&&secondObject.activeSelf&&firstCalls==0&&secondCalls==1,"slot 2 equip runs only slot 2 actions");
+    f.ui.EquipSelectedItem();
+    Check(firstCalls==0&&secondCalls==1,"same-item no-op does not repeat slot actions");
+    f.slot1.onClick.Invoke();f.equip.onClick.Invoke();
+    Check(firstObject.activeSelf&&secondObject.activeSelf&&firstCalls==1&&secondCalls==1,"slot 1 actions do not turn off slot 2 object");
+    f.hatSlot.onClick.Invoke();f.Pick(HatType.Cosmic);f.equip.onClick.Invoke();
+    f.broomSlot.onClick.Invoke();f.Pick(BroomType.Speed);f.equip.onClick.Invoke();
+    Check(firstCalls==1&&secondCalls==1,"hat and broom equips never run magic slot actions");
+    f.slot1.onClick.Invoke();f.Pick(MagicType.Binding);
+    NetworkGameManager.Instance=new NetworkGameManager{IsMatching=true};f.ui.EquipSelectedItem();
+    Check(firstCalls==1&&secondCalls==1,"blocked confirmation never runs slot actions");
+   }
    foreach(var magic in new[]{MagicType.Flare,MagicType.Smoke}){
     using(var f=new Fixture()){
      f.Pick(magic);f.slot2.onClick.Invoke();f.equip.onClick.Invoke();

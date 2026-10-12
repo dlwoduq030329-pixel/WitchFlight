@@ -48,6 +48,8 @@ namespace Fusion {
 }
 namespace UtilityChecks {
 using UnityEngine;using Fusion;
+public enum PlayerRef {None,One,Two}
+public class PlayerData {public static PlayerData FindPerkData(NetworkRunner r,PlayerRef p)=>null;}
 public enum MagicType {Smoke}
 public enum BattleStartPhase {Waiting,Playing,Ended}
 public struct MagicStatEntry {public float radius,effectDuration;public bool requiresTarget;public GameObject utilityVfxPrefab;}
@@ -71,6 +73,7 @@ $flagMethods = ($flagMethods -join "`n").Replace('CombatPresentation.Stats', 'Co
 $projectileStart = @'
 }
 public class MagicProjectile {
+ public PlayerRef Shooter;
  public static HashSet<MagicProjectile> active=new();
  public NetworkRunner Runner;public NetworkObject Object=new();public bool initialized=true,Finished,IsMine;
  public MagicStatEntry stats=new(){requiresTarget=true};public int ShooterTeam=2;public NetworkId TargetId;

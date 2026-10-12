@@ -169,7 +169,11 @@ public sealed class MagicProjectile : NetworkBehaviour
     // Only existing hostile homing shots lose their target. No teleport, invulnerability,
     // damage cancellation, or immunity to newly fired shots. Continue on the last heading.
     public static int BreakHomingFor(Player defender)
+        => BreakHomingFor(defender, out _);
+
+    public static int BreakHomingFor(Player defender, out bool rewardable)
     {
+        rewardable = false;
         if (defender == null || defender.Object == null || !defender.Object.IsValid ||
             !defender.Object.HasStateAuthority) return 0;
         int count = 0;
@@ -180,6 +184,8 @@ public sealed class MagicProjectile : NetworkBehaviour
                 shot.Finished || shot.IsMine || !shot.stats.requiresTarget ||
                 shot.ShooterTeam == defender.TeamIndex || !shot.TargetId.Equals(defender.Object.Id)) continue;
             shot.TargetId = default;
+            // Bots can be countered, but cannot be farmed for growth.
+            if (shot.Shooter != PlayerRef.None && PlayerData.FindPerkData(defender.Runner,shot.Shooter) != null) rewardable = true;
             count++;
         }
         return count;
@@ -279,7 +285,7 @@ public sealed class MagicProjectile : NetworkBehaviour
                 if (player == null || !player.IsAlive || (!IsMine && player.TeamIndex == ShooterTeam) ||
                     (player.LockAimPoint - point).sqrMagnitude > stats.radius * stats.radius || !HasBlastSight(player))
                     continue;
-                player.ReceiveMagicHit(stats, Shooter, ShooterId);
+                player.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(player.LockAimPoint,point)), Shooter, ShooterId);
             }
         }
         else if (directHit != null && directHit.IsAlive && directHit.TeamIndex != ShooterTeam)
