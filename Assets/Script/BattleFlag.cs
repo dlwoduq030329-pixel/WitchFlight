@@ -425,6 +425,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         if (candidate == null)
             return;
         Carrier = candidate.Object.InputAuthority;
+        NetworkGameManager.Instance?.GetPlayerData(Carrier)?.AwardPerkFlag(RoundNumber);
         IsDescending = false;
         LastCarrier = Carrier;
         LastCarrierTeam = candidate.TeamIndex;

@@ -7,7 +7,7 @@ public enum BroomType { None, Slow, Standard, Speed }
 public enum MagicType { None = 0, Fire = 1, Ice = 2, Vision = 3, Thunder = 4, Healing = 5, Binding = 6, Dark = 7, Curse = 8, Mine = 9, Razier = 10, Flare = 11, Smoke = 12 }
 public enum Camp { A, B }
 
-public class PlayerData : NetworkBehaviour
+public partial class PlayerData : NetworkBehaviour
 {
     public static PlayerData Local { get; private set; }
     [Networked] public int MagicChangeRound { get; private set; }
@@ -104,6 +104,7 @@ public class PlayerData : NetworkBehaviour
 
     public override void Spawned()
     {
+        perkPlayers.Add(this);
         if (Object.HasStateAuthority)
             IsRoomOwner = Runner.IsServer && Object.InputAuthority == Runner.LocalPlayer;
         if (Object.HasInputAuthority)
@@ -252,9 +253,10 @@ public class PlayerData : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        perkPlayers.Remove(this);
         if (Local == this) Local = null;
         NetworkGameManager.Instance?.UnregisterPlayerData(this);
     }
 
-    private void OnDestroy() { if (Local == this) Local = null; }
+    private void OnDestroy() { perkPlayers.Remove(this); if (Local == this) Local = null; }
 }

@@ -11,6 +11,10 @@ public class BattleManager : MonoBehaviour
     [Header("Network Prefab")]
     [SerializeField] private NetworkPrefabRef flagPrefab;
 
+    [Header("Perks / XP (empty = Resources/PerkStatTable)")]
+    [SerializeField] private PerkStatTable perkStatTable;
+    public PerkStatTable Perks => perkStatTable != null ? perkStatTable : PerkStatTable.Default;
+
     [Header("Battle Spawn Point")]
     [SerializeField] private Transform playerSpawnA;
     [SerializeField] private Transform playerSpawnB;
@@ -34,7 +38,7 @@ public class BattleManager : MonoBehaviour
 
     [Header("Flag Match / Respawn")]
     [Tooltip("한 라운드 시간(초). 종료 시 마지막 깃발 소유자가 승리합니다. 2승 시 경기 종료.")]
-    [SerializeField, Min(1f)] private float matchDurationSeconds = 180f;
+    [SerializeField, Min(1f)] private float matchDurationSeconds = 160f;
     [SerializeField, Min(0f)] private float deathDespawnDelay = 2f;
     [Tooltip("Time measured from death, not from disappearance.")]
     [SerializeField, Min(0.1f)] private float respawnDelaySeconds = 7f;
@@ -90,6 +94,7 @@ public class BattleManager : MonoBehaviour
             instance = this;
         else
             Destroy(gameObject);
+        if (instance == this && GetComponent<BattlePerkUI>() == null) gameObject.AddComponent<BattlePerkUI>();
     }
 
     private void OnDrawGizmosSelected()
@@ -151,6 +156,7 @@ public class BattleManager : MonoBehaviour
         this.spawnedPlayers = spawnedPlayers;
         pendingRespawns.Clear();
         resultAnnounced = false;
+        foreach (PlayerData data in playerDatas.Values) if (data != null) data.ResetMatchPerks();
         FindSpawnPoints();
         SpawnBattlePlayers(playerPrefab);
         SpawnFlag();
@@ -238,7 +244,10 @@ public class BattleManager : MonoBehaviour
         pendingRespawns.Clear();
         foreach (PlayerData data in playerDatas.Values)
             if (data != null && data.Object != null && data.Object.IsValid)
+            {
+                data.AwardPerkRound(RoundNumber);
                 data.BeginRoundMagicChange(RoundNumber);
+            }
     }
 
     public void ResetPlayersForNextRound()
@@ -270,6 +279,7 @@ public class BattleManager : MonoBehaviour
         }
         data.magic1 = first;
         data.magic2 = second;
+        data.PerkLoadoutChanged();
         error = string.Empty;
         return true;
     }
@@ -293,6 +303,7 @@ public class BattleManager : MonoBehaviour
         Player deadPilot = deadObject.GetComponent<Player>();
         playerDatas.TryGetValue(deadPlayer, out PlayerData victim);
         playerDatas.TryGetValue(killerPlayer, out PlayerData killer);
+        if (killer != null && killer != victim) killer.AwardPerkKill(deadPilot);
         battleFlag?.AnnounceKill(killer != null ? killer.playerName.ToString() : "환경 / 더미",
             killer != null ? killer.playerprofile : -1,
             victim != null ? victim.playerName.ToString() : $"Player {deadPlayer.PlayerId}",

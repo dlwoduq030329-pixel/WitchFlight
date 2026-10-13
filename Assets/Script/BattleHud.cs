@@ -43,6 +43,22 @@ public sealed class BattleHud : MonoBehaviour
     [SerializeField] private TMP_Text speedText;
     [SerializeField] private TMP_Text selectedMagicText;
     [SerializeField] private TMP_Text magicCostText;
+    [Header("Speed stage images (0 hides all)")]
+    [Tooltip("전진 +1단계에서만 켤 Image입니다. Sprite 파일이 아니라 씬의 Image를 연결하세요.")]
+    [SerializeField] private Image forwardSpeed1Image;
+    [Tooltip("전진 +2단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image forwardSpeed2Image;
+    [Tooltip("전진 +3단계에서만 켤 Image입니다. Shift를 눌러도 현재 단계 이미지를 유지합니다.")]
+    [SerializeField] private Image forwardSpeed3Image;
+    [Tooltip("후진 -1단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image reverseSpeed1Image;
+    [Tooltip("후진 -2단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image reverseSpeed2Image;
+    [Tooltip("후진 -3단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image reverseSpeed3Image;
+    [Header("Status effect UI (local player only)")]
+    [Tooltip("상태이상 종류와 표시할 UI 오브젝트를 연결하세요. 해당 상태 동안만 켜지며 여러 상태를 동시에 표시할 수 있습니다. 컨트롤러 자신이나 그 부모는 넣지 마세요.")]
+    [SerializeField] private StatusEffectUIBinding[] statusEffectViews = { new StatusEffectUIBinding() };
     [Header("Match")]
     [Tooltip("내 진영의 라운드 승리 횟수만 표시합니다. 팀 번호와 무관하게 로컬 플레이어 기준입니다.")]
     [SerializeField] private TextMeshProUGUI myRoundWinsText;
@@ -165,6 +181,14 @@ public sealed class BattleHud : MonoBehaviour
     private int displayedFlagDistance = -1;
     private readonly Vector3[] flagMarkerCorners = new Vector3[4];
 
+    [Serializable]
+    private sealed class StatusEffectUIBinding
+    {
+        public StatusEffectType status = StatusEffectType.Binding;
+        [Tooltip("직접 만든 상태이상 안내 UI 오브젝트. 텍스트/Image 또는 그 전용 패널을 드래그하세요.")]
+        public GameObject uiObject;
+    }
+
     private sealed class DamageSlot
     {
         public TMP_Text Label;
@@ -187,6 +211,7 @@ public sealed class BattleHud : MonoBehaviour
 
     private void Awake()
     {
+        ValidateStatusEffectViews();
         offscreenThreatFilter = IsOffscreenThreat;
         damageSlots = new DamageSlot[damageLabels.Length];
         for (int i = 0; i < damageLabels.Length; i++)
@@ -270,6 +295,8 @@ public sealed class BattleHud : MonoBehaviour
         if (respawnText != null) SetText(respawnText, Time.unscaledTime < respawnAt
             ? $"{respawnPrefix}  {Mathf.CeilToInt(respawnAt - Time.unscaledTime)}" : "부활 중...");
         BindPlayer(valid);
+        BindSpeedStageImages(valid && owner.IsAlive && battle.IsGameplayActive ? owner.CurrentSpeedStage : 0);
+        BindStatusEffectViews(valid && battle.IsGameplayActive && !MenuOpen);
         BindAim(valid && owner.IsAlive && battle.IsGameplayActive && !MenuOpen);
         UpdateDamage();
         UpdateHitMarker(valid && owner.IsAlive && battle.IsGameplayActive && !MenuOpen);
@@ -321,6 +348,42 @@ public sealed class BattleHud : MonoBehaviour
         if (speedText != null) SetText(speedText, valid ? $"{owner.CurrentSpeed:0.0} m/s" : "");
         if (selectedMagicText != null) SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
         if (magicCostText != null) SetText(magicCostText, valid ? owner.SelectedMagicApCost.ToString("0") : "");
+    }
+
+    private void BindSpeedStageImages(int stage)
+    {
+        // Exclusive indicators, not cumulative bars. CurrentSpeedStage is already
+        // predicted/replicated by Player; no new networking or speed thresholds needed.
+        Visible(forwardSpeed1Image != null ? forwardSpeed1Image.gameObject : null, stage == 1);
+        Visible(forwardSpeed2Image != null ? forwardSpeed2Image.gameObject : null, stage == 2);
+        Visible(forwardSpeed3Image != null ? forwardSpeed3Image.gameObject : null, stage == 3);
+        Visible(reverseSpeed1Image != null ? reverseSpeed1Image.gameObject : null, stage == -1);
+        Visible(reverseSpeed2Image != null ? reverseSpeed2Image.gameObject : null, stage == -2);
+        Visible(reverseSpeed3Image != null ? reverseSpeed3Image.gameObject : null, stage == -3);
+    }
+
+    private void ValidateStatusEffectViews()
+    {
+        if (statusEffectViews == null) return;
+        foreach (StatusEffectUIBinding view in statusEffectViews)
+        {
+            if (view == null || view.uiObject == null || !transform.IsChildOf(view.uiObject.transform)) continue;
+            Debug.LogWarning("BattleHud: 상태이상 UI에는 컨트롤러 자신이나 그 부모를 지정할 수 없습니다. 별도의 UI 오브젝트를 연결하세요.", this);
+            view.uiObject = null;
+        }
+    }
+
+    private void BindStatusEffectViews(bool show)
+    {
+        if (statusEffectViews == null) return;
+        bool local = show && owner != null && owner == Player.LocalPlayer &&
+            owner.Object != null && owner.Object.IsValid && owner.Object.HasInputAuthority;
+        foreach (StatusEffectUIBinding view in statusEffectViews)
+        {
+            if (view == null || view.uiObject == null || transform.IsChildOf(view.uiObject.transform)) continue;
+            // Visible changes activeSelf only on transitions, preserving authored animations.
+            Visible(view.uiObject, local && owner.HasStatusEffect(view.status));
+        }
     }
 
     private void BindPlayerProfile()
@@ -1106,6 +1169,8 @@ public sealed class BattleHud : MonoBehaviour
 
     private void HideViews()
     {
+        BindStatusEffectViews(false);
+        BindSpeedStageImages(0);
         HideFlagCarrierMarker();
         ClearHitMarker();
         Visible(lockChargeMarker != null ? lockChargeMarker.gameObject : null, false);

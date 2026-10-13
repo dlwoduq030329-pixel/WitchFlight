@@ -13,6 +13,11 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 {
     public enum EquipmentCategory { Magic, Hat, Broom }
 
+
+    [SerializeField]
+    MagicSelectAnimation macigslot1;
+    [SerializeField]
+    MagicSelectAnimation macigslot2;
     [Serializable]
     public sealed class MagicChoice
     {
@@ -99,6 +104,16 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     [SerializeField] private GameObject slot2Highlight;
     [SerializeField] private Sprite emptySlotSprite;
     [SerializeField, Range(1, 2)] private int defaultSlot = 1;
+
+    [Header("Slot-specific magic equip actions (after local equip succeeds)")]
+    [Tooltip("1번 슬롯에 마법 장착을 완료했을 때 켤 오브젝트입니다. 선택/실패 시에는 변경하지 않으며, 다른 슬롯의 오브젝트를 자동으로 끄지 않습니다.")]
+    [SerializeField] private GameObject slot1EquippedObject;
+    [Tooltip("1번 슬롯의 장착 완료 후 실행할 함수를 연결하세요. 오브젝트를 켠 다음 호출됩니다. 서버 저장 완료 이벤트는 아닙니다.")]
+    [SerializeField] private UnityEvent onSlot1Equipped = new UnityEvent();
+    [Tooltip("2번 슬롯에 마법 장착을 완료했을 때 켤 오브젝트입니다. 선택/실패 시에는 변경하지 않으며, 다른 슬롯의 오브젝트를 자동으로 끄지 않습니다.")]
+    [SerializeField] private GameObject slot2EquippedObject;
+    [Tooltip("2번 슬롯의 장착 완료 후 실행할 함수를 연결하세요. 오브젝트를 켠 다음 호출됩니다. 서버 저장 완료 이벤트는 아닙니다.")]
+    [SerializeField] private UnityEvent onSlot2Equipped = new UnityEvent();
 
     [Header("Description panel visibility (content always follows the selected item)")]
     [FormerlySerializedAs("manageSelectionDetails")]
@@ -342,15 +357,30 @@ public sealed class MagicCustomizationUI : MonoBehaviour
                 case EquipmentCategory.Hat: DataConfig.hatIndex = index; break;
                 case EquipmentCategory.Broom: DataConfig.broomIndex = index; break;
                 default:
-                    if (slot == 1) DataConfig.magic1Index = index;
-                    else DataConfig.magic2Index = index;
+                    if (slot == 1)
+                    {
+                        macigslot1.PlayMyMagicSelect();
+                        DataConfig.magic1Index = index;
+                    }
+                    else
+                    {
+                        macigslot2.PlayMyMagicSelect();
+
+                        DataConfig.magic2Index = index;
+                    }
                     break;
             }
             RefreshFromDataConfig();
             SetStatus($"{targetName}에 {itemName} 장착 완료");
             if (category == EquipmentCategory.Hat) onHatEquipped.Invoke(index);
             else if (category == EquipmentCategory.Broom) onBroomEquipped.Invoke(index);
-            else onEquipped.Invoke(slot);
+            else
+            {
+                SetVisible(slot == 1 ? slot1EquippedObject : slot2EquippedObject, true);
+                if (slot == 1) onSlot1Equipped.Invoke();
+                else onSlot2Equipped.Invoke();
+                onEquipped.Invoke(slot);
+            }
         }
         finally
         {

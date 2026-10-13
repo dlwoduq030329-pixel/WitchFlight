@@ -19,6 +19,7 @@ public static class Mathf {
  public static int Min(int a,int b)=>Math.Min(a,b); public static int Max(int a,int b)=>Math.Max(a,b);
  public static float Min(float a,float b)=>Math.Min(a,b); public static float Max(float a,float b)=>Math.Max(a,b);
  public static float Abs(float v)=>Math.Abs(v); public static float Clamp(float v,float a,float b)=>Math.Clamp(v,a,b);
+ public static float Clamp01(float v)=>Clamp(v,0,1);
  public static float MoveTowards(float a,float b,float max)=>Math.Abs(b-a)<=max?b:a+Math.Sign(b-a)*max;
 }
 public enum PlayerInputButton {Accelerate,Decelerate,TurnLeft,TurnRight,Lock,Parry,Boost,MagicSlot1,MagicSlot2,MagicSlot3,Menu}
@@ -27,11 +28,14 @@ public struct NetworkButtons {
  public int Bits; public bool IsSet(PlayerInputButton b)=>(Bits&(1<<(int)b))!=0;
  public bool WasPressed(NetworkButtons old,PlayerInputButton b)=>IsSet(b)&&!old.IsSet(b);
 }
-public struct NetworkInputData {public NetworkButtons buttons;public bool suppressActions;}
+public struct NetworkInputData {public NetworkButtons buttons;public bool suppressActions,suppressCombat;}
+public enum PerkId {BrakingRune,FirstWind,WindTurning,Tailwind}
 public class RunnerState {public float DeltaTime=1f/64f;public float Time;}
 public class Obj {public bool HasStateAuthority,HasInputAuthority=true;}
 public struct TickTimer {public bool IsRunning;public float End;public bool Expired(RunnerState r)=>r.Time>=End;}
 public class FlightProbe {
+ float CommonAmount(PerkId id)=>0;
+ void CancelCombatForPerks(){ClearLockTargetInternal();StopChannel();pendingMagic=MagicType.None;}
  public RunnerState Runner=new RunnerState(); public Obj Object=new Obj();
  public bool SimulatesMovement=true,IsAlive=true,IsHitStunned,IsBoosting,boostNeedsRelease;
  public float Speed,Position,flightMaxSpeed=60,brakeSpeed=20,stageTransitionSpeed=15,boostMultiplier=1.35f;
