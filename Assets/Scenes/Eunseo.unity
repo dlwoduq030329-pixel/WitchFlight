@@ -9447,7 +9447,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1301375655719933397, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 93.899994
+      value: 93.8999
       objectReference: {fileID: 0}
     - target: {fileID: 1342412528154611383, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
       propertyPath: m_AnchorMax.x
@@ -9849,6 +9849,14 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5355733045743788595, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5355733045743788595, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5486042928016218804, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
       propertyPath: m_SizeDelta.x
       value: 0
@@ -9891,7 +9899,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6769465087652041738, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 93.899994
+      value: 93.8999
       objectReference: {fileID: 0}
     - target: {fileID: 6888402746521299228, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
       propertyPath: m_AnchoredPosition.y
@@ -17274,7 +17282,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1100076274
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -20219,6 +20227,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e49b98fe8679bae41b94cd18bab1ba2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Vfx: {fileID: 0}
+  other1: {fileID: 0}
+  other2: {fileID: 0}
+  other3: {fileID: 0}
 --- !u!222 &1188936433
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -21524,6 +21536,7 @@ GameObject:
   - component: {fileID: 1293099817}
   - component: {fileID: 1293099816}
   - component: {fileID: 1293099819}
+  - component: {fileID: 1293099820}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -21598,8 +21611,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1293099815}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: -0.003624953, y: 0.79715544, z: -0.004781, w: -0.6037443}
+  m_LocalPosition: {x: 37.164925, y: 13.804807, z: -24.05399}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -21650,6 +21663,114 @@ MonoBehaviour:
     m_MipBias: 0
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
+--- !u!114 &1293099820
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1293099815}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d0390bd8b8ffd640b34fe25065ff1df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  updateType: 0
+  isSpeedBased: 0
+  hasOnStart: 0
+  hasOnPlay: 0
+  hasOnUpdate: 0
+  hasOnStepComplete: 0
+  hasOnComplete: 0
+  hasOnTweenCreated: 0
+  hasOnRewind: 0
+  onStart:
+    m_PersistentCalls:
+      m_Calls: []
+  onPlay:
+    m_PersistentCalls:
+      m_Calls: []
+  onUpdate:
+    m_PersistentCalls:
+      m_Calls: []
+  onStepComplete:
+    m_PersistentCalls:
+      m_Calls: []
+  onComplete:
+    m_PersistentCalls:
+      m_Calls: []
+  onTweenCreated:
+    m_PersistentCalls:
+      m_Calls: []
+  onRewind:
+    m_PersistentCalls:
+      m_Calls: []
+  targetIsSelf: 1
+  targetGO: {fileID: 0}
+  tweenTargetIsTargetGO: 1
+  delay: 0
+  duration: 5
+  easeType: 6
+  easeCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  loopType: 0
+  loops: 1
+  id: 
+  isRelative: 0
+  isFrom: 0
+  isIndependentUpdate: 0
+  autoKill: 1
+  autoGenerate: 1
+  isActive: 1
+  isValid: 1
+  target: {fileID: 1293099818}
+  animationType: 2
+  targetType: 11
+  forcedTargetType: 0
+  autoPlay: 1
+  useTargetAsV3: 0
+  endValueFloat: 0
+  endValueV3: {x: 33.4, y: 13.8, z: -10}
+  endValueV2: {x: 0, y: 0}
+  endValueColor: {r: 1, g: 1, b: 1, a: 1}
+  endValueString: 
+  endValueRect:
+    serializedVersion: 2
+    x: 0
+    y: 0
+    width: 0
+    height: 0
+  endValueTransform: {fileID: 0}
+  optionalBool0: 0
+  optionalBool1: 0
+  optionalFloat0: 0
+  optionalInt0: 0
+  optionalRotationMode: 0
+  optionalScrambleMode: 0
+  optionalShakeRandomnessMode: 0
+  optionalString: 
 --- !u!1001 &1296378739
 PrefabInstance:
   m_ObjectHideFlags: 0
