@@ -48,6 +48,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [SerializeField, Min(0.01f)] private float knockbackDamping = 30f;
     [SerializeField] private string hitReactionState = "AS_Broom_SitFly_Arm_Hit_React";
     [SerializeField] private string deathAnimationState = "AS_Broom_SitFly_Arm_Knock1_Start";
+    [Header("Broom animation (visual only)")]
+    [SerializeField] private PlayerBroomAnimation broomAnimation = new PlayerBroomAnimation();
 
     [Networked] private float Speed { get; set; }
     [Networked] private int SpeedStage { get; set; }
@@ -71,6 +73,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] public bool IsReturningToMap { get; private set; }
     [Networked] public bool DiedFromAltitude { get; private set; }
     [Networked] public TickTimer RespawnTimer { get; private set; }
+    [Networked] private TickTimer RespawnAnimationTimer { get; set; }
     [Networked] private TickTimer HitStunTimer { get; set; }
     [Networked] private TickTimer SlowTimer { get; set; }
     [Networked] private TickTimer BindingTimer { get; set; }
@@ -94,6 +97,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] public MagicType LastCastMagic { get; private set; }
     [Networked] public int CastSequence { get; private set; }
     [Networked] public int HitSequence { get; private set; }
+    // Successful parries have a separate sequence. This counts accepted parry inputs,
+    // so even a remote observer which misses the short timer can see the gesture.
+    [Networked] public int ParryStartSequence { get; private set; }
     [Networked] public int ParrySequence { get; private set; }
     [Networked] public int DeathSequence { get; private set; }
 
@@ -123,9 +129,6 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private NetworkButtons previousButtons { get; set; }
     private int lastMagicSlot = -1;
     private int renderedLoadoutVersion = -1;
-    private int renderedHitSequence;
-    private int renderedDeathSequence;
-    private bool hasRenderedCombatState;
     [Networked] private float currentPitch { get; set; }
     [Networked] private float currentYaw { get; set; }
     [Networked] private float currentAimTurnSpeed { get; set; }
@@ -262,7 +265,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         presentation = GetComponent<CombatPresentation>();
     }
 
-    public void InitPlayer(PlayerData data)
+    public void InitPlayer(PlayerData data, bool isRespawn = false)
     {
         if (!Object.HasStateAuthority || data == null)
             return;
@@ -306,6 +309,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         IsReturningToMap = false;
         DiedFromAltitude = false;
         RespawnTimer = TickTimer.None;
+        RespawnAnimationTimer = isRespawn
+            ? TickTimer.CreateFromSeconds(Runner, broomAnimation.RecoverySeconds) : TickTimer.None;
         nextHitMarkerFeedback = TickTimer.None;
         HitStunTimer = TickTimer.None;
         SlowTimer = TickTimer.None;
@@ -388,6 +393,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Spawned()
     {
+        broomAnimation.Reset();
         combatants.Add(this);
         if (testBot != null && Object.HasStateAuthority) InitializeTestBot();
         if (presentation == null) presentation = gameObject.AddComponent<CombatPresentation>();
@@ -449,6 +455,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
         {
+            areaAimArmed = false;
             IsReturningToMap = false;
             hasPendingPortalTeleport = false;
             Speed = 0f;
@@ -464,6 +471,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         if (!IsAlive)
         {
+            areaAimArmed = false;
             IsReturningToMap = false;
             hasPendingPortalTeleport = false;
             return;
@@ -487,6 +495,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         if (UpdateMapBoundaryReturn())
         {
+            areaAimArmed = false;
             if (CheckAltitudeLimit())
                 return;
             // Consume edge inputs without executing them when control resumes.
@@ -690,6 +699,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (data.suppressActions)
         {
+            areaAimArmed = false;
             if (Object.HasStateAuthority) StopChannel();
             ClearLockTargetInternal();
             pendingMagic = MagicType.None;
@@ -762,7 +772,15 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         MagicStatEntry stats = SelectedMagicStats;
 
         if (!held) channelNeedsRelease = false;
-        if (IsHitStunned) { StopChannel(); ClearLockTargetInternal(); return; }
+        if (IsHitStunned) { areaAimArmed = false; StopChannel(); ClearLockTargetInternal(); return; }
+
+        if (stats.effect == MagicEffectKind.DelayedArea)
+        {
+            StopChannel(); ClearLockTargetInternal();
+            ProcessAreaAim(data, held, pressed, released);
+            return;
+        }
+        areaAimArmed = false;
 
         if (stats.IsChanneled)
         {
@@ -798,7 +816,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         bool held = buttons.IsSet(PlayerInputButton.Lock);
         bool released = !held && previousButtons.IsSet(PlayerInputButton.Lock);
         bool pressed = buttons.WasPressed(previousButtons, PlayerInputButton.Lock);
-        if (IsHitStunned || CurrentMagicSlot == 3 || stats.IsChanneled)
+        if (IsHitStunned || CurrentMagicSlot == 3 || stats.IsChanneled ||
+            stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
         { ClearLockTargetInternal(); return; }
         if (stats.requiresTarget)
         {
@@ -845,6 +864,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
 
         CurrentMagicSlot = slot;
+        areaAimArmed = false;
         if (Object.HasStateAuthority)
         {
             StopChannel();
@@ -921,6 +941,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             magicStatTable != null ? magicStatTable.parryWindowSeconds : parryWindowSeconds);
         ParryCooldown = TickTimer.CreateFromSeconds(Runner,
             magicStatTable != null ? magicStatTable.parryCooldownSeconds : parryCooldownSeconds);
+        ParryStartSequence++;
     }
 
     private void UpdateLockCharge()
@@ -976,6 +997,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         MagicStatEntry stats = GetMagicStats(selectedMagic);
         if (stats.magic == MagicType.None)
             return;
+        if (!CanCreateSpecialMagic(stats)) return;
 
         Player target = null;
         if (stats.requiresTarget)
@@ -1010,7 +1032,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         CastSequence++;
         stats.perkCast = CastSequence;
         stats.perkAttacker = Object.InputAuthority;
-        if (stats.castSeconds > 0f && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke)
+        if (stats.castSeconds > 0f && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke &&
+            stats.effect != MagicEffectKind.DelayedArea && stats.effect != MagicEffectKind.PursuitSummon)
         {
             pendingMagic = selectedMagic;
             pendingPerkStats = stats;
@@ -1117,7 +1140,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void CastMagic(MagicStatEntry stats, Player target)
     {
-        if (stats.effect == MagicEffectKind.Flare)
+        if (stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
+        {
+            CreateSpecialMagic(stats);
+        }
+        else if (stats.effect == MagicEffectKind.Flare)
         {
             StartPerkFlare(stats);
             RPC_PresentCast(stats.magic, LockAimPoint, -transform.forward, 0f);
@@ -1963,6 +1990,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void LateUpdate()
     {
+        UpdateAreaAimPreview();
         bool canLook = Object != null && Object.IsValid && IsAlive && !IsTestBot &&
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
             !IsReturningToMap && !IsHitStunned;
@@ -1978,7 +2006,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         headLook.Apply(transform, animator, angles, canLook, Time.deltaTime);
     }
 
-    private void OnDisable() => headLook.Reset();
+    private void OnDisable()
+    {
+        ClearAreaAimPreview();
+        headLook.Reset();
+        broomAnimation.Reset();
+        equipment?.SetWeaponVisible(true);
+    }
 
     private void ApplyReplicatedLoadout()
     {
@@ -2012,35 +2046,27 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void ApplyCombatAnimation()
     {
-        if (!hasRenderedCombatState)
+        if (Object == null || !Object.IsValid || LoadoutVersion <= 0) return;
+        BattleManager battle = BattleManager.Instance;
+        BroomAnimationSnapshot snapshot = new BroomAnimationSnapshot
         {
-            renderedHitSequence = HitSequence;
-            renderedDeathSequence = DeathSequence;
-            hasRenderedCombatState = true;
-            return;
-        }
-
-        if (renderedHitSequence != HitSequence)
-        {
-            renderedHitSequence = HitSequence;
-            PlayAnimatorState(hitReactionState);
-        }
-
-        if (renderedDeathSequence != DeathSequence)
-        {
-            renderedDeathSequence = DeathSequence;
-            PlayAnimatorState(deathAnimationState);
-        }
-    }
-
-    private void PlayAnimatorState(string stateName)
-    {
-        if (animator == null || string.IsNullOrWhiteSpace(stateName))
-            return;
-
-        int stateHash = Animator.StringToHash(stateName);
-        if (animator.HasState(0, stateHash))
-            animator.CrossFadeInFixedTime(stateHash, 0.05f);
+            Alive = IsAlive,
+            Intro = battle != null && battle.Phase == BattleStartPhase.Intro,
+            Playing = battle != null && battle.IsGameplayActive,
+            TopSpeed = Mathf.Abs(SpeedStage) >= 3,
+            Disarmed = CurrentMagicSlot == 3,
+            Attacking = LockProgress > 0f || IsChanneling || areaAimArmed,
+            Parrying = IsParrying,
+            Respawning = TimerIsActive(RespawnAnimationTimer),
+            WeaponKey = CurrentMagicSlot * 100 + (int)GetSelectedMagic(),
+            CastSequence = CastSequence,
+            HitSequence = HitSequence,
+            DeathSequence = DeathSequence,
+            ParryStartSequence = ParryStartSequence
+        };
+        // Render only: never replay animation triggers during Fusion resimulation.
+        broomAnimation.Render(animator, snapshot, Time.deltaTime, hitReactionState, deathAnimationState);
+        equipment?.SetWeaponVisible(broomAnimation.StaffVisible);
     }
 
     private bool TimerIsActive(TickTimer timer)
@@ -2050,7 +2076,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        ClearAreaAimPreview();
         headLook.Reset();
+        broomAnimation.Reset();
+        equipment?.SetWeaponVisible(true);
         combatants.Remove(this);
         if (LocalPlayer == this)
             LocalPlayer = null;

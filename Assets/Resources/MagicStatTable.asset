@@ -203,14 +203,13 @@ MonoBehaviour:
     flareVfxSpeed: 0
   - magic: 4
     displayName: Thunder
-    description: "\uC9E7\uC740 \uC2DC\uC804 \uD6C4 \uC815\uBA74 \uC870\uC900 \uC9C0\uC810\uC5D0
-      \uAD11\uC5ED \uD53C\uD574\uB97C \uC90D\uB2C8\uB2E4."
+    description: "누르는 동안 공중 범위를 조준하고 휠로 거리를 조절합니다. 놓으면 확정된 위치에 1.5초 뒤 낙뢰가 떨어집니다."
     icon: {fileID: 21300000, guid: aece16bd1eb03fe4ab6583a486a6154c, type: 3}
-    effect: 2
+    effect: 11
     apCost: 80
     cooldownSeconds: 6
     lockChargeSeconds: 1
-    castSeconds: 0.3
+    castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
     projectileLifetime: 4
@@ -243,6 +242,11 @@ MonoBehaviour:
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    strikeDelay: 1.5
+    areaAimDistance: 50
+    areaAimScrollSpeed: 10
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
   - magic: 5
     displayName: Healing
     description: "\uCCB4\uB825 40\uC744 \uC989\uC2DC \uD68C\uBCF5\uD569\uB2C8\uB2E4.
@@ -416,29 +420,27 @@ MonoBehaviour:
     flareVfxSpeed: 0
   - magic: 9
     displayName: Mine
-    description: "\uC804\uBC29\uC5D0 \uAE30\uB8B0\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
-      \uBB34\uC7A5 \uD6C4 \uC790\uC2E0\uACFC \uC544\uAD70\uC744 \uD3EC\uD568\uD55C
-      \uB204\uAD6C\uB4E0 \uC811\uADFC\uD558\uBA74 \uD3ED\uBC1C\uD569\uB2C8\uB2E4."
+    description: "적을 추적하며 록온 유도탄을 발사하는 사역마를 소환합니다. 여러 개를 유지할 수 있으며 벽 너머로 공격하지 않습니다."
     icon: {fileID: 21300000, guid: 0da4074812881bd4cb1d3bb307908a3f, type: 3}
-    effect: 7
+    effect: 12
     apCost: 50
     cooldownSeconds: 7.5
-    lockChargeSeconds: 1
+    lockChargeSeconds: 0.65
     castSeconds: 0
-    projectileSpeed: 20
+    projectileSpeed: 45
     projectileTurnSpeed: 0
     projectileLifetime: 4
-    projectileRadius: 0.3
+    projectileRadius: 0.2
     hitscanRadius: 0
-    range: 0
-    damage: 105
+    range: 100
+    damage: 18
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
     effectDuration: 15
-    radius: 8
+    radius: 0
     activationDelay: 0.5
-    placementDistance: 20
+    placementDistance: 2
     requiresTarget: 0
     requiresFullLock: 0
     healthCost: 0
@@ -457,6 +459,12 @@ MonoBehaviour:
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    summonMaxCount: 4
+    summonMoveSpeed: 28
+    summonAttackRange: 55
+    summonFollowDistance: 18
+    summonAttackInterval: 2
+    summonVfxPrefab: {fileID: 0}
   - magic: 10
     displayName: Razier
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uC815\uBA74\uC5D0 \uC9C1\uC120

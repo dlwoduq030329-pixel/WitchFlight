@@ -137,7 +137,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public void StartMatch()
     {
         if (IsMatching) return;
-        if (TryReadRoomId(out string roomId, allowLegacyFallback: true))
+        if (TryReadRoomId(out string roomId))
             StartGame(MatchRequest.LegacyCodeMatch, roomId);
     }
 
@@ -146,6 +146,11 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     {
         if (IsMatching) return;
         if (TryReadRoomId(out string roomId)) StartGame(MatchRequest.CreateRoom, roomId);
+    }
+
+    public void CreateRoom(string roomId, Action onSuccess, Action<string> onFailed)
+    {
+        StartGame(MatchRequest.CreateRoom, roomId, onSuccess, onFailed);
     }
 
     public void JoinRoom()
@@ -173,14 +178,14 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             NotifyRoomJoinResult(onSuccess, onFailed, "이미 접속 중이거나 방에 입장한 상태입니다.");
             return;
         }
-        if (string.IsNullOrWhiteSpace(roomId))
+        if (!RoomCodeRules.TryValidate(roomId, out string code, out string error))
         {
-            SetMatchStatus("방 코드를 입력해주세요.");
+            SetMatchStatus(error);
             NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
             return;
         }
 
-        StartGame(MatchRequest.JoinRoom, roomId.Trim(), onSuccess, onFailed);
+        StartGame(MatchRequest.JoinRoom, code, onSuccess, onFailed);
     }
 
     private void NotifyRoomJoinResult(Action onSuccess, Action<string> onFailed, string error)
@@ -206,12 +211,12 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
     }
 
-    private bool TryReadRoomId(out string roomId, bool allowLegacyFallback = false)
+    private bool TryReadRoomId(out string roomId)
     {
-        roomId = roomIdInput != null ? roomIdInput.text.Trim() : allowLegacyFallback ? "textBuild" : "";
-        if (string.IsNullOrWhiteSpace(roomId))
+        if (!RoomCodeRules.TryValidate(roomIdInput != null ? roomIdInput.text : null,
+            out roomId, out string error))
         {
-            SetMatchStatus(roomIdInput == null ? "Room Id Input을 연결해주세요." : "방 코드를 입력해주세요.");
+            SetMatchStatus(roomIdInput == null ? "Room Id Input을 연결해주세요." : error);
             return false;
         }
         return true;
@@ -288,6 +293,18 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             NotifyRoomJoinResult(onSuccess, onFailed, "이미 접속 중이거나 방에 입장한 상태입니다.");
             return;
+        }
+        // Guard every code-room entry point, including the legacy create-or-join button.
+        // Never truncate an overlong code into another room's code.
+        if (request != MatchRequest.Random)
+        {
+            if (!RoomCodeRules.TryValidate(roomId, out string code, out string error))
+            {
+                SetMatchStatus(error);
+                NotifyRoomJoinResult(onSuccess, onFailed, error);
+                return;
+            }
+            roomId = code;
         }
         if (!ValidateMatchSetup())
         {
@@ -946,6 +963,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             }
             if (inputCamera != null && data.buttons.IsSet(PlayerInputButton.Lock))
                 data.magicAimDirection = local.GetDotAimDirection(BattleHud.GetMagicAimRay(inputCamera));
+            // Include the release tick: that is when the area position becomes fixed.
+            if (inputCamera != null)
+                data.hasAreaAimPoint = local.TryGetAreaAimPoint(BattleHud.GetMagicAimRay(inputCamera), out data.areaAimPoint);
         }
 
         input.Set(data);

@@ -63,6 +63,7 @@ public partial class Player
     }
     private void CancelCombatForPerks()
     {
+        areaAimArmed = false;
         ClearLockTargetInternal();
         if (!Object.HasStateAuthority) return;
         StopChannel(); pendingMagic = MagicType.None; pendingTargetId = default; castTimer = TickTimer.None;

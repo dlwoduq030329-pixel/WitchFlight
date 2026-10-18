@@ -115,8 +115,16 @@ public static class WitchFlightBattleValidation
                 report.Check(Positive(spell.lockChargeSeconds) && Positive(spell.range), $"{name}: lock duration and range must be positive.");
             if (spell.projectileSpeed > 0f)
                 report.Check(Positive(spell.projectileLifetime) && Positive(spell.projectileRadius), $"{name}: projectile lifetime/radius must be positive.");
-            if (spell.effect == MagicEffectKind.AreaDamage || spell.effect == MagicEffectKind.Mine)
+            if (spell.effect == MagicEffectKind.AreaDamage || spell.effect == MagicEffectKind.Mine || spell.effect == MagicEffectKind.DelayedArea)
                 report.Check(Positive(spell.radius), $"{name}: area effect radius must be positive.");
+            if (spell.effect == MagicEffectKind.DelayedArea)
+                report.Check(Positive(spell.strikeDelay) && Positive(spell.areaAimDistance) && Positive(spell.range) &&
+                    spell.projectileSpeed == 0f && !spell.requiresTarget, "Thunder needs a valid area delay/range and release aiming.");
+            if (spell.effect == MagicEffectKind.PursuitSummon)
+                report.Check(spell.summonMaxCount >= 1 && spell.summonMaxCount <= 16 && Positive(spell.effectDuration) &&
+                    Positive(spell.summonAttackInterval) && Positive(spell.summonAttackRange) && Positive(spell.range) &&
+                    Positive(spell.summonMoveSpeed) && Positive(spell.projectileSpeed) && !spell.requiresTarget,
+                    "Summon needs lifetime, bounded capacity, movement/attack settings and no manual lock requirement.");
             if (spell.effect == MagicEffectKind.Mine)
                 report.Check(Positive(spell.placementDistance) && Positive(spell.activationDelay), "Mine needs travel distance and arming delay.");
             if (spell.effect == MagicEffectKind.Flare || spell.effect == MagicEffectKind.Smoke)

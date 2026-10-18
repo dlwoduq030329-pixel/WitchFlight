@@ -19,6 +19,7 @@ public class PlayerEquipment : MonoBehaviour
     private int currentHatIndex;
     private int currentBroomIndex;
     private bool flightEquipmentVisible = true;
+    private bool weaponVisible = true;
     private bool followsDataConfig;
     private bool hasLocalLoadout;
 
@@ -78,6 +79,16 @@ public class PlayerEquipment : MonoBehaviour
         if (!visible) SetAllInactive(magicStaffPrefabs);
     }
 
+    // Two-handed flying hides only the staff. Keep the chosen spell and broom intact.
+    public void SetWeaponVisible(bool visible)
+    {
+        if (weaponVisible == visible) return;
+        weaponVisible = visible;
+        int slot = currentMagicSlot;
+        currentMagicSlot = 0;
+        ChangeMagic(slot);
+    }
+
     public void Init(MagicType magic1, MagicType magic2, HatType hat, BroomType broom)
     {
         ApplyLoadout(hat, broom, magic1, magic2);
@@ -125,7 +136,7 @@ public class PlayerEquipment : MonoBehaviour
                 ? magicStaff2
                 : null;
         if (selectedStaff != null)
-            selectedStaff.SetActive(flightEquipmentVisible);
+            selectedStaff.SetActive(flightEquipmentVisible && weaponVisible);
 
         currentMagicSlot = slot;
     }

@@ -30,14 +30,21 @@ public static class PerkEffects
             case PerkId.FireIgnition: s.lockChargeSeconds *= 1f - Mathf.Clamp01(a); mana *= 1f - Mathf.Clamp01(p.secondaryAmount); break;
             case PerkId.IceSlow: s.movementMultiplier = Mathf.Clamp(1f - (1f - s.movementMultiplier) * (1f + a), .05f, 1f); break;
             case PerkId.VisionAim: case PerkId.BeamWidth: s.hitscanRadius *= 1f + a; break;
-            case PerkId.ThunderRadius: case PerkId.MineRadius: case PerkId.SmokeRadius: s.radius *= 1f + a; break;
+            case PerkId.ThunderRadius: case PerkId.SmokeRadius: s.radius *= 1f + a; break;
+            case PerkId.MineRadius:
+                if (s.effect == MagicEffectKind.PursuitSummon) { s.range *= 1f + a; s.summonAttackRange *= 1f + a; }
+                else s.radius *= 1f + a;
+                break;
             case PerkId.HealingPower: s.healing *= 1f + a; break;
             case PerkId.BindingLock: s.lockChargeSeconds *= 1f - Mathf.Clamp01(a); break;
             case PerkId.BindingCost: case PerkId.CurseEfficiency: mana *= 1f - Mathf.Clamp01(a); break;
             case PerkId.DarkCost: s.healthCost *= 1f - Mathf.Clamp01(a); break;
             case PerkId.DarkHarvest: s.healOnHit *= 1f + a; break;
             case PerkId.CurseRange: s.range *= 1f + a; break;
-            case PerkId.MineArming: s.activationDelay *= 1f - Mathf.Clamp01(a); break;
+            case PerkId.MineArming:
+                if (s.effect == MagicEffectKind.PursuitSummon) s.lockChargeSeconds *= 1f - Mathf.Clamp01(a);
+                else s.activationDelay *= 1f - Mathf.Clamp01(a);
+                break;
             case PerkId.SmokeDuration: s.effectDuration += a; break;
         }
     }

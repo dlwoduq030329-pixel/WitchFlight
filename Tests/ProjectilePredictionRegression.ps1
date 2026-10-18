@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 namespace PredictionChecks {
 public enum MagicType {Fire,Ice}
+public enum MagicEffectKind {DirectDamage,PursuitSummon}
 public struct Vector3 {public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public static Vector3 zero=>default;public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);}
 public class Transform {public Vector3 position,forward=new(0,0,1);public Transform parent;public void SetParent(Transform p,bool world){parent=p;}}
 public class GameObject {public bool activeSelf;public void SetActive(bool value){activeSelf=value;}}
@@ -21,7 +22,7 @@ public struct NetworkId {public int value;}
 public class NetworkRunner {public bool IsForward=true;public Player player;public bool TryFindObject(NetworkId id,out NetworkObject obj){obj=player?.Object;return obj!=null&&obj.Id.Equals(id);}}
 public class NetworkObject {public bool HasInputAuthority=true,HasStateAuthority,IsValid=true;public NetworkId Id;public Player player;public T GetComponent<T>() where T:class=>player as T;}
 public class MagicStatTable {}
-public class MagicStatEntry {public MagicType magic;public float projectileSpeed=75,castSeconds;public bool requiresTarget=true;}
+public class MagicStatEntry {public MagicType magic;public MagicEffectKind effect;public float projectileSpeed=75,castSeconds;public bool requiresTarget=true;}
 public class Player {public NetworkObject Object=new();public NetworkRunner Runner;public Transform transform=new();public Vector3 LockAimPoint=>transform.position;public Vector3 MagicCastPosition=new(2,3,4);public MagicStatTable MagicTable=new();}
 public class MagicProjectile {public NetworkRunner Runner;public NetworkId ShooterId;public int PredictionInputTick;public MagicType Magic;public Transform transform=new();public static Vector3 ResolveLaunchDirection(bool a,Vector3 b,Vector3 c,Vector3 d)=>b;}
 public class ProjectilePredictionView {
@@ -44,7 +45,9 @@ public static class Tests {
   p.Object.HasStateAuthority=false;p.Object.HasInputAuthority=false;ProjectilePredictionView.Predict(p,other,stats,1);Check(ProjectilePredictionView.pending.Count==0,"proxy cannot predict local casts");
   p.Object.HasInputAuthority=true;p.Runner.IsForward=false;ProjectilePredictionView.Predict(p,other,stats,1);Check(ProjectilePredictionView.pending.Count==0,"rollback never spawns visuals");
   p.Runner.IsForward=true;stats.projectileSpeed=0;ProjectilePredictionView.Predict(p,other,stats,1);Check(ProjectilePredictionView.pending.Count==0,"hitscan has no projectile ghost");
-  stats.projectileSpeed=75;ProjectilePredictionView.Predict(p,other,stats,40);Check(ProjectilePredictionView.pending.Count==1,"local client predicts a projectile");
+  stats.projectileSpeed=75;stats.effect=MagicEffectKind.PursuitSummon;ProjectilePredictionView.Predict(p,other,stats,1);
+  Check(ProjectilePredictionView.pending.Count==0,"summon ability never creates a fake moving projectile");
+  stats.effect=MagicEffectKind.DirectDamage;ProjectilePredictionView.Predict(p,other,stats,40);Check(ProjectilePredictionView.pending.Count==1,"local client predicts a projectile");
   var pending=new List<ProjectilePredictionView>(ProjectilePredictionView.pending)[0];Check(pending.inputTick==40&&pending.owner==p&&pending.content.activeSelf,"prediction records input identity and is immediately visible");
   Check(pending.transform.position.x==2&&pending.transform.position.y==3&&pending.transform.position.z==4,"predicted shot begins at the configured cast root, not LockAimPoint");
   ProjectilePredictionView.Predict(p,other,stats,41);Check(ProjectilePredictionView.pending.Count==1,"same player/spell is bounded to one unconfirmed shot");

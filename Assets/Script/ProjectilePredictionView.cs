@@ -36,7 +36,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     {
         if (player == null || player.Object == null || !player.Object.HasInputAuthority ||
             !player.Object.IsValid || player.Runner == null || player.Object.HasStateAuthority ||
-            !player.Runner.IsForward || entry.projectileSpeed <= 0f ||
+            !player.Runner.IsForward || entry.projectileSpeed <= 0f || entry.effect == MagicEffectKind.PursuitSummon ||
             pending.Count >= 32 || HasPending(player, entry.magic)) return;
         var view = Create(entry, player.MagicCastPosition, player.transform.forward);
         view.owner = player;
@@ -185,7 +185,8 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     private void UpdateFormation()
     {
         if (table == null || !table.projectileFormationEnabled || owner == null ||
-            stats.projectileSpeed <= 0f || stats.effect == MagicEffectKind.Mine)
+            stats.projectileSpeed <= 0f || stats.effect == MagicEffectKind.Mine ||
+            (hasSource && source.ConstructKind == MagicConstructKind.SummonBolt))
         {
             formation?.Dispose();
             formation = null;

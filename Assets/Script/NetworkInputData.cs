@@ -24,6 +24,8 @@ public struct NetworkInputData : INetworkInput
     public Vector3 aimDirection;
     // Dot-targeted hitscan aim is independent of the smoothed flight steering aim.
     public Vector3 magicAimDirection;
+    public Vector3 areaAimPoint;
+    public NetworkBool hasAreaAimPoint;
     public Vector3 aimUp;
     public NetworkBool steerToAim;
     public NetworkId lockTarget;

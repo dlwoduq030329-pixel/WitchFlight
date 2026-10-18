@@ -22,6 +22,11 @@ public sealed class BattleMagicUI : MonoBehaviour
     [SerializeField] private Slider magic2CooldownSlider;
     [Tooltip("2번 마법의 남은 쿨타임(초). 쿨타임 중에만 텍스트 오브젝트를 활성화합니다. 비워두어도 됩니다.")]
     [SerializeField] private TextMeshProUGUI magic2CooldownText;
+    [Header("Selected magic slot FX (number keys 1 / 2)")]
+    [Tooltip("1번 SkillSlider의 FX 자식. 비우면 해당 Slider의 FX_CircularFeather_B / fx / FX 자식을 찾습니다.")]
+    [SerializeField] private GameObject magic1SelectedFx;
+    [Tooltip("2번 SkillSlider의 FX 자식. 선택한 슬롯 하나만 활성화합니다. 3번 슬롯·사망·라운드 대기 중에는 둘 다 끕니다.")]
+    [SerializeField] private GameObject magic2SelectedFx;
     [Header("Parry UI (fixed slot 3)")]
     [FormerlySerializedAs("parryImage")]
     [SerializeField] private Image parryBackImage;
@@ -49,6 +54,7 @@ public sealed class BattleMagicUI : MonoBehaviour
 
     private void OnEnable()
     {
+        ResolveSelectedFx();
         Clear();
         magicInit();
     }
@@ -78,6 +84,7 @@ public sealed class BattleMagicUI : MonoBehaviour
         ApplyMagicSprites(displayedMagic1, magic1BackImage, magic1SliderImage);
         ApplyMagicSprites(displayedMagic2, magic2BackImage, magic2SliderImage);
         ApplyParrySprites();
+        ResolveSelectedFx();
         for (int i = 0; i < previousRemaining.Length; i++) previousRemaining[i] = -1f;
         magiccoolDown();
     }
@@ -106,6 +113,36 @@ public sealed class BattleMagicUI : MonoBehaviour
         UpdateCooldown(magic1CooldownSlider, magic1CooldownText, 1);
         UpdateCooldown(magic2CooldownSlider, magic2CooldownText, 2);
         UpdateCooldown(parryCooldownSlider, parryCooldownText, 3);
+        UpdateSelectedFx();
+    }
+
+    private void ResolveSelectedFx()
+    {
+        if (magic1SelectedFx == null) magic1SelectedFx = FindSelectedFx(magic1CooldownSlider);
+        if (magic2SelectedFx == null) magic2SelectedFx = FindSelectedFx(magic2CooldownSlider);
+    }
+
+    private static GameObject FindSelectedFx(Slider slider)
+    {
+        if (slider == null) return null;
+        Transform fx = slider.transform.Find("FX_CircularFeather_B") ?? slider.transform.Find("fx") ?? slider.transform.Find("FX");
+        return fx != null ? fx.gameObject : null;
+    }
+
+    private void UpdateSelectedFx()
+    {
+        int slot = CanBind(owner) && owner.IsAlive ? owner.CurrentMagicSlot : 0;
+        SetSelectedFx(magic1SelectedFx,slot == 1);
+        if (magic2SelectedFx != magic1SelectedFx) SetSelectedFx(magic2SelectedFx,slot == 2);
+    }
+
+    private void SetSelectedFx(GameObject fx,bool visible)
+    {
+        // An accidental controller/ancestor or slider assignment must not disable the HUD itself.
+        if (fx == null || transform.IsChildOf(fx.transform) ||
+            (magic1CooldownSlider != null && magic1CooldownSlider.transform.IsChildOf(fx.transform)) ||
+            (magic2CooldownSlider != null && magic2CooldownSlider.transform.IsChildOf(fx.transform))) return;
+        if (fx.activeSelf != visible) fx.SetActive(visible);
     }
 
     private void UpdateCooldown(Slider slider, TextMeshProUGUI cooldownText, int slot)
@@ -159,6 +196,8 @@ public sealed class BattleMagicUI : MonoBehaviour
 
     private void Clear()
     {
+        SetSelectedFx(magic1SelectedFx,false);
+        SetSelectedFx(magic2SelectedFx,false);
         owner = null;
         SetIcon(magic1BackImage, null);
         SetIcon(magic1SliderImage, null);

@@ -184,7 +184,7 @@ public class BattleManager : MonoBehaviour
             SpawnBattlePlayer(pair.Key, pair.Value, prefab);
     }
 
-    private void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab)
+    private void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
     {
         if (playerData == null || !playerData.IsLoadoutInitialized || !IsConnected(playerRef))
             return;
@@ -207,7 +207,7 @@ public class BattleManager : MonoBehaviour
         runner.SetPlayerObject(playerRef, playerObject);
         Player player = playerObject.GetComponent<Player>();
         if (player != null)
-            player.InitPlayer(playerData);
+            player.InitPlayer(playerData, isRespawn);
     }
 
     private bool IsConnected(PlayerRef playerRef)
@@ -361,7 +361,7 @@ public class BattleManager : MonoBehaviour
             if (!pending.RespawnAt.Expired(runner))
                 continue;
             if (playerDatas.TryGetValue(pending.PlayerRef, out PlayerData playerData))
-                SpawnBattlePlayer(pending.PlayerRef, playerData, playerPrefab);
+                SpawnBattlePlayer(pending.PlayerRef, playerData, playerPrefab, true);
             pendingRespawns.RemoveAt(index);
         }
     }

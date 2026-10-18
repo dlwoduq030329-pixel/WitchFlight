@@ -14,6 +14,10 @@ $methods = @('TryCastSelectedMagic','TryStartParry','ReceiveMagicHit','TakeDamag
     'SetInputLockTarget','UpdateLockCharge','TryGetValidLockTarget','IsValidLockTarget','ClearLockTargetInternal',
     'ProcessAuthoritativeCombat','ProcessPredictedProjectileInput','UpdatePendingCast','NotifyDamageDirection','NotifyConfirmedMagicHit',
     'CanAcquireMagicTarget','GetDisplayedLockTarget','RPC_SetLockTarget') | ForEach-Object { Method $_ }
+$area = Get-Content (Join-Path $repo 'Assets/Script/Player.AreaMagic.cs') -Raw
+foreach ($name in 'ProcessAreaAim','CanCreateSpecialMagic') {
+    $methods += [regex]::Match($area, '(?ms)^    private (?:void|bool) '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}').Value.Replace('private ','public ')
+}
 $stubs = @'
 using System;
 namespace UnityEngine {
@@ -66,7 +70,7 @@ public struct NetworkButtons {
  public bool IsSet(PlayerInputButton b)=>(Bits&(1<<(int)b))!=0;
  public bool WasPressed(NetworkButtons prev,PlayerInputButton b)=>IsSet(b)&&!prev.IsSet(b);
 }
-public struct NetworkInputData {public NetworkId lockTarget;public Vector3 aimDirection,magicAimDirection;}
+public struct NetworkInputData {public NetworkId lockTarget;public Vector3 aimDirection,magicAimDirection,areaAimPoint;public bool hasAreaAimPoint;}
 public class NetworkObject {
  public bool HasStateAuthority=true,IsValid=true; public PlayerRef InputAuthority;
  public NetworkId Id;public Player Owner;
@@ -102,6 +106,12 @@ public class Marker {public IDisposable Auto()=>new Scope();private class Scope:
 $probe = @'
 namespace CombatChecks { using UnityEngine;
 public class Player {
+ public bool areaAimArmed,hasConfirmedAreaPoint;public Vector3 confirmedAreaPoint;
+ public int ParryStartSequence;
+ public bool ValidateAreaPoint(Vector3 p,MagicStatEntry s,out Vector3 point){point=p;return Visible;}
+ public bool CanAimAreaMagic()=>IsAlive&&!IsHitStunned&&!IsReturningToMap&&pendingMagic==MagicType.None&&
+  !TimerIsActive(MagicCooldowns[(int)GetSelectedMagic()])&&NowAp>=SelectedMagicStats.apCost;
+ public void CreateSpecialMagic(MagicStatEntry s){Launches++;LastLaunched=s;}
  public MagicStatEntry pendingPerkStats,channelPerkStats;
  public float beamContact,beamLastContact,lifeStartMaxHp;public NetworkId beamVictim;
  public bool IsBound=>TimerIsActive(BindingTimer);
@@ -164,7 +174,7 @@ public class Player {
  public void Die(){IsAlive=false;}
  public void Input(bool held,bool parry=false,NetworkId target=default) {
   var buttons=new NetworkButtons{Bits=(held?1:0)|(parry?2:0)};
-  ProcessAuthoritativeCombat(new NetworkInputData{lockTarget=target,aimDirection=Vector3.forward},buttons);
+  ProcessAuthoritativeCombat(new NetworkInputData{lockTarget=target,aimDirection=Vector3.forward,hasAreaAimPoint=true,areaAimPoint=new Vector3(0,0,40)},buttons);
   previousButtons=buttons;
  }
 '@ + ($methods -join [Environment]::NewLine) + @'
@@ -186,7 +196,7 @@ public static class Tests {
    bool lockOn=i==0||i==1||i==5;
    float multiplier=lockOn?1f:1.5f;
    Check(stats.requiresTarget==lockOn&&stats.requiresFullLock==lockOn,"lock-on classification unchanged for spell "+(i+1));
-   Check(Near(stats.damage,originalDamage[i]*multiplier),"non-lock-on hit damage increased exactly once for spell "+(i+1));
+   Check(Near(stats.damage,i==8?18:originalDamage[i]*multiplier),"damage baseline (Mine now uses repeated summon bolts) for spell "+(i+1));
    Check(Near(stats.damagePerSecond,originalDps[i]*multiplier),"non-lock-on channel DPS increased exactly once for spell "+(i+1));
   }
   Check(Near(table.GetStats(MagicType.Healing).healing,40),"healing is not damage and stays unchanged");
@@ -286,7 +296,7 @@ public static class Tests {
   Check(table.GetStats(MagicType.Vision).projectileSpeed==0&&table.GetStats(MagicType.Dark).projectileSpeed==0,"hitscan defaults");
   foreach(var magic in new[]{MagicType.Vision,MagicType.Dark,MagicType.Thunder,MagicType.Razier})
    Check(Near(table.GetStats(magic).hitscanRadius,.3f),"adjustable hitscan radius default "+magic);
-  Check(Near(table.GetStats(MagicType.Fire).projectileRadius,.12f)&&Near(table.GetStats(MagicType.Mine).projectileRadius,.3f),"flying projectile sizes unchanged");
+  Check(Near(table.GetStats(MagicType.Fire).projectileRadius,.12f)&&Near(table.GetStats(MagicType.Mine).projectileRadius,.2f),"fire and summon bolt radii");
   Check(Near(table.GetStats(MagicType.Curse).ChannelManaPerSecond(150),75f),"Curse drains any hat capacity in two seconds");
   foreach(float hp in new[]{0f,49f,50f}){
    var p=Caster(MagicType.Dark);p.NowHp=hp;p.TryCastSelectedMagic();Check(p.Launches==0&&p.NowHp==hp&&p.CastSequence==0,"Dark low HP blocked "+hp);
@@ -385,8 +395,8 @@ public static class Tests {
   d=Caster(MagicType.Vision);d.Input(true);d.Input(true);Check(d.Launches==1,"hitscan press only, no held repeats");
   d.Input(false);Tick(d);d.Input(true);Check(d.Launches==1,"cooldown blocks repeated shot");
   d.Runner.Time=1;d.Input(false);d.Input(true);Check(d.Launches==2,"cast after cooldown");
-  d=Caster(MagicType.Thunder);d.Input(true);Check(d.Launches==0&&d.pendingMagic==MagicType.Thunder,"Thunder cast delay");
-  d.Runner.Time=.31f;d.UpdatePendingCast();Check(d.Launches==1&&d.LastLaunched.effect==MagicEffectKind.AreaDamage,"Thunder delayed AOE");
+  d=Caster(MagicType.Thunder);d.Input(true);Check(d.Launches==0&&d.pendingMagic==MagicType.None&&d.NowAp==100,"Thunder hold only aims");
+  d.Input(false);Check(d.Launches==1&&d.LastLaunched.effect==MagicEffectKind.DelayedArea&&d.NowAp==20,"Thunder release creates delayed world area");
   d=Caster(MagicType.Curse);victim=Enemy(d);victim.MaxHp=victim.NowHp=1000;
   for(int i=0;i<100;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
   Check(Near(d.NowAp,0)&&!d.IsChanneling&&d.channelNeedsRelease,"Curse spends full mana in two seconds without regen");

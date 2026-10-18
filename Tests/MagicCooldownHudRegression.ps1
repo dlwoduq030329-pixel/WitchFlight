@@ -14,10 +14,13 @@ using System;
 namespace UnityEngine {
  public class Transform {
   public Transform parent;
+  public GameObject gameObject;public System.Collections.Generic.Dictionary<string,Transform> children=new();
+  public Transform Find(string name)=>children.TryGetValue(name,out var child)?child:null;
   public bool IsChildOf(Transform other)=>this==other||(parent!=null&&parent.IsChildOf(other));
  }
  public class GameObject {
   public Transform transform=new();public bool activeSelf=true;public int activeChanges;
+  public GameObject(){transform.gameObject=this;}
   public void SetActive(bool value){activeSelf=value;activeChanges++;}
  }
  public class MonoBehaviour {public GameObject gameObject=new();public Transform transform=>gameObject.transform;}
@@ -38,6 +41,7 @@ namespace UnityEngine.Serialization {
 namespace UnityEngine.UI {
  public class Image {public UnityEngine.Sprite sprite;public bool enabled=true;}
  public class Slider {
+  public UnityEngine.GameObject gameObject=new();public UnityEngine.Transform transform=>gameObject.transform;
   public float minValue,maxValue,value;public bool interactable,wholeNumbers;
   public void SetValueWithoutNotify(float x){value=x;}
  }
@@ -75,6 +79,7 @@ public class Player {
  public MagicStatEntry GetPerkMagicStats(MagicType magic,int slot)=>magicStatTable!=null?magicStatTable.GetStats(magic):new MagicStatEntry{cooldownSeconds=0};
  public static Player LocalPlayer;
  public NetworkObject Object=new();public RunnerState Runner=new();public bool IsAlive=true;
+ public int CurrentMagicSlot=1;
  public MagicType Magic1=MagicType.Fire,Magic2=MagicType.Ice;
  public TimerArray MagicCooldowns=new();public TickTimer ParryCooldown;
  public float parryCooldownSeconds=.3f;public MagicStatTable magicStatTable=new();
@@ -148,6 +153,22 @@ public static class Tests {
   var ancestor=new TMPro.TextMeshProUGUI();ui.transform.parent=ancestor.transform;ui.SetCooldownText(ancestor,0,1);
   Check(ancestor.gameObject.activeSelf&&!ancestor.enabled,"ancestor assignment cannot disable the entire battle UI");
   ui.transform.parent=null;
+  p.Runner=new();p.IsAlive=true;Player.LocalPlayer=p;
+  var selection=new BattleMagicUI {magic1SelectedFx=new(),magic2SelectedFx=new()};selection.OnEnable();
+  Check(selection.magic1SelectedFx.activeSelf&&!selection.magic2SelectedFx.activeSelf,"slot one activates only its FX");
+  p.CurrentMagicSlot=2;selection.Update();Check(!selection.magic1SelectedFx.activeSelf&&selection.magic2SelectedFx.activeSelf,"number two swaps FX");
+  int fxWrites=selection.magic2SelectedFx.activeChanges;selection.Update();
+  Check(selection.magic2SelectedFx.activeChanges==fxWrites,"unchanged selection never restarts FX");
+  p.MagicCooldowns[(int)MagicType.Fire]=new(){end=3};
+  selection.Update();Check(selection.magic2SelectedFx.activeSelf,"cooldown does not clear slot selection");
+  p.CurrentMagicSlot=3;selection.Update();Check(!selection.magic1SelectedFx.activeSelf&&!selection.magic2SelectedFx.activeSelf,"parry slot clears both FX");
+  p.CurrentMagicSlot=1;p.IsAlive=false;selection.Update();Check(!selection.magic1SelectedFx.activeSelf,"death clears selection FX");
+  p.IsAlive=true;selection.Update();Check(selection.magic1SelectedFx.activeSelf,"respawn/current slot restores FX");
+  selection.OnDisable();Check(!selection.magic1SelectedFx.activeSelf&&!selection.magic2SelectedFx.activeSelf,"HUD disable clears FX");
+  selection.SetSelectedFx(selection.gameObject,false);Check(selection.gameObject.activeSelf,"FX assignment cannot disable its controller");
+  var slider=new UnityEngine.UI.Slider();var fx=new UnityEngine.GameObject();slider.transform.children["FX_CircularFeather_B"]=fx.transform;fx.transform.parent=slider.transform;
+  var auto=new BattleMagicUI{magic1CooldownSlider=slider};auto.OnEnable();Check(auto.magic1SelectedFx==fx,"named slider child binds automatically");
+  auto.SetSelectedFx(slider.gameObject,false);Check(slider.gameObject.activeSelf,"wrong slider assignment cannot disable slider");
   return count;
  }
 }}

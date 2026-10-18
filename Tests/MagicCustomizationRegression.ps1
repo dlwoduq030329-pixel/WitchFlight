@@ -81,6 +81,7 @@ namespace Fusion {public interface INetworkStruct {} public struct PlayerRef {}}
 namespace MagicCustomizationChecks {
  using UnityEngine;
  public class PerkDefinition {}
+ public class MagicSelectAnimation { public void PlayMyMagicSelect() {} }
  public class DatabaseManager {
   public static DatabaseManager Instance;public bool IsDataConfigReady,HasLoadedProfile;
  }
@@ -122,6 +123,7 @@ namespace MagicCustomizationChecks {
    public int changes,equips,errors,lastSlot;
    public int hatEquips,broomEquips,lastHat,lastBroom;
    public Fixture(bool ready=true,bool automaticPanel=true){
+    Set(ui,"macigslot1",new MagicSelectAnimation());Set(ui,"macigslot2",new MagicSelectAnimation());
     DatabaseManager.Instance=new DatabaseManager{IsDataConfigReady=ready,HasLoadedProfile=ready};
     NetworkGameManager.Instance=null;
     DataConfig.ResetToDefaults();
@@ -166,6 +168,19 @@ namespace MagicCustomizationChecks {
    public void Dispose(){Life(ui,"OnDisable");preview.UnbindFromDataConfig();DataConfig.Changed-=Changed;}
   }
   public static int Run(){
+   using(var f=new Fixture()){
+    f.preview.SetWeaponVisible(false);
+    Check(Array.TrueForAll(f.staffs,g=>!g.activeSelf),"two-handed animation hides every staff");
+    Check(f.brooms[(int)BroomType.Standard].activeSelf,"hiding staff must not hide broom");
+    int writes=f.StaffWrites;f.preview.SetWeaponVisible(false);
+    Check(f.StaffWrites==writes&&f.changes==0,"stable weapon visibility does not rewrite objects or saved data");
+    f.Pick(MagicType.Mine);f.slot2.onClick.Invoke();f.equip.onClick.Invoke();
+    Check(Array.TrueForAll(f.staffs,g=>!g.activeSelf),"loadout change respects current cosmetic weapon visibility");
+    f.preview.SetWeaponVisible(true);
+    Check(f.staffs[(int)MagicType.Mine].activeSelf&&!f.staffs[(int)MagicType.Fire].activeSelf,"returning to armed pose restores current selected staff");
+    f.preview.SetFlightEquipmentVisible(false);f.preview.SetWeaponVisible(false);f.preview.SetWeaponVisible(true);
+    Check(Array.TrueForAll(f.staffs,g=>!g.activeSelf),"animation cannot override lobby equipment concealment");
+   }
    using(var f=new Fixture()){
     var firstObject=new GameObject{activeSelf=false};
     var secondObject=new GameObject{activeSelf=false};
@@ -467,7 +482,8 @@ namespace MagicCustomizationChecks {
     // All UI references are optional: this component must remain usable via public methods.
     DatabaseManager.Instance=new DatabaseManager{IsDataConfigReady=true,HasLoadedProfile=true};
     NetworkGameManager.Instance=null;DataConfig.ResetToDefaults();
-    var ui=new MagicCustomizationUI();Set(ui,"defaultSlot",2);Life(ui,"OnEnable");
+    var ui=new MagicCustomizationUI();Set(ui,"macigslot1",new MagicSelectAnimation());Set(ui,"macigslot2",new MagicSelectAnimation());
+    Set(ui,"defaultSlot",2);Life(ui,"OnEnable");
     ui.SelectMagic((int)MagicType.Mine);ui.EquipSelectedMagic();
     Check(ui.SelectedSlot==2&&DataConfig.magic2Index==(int)MagicType.Mine,"manual calls work with no UI references and default slot 2");
     ui.SelectHatSlot();ui.SelectHat((int)HatType.Cosmic);ui.EquipSelectedItem();

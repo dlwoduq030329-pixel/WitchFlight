@@ -4,7 +4,7 @@ using UnityEngine;
 using Unity.Profiling;
 
 // Uses the existing runner. Only StateAuthority simulates flight and damage.
-public sealed class MagicProjectile : NetworkBehaviour
+public sealed partial class MagicProjectile : NetworkBehaviour
 {
     private static readonly ProfilerMarker simulationMarker = new("WitchFlight.Projectile.Simulate");
     private static readonly HashSet<MagicProjectile> active = new();
@@ -34,7 +34,6 @@ public sealed class MagicProjectile : NetworkBehaviour
 
     public override void Spawned()
     {
-        initialized = false;
         impactPresented = false;
         // Projectiles remain server-simulated: even their shooter renders remote snapshots.
         Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
@@ -45,6 +44,7 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         if (!Object.HasStateAuthority)
             return;
+        ConstructKind = MagicConstructKind.Projectile;
         stats = entry;
         Settled = Finished = false;
         ArmTimer = TickTimer.None;
@@ -79,6 +79,7 @@ public sealed class MagicProjectile : NetworkBehaviour
             Runner.Despawn(Object);
             return;
         }
+        if (IsConstruct) { TickConstruct(); return; }
         if (Lifetime.Expired(Runner))
         {
             if (!Finished && !IsMine && stats.effect == MagicEffectKind.AreaDamage)
@@ -181,7 +182,7 @@ public sealed class MagicProjectile : NetworkBehaviour
         {
             if (shot == null || shot.Runner != defender.Runner || shot.Object == null ||
                 !shot.Object.IsValid || !shot.Object.HasStateAuthority || !shot.initialized ||
-                shot.Finished || shot.IsMine || !shot.stats.requiresTarget ||
+                shot.Finished || shot.IsMine || shot.IsConstruct || !shot.stats.requiresTarget ||
                 shot.ShooterTeam == defender.TeamIndex || !shot.TargetId.Equals(defender.Object.Id)) continue;
             shot.TargetId = default;
             // Bots can be countered, but cannot be farmed for growth.
@@ -356,7 +357,7 @@ public sealed class MagicProjectile : NetworkBehaviour
         foreach (MagicProjectile shot in active)
         {
             if (shot == null || shot.Runner != observer.Runner || shot.Object == null ||
-                !shot.Object.IsValid || shot.Finished || (!shot.IsMine && shot.ShooterTeam == observer.TeamIndex))
+                !shot.Object.IsValid || shot.Finished || shot.IsConstruct || (!shot.IsMine && shot.ShooterTeam == observer.TeamIndex))
                 continue;
             Vector3 delta = observer.LockAimPoint - shot.transform.position;
             float sqr = delta.sqrMagnitude;
@@ -382,7 +383,7 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         foreach (MagicProjectile shot in active)
             if (shot != null && (runner == null || shot.Runner == runner) && shot.Object != null && shot.Object.IsValid &&
-                shot.IsMine && !shot.Finished && shot.Shooter == player)
+                (shot.IsMine || shot.ConstructKind == MagicConstructKind.Summon) && !shot.Finished && shot.Shooter == player)
                 return true;
         return false;
     }
@@ -393,9 +394,9 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         seconds = float.PositiveInfinity;
         if (observer == null || observer.Object == null || !observer.Object.IsValid ||
-            Object == null || !Object.IsValid || Runner != observer.Runner || Finished || IsMine || Settled ||
+            Object == null || !Object.IsValid || Runner != observer.Runner || Finished || IsMine || IsConstruct || Settled ||
             ShooterTeam == observer.TeamIndex) return false;
-        MagicStatEntry entry = initialized ? stats : CombatPresentation.Stats(Magic);
+        MagicStatEntry entry = PresentationStats;
         if (entry.projectileSpeed <= 0f) return false;
         Vector3 offset = transform.position - observer.LockAimPoint;
         bool guidedToObserver = entry.requiresTarget && TargetId.Equals(observer.Object.Id);
@@ -443,19 +444,22 @@ public sealed class MagicProjectile : NetworkBehaviour
     {
         impactPresented = true;
         if (view != null) view.ConfirmImpact();
+        if (ConstructKind == MagicConstructKind.ThunderArea) MagicAreaVisual.Lightning(position, PresentationStats);
         CombatPresentation.ShowImpact(position, magic);
     }
 
     public override void Render()
     {
         if (Magic == MagicType.None) return;
-        if (view == null) view = ProjectilePredictionView.Attach(this, CombatPresentation.Stats(Magic));
+        if (IsConstruct) { RenderConstruct(); return; }
+        if (view == null) view = ProjectilePredictionView.Attach(this, PresentationStats);
         if (Finished || impactPresented) view.ConfirmImpact();
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         active.Remove(this);
+        ClearConstructVisual();
         if (view != null) Destroy(view.gameObject);
         view = null;
         initialized = false;
@@ -463,6 +467,7 @@ public sealed class MagicProjectile : NetworkBehaviour
 
     private void OnDestroy()
     {
+        ClearConstructVisual();
         active.Remove(this);
     }
 }

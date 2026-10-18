@@ -5588,6 +5588,14 @@ MonoBehaviour:
   knockbackDamping: 30
   hitReactionState: AS_Broom_SitFly_Arm_Hit_React
   deathAnimationState: AS_Broom_SitFly_Arm_Knock1_Start
+  broomAnimation:
+    enabled: 1
+    blendSeconds: 0.06
+    quickActionSeconds: 0.25
+    parryStartSeconds: 0.08
+    parryEndSeconds: 0.12
+    speedTransitionSeconds: 0.35
+    hideStaffWhenDisarmed: 1
   _IsBoosting: 0
   _IsReturningToMap: 0
   _DiedFromAltitude: 0

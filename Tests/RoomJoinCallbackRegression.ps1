@@ -9,6 +9,10 @@ function Method([string]$signature) {
     $m.Value
 }
 $methods = @(
+    'public void CreateRoom()',
+    'public void CreateRoom(string roomId, Action onSuccess, Action<string> onFailed)',
+    'public void StartMatch()',
+    'private bool TryReadRoomId(',
     'public void JoinRoom(string roomId)',
     'public void JoinRoom(string roomId, Action onSuccess, Action<string> onFailed)',
     'private void NotifyRoomJoinResult(',
@@ -72,6 +76,8 @@ namespace RoomJoinChecks {
  public class LoginManager {public static LoginManager Instance;public bool IsLoggedIn;}
  public class DatabaseManager {public static DatabaseManager Instance;public bool IsDataConfigReady;}
  public class ManagerProbe:UnityEngine.Object {
+  public class InputField {public string text;}
+  public InputField roomIdInput;
   enum MatchRequest {CreateRoom,JoinRoom,Random,LegacyCodeMatch}
   const int RandomPlayerCount=2;const string RandomLobbyName="WitchFlight-Random-1v1-v1";
   public Transform transform=new();private NetworkRunner _runner;private GameObject runnerObject;
@@ -97,6 +103,20 @@ namespace RoomJoinChecks {
   static StartResult Failed(ShutdownReason why)=>new StartResult{ShutdownReason=why};
   static void Wait(ManualResetEventSlim done){if(!done.Wait(3000))throw new Exception("Callback timeout");}
   public static int Run(){
+   foreach(string invalid in new string[]{null,"","1","123","12345","abcdefgh","1 23","12\t3"}){
+    var m=Fresh();int bad=0;m.CreateRoom(invalid,null,s=>bad++);
+    Check(bad==1&&NetworkRunner.Next.Starts==0&&!m.IsMatching,"invalid create never starts: "+invalid);
+    m=Fresh();bad=0;m.JoinRoom(invalid,null,s=>bad++);
+    Check(bad==1&&NetworkRunner.Next.Starts==0,"invalid join never starts: "+invalid);
+    m=Fresh();m.roomIdInput=new ManagerProbe.InputField{text=invalid};m.CreateRoom();
+    Check(NetworkRunner.Next.Starts==0,"inspector create rejects invalid code: "+invalid);
+    m.StartMatch();Check(NetworkRunner.Next.Starts==0,"legacy entry cannot bypass length: "+invalid);
+   }
+   {
+    var m=Fresh();m.StartMatch();Check(NetworkRunner.Next.Starts==0,"missing input no longer creates legacy textBuild room");
+    m=Fresh();int ok=0;m.CreateRoom("0123",()=>ok++,null);
+    Check(ok==1&&NetworkRunner.Next.Args.SessionName=="0123"&&NetworkRunner.Next.Args.GameMode==GameMode.Host,"four-character create preserves leading zero");
+   }
    foreach(string empty in new string[]{null,"","  "}){
     var m=Fresh();int ok=0,bad=0;m.JoinRoom(empty,()=>ok++,s=>{bad++;Check(s.Contains("입력"),"empty-code error");});
     Check(ok==0&&bad==1&&NetworkRunner.Next.Starts==0,"empty code reports once without starting");
@@ -170,5 +190,6 @@ namespace RoomJoinChecks {
  }
 }
 '@
+$source += Get-Content (Join-Path $repo 'Assets/Script/RoomCodeRules.cs') -Raw
 Add-Type -IgnoreWarnings -WarningAction SilentlyContinue -TypeDefinition $source
 "Room join callback checks passed: $([RoomJoinChecks.Tests]::Run())"

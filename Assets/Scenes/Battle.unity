@@ -21916,9 +21916,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bbcc50c4b298de64e9e71567900430a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  perkStatTable: {fileID: 11400000, guid: 26a08712a9f8258cdae35dbe4cb1a8f4, type: 2}
   flagPrefab:
     RawGuidValue: 2b86e0df82b35b14a8e28fca1ad8b59a
+  perkStatTable: {fileID: 11400000, guid: 26a08712a9f8258cdae35dbe4cb1a8f4, type: 2}
   playerSpawnA: {fileID: 1853205662}
   playerSpawnB: {fileID: 294683762}
   flagSpawnPoint: {fileID: 1312382458}
@@ -21930,33 +21930,6 @@ MonoBehaviour:
   matchDurationSeconds: 160
   deathDespawnDelay: 2
   respawnDelaySeconds: 7
---- !u!114 &1515047385
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1515047378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e6749abe88c5710625d011f33f5a957c, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  font: {fileID: 11400000, guid: 8ee5dda08fc097b419e01d60d8f20e25, type: 2}
-  magicTable: {fileID: 0}
-  profileTable: {fileID: 0}
-  experienceSlider: {fileID: 0}
-  experienceText: {fileID: 0}
-  experienceAnchor: {fileID: 2027782601}
-  selectionRoot: {fileID: 0}
-  acquiredRoot: {fileID: 0}
-  acquiredIcon: {fileID: 0}
-  acquiredText: {fileID: 0}
-  comparisonRoot: {fileID: 0}
-  openSeconds: 0.12
-  collapseSeconds: 0.18
-  iconHoldSeconds: 0.35
-  fadeSeconds: 0.2
 --- !u!4 &1515047380
 Transform:
   m_ObjectHideFlags: 0
@@ -22172,6 +22145,92 @@ MonoBehaviour:
   startScale: 0.75
   peakScale: 1.2
   endScale: 0.6
+--- !u!114 &1515047385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1515047378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e6749abe88c5710625d011f33f5a957c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  font: {fileID: 11400000, guid: 8ee5dda08fc097b419e01d60d8f20e25, type: 2}
+  magicTable: {fileID: 0}
+  profileTable: {fileID: 0}
+  experienceSlider: {fileID: 0}
+  experienceText: {fileID: 0}
+  experienceAnchor: {fileID: 2027782601}
+  selectionRoot: {fileID: 0}
+  leftCandidate:
+    icon: {fileID: 0}
+    title: {fileID: 0}
+    description: {fileID: 0}
+    hint: {fileID: 0}
+  rightCandidate:
+    icon: {fileID: 0}
+    title: {fileID: 0}
+    description: {fileID: 0}
+    hint: {fileID: 0}
+  availableChoicesText: {fileID: 0}
+  acquiredRoot: {fileID: 0}
+  acquiredIcon: {fileID: 0}
+  acquiredText: {fileID: 0}
+  comparisonRoot: {fileID: 0}
+  ownView:
+    playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  opponentView:
+    playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  openSeconds: 0.12
+  collapseSeconds: 0.18
+  iconHoldSeconds: 0.35
+  fadeSeconds: 0.2
 --- !u!1001 &1515072346
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -28531,11 +28590,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8323471176851699074, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
   m_PrefabInstance: {fileID: 2027782578}
   m_PrefabAsset: {fileID: 0}
---- !u!224 &2027782601 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 3587376753190482031, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
-  m_PrefabInstance: {fileID: 2027782578}
-  m_PrefabAsset: {fileID: 0}
 --- !u!114 &2027782590 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 902100009900001, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
@@ -28627,6 +28681,11 @@ MonoBehaviour:
 --- !u!1 &2027782598 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3976024349891690280, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
+  m_PrefabInstance: {fileID: 2027782578}
+  m_PrefabAsset: {fileID: 0}
+--- !u!224 &2027782601 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 3587376753190482031, guid: f85a690f8032072489dd7b498ab4110d, type: 3}
   m_PrefabInstance: {fileID: 2027782578}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2035158453

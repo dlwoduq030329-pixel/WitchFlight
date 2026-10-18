@@ -5514,33 +5514,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 4109178344409849289}
-        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
-        m_MethodName: SetActive
-        m_Mode: 6
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-      - m_Target: {fileID: 5142426033498602125}
-        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
-        m_MethodName: SetActive
-        m_Mode: 6
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 1
-        m_CallState: 2
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: NetworkGameManager, Assembly-CSharp
-        m_MethodName: CreateRoom
+      - m_Target: {fileID: 6104679280202437011}
+        m_TargetAssemblyTypeName: CreateRoomUI, Assembly-CSharp
+        m_MethodName: TryCreateRoom
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -5548,7 +5524,7 @@ MonoBehaviour:
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
-          m_BoolArgument: 1
+          m_BoolArgument: 0
         m_CallState: 2
 --- !u!1 &3476884652729572057
 GameObject:
@@ -6880,6 +6856,7 @@ GameObject:
   - component: {fileID: 6988265563884349723}
   - component: {fileID: 5710268916038752232}
   - component: {fileID: 1352235616917195603}
+  - component: {fileID: 6104679280202437011}
   m_Layer: 5
   m_Name: PopupUI_MakeRoom
   m_TagString: Untagged
@@ -6887,6 +6864,23 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 0
+--- !u!114 &6104679280202437011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4109178344409849289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c095447514244a349312ebc7624d9979, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  roomCodeInput: {fileID: 5195840136103155584}
+  statusText: {fileID: 4014209640514025098}
+  createButton: {fileID: 5391984762738150523}
+  waitingRoomUI: {fileID: 5142426033498602125}
+  inputPanel: {fileID: 4109178344409849289}
 --- !u!224 &6988265563884349723
 RectTransform:
   m_ObjectHideFlags: 0
@@ -8062,7 +8056,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4818097950618121371}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a8347015f0377d34a9b523d15deff38e, type: 3}
   m_Name: 

@@ -75,13 +75,14 @@ $projectileStart = @'
 public class MagicProjectile {
  public PlayerRef Shooter;
  public static HashSet<MagicProjectile> active=new();
- public NetworkRunner Runner;public NetworkObject Object=new();public bool initialized=true,Finished,IsMine;
+ public NetworkRunner Runner;public NetworkObject Object=new();public bool initialized=true,Finished,IsMine,IsConstruct;
  public MagicStatEntry stats=new(){requiresTarget=true};public int ShooterTeam=2;public NetworkId TargetId;
  public Vector3 direction=new(0,0,1);
 '@
 $presentationStart = @'
 }
 public class CombatPresentation {
+ public class Outline {public bool enabled;} public Outline enemyOutline;
  public class Visual {public Renderer renderer;public bool authoredForceRenderingOff;public ShadowCastingMode authoredShadows;}
  public List<Visual> visuals=new();public Player owner;
  public float deathStarted=-1,deathFadeSeconds=2;
@@ -98,6 +99,7 @@ public static class Tests {
   var defender=Pilot(flag.Runner,1);var other=Pilot(flag.Runner,2);
   var targeted=Shot(defender);var another=Shot(other);var mine=Shot(defender);mine.IsMine=true;
   var friendly=Shot(defender);friendly.ShooterTeam=1;
+  var summon=Shot(defender);summon.IsConstruct=true;
   var direct=Shot(defender);direct.stats.requiresTarget=false;
   var finished=Shot(defender);finished.Finished=true;
   var remote=Shot(defender);remote.Runner=new();

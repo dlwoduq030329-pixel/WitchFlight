@@ -88,8 +88,9 @@ public static class WitchFlightPerkValidation
         Check(Near(S(MagicType.Binding,2).apCost,magic.GetStats(MagicType.Binding).apCost*.65f),"binding mana");
         Check(Near(S(MagicType.Dark,1).healthCost,40)&&Near(S(MagicType.Dark,2).healOnHit,90),"dark health cost / actual hit heal");
         Check(Near(S(MagicType.Curse,2).ChannelManaPerSecond(115),magic.GetStats(MagicType.Curse).ChannelManaPerSecond(100)*.75f),"reservoir extends curse duration");
-        Check(Near(S(MagicType.Mine,2).activationDelay,magic.GetStats(MagicType.Mine).activationDelay*.7f),"mine arm");
-        Check(Near(S(MagicType.Mine,2).radius,magic.GetStats(MagicType.Mine).radius*1.3f),"mine radius");
+        Check(Near(S(MagicType.Mine,2).lockChargeSeconds,magic.GetStats(MagicType.Mine).lockChargeSeconds*.7f),"summon lock");
+        Check(Near(S(MagicType.Mine,2).range,magic.GetStats(MagicType.Mine).range*1.3f) &&
+            Near(S(MagicType.Mine,2).summonAttackRange,magic.GetStats(MagicType.Mine).summonAttackRange*1.3f),"summon range");
         Check(Near(S(MagicType.Razier,1).hitscanRadius,magic.GetStats(MagicType.Razier).hitscanRadius*1.25f),"beam width");
         Check(Near(S(MagicType.Smoke,2).radius,magic.GetStats(MagicType.Smoke).radius*1.15f)&&Near(S(MagicType.Smoke,2).effectDuration,magic.GetStats(MagicType.Smoke).effectDuration+3),"smoke area and duration");
         Check(Near(S(MagicType.Binding,2,PerkRules.Bit(PerkId.FrugalRune)).apCost,magic.GetStats(MagicType.Binding).apCost*.6f),"multiplicative mana discount capped 40 percent");

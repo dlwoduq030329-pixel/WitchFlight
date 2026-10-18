@@ -5,7 +5,7 @@ public enum MagicEffectKind
 {
     DirectDamage = 0, SlowDamage = 1, AreaDamage = 2, Healing = 3,
     Binding = 4, LifeSteal = 5, GuidedChannel = 6, Mine = 7, BeamChannel = 8,
-    Flare = 9, Smoke = 10
+    Flare = 9, Smoke = 10, DelayedArea = 11, PursuitSummon = 12
 }
 
 [Serializable]
@@ -40,16 +40,37 @@ public struct MagicStatEntry
     [Min(0f)] public float hitStunSeconds;
     [Min(0f)] public float knockbackForce;
     [Range(0f, 1f)] public float movementMultiplier;
-    [Tooltip("Ice 둔화, Binding 속박, Mine / Smoke 유지 시간. Smoke는 최대 120초.")]
+    [Tooltip("Ice 둔화, Binding 속박, 소환체 / Smoke 유지 시간. Smoke는 최대 120초.")]
     [Min(0f)] public float effectDuration;
-    [Tooltip("광역/기뢰/연막 반경. Smoke는 최대 100이며 캐릭터 조준점이 범위 안에 있는지 검사합니다.")]
+    [Tooltip("낙뢰/연막 반경. 낙뢰는 공중에서도 구형 범위 판정. 소환체 사거리는 Range / Summon Attack Range.")]
     [Min(0f)] public float radius;
-    [Tooltip("기뢰가 멈춘 뒤 무장되기까지의 시간.")]
+    [Tooltip("소환체가 처음 깨어나기까지의 시간. 구 기뢰의 무장 지연으로도 사용.")]
     [Min(0f)] public float activationDelay;
-    [Tooltip("기뢰를 발사하여 전진시키는 거리.")]
+    [Tooltip("플레이어 앞 소환 거리. 벽을 통과하지 않습니다. 구 기뢰의 전진 거리로도 사용.")]
     [Min(0f)] public float placementDistance;
     public bool requiresTarget;
     public bool requiresFullLock;
+
+    [Header("Thunder: hold to aim, release to confirm (world-space sphere)")]
+    [Tooltip("확정 후 낙뢰까지의 시간. Cast Seconds와 별개이며 확정된 위치는 움직이지 않습니다.")]
+    [Min(0.1f)] public float strikeDelay;
+    [Tooltip("아무것도 조준하지 않을 때 공중 지정 거리. 누르는 동안 휠로 거리를 조절합니다.")]
+    [Min(1f)] public float areaAimDistance;
+    [Min(0.1f)] public float areaAimScrollSpeed;
+    [Tooltip("반경 1 기준의 범위 프리팹. Collider / NetworkObject 없이 제작. 비우면 원 3개로 구형 범위를 표시합니다.")]
+    public GameObject areaPreviewVfxPrefab;
+    public GameObject areaWarningVfxPrefab;
+
+    [Header("Mine replacement: pursuing familiar (multiple summons)")]
+    [Tooltip("플레이어당 동시 소환 수. 한도에서 새로 소환하면 가장 오래된 소환체를 교체합니다.")]
+    [Range(1, 16)] public int summonMaxCount;
+    [Min(0.1f)] public float summonMoveSpeed;
+    [Min(1f)] public float summonAttackRange;
+    [Min(0.1f)] public float summonFollowDistance;
+    [Tooltip("발사 시작 사이의 최소 간격. Lock Charge Seconds가 더 길면 록온 완료를 기다립니다.")]
+    [Min(0.1f)] public float summonAttackInterval;
+    [Tooltip("비우면 마법 구체와 회전 고리를 생성. 투사체 외형은 Projectile VFX Prefab에 별도로 할당합니다.")]
+    public GameObject summonVfxPrefab;
 
     [Header("Health / channel costs")]
     [Tooltip("현재 HP가 이 값 이하이면 발동 불가. Dark 기본값 50.")]
@@ -176,15 +197,19 @@ public sealed class MagicStatTable : ScriptableObject
                 e.range = 260; e.cooldownSeconds = 0.9f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "적은 마나로 긴 사거리의 즉발 광선을 발사합니다."; break;
             case MagicType.Thunder:
-                e.effect = MagicEffectKind.AreaDamage; e.damage = 52.5f; e.apCost = 80;
-                e.range = 100; e.cooldownSeconds = 6; e.castSeconds = 0.3f; e.radius = 12;
+                e.effect = MagicEffectKind.DelayedArea; e.damage = 52.5f; e.apCost = 80;
+                e.range = 100; e.cooldownSeconds = 6; e.radius = 12;
+                e.strikeDelay = 1.5f; e.areaAimDistance = 50; e.areaAimScrollSpeed = 10;
                 e.projectileRadius = 0; e.hitscanRadius = 0.3f;
-                e.description = "짧은 시전 후 정면 조준 지점에 광역 피해를 줍니다."; break;
+                e.description = "누르는 동안 공중의 범위를 조준하고 휠로 거리를 조절합니다. 놓으면 확정된 위치에 잠시 뒤 낙뢰가 떨어집니다."; break;
             case MagicType.Mine:
-                e.effect = MagicEffectKind.Mine; e.damage = 105; e.apCost = 50;
-                e.cooldownSeconds = 7.5f; e.projectileSpeed = 20; e.placementDistance = 20;
-                e.activationDelay = 0.5f; e.effectDuration = 15; e.radius = 8; e.projectileRadius = 0.3f;
-                e.description = "전방에 기뢰를 발사합니다. 무장 후 자신과 아군을 포함한 누구든 접근하면 폭발합니다."; break;
+                e.effect = MagicEffectKind.PursuitSummon; e.damage = 18; e.apCost = 50;
+                e.cooldownSeconds = 7.5f; e.projectileSpeed = 45; e.placementDistance = 2;
+                e.activationDelay = 0.5f; e.effectDuration = 15; e.projectileRadius = 0.2f;
+                e.range = 100; e.lockChargeSeconds = 0.65f; e.summonMoveSpeed = 28;
+                e.summonAttackRange = 55; e.summonFollowDistance = 18; e.summonAttackInterval = 2;
+                e.summonMaxCount = 4;
+                e.description = "적을 추적하며 록온 유도탄을 발사하는 사역마를 소환합니다. 여러 개를 유지할 수 있으며 벽 너머로 공격하지 않습니다."; break;
             case MagicType.Dark:
                 e.effect = MagicEffectKind.LifeSteal; e.damage = 97.5f; e.healthCost = 50; e.healOnHit = 60;
                 e.range = 180; e.cooldownSeconds = 4.5f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
