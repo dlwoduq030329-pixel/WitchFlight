@@ -28,9 +28,16 @@ MonoBehaviour:
   projectileSatelliteLeadDistance: 3
   projectileMergeStartDistance: 18
   projectileMergeEndDistance: 3
-  parryApCost: 16
-  parryWindowSeconds: 0.4
-  parryCooldownSeconds: 0.3
+  iceImpactFollowUpEnabled: 1
+  iceImpactShardVfxPrefab: {fileID: 0}
+  iceImpactLaunchInterval: 0.07
+  iceImpactShardSpeed: 110
+  iceImpactRingRadius: 0.85
+  iceImpactCurve: 2
+  iceImpactShardScale: 0.3
+  parryApCost: 50
+  parryWindowSeconds: 0.3
+  parryCooldownSeconds: 0.5
   parryIcon: {fileID: 0}
   fallback:
     magic: 0
@@ -38,6 +45,17 @@ MonoBehaviour:
     description: 
     icon: {fileID: 0}
     effect: 0
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0
+    displayDamageLabel: 
+    displayAimTimeLabel: 
+    displayRangeLabel: 
+    displayManaCostLabel: 
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 0
     cooldownSeconds: 0
     lockChargeSeconds: 0
@@ -58,6 +76,22 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -76,11 +110,23 @@ MonoBehaviour:
     flareVfxSpeed: 0
   magics:
   - magic: 1
-    displayName: Fire
-    description: "\uB192\uC740 \uD53C\uD574\uC758 \uC720\uB3C4 \uB9C8\uBC95. \uAE38\uAC8C
-      \uB85D\uC628\uD55C \uB4A4 \uBC84\uD2BC\uC744 \uB193\uC544 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
+    displayName: "\uD654\uC5FC \uB9C8\uBC95"
+    description: "\uAC70\uB300\uD55C \uBD88\uAF43\uC744 \uBC1C\uC0AC\uD558\uC5EC
+      \uC801\uC744 \uBD88\uD0DC\uC6C1\uB2C8\uB2E4. \n\uAE34 \uC870\uC900\uC2DC\uAC04\uC774
+      \uD544\uC694\uD558\uC9C0\uB9CC \uB192\uC740 \uD53C\uD574\uB97C \uC785\uD799\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: a170a08214b94864cb5aa94b432d4244, type: 3}
     effect: 0
+    displayDamage: 0.5
+    displayAimTime: 0.1
+    displayRange: 0.75
+    displayManaCost: 0.75
+    displayDamageLabel: "\uC911\uAC04"
+    displayAimTimeLabel: "\uB290\uB9BC"
+    displayRangeLabel: "\uAE38\uB2E4"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 60
     cooldownSeconds: 3.75
     lockChargeSeconds: 0.8
@@ -101,6 +147,22 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -118,12 +180,24 @@ MonoBehaviour:
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
   - magic: 2
-    displayName: Ice
-    description: "\uBE60\uB974\uAC8C \uB85D\uC628\uD558\uC5EC \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
-      \uC801\uC911\uD55C \uC801\uC758 \uC774\uB3D9 \uC18D\uB3C4\uB97C \uB0AE\uCDA5\uB2C8\uB2E4."
+    displayName: "\uC5BC\uC74C \uB9C8\uBC95"
+    description: "\uB0C9\uAE30\uC758 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
+      \n\uC870\uC900 \uC2DC\uAC04\uC774 \uBE60\uB974\uBA70, \uC801\uC744 \uB290\uB824\uC9C0\uAC8C
+      \uB9CC\uB4ED\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 03e34f30a8068f045a4132237dd9ea86, type: 3}
     effect: 1
-    apCost: 36
+    displayDamage: 0.25
+    displayAimTime: 1
+    displayRange: 0.5
+    displayManaCost: 0.3
+    displayDamageLabel: "\uB0AE\uC74C"
+    displayAimTimeLabel: "\uBE60\uB984"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 40
     cooldownSeconds: 2.7
     lockChargeSeconds: 0.35
     castSeconds: 0
@@ -133,16 +207,32 @@ MonoBehaviour:
     projectileRadius: 0.12
     hitscanRadius: 0
     range: 190
-    damage: 18
+    damage: 25
     hitStunSeconds: 0
     knockbackForce: 0
-    movementMultiplier: 0.6
+    movementMultiplier: 0.4
     effectDuration: 2.5
     radius: 0
     activationDelay: 0
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -160,14 +250,26 @@ MonoBehaviour:
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
   - magic: 3
-    displayName: Vision
-    description: "\uC801\uC740 \uB9C8\uB098\uB85C \uAE34 \uC0AC\uAC70\uB9AC\uC758
-      \uC989\uBC1C \uAD11\uC120\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
+    displayName: "\uBE44\uC804 \uB9C8\uBC95"
+    description: "\uBE60\uB978 \uB9C8\uB825 \uB369\uC5B4\uB9AC\uB97C \uC3E9\uB2C8\uB2E4.
+      \n\uC870\uC900 \uC2DC\uAC04\uC774 \uD544\uC694\uD558\uC9C0\uC54A\uC73C\uBA70
+      \uB0AE\uC740 \uD53C\uD574\uB97C \uC785\uD799\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 483f402404d997e47b833359b4130930, type: 3}
     effect: 0
-    apCost: 30
-    cooldownSeconds: 0.9
-    lockChargeSeconds: 1
+    displayDamage: 0.25
+    displayAimTime: 0
+    displayRange: 0.8
+    displayManaCost: 0.3
+    displayDamageLabel: "\uB0AE\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uAE3A"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 40
+    cooldownSeconds: 2
+    lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
@@ -175,7 +277,7 @@ MonoBehaviour:
     projectileRadius: 0
     hitscanRadius: 1.5
     range: 260
-    damage: 40
+    damage: 25
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
@@ -185,6 +287,22 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -202,21 +320,35 @@ MonoBehaviour:
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
   - magic: 4
-    displayName: Thunder
-    description: "누르는 동안 공중 범위를 조준하고 휠로 거리를 조절합니다. 놓으면 확정된 위치에 1.5초 뒤 낙뢰가 떨어집니다."
+    displayName: "\uCC9C\uB465 \uB9C8\uBC95"
+    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uACF5\uC911 \uBC94\uC704\uB97C
+      \uC870\uC900\uD558\uACE0 \uD720\uB85C \uAC70\uB9AC\uB97C \uC870\uC808\uD569\uB2C8\uB2E4.
+      \n\uB193\uC73C\uBA74 \uD655\uC815\uB41C \uC704\uCE58\uC5D0 1.5\uCD08 \uB4A4
+      \uAC15\uB825\uD55C \uB099\uB8B0\uAC00 \uB5A8\uC5B4\uC9D1\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: aece16bd1eb03fe4ab6583a486a6154c, type: 3}
     effect: 11
+    displayDamage: 1
+    displayAimTime: 0.25
+    displayRange: 1
+    displayManaCost: 1
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uB0AE\uC74C"
+    displayRangeLabel: "\uAE3A"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 80
-    cooldownSeconds: 6
-    lockChargeSeconds: 1
+    cooldownSeconds: 7
+    lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
     projectileLifetime: 4
     projectileRadius: 0
     hitscanRadius: 0.3
-    range: 100
-    damage: 52.5
+    range: 300
+    damage: 100
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
@@ -226,6 +358,22 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 1.5
+    areaAimDistance: 50
+    areaAimScrollSpeed: 10
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -242,20 +390,26 @@ MonoBehaviour:
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
-    strikeDelay: 1.5
-    areaAimDistance: 50
-    areaAimScrollSpeed: 10
-    areaPreviewVfxPrefab: {fileID: 0}
-    areaWarningVfxPrefab: {fileID: 0}
   - magic: 5
-    displayName: Healing
+    displayName: "\uD68C\uBCF5 \uB9C8\uBC95"
     description: "\uCCB4\uB825 40\uC744 \uC989\uC2DC \uD68C\uBCF5\uD569\uB2C8\uB2E4.
-      \uC7AC\uC0AC\uC6A9 \uB300\uAE30 \uC2DC\uAC04\uC774 \uAE41\uB2C8\uB2E4."
+      \n\uC7AC\uC0AC\uC6A9 \uB300\uAE30 \uC2DC\uAC04\uC774 \uAE41\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
     effect: 3
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.2
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uC5C6\uC74C"
+    displayManaCostLabel: "\uB9E4\uC6B0 \uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 20
     cooldownSeconds: 18
-    lockChargeSeconds: 1
+    lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
@@ -273,6 +427,22 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 40
     healOnHit: 0
@@ -289,13 +459,94 @@ MonoBehaviour:
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+  - magic: 7
+    displayName: "\uC554\uD751 \uB9C8\uBC95"
+    description: "\uCCB4\uB825 30\uC744 \uC18C\uBAA8\uD558\uB294 \uC989\uBC1C \uACF5\uACA9.
+      \n\uC801\uC5D0\uAC8C \uD53C\uD574\uB97C \uC785\uD788\uBA74 \uCCB4\uB825 40\uC744
+      \uD68C\uBCF5\uD569\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: e8c522cb9966a2949a71f4ec5084be50, type: 3}
+    effect: 5
+    displayDamage: 0.75
+    displayAimTime: 0
+    displayRange: 0.4
+    displayManaCost: 0
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uC5C6\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 0
+    cooldownSeconds: 2
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 2
+    range: 180
+    damage: 70
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 30
+    healing: 0
+    healOnHit: 40
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    castVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
   - magic: 6
-    displayName: Binding
-    description: "\uB85D\uC628 \uD6C4 \uC720\uB3C4 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
+    displayName: "\uC18D\uBC15 \uB9C8\uBC95"
+    description: "\uB85D\uC628 \uD6C4 \uC720\uB3C4 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.\n
       \uD53C\uD574 \uC5C6\uC774 3\uCD08 \uB3D9\uC548 \uC801\uC758 \uC774\uB3D9\uC744
       \uB9C9\uC2B5\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 470e6d85bf64c224b8b8add626b4f506, type: 3}
     effect: 4
+    displayDamage: 0
+    displayAimTime: 0.5
+    displayRange: 0.5
+    displayManaCost: 0.7
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC911\uAC04"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 50
     cooldownSeconds: 18
     lockChargeSeconds: 0.6
@@ -316,6 +567,22 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -332,59 +599,27 @@ MonoBehaviour:
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
-  - magic: 7
-    displayName: Dark
-    description: "\uCCB4\uB825 50\uC744 \uC18C\uBAA8\uD558\uB294 \uC989\uBC1C \uACF5\uACA9.
-      \uC801\uC5D0\uAC8C \uD53C\uD574\uB97C \uC785\uD788\uBA74 \uCCB4\uB825 60\uC744
-      \uD68C\uBCF5\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: e8c522cb9966a2949a71f4ec5084be50, type: 3}
-    effect: 5
-    apCost: 0
-    cooldownSeconds: 2
-    lockChargeSeconds: 1
-    castSeconds: 0
-    projectileSpeed: 0
-    projectileTurnSpeed: 0
-    projectileLifetime: 4
-    projectileRadius: 0
-    hitscanRadius: 2
-    range: 180
-    damage: 70
-    hitStunSeconds: 0
-    knockbackForce: 0
-    movementMultiplier: 1
-    effectDuration: 0
-    radius: 0
-    activationDelay: 0
-    placementDistance: 0
-    requiresTarget: 0
-    requiresFullLock: 0
-    healthCost: 30
-    healing: 0
-    healOnHit: 40
-    damagePerSecond: 0
-    apPerSecond: 0
-    maxApFractionPerSecond: 0
-    channelTickSeconds: 0.1
-    autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
-    projectileVfxPrefab: {fileID: 0}
-    impactVfxPrefab: {fileID: 0}
-    beamVfxPrefab: {fileID: 0}
-    vfxLifetime: 1.5
-    utilityVfxPrefab: {fileID: 0}
-    flareVfxBackOffset: 0
-    flareVfxSpeed: 0
   - magic: 8
-    displayName: Curse
+    displayName: "\uC800\uC8FC \uB9C8\uBC95"
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uAC00\uAE4C\uC6B4 \uC801\uC744
-      \uC790\uB3D9 \uCD94\uC801\uD569\uB2C8\uB2E4. \uBCBD\uC774\uB098 \uD654\uBA74
+      \uC790\uB3D9 \uCD94\uC801\uD569\uB2C8\uB2E4. \n\uBCBD\uC774\uB098 \uD654\uBA74
       \uBC16\uC73C\uB85C \uBC97\uC5B4\uB098\uBA74 \uB04A\uC5B4\uC9D1\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 4d794e788156b404c8d6ae2f9c7bc036, type: 3}
     effect: 6
+    displayDamage: 0.75
+    displayAimTime: 0
+    displayRange: 0.2
+    displayManaCost: 0.2
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uB0AE\uC74C"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 0
     cooldownSeconds: 0.375
-    lockChargeSeconds: 1
+    lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
@@ -402,12 +637,28 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
-    damagePerSecond: 18
-    apPerSecond: 0
-    maxApFractionPerSecond: 0.5
+    damagePerSecond: 10
+    apPerSecond: 30
+    maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
     castVfxPrefab: {fileID: 0}
@@ -419,10 +670,24 @@ MonoBehaviour:
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
   - magic: 9
-    displayName: Mine
-    description: "적을 추적하며 록온 유도탄을 발사하는 사역마를 소환합니다. 여러 개를 유지할 수 있으며 벽 너머로 공격하지 않습니다."
+    displayName: "\uC18C\uD658 \uB9C8\uBC95"
+    description: "\uC801\uC744 \uCD94\uC801\uD558\uBA70 \uB85D\uC628 \uC720\uB3C4\uD0C4\uC744
+      \uBC1C\uC0AC\uD558\uB294 \uC0AC\uC5ED\uB9C8\uB97C \uC18C\uD658\uD569\uB2C8\uB2E4.
+      \n\uC5EC\uB7EC \uAC1C\uB97C \uC720\uC9C0\uD560 \uC218 \uC788\uC73C\uBA70 \uBCBD
+      \uB108\uBA38\uB85C \uACF5\uACA9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 0da4074812881bd4cb1d3bb307908a3f, type: 3}
     effect: 12
+    displayDamage: 0.5
+    displayAimTime: 0
+    displayRange: 0.25
+    displayManaCost: 0.75
+    displayDamageLabel: "\uC911\uAC04"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uC9E7\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 50
     cooldownSeconds: 7.5
     lockChargeSeconds: 0.65
@@ -443,6 +708,22 @@ MonoBehaviour:
     placementDistance: 2
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 4
+    summonMoveSpeed: 28
+    summonAttackRange: 55
+    summonFollowDistance: 18
+    summonAttackInterval: 2
+    summonHitRadius: 0.65
+    summonChannelHealth: 50
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -459,21 +740,26 @@ MonoBehaviour:
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
-    summonMaxCount: 4
-    summonMoveSpeed: 28
-    summonAttackRange: 55
-    summonFollowDistance: 18
-    summonAttackInterval: 2
-    summonVfxPrefab: {fileID: 0}
   - magic: 10
-    displayName: Razier
+    displayName: "\uAD11\uC120 \uB9C8\uBC95"
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uC815\uBA74\uC5D0 \uC9C1\uC120
       \uAD11\uC120\uC744 \uC720\uC9C0\uD558\uBA70 \uB9C8\uB098\uB97C \uC18C\uBAA8\uD569\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 82d5cbd78bedbed4b882e96a4030dff0, type: 3}
     effect: 8
+    displayDamage: 0.8
+    displayAimTime: 0
+    displayRange: 0.7
+    displayManaCost: 0.4
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uAE38\uB2E4"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 0
     cooldownSeconds: 0.375
-    lockChargeSeconds: 1
+    lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
@@ -491,11 +777,27 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
-    damagePerSecond: 27
-    apPerSecond: 40
+    damagePerSecond: 20
+    apPerSecond: 35
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
@@ -511,13 +813,24 @@ MonoBehaviour:
     displayName: "\uD50C\uB808\uC5B4"
     description: "\uB4F1 \uB4A4\uB85C \uD50C\uB808\uC5B4\uB97C \uBC29\uCD9C\uD574
       \uC774\uBBF8 \uC790\uC2E0\uC744 \uCD94\uC801 \uC911\uC778 \uC720\uB3C4\uD0C4\uC758
-      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \uBB34\uC801\uC774\uB098 \uD68C\uD53C
+      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \n\uBB34\uC801\uC774\uB098 \uD68C\uD53C
       \uC774\uB3D9\uC740 \uBD80\uC5EC\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
     effect: 9
-    apCost: 24
-    cooldownSeconds: 4.6
-    lockChargeSeconds: 1
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "\uC5C6\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 50
+    cooldownSeconds: 6
+    lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
@@ -535,6 +848,22 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0
@@ -551,16 +880,29 @@ MonoBehaviour:
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0.7
     flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2.4
   - magic: 12
     displayName: "\uC5F0\uB9C9"
     description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
-      \uB0B4\uBD80\uC758 \uCE90\uB9AD\uD130\uB294 \uC801\uC5D0\uAC8C \uBCF4\uC774\uC9C0
+      \n\uB0B4\uBD80\uC758 \uCE90\uB9AD\uD130\uB294 \uC801\uC5D0\uAC8C \uBCF4\uC774\uC9C0
       \uC54A\uC9C0\uB9CC \uB85D\uC628\uACFC \uD53C\uACA9 \uD310\uC815\uC740 \uC720\uC9C0\uB429\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
     effect: 10
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.6
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "\uC5C6\uC74C"
+    displayManaCostLabel: "\uC911\uAC04"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
     apCost: 40
     cooldownSeconds: 15
-    lockChargeSeconds: 1
+    lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
@@ -572,12 +914,28 @@ MonoBehaviour:
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
-    effectDuration: 5
-    radius: 24
+    effectDuration: 7
+    radius: 36
     activationDelay: 0
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
     healthCost: 0
     healing: 0
     healOnHit: 0

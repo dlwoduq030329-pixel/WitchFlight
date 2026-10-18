@@ -3,6 +3,10 @@
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $controller = Get-Content (Join-Path $repo 'Assets/Script/MagicCustomizationUI.cs') -Raw
+$descriptionUI = Get-Content (Join-Path $repo 'Assets/Script/MagicDescriptionUI.cs') -Raw
+$perkTable = Get-Content (Join-Path $repo 'Assets/Script/PerkStatTable.cs') -Raw
+$perkRules = Get-Content (Join-Path $repo 'Assets/Script/PerkRules.cs') -Raw
+$perkFormatter = [regex]::Match((Get-Content (Join-Path $repo 'Assets/Script/BattlePerkUI.cs') -Raw), '(?ms)^    public static string Description\(.*?;').Value
 $dataConfig = Get-Content (Join-Path $repo 'Assets/Script/DataConfig.cs') -Raw
 $playerConfig = Get-Content (Join-Path $repo 'Assets/Script/PlayerConfig.cs') -Raw
 $magicTable = Get-Content (Join-Path $repo 'Assets/Script/MagicStatTable.cs') -Raw
@@ -17,11 +21,14 @@ $stubs = @'
 using System;
 using System.Collections.Generic;
 namespace UnityEngine {
- public class Object {}
+ public enum HideFlags {DontSave}
+ public class Object {public HideFlags hideFlags;}
  public class MonoBehaviour : Object { public bool isActiveAndEnabled=true; public GameObject gameObject=new GameObject(); public Transform transform=>gameObject.transform; }
- public class ScriptableObject : Object {}
+ public class ScriptableObject : Object {public static T CreateInstance<T>() where T:new()=>new T();}
  public class Sprite : Object {}
+ public class AnimationClip : Object {}
  public class GameObject : Object {
+  public object ChildComponent;public T GetComponentInChildren<T>(bool includeInactive) where T:class=>ChildComponent as T;
   public bool activeSelf=true; public int Writes; public Transform transform;
   public GameObject(){transform=new Transform(this);}
   public void SetActive(bool value){activeSelf=value;Writes++;}
@@ -71,6 +78,10 @@ namespace UnityEngine.Serialization {
 }
 namespace UnityEngine.UI {
  public class Image:UnityEngine.MonoBehaviour {public UnityEngine.Sprite sprite;public bool enabled=true;}
+ public class Slider:UnityEngine.MonoBehaviour {
+  public float minValue,maxValue=1,value;public bool interactable=true,wholeNumbers;
+  public int silentWrites;public void SetValueWithoutNotify(float v){value=Math.Clamp(v,minValue,maxValue);silentWrites++;}
+ }
  public class Button:UnityEngine.MonoBehaviour {
   public Image image=new Image();public bool interactable=true;
   public UnityEngine.Events.UnityEvent onClick=new UnityEngine.Events.UnityEvent();
@@ -80,7 +91,7 @@ namespace TMPro {public class TMP_Text:UnityEngine.MonoBehaviour {public string 
 namespace Fusion {public interface INetworkStruct {} public struct PlayerRef {}}
 namespace MagicCustomizationChecks {
  using UnityEngine;
- public class PerkDefinition {}
+ public class BattleManager {public static BattleManager Instance;public PerkStatTable Perks;public int RoundNumber=1,AllowedMagicChanges=2;}
  public class MagicSelectAnimation { public void PlayMyMagicSelect() {} }
  public class DatabaseManager {
   public static DatabaseManager Instance;public bool IsDataConfigReady,HasLoadedProfile;
@@ -229,11 +240,16 @@ namespace MagicCustomizationChecks {
     Check(f.equips==1&&f.lastSlot==2&&f.status.text.Contains("장착 완료"),"equip event and local status");
     Check(f.second.sprite==f.Icon(MagicType.Vision)&&!f.equip.interactable&&f.label.text=="장착 중","equipped slot updates and duplicate confirmation disabled");
     Check(f.staffs[(int)MagicType.Vision].activeSelf&&!f.staffs[1].activeSelf,"DataConfig event independently equips the just-changed second slot");
+    Check(!f.details.activeSelf&&f.ui.SelectedMagic==MagicType.Vision&&f.ui.SelectedSlot==2,"successful equip hides details but keeps selected magic and target slot");
+    Life(f.ui,"LateUpdate");f.ui.RefreshFromDataConfig();
+    Check(!f.details.activeSelf,"data refresh and post-click refresh never reopen equipped description");
     f.ui.EquipSelectedMagic();
     Check(f.changes==1&&f.equips==1,"repeated confirmation is idempotent");
-    f.slot1.onClick.Invoke();f.equip.onClick.Invoke();
+    f.slot1.onClick.Invoke();Life(f.ui,"LateUpdate");
+    Check(!f.details.activeSelf,"slot change alone does not reopen equipped description");
+    f.equip.onClick.Invoke();
     Check(DataConfig.magic1Index==3&&DataConfig.magic2Index==3,"existing duplicate-spell policy preserved");
-    f.Pick(MagicType.Thunder);f.cancel.onClick.Invoke();
+    f.Pick(MagicType.Thunder);Check(f.details.activeSelf,"next magic click opens details again");f.cancel.onClick.Invoke();
     Check(f.ui.SelectedMagic==MagicType.None&&!f.details.activeSelf&&f.changes==2,"cancel discards candidate without saving");
     f.ui.SelectSlot(3);f.ui.SelectSlot(0);
     Check(f.ui.SelectedSlot==1&&f.errors==2&&f.changes==2,"fixed parry and invalid slots rejected");
@@ -491,6 +507,36 @@ namespace MagicCustomizationChecks {
     Check(DataConfig.hatIndex==5&&DataConfig.broomIndex==3,"manual hat/broom calls work with no UI references");
     Life(ui,"OnDisable");
    }
+   using(var f=new Fixture()){
+    var view=new MagicDescriptionUI{gameObject=f.details};var slider=new Slider();var previewIcon=new Image();
+    Set(view,"magicIcon",previewIcon);
+    Set(view,"damageSlider",slider);Set(view,"magicNameText",f.name);Set(view,"descriptionText",f.description);
+    Set(f.ui,"magicDescriptionUI",view);
+    f.magicTable.magics[0].displayDamage=.73f;f.magicTable.magics[0].displayName="Table Fire";
+    f.magicTable.magics[0].description="Table fire description";
+    f.magicTable.magics[1].displayDamage=.21f;
+    Check(!view.gameObject.activeSelf&&f.ui.gameObject.activeSelf,"description starts inactive while customization controller remains active");
+    f.Pick(MagicType.Fire);
+    Check(Math.Abs(slider.value-.73f)<.0001f&&f.name.text=="Table Fire","main shared preview uses table UI values and name");
+    Check(view.gameObject.activeSelf&&f.description.text=="Table fire description"&&previewIcon.sprite==f.Icon(MagicType.Fire),"button opens previously-inactive renderer and applies table description and image");
+    f.ui.SelectSlot(2);f.equip.onClick.Invoke();Life(f.ui,"LateUpdate");
+    Check(!view.gameObject.activeSelf&&f.ui.gameObject.activeSelf,"equipping closes only Explanation, not the input controller");
+    f.Pick(MagicType.Ice);Check(Math.Abs(slider.value-.21f)<.0001f,"main magic changes refresh common slider");
+    Check(view.gameObject.activeSelf&&previewIcon.sprite==f.Icon(MagicType.Ice)&&f.description.text==f.magicTable.GetStats(MagicType.Ice).description,"next magic reopens Explanation and updates all preview content");
+    f.Pick(HatType.Classic);Check(slider.value==0&&f.name.text=="Classic"&&f.description.text=="Description Classic","hat selection clears magic-only bars but preserves shared hat text");
+    f.Pick(MagicType.Fire);f.cancel.onClick.Invoke();Check(slider.value==0&&f.name.text=="","cancel clears common preview");
+   }
+   using(var f=new Fixture()){
+    f.ui.SelectSlot(2);Life(f.ui,"LateUpdate");Check(!f.details.activeSelf,"target-only click keeps unopened main details hidden");
+    f.Pick(MagicType.Mine);f.ui.SelectHatSlot();f.ui.EquipSelectedItem();
+    Check(f.details.activeSelf&&f.errors==1,"category mismatch does not hide current description");
+    f.ui.SelectSlot(2);f.equip.onClick.AddListener(()=>f.details.SetActive(true));f.equip.onClick.Invoke();Life(f.ui,"LateUpdate");
+    Check(!f.details.activeSelf,"automatic mode repairs legacy OnClick reopening after successful equip");
+    f.ui.SelectHatSlot();f.Pick(HatType.Cosmic);Check(f.details.activeSelf,"hat choice opens shared panel");f.equip.onClick.Invoke();Life(f.ui,"LateUpdate");
+    Check(!f.details.activeSelf,"hat confirmation follows same close policy");
+    f.ui.SelectBroomSlot();f.Pick(BroomType.Speed);f.equip.onClick.Invoke();Life(f.ui,"LateUpdate");
+    Check(!f.details.activeSelf,"broom confirmation follows same close policy");
+   }
    DatabaseManager.Instance=null;NetworkGameManager.Instance=null;
    return checks;
   }
@@ -502,7 +548,11 @@ $source = $stubs + "`nnamespace MagicCustomizationChecks { $magicEnum $equipment
     "namespace MagicCustomizationChecks { public static class NetworkHatCheck { $normalizeHat public static HatType Normalize(HatType hat)=>NormalizeHat(hat); } }`n" +
     "namespace MagicCustomizationChecks {`n$dataConfig`n}`n" +
     "namespace MagicCustomizationChecks {`n$magicTable`n}`n" +
+    "namespace MagicCustomizationChecks {`n$perkTable`n}`n" +
+    "namespace MagicCustomizationChecks {`n$perkRules`n}`n" +
+    "namespace MagicCustomizationChecks {public static class BattlePerkUI { $perkFormatter }}`n" +
     "namespace MagicCustomizationChecks {`n$equipment`n}`n" +
+    "namespace MagicCustomizationChecks {`n$descriptionUI`n}`n" +
     "namespace MagicCustomizationChecks {`n$controller`n}`n" + $tests
 Add-Type -IgnoreWarnings -WarningAction SilentlyContinue -TypeDefinition $source
 "Magic customization checks passed: $([MagicCustomizationChecks.Tests]::Run())"

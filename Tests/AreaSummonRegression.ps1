@@ -4,6 +4,7 @@ $ErrorActionPreference='Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $area=Get-Content Assets/Script/Player.AreaMagic.cs -Raw
 $construct=Get-Content Assets/Script/MagicProjectile.Constructs.cs -Raw
+$summonCombat=Get-Content Assets/Script/MagicProjectile.SummonCombat.cs -Raw
 function Method([string]$source,[string]$name) {
  $m=[regex]::Match($source,'(?ms)^    (?:public|private) (?:static )?[\w<>]+ '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}')
  if(!$m.Success){throw "Missing production method $name"}
@@ -17,6 +18,8 @@ public struct Vector3 {
  public float x,y,z; public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
  public float sqrMagnitude=>x*x+y*y+z*z; public float magnitude=>(float)Math.Sqrt(sqrMagnitude);
  public Vector3 normalized=>magnitude>.00001f?this/magnitude:default;
+ public void Normalize(){this=normalized;}
+ public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;
  public static Vector3 operator+(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
  public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);
  public static Vector3 operator*(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);
@@ -28,15 +31,17 @@ public class Transform {public Vector3 position,forward=new(0,0,1);public Quater
 public static class Mathf {
  public static float Max(float a,float b)=>Math.Max(a,b); public static float Min(float a,float b)=>Math.Min(a,b);
  public static int Clamp(int x,int a,int b)=>Math.Clamp(x,a,b);public static float Clamp01(float x)=>Math.Clamp(x,0,1);
+ public static float Sqrt(float x)=>(float)Math.Sqrt(x);
 }
-public enum MagicType {Thunder=4,Mine=9}
-public enum MagicEffectKind {DirectDamage,DelayedArea,PursuitSummon}
+public enum MagicType {Fire=1,Ice=2,Vision=3,Thunder=4,Healing=5,Binding=6,Dark=7,Curse=8,Mine=9,Razier=10,Flare=11,Smoke=12}
+public enum MagicEffectKind {DirectDamage,DelayedArea,PursuitSummon,Binding}
 public enum MagicConstructKind {Projectile,ThunderArea,Summon,SummonBolt}
 public struct MagicStatEntry {
  public MagicType magic;public MagicEffectKind effect;
  public float strikeDelay=1.5f,radius=12,activationDelay=.5f,effectDuration=15,projectileSpeed=45,range=100;
  public float summonMoveSpeed=28,summonAttackRange=55,summonFollowDistance=18,summonAttackInterval=2,lockChargeSeconds=.65f;
  public float castSeconds,damage; public bool requiresTarget,requiresFullLock;
+ public float summonHitRadius=.65f,summonChannelHealth=50;
  public MagicStatEntry(){}
 }
 public struct NetworkId {public int Raw;public NetworkId(int id){Raw=id;}}
@@ -66,11 +71,13 @@ public class NetworkRunner {
 }
 public struct RaycastHit {public float distance;}
 public static class PerkEffects {public static MagicStatEntry AreaHit(MagicStatEntry s,float d)=>s;}
+public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
 public struct NetworkInputData {public bool hasAreaAimPoint;public Vector3 areaAimPoint;}
 public class Player {
  public static List<Player> ActiveCombatants=new(); public NetworkRunner Runner;public NetworkObject Object=new();
  public Transform transform=new();public Vector3 LockAimPoint=>transform.position;public int TeamIndex=1;
- public bool IsAlive=true,Visible=true,CanAim=true,areaAimArmed,hasConfirmedAreaPoint,ValidPoint=true;
+ public bool IsAlive=true,IsStealthed,Visible=true,CanAim=true,areaAimArmed,hasConfirmedAreaPoint,ValidPoint=true;
+ public int ConfirmedHits;public void ConfirmSummonHit(){ConfirmedHits++;}
  public float Mana=100;public int Casts,Hits;public Vector3 confirmedAreaPoint;
  public NetworkPrefabRef magicProjectilePrefab=new(){IsValid=true};public MagicStatEntry SelectedMagicStats=new();
  public bool CanAimAreaMagic()=>CanAim&&Mana>=80;
@@ -89,8 +96,14 @@ public class MagicProjectile {
  public NetworkId ShooterId,TargetId;public int Shooter,ShooterTeam,constructSpawnTick;
  public MagicStatEntry stats;public bool Settled,Finished,Overlapping,Blocked;public float CollisionDistance=.2f;
  public float ConstructRadius,ConstructDelay,SummonLockProgress;public int Impacts;
+ public bool SummonMoving;public int SummonAttackSequence;
  public TickTimer ConstructTimer,Lifetime,summonShotTimer,summonScanTimer;public NetworkPrefabRef summonProjectilePrefab;
  public Vector3 direction;
+ public float SummonDamageTaken;
+ public bool IsLiveSummon=>Object!=null&&Object.IsValid&&ConstructKind==MagicConstructKind.Summon&&!Finished;
+ public MagicStatEntry PresentationStats=>stats;
+ public float SummonHitRadius=>stats.summonHitRadius;
+ public static bool SummonSight=true;public static bool HasSummonSight(Vector3 a,Vector3 b)=>SummonSight;
  public void Initialize(Player p,Player target,MagicStatEntry s,Vector3 aim){
   stats=s;Magic=s.magic;ShooterId=p.Object.Id;Shooter=p.Object.InputAuthority;ShooterTeam=p.TeamIndex;
   TargetId=target!=null?target.Object.Id:default;direction=aim;
@@ -103,6 +116,7 @@ public class MagicProjectile {
  public void RPC_Impact(Vector3 point,MagicType magic){Impacts++;}
 '@
 foreach($method in 'SummonBoltStats','InitializeConstruct','TrimSummons','TickConstruct','FindSummonTarget'){$code+=Method $construct $method}
+foreach($method in 'ReceiveSummonHit','TryTraceSummon','TrySphereContact','DamageSummonsInArea','FindSummonTargetById'){$code+=Method $summonCombat $method}
 $code+=[regex]::Match($construct,'(?ms)^    private bool IsSummonTarget\(.*?;').Value.Replace('private bool','public bool')
 $code+=@'
 }
@@ -149,10 +163,13 @@ public static class Tests {
   var summon=Construct(owner,MagicEffectKind.PursuitSummon);Advance(summon,.4f);Check(summon.transform.position.z==0,"summon activation delay");
   int initial=r.Spawned.Count;Advance(summon,1f);Check(summon.transform.position.z>0&&summon.transform.position.z<=22.01f,"summon pursues but respects standoff");
   Check(r.Spawned.Count==initial+1,"summon fires after lock");var bolt=r.Spawned[r.Spawned.Count-1];
+  Check(summon.SummonAttackSequence==1,"Successful spawn emits exactly one replicated animation event");
   Check(bolt.ConstructKind==MagicConstructKind.SummonBolt&&bolt.stats.requiresTarget&&bolt.stats.effect==MagicEffectKind.DirectDamage,"bolt is parryable/flare-breakable homing shot, not mine explosion");
   Check(bolt.ShooterId.Equals(owner.Object.Id)&&bolt.ShooterTeam==1,"kill/XP attribution retained");
   int count=r.Spawned.Count;Advance(summon,1f);Check(r.Spawned.Count==count,"attack cadence not every tick");
+  Check(summon.SummonAttackSequence==1,"Attack cooldown cannot replay animation every tick");
   Advance(summon,1f);Check(r.Spawned.Count==count+1,"repeat attack after interval");
+  Check(summon.SummonAttackSequence==2,"Next actual shot advances animation sequence");
   enemy.Visible=false;count=r.Spawned.Count;Advance(summon,2.5f);Check(r.Spawned.Count==count&&summon.SummonLockProgress==0,"wall breaks lock and prevents fire");
   enemy.Visible=true;enemy.transform.position=new(0,0,200);Advance(summon,1f);Check(r.Spawned.Count==count,"out of detection range prevents fire");
   enemy.transform.position=new(0,0,40);summon.transform.position=new(0,0,0);summon.Blocked=true;Advance(summon,.1f);
@@ -165,6 +182,52 @@ public static class Tests {
   MagicProjectile.TrimSummons(owner,2,c.Object);Check(!a.Object.IsValid&&b.Object.IsValid&&c.Object.IsValid&&alien.Object.IsValid,"multiple summons retained; only oldest same-owner same-runner is replaced");
   var origin=new MagicStatEntry{effect=MagicEffectKind.PursuitSummon,radius=9,requiresTarget=false};var shot=MagicProjectile.SummonBoltStats(origin);
   Check(origin.effect==MagicEffectKind.PursuitSummon&&!origin.requiresTarget&&shot.radius==0,"bolt conversion never mutates summon snapshot");
+  MagicProjectile.active.Clear();Player.ActiveCombatants.Clear();r=new();owner=Pilot(r,1);enemy=Pilot(r,2,2,40);
+  var pursuer=Construct(owner,MagicEffectKind.PursuitSummon);Advance(pursuer,.6f);float chased=pursuer.transform.position.z;
+  owner.transform.position=new(0,0,-200);enemy.transform.position=new(0,0,200);enemy.Visible=false;
+  count=r.Spawned.Count;Advance(pursuer,.4f);
+  Check(pursuer.transform.position.z>chased&&pursuer.TargetId.Equals(enemy.Object.Id),"summon follows enemy, not caster, after leaving acquisition range or losing sight");
+  Check(r.Spawned.Count==count&&pursuer.SummonLockProgress==0,"occluded pursuit does not shoot through wall");
+  Check(pursuer.SummonMoving,"Moving animation follows actual enemy pursuit, including occlusion");
+  Check(pursuer.SummonAttackSequence==0,"Occlusion cannot trigger an attack animation");
+  pursuer.Blocked=true;pursuer.CollisionDistance=0;Advance(pursuer,.2f);
+  Check(!pursuer.SummonMoving,"Wall-stopped summon does not play movement");pursuer.Blocked=false;
+  enemy.IsAlive=false;Advance(pursuer,.2f);Check(pursuer.SummonLockProgress==0,"dead target cancels lock");enemy.IsAlive=true;enemy.Visible=true;
+  foreach(var magic in new[]{MagicType.Fire,MagicType.Ice,MagicType.Vision,MagicType.Thunder,MagicType.Binding,MagicType.Dark,MagicType.Mine}){
+   var body=Construct(owner,MagicEffectKind.PursuitSummon);
+   var attack=new MagicStatEntry{magic=magic,damage=magic==MagicType.Binding?0:.01f,effect=magic==MagicType.Binding?MagicEffectKind.Binding:MagicEffectKind.DirectDamage};
+   Check(body.ReceiveSummonHit(attack,2,enemy.Object.Id)&&body.Finished&&body.Impacts==1,"one hostile hit removes summon even for zero-damage binding: "+magic);
+   Check(!body.ReceiveSummonHit(attack,2,enemy.Object.Id)&&body.Impacts==1,"finished body rejects duplicate hit: "+magic);
+   Advance(body,.3f);Check(!body.Object.IsValid,"destroyed body despawns after impact replication: "+magic);
+  }
+  var durable=Construct(owner,MagicEffectKind.PursuitSummon);
+  Check(durable.ReceiveSummonHit(new(){magic=MagicType.Curse,damage=20},2,enemy.Object.Id)&&!durable.Finished,"curse contributes damage without one-hit kill");
+  durable.ReceiveSummonHit(new(){magic=MagicType.Razier,damage=29.9f},2,enemy.Object.Id);
+  Check(!durable.Finished&&Near(durable.SummonDamageTaken,49.9f),"beam and curse damage share a cumulative fifty-point pool");
+  durable.ReceiveSummonHit(new(){magic=MagicType.Razier,damage=.1f},2,enemy.Object.Id);Check(durable.Finished,"exactly fifty sustained damage destroys body");
+  durable=Construct(owner,MagicEffectKind.PursuitSummon);durable.stats.summonChannelHealth=75;
+  durable.ReceiveSummonHit(new(){magic=MagicType.Razier,damage=50},2,enemy.Object.Id);Check(!durable.Finished,"editable channel threshold honored");
+  durable.ReceiveSummonHit(new(){magic=MagicType.Fire,damage=1},2,enemy.Object.Id);Check(durable.Finished,"ordinary hit destroys partially damaged summon immediately");
+  durable=Construct(owner,MagicEffectKind.PursuitSummon);
+  Check(!durable.ReceiveSummonHit(new(){magic=MagicType.Fire,damage=50},1,owner.Object.Id),"owner and allied attacks cannot destroy own summon");
+  durable.Object.HasStateAuthority=false;Check(!durable.ReceiveSummonHit(new(){magic=MagicType.Fire,damage=50},2,enemy.Object.Id),"proxy cannot damage or destroy summon");
+  durable.Object.HasStateAuthority=true;BattleManager.Instance.IsGameplayActive=false;
+  Check(!durable.ReceiveSummonHit(new(){magic=MagicType.Fire,damage=50},2,enemy.Object.Id),"intermission cannot damage summon");BattleManager.Instance.IsGameplayActive=true;
+  Check(!durable.ReceiveSummonHit(new(){magic=MagicType.Curse,damage=float.NaN},2,enemy.Object.Id)&&!durable.ReceiveSummonHit(new(){magic=MagicType.Curse,damage=-1},2,enemy.Object.Id),"invalid channel damage cannot corrupt pool");
+  Check(!durable.ReceiveSummonHit(new(){magic=MagicType.Healing,damage=0},2,enemy.Object.Id),"non-attacking utility is not a hit");
+  MagicProjectile.active.Clear();durable=Construct(owner,MagicEffectKind.PursuitSummon);durable.transform.position=new(0,0,10);
+  var nearer=Construct(owner,MagicEffectKind.PursuitSummon);nearer.transform.position=new(0,0,5);
+  Check(MagicProjectile.TryTraceSummon(r,2,default,new(0,0,1),20,0,out var traced,out var distance)&&traced==nearer&&Near(distance,4.35f),"nearest hostile body selected by sphere contact");
+  Check(!MagicProjectile.TryTraceSummon(r,2,default,new(0,0,1),3,0,out _,out _),"physical wall hit bounds summon sweep");
+  Check(!MagicProjectile.TryTraceSummon(r,1,default,new(0,0,1),20,0,out _,out _),"friendly body does not block shots");
+  Check(!MagicProjectile.TryTraceSummon(new(),2,default,new(0,0,1),20,0,out _,out _),"different runner bodies cannot be hit");
+  Check(!MagicProjectile.TrySphereContact(default,new(0,0,1),new(2,0,5),.65f,20,out _),"miss outside body radius");
+  Check(MagicProjectile.TryTraceSummon(r,2,nearer.transform.position,new(0,0,1),0,0,out traced,out distance)&&Near(distance,0),"origin inside body counts as contact");
+  MagicProjectile.SummonSight=false;MagicProjectile.DamageSummonsInArea(r,2,new(0,0,5),12,new(){magic=MagicType.Thunder,damage=100},enemy.Object.Id);
+  Check(!durable.Finished&&!nearer.Finished,"area attack cannot destroy bodies behind wall");
+  MagicProjectile.SummonSight=true;MagicProjectile.DamageSummonsInArea(r,2,new(0,0,5),2,new(){magic=MagicType.Thunder,damage=100},enemy.Object.Id);
+  Check(nearer.Finished&&!durable.Finished,"area damage hits only hostile bodies in radius");
+  Check(MagicProjectile.TryTraceSummon(r,2,default,new(0,0,1),20,0,out traced,out _)&&traced==durable,"destroyed body immediately stops intercepting attacks");
   return n;
  }
 }}
@@ -182,3 +245,6 @@ foreach($entry in @(@{Id=4;Effect=11},@{Id=9;Effect=12})) {
  if($block-notmatch '(?m)^    icon: \{fileID: 21300000, guid:'){throw 'Existing icon reference lost'}
 }
 'Authority, render purity, projectile counter compatibility, saved modes and sprite preservation passed.'
+$summonBlock=[regex]::Match($asset,'(?ms)^  - magic: 9\r?\n.*?(?=^  - magic:|\z)').Value
+if($summonBlock-notmatch 'summonChannelHealth: 50' -or $summonBlock-notmatch 'summonHitRadius: 0.65'){throw 'Summon hit settings not serialized'}
+if($p-notmatch 'TryTraceSummon\(Runner, ShooterTeam' -or $p-notmatch 'summonHit.ReceiveSummonHit' -or $construct-notmatch 'DamageSummonsInArea'){throw 'Projectile/area summon damage routes missing'}

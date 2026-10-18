@@ -27,7 +27,7 @@ public class Player {public NetworkObject Object=new();public NetworkRunner Runn
 public class MagicProjectile {public NetworkRunner Runner;public NetworkId ShooterId;public int PredictionInputTick;public MagicType Magic;public Transform transform=new();public static Vector3 ResolveLaunchDirection(bool a,Vector3 b,Vector3 c,Vector3 d)=>b;}
 public class ProjectilePredictionView {
  public static HashSet<ProjectilePredictionView> pending=new();
- public Player owner,target;public MagicProjectile source;public MagicStatEntry stats;public MagicStatTable table;public NetworkRunner runner;public NetworkId shooterId;public int inputTick;
+ public Player owner,target;public MagicProjectile source,summonTarget;public MagicStatEntry stats;public MagicStatTable table;public NetworkRunner runner;public NetworkId shooterId;public int inputTick;
  public float createdAt,launchAt;public Vector3 direction,correction;public bool predictedStop,predictedImpact,hasSource;public Transform transform=new();public GameObject content=new();
  public static int Creates;
  static ProjectilePredictionView Create(MagicStatEntry entry,Vector3 position,Vector3 forward){Creates++;return new(){stats=entry,transform=new(){position=position,forward=forward}};}
@@ -62,6 +62,8 @@ public static class Tests {
   Check(confirmed.transform.position.x==8&&confirmed.correction.x==5&&confirmed.transform.parent==server.transform,"reconciliation preserves visible position for smoothing");
   Time.unscaledTime=10;stats.castSeconds=.3f;ProjectilePredictionView.Predict(p,other,stats,60);pending=new List<ProjectilePredictionView>(ProjectilePredictionView.pending)[0];
   Check(!pending.content.activeSelf&&Math.Abs(pending.launchAt-10.3f)<.001,"cast delay is preserved");
+  ProjectilePredictionView.pending.Clear();var summon=new MagicProjectile();ProjectilePredictionView.Predict(p,null,stats,61,summon);
+  pending=new List<ProjectilePredictionView>(ProjectilePredictionView.pending)[0];Check(pending.summonTarget==summon&&pending.target==null,"summon-targeted casts preserve cosmetic prediction");
   ProjectilePredictionView.pending.Clear();for(int i=0;i<32;i++)ProjectilePredictionView.Predict(Owner(i),other,stats,i);ProjectilePredictionView.Predict(Owner(99),other,stats,99);
   Check(ProjectilePredictionView.pending.Count==32,"unconfirmed registry is capped");
   return n;

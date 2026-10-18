@@ -12,7 +12,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [SerializeField] private bool enableMovementPrediction = true;
     [SerializeField, Min(0.01f)] private float mousePitchSensitivity = 2.5f;
     [SerializeField] private float maxPitch = 60f;
-    [SerializeField] private float wallDamageSpeedThreshold = 30f;
+    [Tooltip("전진/후진 최고 속도 단계(3/-3)에서 벽에 부딪혔을 때 받는 피해입니다. 낮은 단계에는 강제 정지와 피해가 없습니다.")]
     [SerializeField] private float wallDamage = 20f;
     [SerializeField] private float wallDamageCooldown = 0.5f;
     [SerializeField] private float collisionRadius = 0.22f;
@@ -845,8 +845,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             TimerIsActive(MagicCooldowns[magicIndex]) || NowAp < stats.apCost ||
             (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
         Player target = null;
-        if (stats.requiresTarget && !TryGetValidLockTarget(out target)) return;
-        ProjectilePredictionView.Predict(this, target, stats, Runner.Tick.Raw);
+        MagicProjectile summon = null;
+        if (stats.requiresTarget && !TryGetMagicTarget(LockTargetId, out target, out summon, out _)) return;
+        ProjectilePredictionView.Predict(this, target, stats, Runner.Tick.Raw, summon);
     }
 
     private void ContinueWithoutActions()
@@ -877,7 +878,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void UpdateSpeed()
     {
         float targetSpeed = flightMaxSpeed * SpeedStage / 3f;
-        targetSpeed *= GetMovementMultiplier();
+        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier();
 
         if (IsBoosting)
             targetSpeed *= boostMultiplier;
@@ -895,6 +896,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private float GetMovementMultiplier()
     {
         return TimerIsActive(SlowTimer) ? Mathf.Clamp(SlowMultiplier, 0.05f, 1f) : 1f;
+    }
+
+    private float GetFlagSpeedMultiplier()
+    {
+        return Object != null && Object.IsValid && BattleFlag.Instance != null &&
+            BattleFlag.Instance.IsCarriedBy(Runner, Object.InputAuthority)
+            ? Mathf.Clamp(Perks.flagCarrierSpeedMultiplier, 0.05f, 1f) : 1f;
     }
 
     private float GetTurnMultiplier()
@@ -947,7 +955,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void UpdateLockCharge()
     {
         MagicStatEntry stats = GetMagicStats(GetSelectedMagic());
-        if (!CanAcquireMagicTarget() || !stats.requiresTarget || !TryGetValidLockTarget(out _))
+        if (!CanAcquireMagicTarget() || !stats.requiresTarget || !TryGetMagicTarget(LockTargetId, out _, out _, out _))
         {
             ClearLockTargetInternal();
             return;
@@ -961,8 +969,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void SetInputLockTarget(NetworkId targetId)
     {
         if (!CanAcquireMagicTarget() || !SelectedMagicStats.requiresTarget ||
-            !Runner.TryFindObject(targetId, out NetworkObject targetObject) ||
-            targetObject == null || !IsValidLockTarget(targetObject.GetComponent<Player>()))
+            !TryGetMagicTarget(targetId, out _, out _, out _))
         {
             ClearLockTargetInternal();
             return;
@@ -1000,15 +1007,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!CanCreateSpecialMagic(stats)) return;
 
         Player target = null;
+        MagicProjectile summon = null;
         if (stats.requiresTarget)
         {
-            if (!TryGetValidLockTarget(out target))
+            if (!TryGetMagicTarget(LockTargetId, out target, out summon, out _))
                 return;
 
             if (stats.requiresFullLock && !IsFullyLocked)
-                return;
-
-            if (stats.range > 0f && Vector3.Distance(transform.position, target.transform.position) > stats.range)
                 return;
         }
 
@@ -1039,12 +1044,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             pendingPerkStats = stats;
             pendingInputTick = castInputTick;
             pendingAimDirection = castAimDirection;
-            pendingTargetId = target != null ? target.Object.Id : default;
+            pendingTargetId = stats.requiresTarget ? LockTargetId : default;
             castTimer = TickTimer.CreateFromSeconds(Runner, stats.castSeconds);
         }
         else
         {
-            CastMagic(stats, target);
+            CastMagic(stats, target, summon);
         }
     }
 
@@ -1129,16 +1134,16 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         MagicStatEntry stats = pendingPerkStats;
         pendingMagic = MagicType.None;
-        Player target = Runner.TryFindObject(pendingTargetId, out NetworkObject obj) && obj != null
-            ? obj.GetComponent<Player>() : null;
-        if (stats.requiresTarget && !IsValidLockTarget(target))
+        Player target = null;
+        MagicProjectile summon = null;
+        if (stats.requiresTarget && !TryGetMagicTarget(pendingTargetId, out target, out summon, out _))
             return;
         castInputTick = pendingInputTick;
         castAimDirection = pendingAimDirection;
-        CastMagic(stats, target);
+        CastMagic(stats, target, summon);
     }
 
-    private void CastMagic(MagicStatEntry stats, Player target)
+    private void CastMagic(MagicStatEntry stats, Player target, MagicProjectile summon = null)
     {
         if (stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
         {
@@ -1160,16 +1165,17 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             RestoreHealth(stats.healing);
             RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, 0f);
         }
-        else LaunchMagic(stats, target);
+        else LaunchMagic(stats, target, summon);
     }
 
-    private void LaunchMagic(MagicStatEntry stats, Player target)
+    private void LaunchMagic(MagicStatEntry stats, Player target, MagicProjectile summon = null)
     {
         Vector3 origin = MagicCastPosition;
         // Resolve the latest target position at execution time, including delayed casts.
         // Locked projectiles use their target; only Vision/Dark instant spells use the Dot.
         Vector3 direction = MagicProjectile.ResolveLaunchDirection(stats.requiresTarget,
-            transform.forward, transform.forward, target != null ? target.LockAimPoint - origin : Vector3.zero);
+            transform.forward, transform.forward, target != null ? target.LockAimPoint - origin :
+                summon != null ? summon.transform.position - origin : Vector3.zero);
         direction = ResolveDotCastDirection(stats, castAimDirection, direction);
         if (stats.projectileSpeed > 0f)
         {
@@ -1183,15 +1189,16 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             if (shot != null)
             {
                 shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, direction,
-                    IsTestBot ? 0 : castInputTick);
+                    IsTestBot ? 0 : castInputTick, summon != null ? summon.Object.Id : default);
                 RPC_PresentCast(stats.magic, origin, origin, 0f);
             }
             return;
         }
 
-        Vector3 end = TraceMagic(stats, origin, direction, out Player victim);
+        Vector3 end = TraceMagicTargets(stats, origin, direction, out Player victim, out MagicProjectile summonHit);
         if (stats.effect == MagicEffectKind.AreaDamage)
         {
+            MagicProjectile.DamageSummonsInArea(Runner, TeamIndex, end, stats.radius, stats, Object.Id);
             foreach (Player enemy in combatants)
             {
                 if (enemy == null || enemy.Runner != Runner) continue;
@@ -1200,6 +1207,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                     MagicProjectile.HasBlastSight(end, enemy))
                     enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(enemy.LockAimPoint, end)), Object.InputAuthority, Object.Id);
             }
+        }
+        else if (summonHit != null)
+        {
+            summonHit.ReceiveSummonHit(stats, TeamIndex, Object.Id);
+            ResetVisionMiss(stats);
         }
         else if (victim != null && victim.IsEnemyOf(this))
         {
@@ -1222,7 +1234,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         // Both slots are considered so switching slots and firing in the same input tick works.
         float range = Mathf.Max(0.1f, Mathf.Max(GetMagicStats(Magic1).range, GetMagicStats(Magic2).range));
         MagicStatEntry aimQuery = new MagicStatEntry { range = range, hitscanRadius = 0f };
-        Vector3 point = TraceMagic(aimQuery, cameraRay.origin, cameraRay.direction.normalized, out _);
+        Vector3 point = TraceMagicTargets(aimQuery, cameraRay.origin, cameraRay.direction.normalized, out _, out _);
         Vector3 offset = point - MagicCastPosition;
         return offset.sqrMagnitude > 0.0001f ? offset.normalized : cameraRay.direction.normalized;
     }
@@ -1283,17 +1295,16 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!IsChanneling && TimerIsActive(MagicCooldowns[index])) return;
 
         Player target = null;
+        MagicProjectile summon = null;
         Vector3 end;
         if (stats.effect == MagicEffectKind.GuidedChannel)
         {
-            if (!Runner.TryFindObject(inputTarget, out NetworkObject obj) || obj == null ||
-                (target = obj.GetComponent<Player>()) == null || !IsValidLockTarget(target) ||
+            if (!TryGetMagicTarget(inputTarget, out target, out summon, out end) ||
                 !IsFiniteDirection(aimDirection) || aimDirection.sqrMagnitude < 0.001f ||
-                Vector3.Angle(aimDirection, target.LockAimPoint - LockAimPoint) > stats.autoAimHalfAngle)
+                Vector3.Angle(aimDirection, end - LockAimPoint) > stats.autoAimHalfAngle)
             { StopChannel(); return; }
-            end = target.LockAimPoint;
         }
-        else end = TraceMagic(stats, MagicCastPosition, transform.forward, out target);
+        else end = TraceMagicTargets(stats, MagicCastPosition, transform.forward, out target, out summon);
 
         float perSecond = stats.ChannelManaPerSecond(MaxAp);
         float paidTime = perSecond > 0f ? Mathf.Min(Runner.DeltaTime, NowAp / perSecond) : Runner.DeltaTime;
@@ -1310,8 +1321,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         else stats = channelPerkStats;
         TrackPerkBeam(target, paidTime, stats);
+        TrackPerkSummonBeam(summon, paidTime, stats);
         // Do not carry damage time from an old victim across a wall or target change.
-        NetworkId nextTarget = target != null && target.IsEnemyOf(this) ? target.Object.Id : default;
+        NetworkId nextTarget = target != null && target.IsEnemyOf(this) ? target.Object.Id :
+            summon != null ? summon.Object.Id : default;
         if (!ChannelTargetId.Equals(nextTarget)) channelDamageTime = 0f;
         ChannelTargetId = nextTarget;
         ChannelEnd = end;
@@ -1319,6 +1332,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         bool exhausted = perSecond > 0f && NowAp <= 0.0001f;
         if (channelDamageTime + 0.00001f >= Mathf.Max(0.02f, stats.channelTickSeconds) || exhausted)
         {
+            if (summon != null)
+            {
+                MagicStatEntry tick = stats;
+                tick.damage = SummonChannelDamage(stats, summon.Object.Id, channelDamageTime);
+                summon.ReceiveSummonHit(tick, TeamIndex, Object.Id);
+            }
             if (target != null && target.IsEnemyOf(this))
             {
                 MagicStatEntry tick = stats;
@@ -1745,8 +1764,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
 
-        Player target = targetObject.GetComponent<Player>();
-        if (!IsValidLockTarget(target))
+        if (!TryGetMagicTarget(targetId, out _, out _, out _))
         {
             ClearLockTargetInternal();
             return;
@@ -1957,8 +1975,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             hit.collider.GetComponentInParent<Player>() != null || hit.collider.GetComponentInParent<MagicProjectile>() != null)
             return;
 
-        float impactSpeed = Mathf.Abs(Speed);
-        // Stop on BOTH the host and predicting owner, even below the damage threshold or during cooldown.
+        // Stage, not absolute speed: slower brooms, flag carriers and slowed players
+        // follow the same rule. Boosting a lower stage does not make it a crash.
+        if (Mathf.Abs(SpeedStage) != 3) return;
+
+        // Stop on BOTH the host and predicting owner. Subsequent contacts see stage 0.
         SpeedStage = 0;
         Speed = 0f;
         IsBoosting = false;
@@ -1967,7 +1988,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             KnockbackVelocity = Vector3.ProjectOnPlane(KnockbackVelocity, hit.normal);
 
         // Health remains host-authoritative. Multiple contacts in one Move cannot apply repeated damage.
-        if (!Object.HasStateAuthority || impactSpeed < Mathf.Max(0.01f, wallDamageSpeedThreshold) || TimerIsActive(WallDamageTimer))
+        if (!Object.HasStateAuthority || TimerIsActive(WallDamageTimer))
             return;
 
         WallDamageTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, wallDamageCooldown));

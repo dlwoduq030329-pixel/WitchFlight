@@ -7,8 +7,11 @@ using UnityEngine.UI;
 [Serializable]
 public sealed class PerkCardView
 {
+    [Tooltip("특전 아이콘을 표시할 Image. PerkStatTable의 Icon을 사용하며, 비어 있으면 해당 마법의 아이콘을 사용합니다.")]
     public Image icon;
+    [Tooltip("특전 이름을 표시할 TMP 텍스트. PerkStatTable의 Display Name을 사용합니다.")]
     public TMP_Text title;
+    [Tooltip("특전 설명을 표시할 TMP 텍스트. 설명의 수치 토큰은 데이터 테이블 값으로 치환됩니다.")]
     public TMP_Text description;
     public TMP_Text hint;
 }
@@ -51,6 +54,9 @@ public sealed class BattlePerkUI : MonoBehaviour
     [SerializeField] private TMP_Text experienceText;
     [Tooltip("Optional HP bar RectTransform. The generated XP bar follows its lower edge without changing the HP prefab.")]
     [SerializeField] private RectTransform experienceAnchor;
+    [Header("Perk available notification (optional)")]
+    [Tooltip("새 특전 선택권을 얻으면 켜지고, 특전 하나를 선택하면 꺼지는 BenefitAnimation 오브젝트. 남은 선택권이 있어도 다음 선택권을 얻기 전에는 다시 켜지지 않습니다. 선택 카드 바깥에 연결하세요.")]
+    [SerializeField] private GameObject benefitAnimation;
     [Header("Hold Space: compact cards beside MP (empty root = generated)")]
     [SerializeField] private GameObject selectionRoot;
     [SerializeField] private PerkCardView leftCandidate = new();
@@ -73,6 +79,7 @@ public sealed class BattlePerkUI : MonoBehaviour
     private static BattlePerkUI active;
     private readonly PerkInputGate gate = new();
     private int inputFrame = -1, requestedRevision = -1, awaitedRevision = -1, requestChoiceFrame = -1;
+    private int benefitDismissedAtChoices = -1, benefitObservedChoices = -1;
     private PlayerData local;
     private Canvas canvas;
     private RectTransform generatedExperience;
@@ -91,7 +98,7 @@ public sealed class BattlePerkUI : MonoBehaviour
     {
         if (inputFrame == Time.frameCount) return;
         inputFrame = Time.frameCount;
-        gate.Sample(Allowed,Input.GetKey(KeyCode.Space),Input.GetMouseButton(0),Input.GetMouseButton(1));
+        gate.Sample(Allowed && !BattleEmoteUI.CapturesMouse,Input.GetKey(KeyCode.Space),Input.GetMouseButton(0),Input.GetMouseButton(1));
     }
     private void Awake()
     {
@@ -101,6 +108,7 @@ public sealed class BattlePerkUI : MonoBehaviour
         if (magicTable == null) magicTable = MagicStatTable.Default;
         if (profileTable == null) profileTable = ProfileImageTable.Default;
         ValidateRoot(ref selectionRoot); ValidateRoot(ref comparisonRoot); ValidateRoot(ref acquiredRoot);
+        ValidateRoot(ref benefitAnimation);
         if (selectionRoot == null) BuildSelection();
         if (comparisonRoot == null) BuildComparison();
         if (acquiredRoot == null) BuildAcquired();
@@ -109,8 +117,10 @@ public sealed class BattlePerkUI : MonoBehaviour
         experienceSlider.minValue = 0f; experienceSlider.maxValue = 1f; experienceSlider.wholeNumbers = false;
         selectionGroup = Group(selectionRoot); acquiredGroup = Group(acquiredRoot);
         ReadOnly(selectionRoot); ReadOnly(comparisonRoot); ReadOnly(acquiredRoot);
+        if (benefitAnimation != null) ReadOnly(benefitAnimation);
         foreach (var graphic in experienceSlider.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
         Show(selectionRoot,false); Show(comparisonRoot,false); Show(acquiredRoot,false);
+        Show(benefitAnimation,false);
     }
     private void ValidateRoot(ref GameObject root)
     {
@@ -138,6 +148,7 @@ public sealed class BattlePerkUI : MonoBehaviour
             local = PlayerData.Local;
             if (local != null) local.PerkSelectionResult += OnResult;
             requestPending = false; awaitedRevision = -1; selectionKey = comparisonKey = null;
+            benefitDismissedAtChoices = benefitObservedChoices = -1;
         }
         if (Ready(local) && awaitedRevision >= 0 && local.PerkRevision >= awaitedRevision)
         { requestPending = false; awaitedRevision = -1; }
@@ -156,10 +167,10 @@ public sealed class BattlePerkUI : MonoBehaviour
             float collapse = collapseSeconds <= 0 ? 1 : Mathf.Clamp01((Time.unscaledTime-feedbackAt)/collapseSeconds);
             selectionRoot.transform.localScale = Vector3.one * Mathf.Lerp(.92f,1f,Mathf.Min(t,collapse));
         }
-        bool compare = Allowed && !gate.Showing && Input.GetKey(KeyCode.Tab);
+        bool compare = Allowed && !BattleEmoteUI.CapturesMouse && !gate.Showing && Input.GetKey(KeyCode.Tab);
         Show(comparisonRoot,compare);
         if (compare) UpdateComparison();
-        UpdateExperience(); UpdateFeedback();
+        UpdateExperience(); UpdateFeedback(); UpdateBenefitAvailability();
     }
     // Optional custom UI events. They obey the same held-Space, phase and request guards.
     public void ChooseLeft() => Choose(false);
@@ -177,6 +188,9 @@ public sealed class BattlePerkUI : MonoBehaviour
     {
         if (accepted)
         {
+            // A successful choice acknowledges this notification, even if choices remain.
+            benefitDismissedAtChoices = Ready(local) ? local.PerkChoicesEarned : benefitObservedChoices;
+            Show(benefitAnimation,false);
             awaitedRevision = revision; feedbackAt = Time.unscaledTime;
             Sprite sprite = Icon(id); SetIcon(acquiredIcon,sprite);
             Text(acquiredText,local.PerkTable.Get(id)?.displayName ?? id.ToString());
@@ -220,6 +234,21 @@ public sealed class BattlePerkUI : MonoBehaviour
         int needed = ready ? local.PerkTable.RequiredXp(local.PerkChoicesEarned) : 1;
         experienceSlider.SetValueWithoutNotify(max ? 1f : ready ? Mathf.Clamp01((float)local.PerkXp/needed) : 0f);
         Text(experienceText,!ready ? "" : max ? "특전 MAX" : $"XP {local.PerkXp}/{needed}  ·  선택 {local.PendingPerkChoices}");
+    }
+    private void UpdateBenefitAvailability()
+    {
+        bool ready = Ready(local);
+        if (ready)
+        {
+            // Match reset; hide/show transitions and loadout changes do not re-arm the notification.
+            if (local.PerkChoicesEarned < benefitObservedChoices) benefitDismissedAtChoices = -1;
+            benefitObservedChoices = local.PerkChoicesEarned;
+        }
+        // XP rolls over on level-up. Only a newly earned choice re-arms a dismissed notification.
+        bool available = Allowed && ready && !requestPending && local.CanSelectPerks &&
+            local.PerkChoicesEarned > benefitDismissedAtChoices &&
+            (local.GetPerkCandidate(false) != PerkId.None || local.GetPerkCandidate(true) != PerkId.None);
+        Show(benefitAnimation,available);
     }
     private void LateUpdate()
     {
@@ -328,11 +357,12 @@ public sealed class BattlePerkUI : MonoBehaviour
     private static void Text(TMP_Text t,string s) { if(t!=null && t.text!=s)t.text=s; }
     private static void SetIcon(Image i,Sprite s) { if(i==null)return; i.sprite=s; i.enabled=s!=null; }
     private static void Show(GameObject root,bool show) { if(root!=null && root.activeSelf!=show)root.SetActive(show); }
-    private void OnApplicationFocus(bool focus) { if(!focus){Show(selectionRoot,false);Show(comparisonRoot,false);Show(acquiredRoot,false);} }
+    private void OnApplicationFocus(bool focus) { if(!focus){Show(selectionRoot,false);Show(comparisonRoot,false);Show(acquiredRoot,false);Show(benefitAnimation,false);} }
     private void OnDisable()
     {
         if(active==this)active=null;
         Show(selectionRoot,false);Show(comparisonRoot,false);Show(acquiredRoot,false);
+        Show(benefitAnimation,false);
     }
     private void OnEnable() => active=this;
     private void OnDestroy()

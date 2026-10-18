@@ -26,6 +26,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     private bool initialized;
     private ProjectilePredictionView view;
     private bool impactPresented;
+    private bool iceFollowUpPresented;
     private readonly RaycastHit[] collisionHits = new RaycastHit[32];
     private readonly Collider[] overlapHits = new Collider[32];
     // Main-thread, non-reentrant visibility queries; no damage callbacks within them.
@@ -35,12 +36,13 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     public override void Spawned()
     {
         impactPresented = false;
+        iceFollowUpPresented = false;
         // Projectiles remain server-simulated: even their shooter renders remote snapshots.
         Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
         active.Add(this);
     }
 
-    public void Initialize(Player shooter, Player target, MagicStatEntry entry, Vector3 aim, int predictionInputTick = 0)
+    public void Initialize(Player shooter, Player target, MagicStatEntry entry, Vector3 aim, int predictionInputTick = 0, NetworkId summonTargetId = default)
     {
         if (!Object.HasStateAuthority)
             return;
@@ -54,7 +56,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         Shooter = shooter.Object.InputAuthority;
         ShooterId = shooter.Object.Id;
         ShooterTeam = shooter.TeamIndex;
-        TargetId = target != null ? target.Object.Id : default;
+        TargetId = target != null ? target.Object.Id : summonTargetId;
         IsMine = entry.effect == MagicEffectKind.Mine;
         direction = ResolveLaunchDirection(entry.requiresTarget && !IsMine, aim,
             shooter.transform.forward, target != null ? target.LockAimPoint - transform.position : Vector3.zero);
@@ -97,9 +99,10 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         }
 
         Player target = FindTarget();
-        if (target != null && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
+        MagicProjectile summonTarget = FindSummonTargetById();
+        if ((target != null || summonTarget != null) && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
         {
-            Vector3 desired = target.LockAimPoint - transform.position;
+            Vector3 desired = (target != null ? target.LockAimPoint : summonTarget.transform.position) - transform.position;
             if (desired.sqrMagnitude > 0.001f)
                 direction = ResolveHomingDirection(stats.requiresTarget, direction, desired,
                     stats.projectileTurnSpeed, Runner.DeltaTime);
@@ -116,7 +119,14 @@ public sealed partial class MagicProjectile : NetworkBehaviour
                 Impact(transform.position, overlap.GetComponentInParent<Player>());
             return;
         }
-        if (TryGetCollision(step, out RaycastHit hit))
+        bool collided = TryGetCollision(step, out RaycastHit hit);
+        if (TryTraceSummon(Runner, ShooterTeam, transform.position, direction,
+            collided ? hit.distance : step, stats.projectileRadius, out MagicProjectile body, out float bodyDistance))
+        {
+            Impact(transform.position + direction * bodyDistance, null, body);
+            return;
+        }
+        if (collided)
         {
             next = transform.position + direction * Mathf.Max(0f, hit.distance - 0.02f);
             transform.position = next;
@@ -159,6 +169,8 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         if (!Runner.TryFindObject(TargetId, out NetworkObject obj) || obj == null)
             return null;
         Player target = obj.GetComponent<Player>();
+        // Summon bodies share the same network target ID path as players.
+        if (target == null && FindSummonTargetById() != null) return null;
         if (target == null || !target.IsAlive || target.IsStealthed || target.TeamIndex == ShooterTeam)
         {
             TargetId = default;
@@ -272,7 +284,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         }
     }
 
-    private void Impact(Vector3 point, Player directHit = null)
+    private void Impact(Vector3 point, Player directHit = null, MagicProjectile summonHit = null)
     {
         if (Finished)
             return;
@@ -280,6 +292,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         transform.position = point;
         if (IsMine || stats.effect == MagicEffectKind.AreaDamage)
         {
+            DamageSummonsInArea(Runner, ShooterTeam, point, stats.radius, stats, ShooterId);
             foreach (Player player in Player.ActiveCombatants)
             {
                 if (player == null || player.Runner != Runner) continue;
@@ -289,9 +302,18 @@ public sealed partial class MagicProjectile : NetworkBehaviour
                 player.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(player.LockAimPoint,point)), Shooter, ShooterId);
             }
         }
+        else if (summonHit != null)
+        {
+            summonHit.ReceiveSummonHit(stats, ShooterTeam, ShooterId);
+        }
         else if (directHit != null && directHit.IsAlive && directHit.TeamIndex != ShooterTeam)
         {
+            int hitBefore = directHit.HitSequence;
             directHit.ReceiveMagicHit(stats, Shooter, ShooterId);
+            // Only a confirmed core hit starts this cosmetic sequence: not walls, parries or prediction.
+            if (Magic == MagicType.Ice && ConstructKind == MagicConstructKind.Projectile &&
+                directHit.HitSequence != hitBefore)
+                RPC_IceFollowUp(directHit.Object.Id, point);
         }
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
@@ -440,9 +462,23 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_IceFollowUp(NetworkId victimId, Vector3 impactPoint)
+    {
+        if (iceFollowUpPresented || Magic != MagicType.Ice) return;
+        iceFollowUpPresented = true;
+        if (!Runner.TryFindObject(ShooterId, out NetworkObject shooter) || shooter == null) return;
+        Player caster = shooter.GetComponent<Player>();
+        if (caster == null) return;
+        Player victim = Runner.TryFindObject(victimId, out NetworkObject hit) && hit != null
+            ? hit.GetComponent<Player>() : null;
+        IceImpactFollowUpVisual.Play(caster, victim, impactPoint, caster.MagicTable);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_Impact(Vector3 position, MagicType magic)
     {
         impactPresented = true;
+        if (IsConstruct) ClearConstructVisual(true);
         if (view != null) view.ConfirmImpact();
         if (ConstructKind == MagicConstructKind.ThunderArea) MagicAreaVisual.Lightning(position, PresentationStats);
         CombatPresentation.ShowImpact(position, magic);
@@ -459,7 +495,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
         active.Remove(this);
-        ClearConstructVisual();
+        ClearConstructVisual(true);
         if (view != null) Destroy(view.gameObject);
         view = null;
         initialized = false;

@@ -117,6 +117,13 @@ public static class Tests {
   visual.Update(new(0,.8f,40),f,100);Check(!root.activeSelf,"merged satellites do not reappear when target retreats");
   visual.Dispose();Check(root.destroyed&&material.destroyed,"despawn releases formation and owned material");
   Check(Near(core.localScale.x,1),"disabling formation restores original core scale");
+  primitives=GameObject.Primitives;materials=Material.Count;
+  var iceCore=new GameObject().transform;
+  var deferred=new ProjectileFormationVisual(host,iceCore,owner,new(){projectileSpeed=85},table,false);
+  Check(Field<Transform[]>(deferred,"satellites").Length==0&&GameObject.Primitives==primitives&&Material.Count==materials,"deferred ice allocates no launch satellites/materials");
+  Check(Near(iceCore.localScale.x,1.8f)&&Field<GameObject>(deferred,"root")==null,"ice retains enlarged core without empty satellite root");
+  deferred.Update(new(0,0,20),f,100);deferred.SetVisible(false);deferred.Dispose();
+  Check(Near(iceCore.localScale.x,1),"deferred ice can update, hide and dispose without satellites");
   host.Block=true;Time.time=0;visual=new ProjectileFormationVisual(host,new GameObject().transform,owner,new(){projectileSpeed=75},table);
   Time.time=.09f;visual.Update(new(0,0,10),f,100);satellites=Field<Transform[]>(visual,"satellites");
   Check(Array.TrueForAll(satellites,s=>s.gameObject.activeSelf)&&host.Sweeps==0,"small satellites ignore obstacles and never query collision sweeps");

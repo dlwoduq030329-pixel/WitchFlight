@@ -224,6 +224,7 @@ GameObject:
   - component: {fileID: 9073161585427230762}
   - component: {fileID: 5126020426522499512}
   - component: {fileID: 5995357892497985447}
+  - component: {fileID: 4806010000000000001}
   m_Layer: 5
   m_Name: LoginUI
   m_TagString: Untagged
@@ -285,6 +286,25 @@ MonoBehaviour:
   idInput: {fileID: 5092167647095901355}
   passwordInput: {fileID: 2566357969899844294}
   isRemember: {fileID: 4863674520530242138}
+--- !u!114 &4806010000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 339252761557932549}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc832d151f264e2f8700c745912f9312, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  tabOrder:
+  - {fileID: 5092167647095901355}
+  - {fileID: 2566357969899844294}
+  - {fileID: 8796346009109322142}
+  confirmButton: {fileID: 8796346009109322142}
+  priority: 0
+  focusFirstOnOpen: 1
 --- !u!1 &496639493981631146
 GameObject:
   m_ObjectHideFlags: 0
@@ -1099,6 +1119,7 @@ GameObject:
   - component: {fileID: 7175644556562760590}
   - component: {fileID: 2803919426656238831}
   - component: {fileID: 1721014340842015725}
+  - component: {fileID: 4806010000000000002}
   m_Layer: 5
   m_Name: AccountUI
   m_TagString: Untagged
@@ -1183,6 +1204,27 @@ MonoBehaviour:
   idDialogText: {fileID: 1353903335843391866}
   passwordDialogText: {fileID: 9071700255832792404}
   signUpButton: {fileID: 1405532762901754677}
+--- !u!114 &4806010000000000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1587235897564120300}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc832d151f264e2f8700c745912f9312, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  tabOrder:
+  - {fileID: 1863349794139021693}
+  - {fileID: 7741405999295681165}
+  - {fileID: 6345727366716840103}
+  - {fileID: 7644330837947231154}
+  - {fileID: 1405532762901754677}
+  confirmButton: {fileID: 1405532762901754677}
+  priority: 10
+  focusFirstOnOpen: 1
 --- !u!1 &1610289288381449642
 GameObject:
   m_ObjectHideFlags: 0

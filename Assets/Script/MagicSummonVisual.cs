@@ -8,14 +8,23 @@ public sealed class MagicSummonVisual : MonoBehaviour
     private LineRenderer targetRing;
     private Player target;
     private float progress;
+    private SummonAnimationPlayer animationPlayer;
+    private bool moving, retiring;
+    private int attackSequence;
 
-    public static MagicSummonVisual Create(GameObject prefab, Transform parent)
+    public static MagicSummonVisual Create(MagicStatEntry stats, Transform parent, int attackSequence)
     {
         var root = new GameObject("Pursuing familiar visual");
         root.transform.SetParent(parent,false);
         var visual = root.AddComponent<MagicSummonVisual>();
         visual.material = CombatPresentation.CreateEffectMaterial(new Color(1f,.65f,.15f,.9f));
-        var authored = CombatPresentation.InstantiateVfx(prefab,parent.position,parent.rotation,root.transform);
+        var authored = CombatPresentation.InstantiateVfx(stats.summonVfxPrefab,parent.position,parent.rotation,root.transform);
+        visual.attackSequence = attackSequence;
+        if (authored != null)
+        {
+            var animator = authored.GetComponentInChildren<Animator>(true);
+            visual.animationPlayer = new SummonAnimationPlayer(animator, stats, attackSequence);
+        }
         if (authored == null)
         {
             var bodyRoot = new GameObject("Arcane familiar");
@@ -42,8 +51,28 @@ public sealed class MagicSummonVisual : MonoBehaviour
 
     public void SetLock(Player victim,float charge) { target=victim; progress=charge; }
 
+    public void SetMotion(bool isMoving, int sequence) { moving = isMoving; attackSequence = sequence; }
+
+    public void Retire()
+    {
+        if (retiring) return;
+        retiring = true;
+        target = null; progress = 0f;
+        if (targetRing != null) targetRing.gameObject.SetActive(false);
+        float seconds = animationPlayer?.PlayDeath() ?? 0f;
+        if (seconds > 0f)
+        {
+            // The network object despawns after .2 s; keep only the non-colliding visual for the clip.
+            transform.SetParent(null, true);
+            Destroy(gameObject, seconds);
+        }
+        else Destroy(gameObject);
+    }
+
     private void LateUpdate()
     {
+        animationPlayer?.Render(moving, attackSequence, Time.deltaTime);
+        if (retiring) return;
         if (body != null) body.localRotation=Quaternion.Euler(0,Time.time*60f,0);
         bool visible=target!=null && target.Object!=null && target.Object.IsValid && target.IsAlive && progress>0f &&
             !target.IsHiddenBySmokeFor(Player.LocalPlayer);
@@ -57,6 +86,7 @@ public sealed class MagicSummonVisual : MonoBehaviour
 
     private void OnDestroy()
     {
+        animationPlayer?.Dispose();
         if (targetRing!=null) Destroy(targetRing.gameObject);
         if (material!=null) Destroy(material);
     }

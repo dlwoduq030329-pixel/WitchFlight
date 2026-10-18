@@ -16,7 +16,7 @@ internal sealed class ProjectileFormationVisual
     private float merge;
 
     public ProjectileFormationVisual(ProjectilePredictionView host, Transform core, Player owner,
-        MagicStatEntry stats, MagicStatTable table)
+        MagicStatEntry stats, MagicStatTable table, bool satellitesEnabled = true)
     {
         this.core = core;
         this.table = table;
@@ -28,9 +28,10 @@ internal sealed class ProjectileFormationVisual
         startedAt = Time.time;
         catchupSeconds = CatchupSeconds(stats.projectileSpeed, table.projectileSatelliteSpeedMultiplier,
             table.projectileSatelliteBackDistance, table.projectileSatelliteLeadDistance, table.projectileSatelliteBackSeconds);
-        root = new GameObject("Projectile satellites (visual only)");
-        root.transform.SetParent(host.transform, false);
-        int count = Mathf.Clamp(table.projectileSatelliteCount, 1, 12);
+        // Ice retains the core's authored scale but defers its small shards until confirmed impact.
+        int count = satellitesEnabled ? Mathf.Clamp(table.projectileSatelliteCount, 1, 12) : 0;
+        root = count > 0 ? new GameObject("Projectile satellites (visual only)") : null;
+        if (root != null) root.transform.SetParent(host.transform, false);
         satellites = new Transform[count];
         scales = new Vector3[count];
         previousPositions = new Vector3[count];

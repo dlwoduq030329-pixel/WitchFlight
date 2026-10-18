@@ -108,7 +108,10 @@ public partial class PlayerData
         if (!CanAwardPerkXp()) return;
         perkLedger ??= new PerkXpLedger();
         perkLedger.Advance(Runner.DeltaTime);
-        passiveXpTime += Runner.DeltaTime;
+        // Weight only passive time, not action XP. Fractional progress survives pickup/drop,
+        // so low rates never round to zero and switching carrier cannot bypass the penalty.
+        bool carryingFlag = BattleFlag.Instance != null && BattleFlag.Instance.IsCarriedBy(Runner, Object.InputAuthority);
+        passiveXpTime += Runner.DeltaTime * (carryingFlag ? Mathf.Clamp01(PerkTable.flagCarrierPassiveXpMultiplier) : 1f);
         float interval = Mathf.Max(.1f,PerkTable.passiveInterval);
         while (passiveXpTime + .00001f >= interval) {
             passiveXpTime -= interval; AddPerkXp(PerkTable.passiveXp);

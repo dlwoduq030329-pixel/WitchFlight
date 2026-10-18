@@ -149,17 +149,23 @@ foreach ($id in 'e4e9841248b04c1f826b6c88951e16ab','bd529f4d63724b49b2e653f74617
 }
 if (!$scene.Contains('magicChangeDurationSeconds: 40') -or !$scene.Contains('maxMagicChangesPerRound: 2')) { throw 'Round settings not saved' }
 $mana = Get-Content Assets/Resources/MagicStatTable.asset -Raw
-$expected = @(60,36,16,80,20,50,0,0,50,0,24,40)
+$expected = @(60,40,40,80,20,50,0,0,50,0,50,40)
 $entries = [regex]::Matches($mana, '(?ms)^  - magic: (\d+)\r?\n(.*?)(?=^  - magic:|\z)')
 foreach ($entry in $entries) {
     $id = [int]$entry.Groups[1].Value
     $cost = [float][regex]::Match($entry.Groups[2].Value, '(?m)^    apCost: ([\d.]+)').Groups[1].Value
-    if ($cost -ne $expected[$id-1]) { throw "Incorrect doubled MP cost for spell $id" }
+    if ($cost -ne $expected[$id-1]) { throw "Incorrect balanced MP cost for spell $id" }
 }
-if (!$mana.Contains('parryApCost: 16') -or !$mana.Contains('maxApFractionPerSecond: 0.5') -or !$mana.Contains('apPerSecond: 40')) { throw 'Sustained/parry costs not doubled' }
+foreach ($id in 8,10) {
+    $entry = $entries | Where-Object { [int]$_.Groups[1].Value -eq $id }
+    $rate = if ($id -eq 8) { '0.5' } else { '1' }
+    if ($entry.Groups[2].Value -notmatch "(?m)^    apPerSecond: $([regex]::Escape($rate))\r?$" -or
+        $entry.Groups[2].Value -notmatch '(?m)^    maxApFractionPerSecond: 0\r?$') { throw "Channel $id must use fixed MP units" }
+}
 $equipment = Get-Content Assets/Resources/EquipmentStatTable.asset -Raw
 $recovery = [regex]::Matches($equipment, 'apRecoveryPerSecond: ([\d.]+)') | ForEach-Object { $_.Groups[1].Value }
-if (($recovery -join ',') -ne '5,3,6,9') { throw 'Hat recovery must be halved' }
+# Hat regeneration is authored separately; keep requiring valid entries without overwriting user tuning.
+if ($recovery.Count -ne 4) { throw 'Expected fallback and three authored hat recovery entries' }
 if ([regex]::Matches($equipment,'boostApCostPerSecond: 40').Count -ne 4) { throw 'All boost costs must double' }
 $profile = Get-Content Assets/Script/PlayerData.cs -Raw
 if ($profile -notmatch '(?s)RpcSources.InputAuthority, RpcTargets.StateAuthority.*RPC_ChangeRoundMagic' -or

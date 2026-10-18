@@ -5289,6 +5289,7 @@ GameObject:
   - component: {fileID: 8146821744376252811}
   - component: {fileID: 7743824610993517915}
   - component: {fileID: 4205872164879971415}
+  - component: {fileID: 7255314972244087112}
   m_Layer: 5
   m_Name: Explanation
   m_TagString: Untagged
@@ -7471,6 +7472,33 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1278093372414882739}
   m_CullTransparentMesh: 1
+--- !u!114 &7255314972244087112
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 972526212568827029}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bda78c6d48c34d5596f8a2b47e15a903, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  magicTable: {fileID: 11400000, guid: d81c29d2f62042b1944c5e42544d9636, type: 2}
+  magicIcon: {fileID: 3304043571605285881}
+  magicNameText: {fileID: 6719329938347037992}
+  descriptionText: {fileID: 4127434352760312192}
+  categoryText: {fileID: 1566855053100077475}
+  castTypeText: {fileID: 4884019333556630829}
+  featuresText: {fileID: 0}
+  damageSlider: {fileID: 5106279080938634174}
+  aimTimeSlider: {fileID: 4668510156471303052}
+  rangeSlider: {fileID: 9067373972845770472}
+  manaCostSlider: {fileID: 7410322482133561665}
+  damageLabel: {fileID: 1693946090273699318}
+  aimTimeLabel: {fileID: 3901202622436320734}
+  rangeLabel: {fileID: 8117482740283590476}
+  manaCostLabel: {fileID: 1119154041477769523}
 --- !u!114 &7255314972244087111
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7622,11 +7650,12 @@ MonoBehaviour:
   onSlot2Equipped:
     m_PersistentCalls:
       m_Calls: []
-  manageSelectionPanel: 0
-  selectionPanel: {fileID: 0}
+  manageSelectionPanel: 1
+  selectionPanel: {fileID: 972526212568827029}
   selectedItemImage: {fileID: 0}
   selectedItemName: {fileID: 6719329938347037992}
   selectedItemDescription: {fileID: 4127434352760312192}
+  magicDescriptionUI: {fileID: 7255314972244087112}
   equipButton: {fileID: 5199295091210142851}
   equipButtonText: {fileID: 0}
   statusText: {fileID: 0}

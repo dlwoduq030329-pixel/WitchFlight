@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
 
+[RequireComponent(typeof(RandomMatchUI))]
 public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     private static NetworkGameManager instance;
@@ -18,6 +19,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public bool IsMatching => _runner != null || startInProgress || stopInProgress;
     public NetworkRunner Runner => _runner;
     public bool IsRandomMatch { get; private set; }
+    public bool IsCancellingMatch => cancelRequested || stopInProgress;
+    public bool IsBattleTransitioning => isGameStarting;
     public string MatchStatus { get; private set; } = "";
     public bool CanCancelMatch => IsMatching && !isGameStarting && !IsBattleSceneLoaded &&
         !cancelRequested && !stopInProgress &&
@@ -40,7 +43,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     [Header("Matchmaking UI (optional)")]
     [SerializeField] private TMP_Text matchmakingStatusText;
     [Header("Random match start")]
-    [Tooltip("켜면 양쪽 linkuserinfo의 상대 프로필 1초 표시 확인을 기다립니다. 테스트 시 끄면 PlayerData 준비 후 1초 뒤 시작합니다.")]
+    [Tooltip("양쪽 RandomMatchUI에서 상대 프로필을 1초 표시한 뒤 전투를 시작합니다. 끄면 UI 확인 없이 데이터 준비 후 1초 뒤 시작하는 테스트 모드입니다.")]
     [SerializeField] private bool requireRandomMatchProfilePreview = true;
 
     private const int RandomPlayerCount = 2;
@@ -76,6 +79,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private Coroutine battleInitializationRoutine;
     private Vector2 accumulatedLook;
     private NetworkButtons latchedButtons;
+    private bool pendingEmoteCombatSuppression;
     private Player inputPlayer;
     private enemyLockOn inputTargeting;
     private Camera inputCamera;
@@ -97,13 +101,17 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             accumulatedLook = Vector2.zero;
             latchedButtons = default;
+            pendingEmoteCombatSuppression = false;
             return;
         }
 
-        accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
+        // Retain a brief wheel opening even when it occurs entirely between Fusion input ticks.
+        pendingEmoteCombatSuppression |= BattleEmoteUI.BlocksCombatInput;
+        if (BattleEmoteUI.CapturesMouse) accumulatedLook = Vector2.zero;
+        else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
         LatchButton(PlayerInputButton.Accelerate, Input.GetKeyDown(KeyCode.W));
         LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
-        if (BattlePerkUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
+        if (BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
         else LatchButton(PlayerInputButton.Parry, Input.GetMouseButtonDown(1));
         LatchButton(PlayerInputButton.Boost, Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift));
         LatchButton(PlayerInputButton.MagicSlot1, Input.GetKeyDown(KeyCode.Alpha1));
@@ -483,12 +491,25 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     private async Task ShutdownSession(NetworkRunner sessionRunner)
     {
+        // Capture before Shutdown invalidates NetworkBehaviour.Runner. Fusion normally
+        // destroys these objects; the fallback also handles an interrupted startup.
+        var sessionDataObjects = new List<GameObject>();
+        if (sessionRunner != null)
+        {
+            foreach (PlayerData data in FindObjectsByType<PlayerData>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (data != null && data.Runner == sessionRunner) sessionDataObjects.Add(data.gameObject);
+        }
         try
         {
             if (sessionRunner != null) await sessionRunner.Shutdown(destroyGameObject: false);
         }
         catch (Exception exception) { Debug.LogWarning($"Session shutdown: {exception.Message}"); }
-        finally { if (this != null) CleanupSession(sessionRunner); }
+        finally
+        {
+            foreach (GameObject dataObject in sessionDataObjects)
+                if (dataObject != null) Destroy(dataObject);
+            if (this != null) CleanupSession(sessionRunner);
+        }
     }
 
     private void CleanupSession(NetworkRunner sessionRunner)
@@ -900,6 +921,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             data.suppressActions = true;
             accumulatedLook = Vector2.zero;
             latchedButtons = default;
+            pendingEmoteCombatSuppression = false;
             input.Set(data);
             return;
         }
@@ -922,8 +944,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 data.buttons.Set(i, true);
         }
         latchedButtons = default;
-        data.look = accumulatedLook;
-        data.suppressCombat = BattlePerkUI.BlocksCombatInput;
+        data.look = BattleEmoteUI.CapturesMouse ? Vector2.zero : accumulatedLook;
+        data.suppressCombat = BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput || pendingEmoteCombatSuppression;
+        pendingEmoteCombatSuppression = false;
         if (data.suppressCombat)
         {
             data.buttons.Set(PlayerInputButton.Lock,false);

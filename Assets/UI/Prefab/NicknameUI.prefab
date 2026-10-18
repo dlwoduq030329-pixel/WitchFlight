@@ -987,6 +987,7 @@ GameObject:
   - component: {fileID: 7658124275091556521}
   - component: {fileID: 4946823494993520743}
   - component: {fileID: 3732120252462290120}
+  - component: {fileID: 4806010000000000003}
   m_Layer: 5
   m_Name: NicknameUI
   m_TagString: Untagged
@@ -1069,6 +1070,24 @@ MonoBehaviour:
   confirmButton: {fileID: 4127114834380639270}
   nicknamePopup: {fileID: 7525182515965870452}
   registerPopup: {fileID: 0}
+--- !u!114 &4806010000000000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7525182515965870452}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc832d151f264e2f8700c745912f9312, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  tabOrder:
+  - {fileID: 5846445425067743483}
+  - {fileID: 4127114834380639270}
+  confirmButton: {fileID: 4127114834380639270}
+  priority: 20
+  focusFirstOnOpen: 1
 --- !u!1 &7943186766773464768
 GameObject:
   m_ObjectHideFlags: 0

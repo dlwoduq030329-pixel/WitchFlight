@@ -23,10 +23,14 @@ public sealed class BattleRoundUI : MonoBehaviour
     [SerializeField] private TMP_Text roundScoreText;
     [SerializeField] private TMP_Text swapStatusText;
     [SerializeField] private TMP_Text selectedMagicNameText;
+    [Tooltip("설명·Slider를 묶은 패널의 MagicDescriptionUI를 연결하세요. 마법 버튼 클릭 시 켜고 장착 완료 시 해당 오브젝트를 끕니다. 이 컨트롤러는 패널 바깥에 두세요.")]
+    [SerializeField] private MagicDescriptionUI magicDescriptionUI;
     [SerializeField] private Image slot1Icon;
     [SerializeField] private Image slot2Icon;
     [SerializeField] private TMP_Text slot1Text;
     [SerializeField] private TMP_Text slot2Text;
+    [Tooltip("켜면 선택 표시와 슬롯 번호를 함께 표시합니다. 끄면 MagicStatTable의 장착 마법 이름만 표시합니다.")]
+    [SerializeField] private bool showSlotNumberInText = true;
     [SerializeField] private Button equipButton;
     [Header("Final result panel (empty = generated UI)")]
     [SerializeField] private GameObject finalResultPanel;
@@ -42,6 +46,8 @@ public sealed class BattleRoundUI : MonoBehaviour
     private int swapRound, selectedSlot = 1, nextRequestId, pendingRequestId, localTeam;
     private MagicType selectedMagic, requestedFirst, requestedSecond;
     private bool requestPending, requestAccepted, sawMatch, resultLatched, returning;
+    private bool descriptionOpen, closeDescriptionOnAccept;
+    private int descriptionRevision, requestedDescriptionRevision;
     private float requestStarted, resultShownAt;
     private string cachedScore, cachedResult;
 
@@ -51,6 +57,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         if (magicTable == null) magicTable = MagicStatTable.Default;
         ValidatePanel(ref magicSwapPanel);
         ValidatePanel(ref finalResultPanel);
+        SetDescriptionVisible(false);
         Show(magicSwapPanel, false);
         Show(finalResultPanel, false);
         EnsureUIInput();
@@ -107,6 +114,8 @@ public sealed class BattleRoundUI : MonoBehaviour
                 swapRound = battle.RoundNumber;
                 selectedSlot = 1;
                 selectedMagic = MagicType.None;
+                SetDescriptionVisible(false);
+                descriptionRevision++;
                 requestPending = false;
                 Status("슬롯과 마법을 선택한 뒤 장착하세요. 시간 종료 시 마지막 승인된 장비로 시작합니다.");
             }
@@ -163,12 +172,13 @@ public sealed class BattleRoundUI : MonoBehaviour
         Text(swapCountdownText, $"마법 교체  {Mathf.CeilToInt(battle.PhaseRemainingSeconds)}초");
         Text(roundScoreText, $"ROUND {battle.RoundNumber} 종료  ·  {Score(battle)}  ·  최대 {battle.AllowedMagicChanges}슬롯 변경");
         Text(selectedMagicNameText, selectedMagic == MagicType.None ? "변경할 마법을 선택하세요" : Name(selectedMagic));
+        RefreshMagicDescription();
         if (HasLocalData)
         {
             Icon(slot1Icon, localData.magic1);
             Icon(slot2Icon, localData.magic2);
-            Text(slot1Text, $"{(selectedSlot == 1 ? "▶ " : "")}1번 · {Name(localData.magic1)}");
-            Text(slot2Text, $"{(selectedSlot == 2 ? "▶ " : "")}2번 · {Name(localData.magic2)}");
+            Text(slot1Text, SlotText(1, localData.magic1));
+            Text(slot2Text, SlotText(2, localData.magic2));
         }
         if (equipButton != null) equipButton.interactable = CanEdit && !requestPending && selectedMagic != MagicType.None;
     }
@@ -179,13 +189,38 @@ public sealed class BattleRoundUI : MonoBehaviour
     {
         if (magicId < (int)MagicType.Fire || magicId > (int)MagicType.Smoke) return;
         selectedMagic = (MagicType)magicId;
+        descriptionOpen = true;
+        descriptionRevision++;
+        RefreshMagicDescription();
+    }
+
+    private void RefreshMagicDescription()
+    {
+        if (magicTable == null) magicTable = MagicStatTable.Default;
+        SetDescriptionVisible(descriptionOpen);
+        if (magicDescriptionUI != null)
+            magicDescriptionUI.ShowMagic(selectedMagic, magicTable, BattleManager.Instance != null ? BattleManager.Instance.Perks : null);
+    }
+
+    private void SetDescriptionVisible(bool visible)
+    {
+        descriptionOpen = visible;
+        // Prefab references can be lost when a replacement swap panel is assigned.
+        // Resolve only inside that panel, including inactive children; never another screen.
+        if (magicDescriptionUI == null && magicSwapPanel != null)
+            magicDescriptionUI = magicSwapPanel.GetComponentInChildren<MagicDescriptionUI>(true);
+        if (magicDescriptionUI == null) return;
+        GameObject panel = magicDescriptionUI.gameObject;
+        // A wrong reference must not hide the controller or the entire selection screen.
+        if (panel == magicSwapPanel || transform.IsChildOf(panel.transform)) return;
+        Show(panel, visible);
     }
 
     public void EquipSelectedMagic()
     {
         if (!CanEdit || requestPending || selectedMagic == MagicType.None) return;
         SendLoadout(selectedSlot == 1 ? selectedMagic : localData.magic1,
-            selectedSlot == 2 ? selectedMagic : localData.magic2);
+            selectedSlot == 2 ? selectedMagic : localData.magic2, true);
     }
 
     public void ResetRoundChanges()
@@ -193,7 +228,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         if (CanEdit && !requestPending) SendLoadout(localData.MagicChangeBase1, localData.MagicChangeBase2);
     }
 
-    private void SendLoadout(MagicType first, MagicType second)
+    private void SendLoadout(MagicType first, MagicType second, bool closeDescription = false)
     {
         BattleManager battle = BattleManager.Instance;
         if (!BattleRoundRules.IsAllowedLoadout(localData.MagicChangeBase1, localData.MagicChangeBase2,
@@ -207,6 +242,8 @@ public sealed class BattleRoundUI : MonoBehaviour
         pendingRequestId = ++nextRequestId;
         requestedFirst = first;
         requestedSecond = second;
+        closeDescriptionOnAccept = closeDescription;
+        requestedDescriptionRevision = descriptionRevision;
         requestStarted = Time.unscaledTime;
         Status("서버 확인 중...");
         if (!localData.RequestRoundMagicChange(battle.RoundNumber, first, second, pendingRequestId))
@@ -229,6 +266,9 @@ public sealed class BattleRoundUI : MonoBehaviour
         if (requestAccepted && HasLocalData && localData.magic1 == requestedFirst && localData.magic2 == requestedSecond)
         {
             requestPending = false;
+            // A later selection must not be closed by an earlier asynchronous response.
+            if (closeDescriptionOnAccept && requestedDescriptionRevision == descriptionRevision)
+                SetDescriptionVisible(false);
             Status("장착 완료. 이 경기에서만 적용됩니다.");
         }
         else if (Time.unscaledTime - requestStarted > 5f)
@@ -262,6 +302,12 @@ public sealed class BattleRoundUI : MonoBehaviour
             Debug.LogException(exception);
             if (this != null) returning = false;
         }
+    }
+
+    private string SlotText(int slot, MagicType magic)
+    {
+        string name = Name(magic);
+        return showSlotNumberInText ? $"{(selectedSlot == slot ? "▶ " : "")}{slot}번 · {name}" : name;
     }
 
     private string Name(MagicType magic)
@@ -410,6 +456,7 @@ public sealed class BattleRoundUI : MonoBehaviour
     {
         if (localData != null) localData.RoundMagicChangeResult -= OnMagicChangeResult;
         localData = null;
+        SetDescriptionVisible(false);
         Show(magicSwapPanel, false);
         Show(finalResultPanel, false);
     }

@@ -75,6 +75,12 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     private PropertyReader<Vector3> worldPositionReader;
     private PropertyReader<NetworkId> carrierIdReader;
     public static BattleFlag Instance { get; private set; }
+    // Shared by predicted movement and authority-only XP. LastCarrier is only a victory rule.
+    public bool IsCarriedBy(NetworkRunner runner, PlayerRef player)
+    {
+        return Object != null && Object.IsValid && Runner == runner &&
+            Phase == BattleStartPhase.Playing && player != PlayerRef.None && Carrier == player;
+    }
     public float PhaseRemainingSeconds => Object != null && Object.IsValid
         ? Mathf.Max(0f, PhaseTimer.RemainingTime(Runner) ?? 0f) : 0f;
     public float RemainingSeconds => Object != null && Object.IsValid && HasStarted && !HasEnded

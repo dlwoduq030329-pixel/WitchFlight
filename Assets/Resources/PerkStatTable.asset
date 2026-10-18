@@ -17,7 +17,7 @@ MonoBehaviour:
     displayName: "고열 잔불"
     description: "{seconds}초 동안 총 {amount} 화상 피해. 중첩 없이 갱신."
     icon: {fileID: 0}
-    amount: 8
+    amount: 16
     secondaryAmount: 0
     seconds: 2
     condition: 0
@@ -25,15 +25,15 @@ MonoBehaviour:
     displayName: "신속 점화"
     description: "록온 시간 {percent}% 감소, MP 소모 {secondaryPercent}% 감소."
     icon: {fileID: 0}
-    amount: 0.3
-    secondaryAmount: 0.15
+    amount: 0.45
+    secondaryAmount: 0.25
     seconds: 0
     condition: 0
   - id: 3
     displayName: "혹한"
     description: "둔화 강도 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.2
+    amount: 0.15
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -41,15 +41,15 @@ MonoBehaviour:
     displayName: "균열 각인"
     description: "{seconds}초 내 다른 슬롯의 다음 공격 피해 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.25
+    amount: 0.3
     secondaryAmount: 0
-    seconds: 3
+    seconds: 4
     condition: 1
   - id: 5
     displayName: "확장 조준"
     description: "즉발 판정 반경 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.2
+    amount: 0.25
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -57,15 +57,15 @@ MonoBehaviour:
     displayName: "연속 관통"
     description: "{seconds}초 내 연속 명중의 두 번째 피해 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.35
+    amount: 0.75
     secondaryAmount: 0
-    seconds: 3
+    seconds: 4
     condition: 0
   - id: 7
     displayName: "폭풍권"
     description: "폭발 반경 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.15
+    amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -73,15 +73,15 @@ MonoBehaviour:
     displayName: "낙뢰 집중"
     description: "폭발 중심부 피해 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.45
+    amount: 0.3
     secondaryAmount: 0
     seconds: 0
-    condition: 0.35
+    condition: 0.45
   - id: 9
     displayName: "응급 증폭"
     description: "회복량 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.2
+    amount: 0.5
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -89,15 +89,15 @@ MonoBehaviour:
     displayName: "정화"
     description: "둔화·구속 해제. {seconds}초간 새 둔화·구속 지속 시간 {percent}% 감소."
     icon: {fileID: 0}
-    amount: 0.5
+    amount: 0.65
     secondaryAmount: 0
-    seconds: 2
+    seconds: 3
     condition: 0
   - id: 11
     displayName: "신속 결박"
     description: "록온 시간 {percent}% 감소."
     icon: {fileID: 0}
-    amount: 0.2
+    amount: 0.4
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -105,7 +105,7 @@ MonoBehaviour:
     displayName: "절제된 결박"
     description: "MP 소모 {percent}% 감소."
     icon: {fileID: 0}
-    amount: 0.35
+    amount: 0.45
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -121,7 +121,7 @@ MonoBehaviour:
     displayName: "생명 수확"
     description: "실제 적중 시 회복량 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.5
+    amount: 0.25
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -129,31 +129,31 @@ MonoBehaviour:
     displayName: "긴 손아귀"
     description: "사거리 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.15
+    amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 16
-    displayName: "지속 흡수"
-    description: "초당 MP 소모 {percent}% 감소."
+    displayName: "깊어지는 저주"
+    description: "저주의 초당 피해 {percent}% 증가. MP 소모는 유지."
     icon: {fileID: 0}
-    amount: 0.25
+    amount: 0.4
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 17
     displayName: "신속한 사역마"
-    description: "소환체의 록온 시간 {percent}% 감소."
+    description: "소환체의 록온 시간 {percent}% 감소, 공격 간격 {secondaryPercent}% 감소."
     icon: {fileID: 0}
-    amount: 0.3
-    secondaryAmount: 0
+    amount: 0.45
+    secondaryAmount: 0.2
     seconds: 0
     condition: 0
   - id: 18
     displayName: "추적의 각인"
     description: "소환체의 탐색·공격 사거리 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.3
+    amount: 0.5
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -161,7 +161,7 @@ MonoBehaviour:
     displayName: "확장 렌즈"
     description: "광선 판정 반경 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.25
+    amount: 0.5
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -169,15 +169,15 @@ MonoBehaviour:
     displayName: "열 집중"
     description: "같은 적에게 {seconds}초 연속 명중 시 피해 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.35
+    amount: 0.4
     secondaryAmount: 0
     seconds: 0.75
-    condition: 0.2
+    condition: 0.25
   - id: 21
     displayName: "연속 살포"
-    description: "{seconds}초 뒤 추적 해제 1회 추가."
+    description: "{seconds}초 간격으로 추적 해제 {amount}회 추가."
     icon: {fileID: 0}
-    amount: 1
+    amount: 2
     secondaryAmount: 0
     seconds: 0.35
     condition: 0
@@ -185,7 +185,7 @@ MonoBehaviour:
     displayName: "효율 방출"
     description: "추적 해제 성공 시 MP {percent}% 환급, 이번 쿨타임 {secondaryPercent}% 감소."
     icon: {fileID: 0}
-    amount: 0.5
+    amount: 0.3
     secondaryAmount: 0.2
     seconds: 0
     condition: 0
@@ -193,7 +193,7 @@ MonoBehaviour:
     displayName: "광역 차폐"
     description: "연막 반경 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.15
+    amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -201,7 +201,7 @@ MonoBehaviour:
     displayName: "고밀도 잔류"
     description: "연막 유지 시간 {amount}초 증가."
     icon: {fileID: 0}
-    amount: 3
+    amount: 2
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -209,7 +209,7 @@ MonoBehaviour:
     displayName: "수호의 매듭"
     description: "최대 HP {amount} 증가. 즉시 회복 없음."
     icon: {fileID: 0}
-    amount: 20
+    amount: 35
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -217,7 +217,7 @@ MonoBehaviour:
     displayName: "바람결 타기"
     description: "선회 능력 {percent}% 증가. 이동 속도는 유지."
     icon: {fileID: 0}
-    amount: 0.2
+    amount: 0.35
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -225,7 +225,7 @@ MonoBehaviour:
     displayName: "멈춤의 룬"
     description: "제동 성능 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.25
+    amount: 0.45
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -233,7 +233,7 @@ MonoBehaviour:
     displayName: "첫바람의 축복"
     description: "정지에서 1단계까지 가속 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.25
+    amount: 0.45
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -241,7 +241,7 @@ MonoBehaviour:
     displayName: "순풍의 가호"
     description: "부스트 MP 소모 {percent}% 감소."
     icon: {fileID: 0}
-    amount: 0.2
+    amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -249,7 +249,7 @@ MonoBehaviour:
     displayName: "깊은 마력샘"
     description: "최대 MP {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.15
+    amount: 0.25
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -257,7 +257,7 @@ MonoBehaviour:
     displayName: "마력의 숨결"
     description: "자연 MP 회복량 {percent}% 증가."
     icon: {fileID: 0}
-    amount: 0.15
+    amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -265,7 +265,7 @@ MonoBehaviour:
     displayName: "절약의 룬"
     description: "마법 MP 소모 {percent}% 감소. 패링·부스트 제외."
     icon: {fileID: 0}
-    amount: 0.08
+    amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -273,27 +273,29 @@ MonoBehaviour:
     displayName: "되울림의 주문"
     description: "마법 쿨타임 {percent}% 감소. 패링 제외."
     icon: {fileID: 0}
-    amount: 0.1
+    amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 34
     displayName: "잔향 흡수"
-    description: "적중 시 최대 MP {percent}% 회복. 재발동 {seconds}초."
+    description: "적중 시 최대 MP {percent}% 회복. 재발동 {seconds}초. 지속형 마법 제외."
     icon: {fileID: 0}
-    amount: 0.04
+    amount: 0.08
     secondaryAmount: 0
-    seconds: 4
+    seconds: 3
     condition: 0
   firstChoiceXp: 100
   xpGrowth: 1.5
   passiveInterval: 2
   passiveXp: 4
+  flagCarrierSpeedMultiplier: 0.8
+  flagCarrierPassiveXpMultiplier: 0.125
   roundBonusXp: 30
   damageFraction: 0.25
   damageQuotasPerLife: 4
-  damageXp: 6
-  killXp: 12
+  damageXp: 12
+  killXp: 30
   killRewardCooldown: 20
   bindingXp: 4
   bindingRewardCooldown: 10
@@ -301,7 +303,7 @@ MonoBehaviour:
   flareRewardCooldown: 10
   flagXp: 10
   actionWindowSeconds: 60
-  actionXpLimit: 30
-  manaDiscountCap: 0.4
-  cooldownDiscountCap: 0.3
+  actionXpLimit: 90
+  manaDiscountCap: 0.55
+  cooldownDiscountCap: 0.4
   burnTickSeconds: 0.5

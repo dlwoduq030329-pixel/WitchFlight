@@ -10,10 +10,11 @@ function Method([string]$name) {
     return $m.Value
 }
 $methods = @('ProcessInput','ContinueWithoutActions','SelectMagicSlot','UpdateSpeed',
-    'GetMovementMultiplier','GetTurnMultiplier','UpdateHeldBoost','TryConsumeMovementAp','RegenerateAp','TimerIsActive') |
+    'GetMovementMultiplier','GetFlagSpeedMultiplier','GetTurnMultiplier','UpdateHeldBoost','TryConsumeMovementAp','RegenerateAp','TimerIsActive') |
     ForEach-Object { Method $_ }
 $source = @'
 using System;
+using NetworkRunner=FlightChecks.RunnerState;
 namespace FlightChecks {
 public static class Mathf {
  public static int Min(int a,int b)=>Math.Min(a,b); public static int Max(int a,int b)=>Math.Max(a,b);
@@ -31,9 +32,18 @@ public struct NetworkButtons {
 public struct NetworkInputData {public NetworkButtons buttons;public bool suppressActions,suppressCombat;}
 public enum PerkId {BrakingRune,FirstWind,WindTurning,Tailwind}
 public class RunnerState {public float DeltaTime=1f/64f;public float Time;}
-public class Obj {public bool HasStateAuthority,HasInputAuthority=true;}
+public enum PlayerRef {None,One,Two}
+public enum BattleStartPhase {Waiting,Playing,Intermission,Ended}
+public class Obj {public bool IsValid=true,HasStateAuthority,HasInputAuthority=true;public PlayerRef InputAuthority=PlayerRef.One;}
+public class PerkStatTable {public float flagCarrierSpeedMultiplier=.8f;}
+public partial class BattleFlag {
+ public static BattleFlag Instance;public Obj Object=new();public RunnerState Runner;
+ public BattleStartPhase Phase=BattleStartPhase.Playing;public PlayerRef Carrier,LastCarrier;
+}
 public struct TickTimer {public bool IsRunning;public float End;public bool Expired(RunnerState r)=>r.Time>=End;}
 public class FlightProbe {
+ public PerkStatTable Perks=new();
+ public float TurnMultiplier()=>GetTurnMultiplier();
  float CommonAmount(PerkId id)=>0;
  void CancelCombatForPerks(){ClearLockTargetInternal();StopChannel();pendingMagic=MagicType.None;}
  public RunnerState Runner=new RunnerState(); public Obj Object=new Obj();
@@ -42,7 +52,7 @@ public class FlightProbe {
  public float boostApCostPerSecond=20,NowAp=100,MaxAp=100,ApRecoveryPerSecond=10;
  public float SlowMultiplier=1;
  public TickTimer SlowTimer; public NetworkButtons previousButtons;
- public bool IsBound,IsChanneling,channelNeedsRelease;
+ public bool IsBound,IsChanneling,channelNeedsRelease,areaAimArmed;
  public Vec KnockbackVelocity;
  public struct Vec { public static Vec zero => default; }
  public static class Vector3 { public static Vec zero => default; }
@@ -109,10 +119,47 @@ public static class Tests {
   p=new FlightProbe{NowAp=50,IsChanneling=true};p.Step();Check(p.NowAp==50,"no mana regen while channeling");
   p=new FlightProbe{SpeedStage=3,SlowMultiplier=.5f,SlowTimer=new TickTimer{IsRunning=true,End=100}};
   for(int i=0;i<300;i++)p.Step();Check(p.Speed<=30.001f,"Ice reduces movement speed");
+  foreach(int stage in new[]{-3,-2,-1,1,2,3}) {
+   p=new FlightProbe{SpeedStage=stage,boostApCostPerSecond=0};
+   BattleFlag.Instance=new(){Runner=p.Runner,Carrier=PlayerRef.One};
+   for(int i=0;i<600;i++)p.Step();
+   Check(Near(p.Speed,60*stage/3f*.8f)&&p.SpeedStage==stage,"carrier speed is 80 percent without changing stage "+stage);
+   Check(Near(p.TurnMultiplier(),1),"carrier penalty does not slow turning "+stage);
+   for(int i=0;i<600;i++)p.Step(boost);
+   Check(Near(p.Speed,60*stage/3f*1.35f*.8f),"carrier boost has same 20 percent penalty "+stage);
+   BattleFlag.Instance.LastCarrier=PlayerRef.One;BattleFlag.Instance.Carrier=PlayerRef.None;
+   for(int i=0;i<600;i++)p.Step();
+   Check(Near(p.Speed,60*stage/3f),"drop restores speed despite last-carrier record "+stage);
+  }
+  p=new FlightProbe{SpeedStage=3,SlowMultiplier=.5f,SlowTimer=new TickTimer{IsRunning=true,End=100}};
+  BattleFlag.Instance=new(){Runner=p.Runner,Carrier=PlayerRef.One};
+  for(int i=0;i<600;i++)p.Step();
+  Check(Near(p.Speed,24)&&Near(p.TurnMultiplier(),.5f),"ice and flag multiply movement but only ice affects turning");
+  BattleFlag.Instance.Carrier=PlayerRef.Two;
+  for(int i=0;i<300;i++)p.Step();Check(Near(p.Speed,30),"opponent holding flag never penalizes local pilot");
+  BattleFlag.Instance.Carrier=PlayerRef.One;BattleFlag.Instance.Runner=new();
+  Check(!BattleFlag.Instance.IsCarriedBy(p.Runner,PlayerRef.One),"another runner cannot apply carrier effects");
+  BattleFlag.Instance.Runner=p.Runner;BattleFlag.Instance.Phase=BattleStartPhase.Intermission;
+  Check(!BattleFlag.Instance.IsCarriedBy(p.Runner,PlayerRef.One),"between rounds has no carrier effect");
+  BattleFlag.Instance.Phase=BattleStartPhase.Playing;BattleFlag.Instance.Object.IsValid=false;
+  Check(!BattleFlag.Instance.IsCarriedBy(p.Runner,PlayerRef.One),"despawned flag cannot apply carrier effects");
+  BattleFlag.Instance.Object.IsValid=true;BattleFlag.Instance.Carrier=PlayerRef.None;
+  Check(!BattleFlag.Instance.IsCarriedBy(p.Runner,PlayerRef.None),"unowned flag is never an owned match");
+  BattleFlag.Instance.Carrier=PlayerRef.One;p.Perks.flagCarrierSpeedMultiplier=.6f;
+  for(int i=0;i<300;i++)p.Step();Check(Near(p.Speed,18),"carrier speed multiplier remains editable");
+  p=new FlightProbe{SpeedStage=3};BattleFlag.Instance=new(){Runner=p.Runner,Carrier=PlayerRef.One};
+  for(int i=0;i<80;i++)p.Step();var carrierSnapshot=p.Snapshot();
+  for(int i=0;i<160;i++)p.Step();
+  var replayed=carrierSnapshot.Snapshot();BattleFlag.Instance.Runner=replayed.Runner;
+  for(int i=0;i<160;i++)replayed.Step();Equal(p,replayed,"carrier speed penalty is stable across snapshot replay");
   return n;
  }
 }}
 '@
+$flagSource=Get-Content (Join-Path $repo 'Assets/Script/BattleFlag.cs') -Raw
+$carrierMethod=[regex]::Match($flagSource,'(?ms)^    public bool IsCarriedBy\([^{}]*?\)\r?\n    \{.*?^    \}').Value
+if(!$carrierMethod){throw 'Missing shared current-carrier predicate'}
+$source+="`nnamespace FlightChecks { public partial class BattleFlag {`n$carrierMethod`n}}"
 Add-Type -TypeDefinition $source
 "Flight behaviour checks passed: $([FlightChecks.Tests]::Run())"
 $state = @('flightMaxSpeed','previousButtons','currentPitch','currentYaw','currentAimTurnSpeed','currentTurnSpeed',

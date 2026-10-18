@@ -8,9 +8,15 @@ function Method([string]$source, [string]$name) {
 }
 $flag = Get-Content Assets/Script/BattleFlag.cs -Raw
 $hp = Get-Content Assets/Script/hpfollow.cs -Raw
+$hud = Get-Content Assets/Script/BattleHud.cs -Raw
 $source = @'
 using System;
 namespace VisibilityChecks {
+public struct Vector2 {
+ public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}
+ public static Vector2 one=>new(1,1);
+ public static Vector2 operator*(Vector2 a,float b)=>new(a.x*b,a.y*b);
+}
 public struct Vector3 {
  public float x,y,z; public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
  public static float Distance(Vector3 a,Vector3 b)=>(float)Math.Sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
@@ -26,7 +32,11 @@ public class Transform {
  public Vector3 TransformDirection(Vector3 v)=>yawQuarter==1?new(v.z,v.y,-v.x):v;
 }
 public class Camera {public static Camera main;public bool isActiveAndEnabled=true;public Transform transform=new();}
-public static class Mathf {public static float Clamp(float v,float a,float b)=>Math.Clamp(v,a,b);}
+public static class Mathf {
+ public static float Clamp(float v,float a,float b)=>Math.Clamp(v,a,b);
+ public static float Clamp01(float v)=>Math.Clamp(v,0,1);
+ public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);
+}
 public enum QueryTriggerInteraction {Ignore}
 public class Collider {}
 public struct RaycastHit {public Collider collider;public Transform transform;}
@@ -40,11 +50,19 @@ public enum ShadowCastingMode {Off,On,TwoSided}
 public class Renderer {public bool forceRenderingOff;public ShadowCastingMode shadowCastingMode;}
 public class NetworkObject {public bool IsValid=true,HasInputAuthority;public PlayerRef InputAuthority;}
 public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
+public class GameObject {public bool activeSelf;}
+public class RectTransform {public GameObject gameObject=new();public Vector2 sizeDelta;}
+public class Image {public GameObject gameObject=new();public float fillAmount;}
+public class Text {public GameObject gameObject=new();public string text="RELEASE TO FIRE";public bool enabled=true;}
+public struct MagicStatEntry {public bool requiresTarget;}
 public class Player {
  public static Player LocalPlayer; public NetworkObject Object=new(); public object Runner;
  public bool IsAlive=true,IsStealthed,Hidden; public int TeamIndex;public Vector3 LockAimPoint;
  public Transform transform=new();
  public bool IsHiddenBySmokeFor(Player local)=>Hidden;
+ public MagicStatEntry SelectedMagicStats=new(){requiresTarget=true};public bool IsFullyLocked;public float LockProgress;
+ public Player DisplayedTarget;public Player GetDisplayedLockTarget()=>DisplayedTarget;
+ public bool TryGetDisplayedLockPoint(out Vector3 point){point=DisplayedTarget!=null?DisplayedTarget.LockAimPoint:default;return DisplayedTarget!=null&&DisplayedTarget.Object!=null&&DisplayedTarget.Object.IsValid;}
 }
 public class Flag {
  public NetworkObject Object=new();public object Runner=new();public BattleStartPhase Phase=BattleStartPhase.Playing;
@@ -59,6 +77,19 @@ public class Flag {
 $source += (@('IsConcealedBySmoke','TryGetCarrierMarker','UpdateFlagVisibility','RestoreFlagVisibility',
     'CacheFlagVisualTransform','UpdateCarriedVisual','RestoreFlagVisualTransform') | ForEach-Object { Method $flag $_ }) -join "`n"
 $source += "`n} public class HealthView {public Player owner;public float maxHealth=100;public Camera viewCamera=new();public int obstructionMask=-1;public RaycastHit[] visibilityHits=new RaycastHit[32];`n" + (Method $hp 'CanShowToLocalPlayer') + "`n" + (Method $hp 'HasLineOfSight')
+$source += @'
+}
+public class LockHud {
+ public Player owner,lockTarget;public GameObject reticle=new();public RectTransform desiredAimMarker;
+ public RectTransform lockMarker=new(),lockChargeMarker=new();public Image lockProgressFill=new();public Text lockText=new();
+ public float lockChargeStartSize=120,lockChargeEndSize=40;public bool CanPlace=true;
+ private static void Visible(GameObject view,bool show){if(view!=null)view.activeSelf=show;}
+ private static void SetText(Text view,string text){view.text=text;}
+ private bool Place(RectTransform view,Vector3 point)=>CanPlace;
+ private void EnsureLockFeedback(){lockMarker??=new();lockChargeMarker??=new();}
+ private void UpdateThreatWarning(bool show){}
+'@
+$source += "`n" + (Method $hud 'BindAim')
 $source += @'
 }
 public static class Tests {
@@ -138,14 +169,44 @@ public static class Tests {
   flag.flagVisualRoot=flag.transform;flag.visualTransformCached=false;flag.CacheFlagVisualTransform();
   Check(!flag.visualTransformCached,"root cannot be assigned as shrink target");
   flag.flagVisualRoot=new Transform();flag.CacheFlagVisualTransform();Check(!flag.visualTransformCached,"unrelated objects cannot be moved or resized");
+  // Run the real HUD method: smoke hides the body/HP, not charge or completion feedback.
+  BattleManager.Instance.IsGameplayActive=true;
+  Check(hp.CanShowToLocalPlayer(),"enemy HP is eligible before smoke concealment");
+  var lockHud=new LockHud{owner=me};me.DisplayedTarget=enemy;me.LockProgress=.5f;enemy.Hidden=true;
+  lockHud.BindAim(true);
+  Check(lockHud.lockChargeMarker.gameObject.activeSelf&&!lockHud.lockMarker.gameObject.activeSelf,"smoke target keeps shrinking charge ring visible");
+  Check(lockHud.lockChargeMarker.sizeDelta.x==80&&lockHud.lockProgressFill.fillAmount==.5f,"smoke target ring shrinks with real lock progress");
+  Check(!lockHud.lockText.enabled&&lockHud.lockText.text=="","charging hides and clears legacy lock text");
+  enemy.Hidden=false;lockHud.BindAim(true);
+  Check(lockHud.lockChargeMarker.gameObject.activeSelf,"leaving smoke keeps charge ring visible");
+  enemy.Hidden=true;me.LockProgress=1;me.IsFullyLocked=true;lockHud.BindAim(true);
+  Check(lockHud.lockMarker.gameObject.activeSelf&&!lockHud.lockChargeMarker.gameObject.activeSelf,"completed smoke lock replaces charge ring with completion marker");
+  Check(!lockHud.lockText.enabled&&lockHud.lockText.text=="","completed lock does not display release prompt");
+  lockHud.lockText.gameObject=lockHud.lockMarker.gameObject;lockHud.BindAim(true);
+  Check(lockHud.lockMarker.gameObject.activeSelf&&!lockHud.lockText.enabled,"hiding text does not deactivate a shared marker object");
+  Check(!hp.CanShowToLocalPlayer()&&enemy.Hidden,"showing lock feedback does not reveal concealed enemy HP or clear concealment");
+  lockHud.CanPlace=false;lockHud.BindAim(true);
+  Check(!lockHud.lockMarker.gameObject.activeSelf&&!lockHud.lockChargeMarker.gameObject.activeSelf,"offscreen placement still hides world markers");
+  lockHud.CanPlace=true;me.DisplayedTarget=null;lockHud.BindAim(true);
+  Check(!lockHud.lockMarker.gameObject.activeSelf&&!lockHud.lockChargeMarker.gameObject.activeSelf&&!lockHud.lockText.enabled,"lost or rejected lock clears all lock feedback");
+  me.DisplayedTarget=enemy;enemy.Object.IsValid=false;lockHud.BindAim(true);
+  Check(!lockHud.lockMarker.gameObject.activeSelf&&!lockHud.lockChargeMarker.gameObject.activeSelf,"despawned target cannot retain lock markers");enemy.Object.IsValid=true;
+  me.SelectedMagicStats=new(){requiresTarget=false};lockHud.BindAim(true);
+  Check(!lockHud.lockMarker.gameObject.activeSelf&&!lockHud.lockChargeMarker.gameObject.activeSelf,"non-lock magic does not show lock markers");me.SelectedMagicStats=new(){requiresTarget=true};
+  lockHud.lockMarker=null;lockHud.lockChargeMarker=null;lockHud.lockText=null;lockHud.BindAim(true);
+  Check(lockHud.lockMarker.gameObject.activeSelf&&lockHud.lockText==null,"fallback creates lock markers without generating text prompts");
+  lockHud.owner=null;lockHud.BindAim(false);
+  Check(lockHud.lockTarget==null&&!lockHud.lockMarker.gameObject.activeSelf&&!lockHud.lockChargeMarker.gameObject.activeSelf,"disabled combat HUD clears markers safely without an owner");
   return count;
  }
 }}
 '@
 Add-Type -TypeDefinition $source
 "Local flag/health visibility checks passed: $([VisibilityChecks.Tests]::Run())"
+if ((Method $hud 'EnsureLockFeedback') -match 'CreateCentralPrompt|lockText' -or
+    $hud.Contains('"RELEASE TO FIRE"') -or $hud.Contains('$"LOCK ')) {throw 'Lock feedback must not generate English text prompts'}
+'Text-free lock feedback contract passed.'
 
-$hud = Get-Content Assets/Script/BattleHud.cs -Raw
 $presentation = Get-Content Assets/Script/CombatPresentation.cs -Raw
 foreach ($token in 'owner.HealthChanged += OnHealthChanged', 'owner.HealthChanged -= OnHealthChanged',
     'if (!healthDirty) return;', 'UpdateEnemyHalo();', 'haloRoot.SetActive(false)', 'Physics.RaycastNonAlloc',
@@ -154,7 +215,7 @@ foreach ($token in 'owner.HealthChanged += OnHealthChanged', 'owner.HealthChange
 }
 if ($hp -match '\[Networked|\[Rpc|Runner.Spawn') {throw 'Enemy UI must stay local, without extra replication'}
 if ((Method $flag 'UpdateFlagVisibility') -match '\.SetActive|\.enabled\s*=|Carrier\s*=') {throw 'Smoke must not mutate flag pickup or lifetime'}
-foreach ($token in '!lockTarget.IsHiddenBySmokeFor(owner)', 'TryGetCarrierMarker(local, out Vector3 position)',
+foreach ($token in 'TryGetCarrierMarker(local, out Vector3 position)',
     'GetThreatScreenPoint(', 'HideFlagCarrierMarker();', 'ContainsSmoke(slot.Position)') {
     if (!$hud.Contains($token)) {throw "Missing hidden-marker contract: $token"}
 }

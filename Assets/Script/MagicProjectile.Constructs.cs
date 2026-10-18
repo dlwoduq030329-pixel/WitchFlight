@@ -11,6 +11,8 @@ public sealed partial class MagicProjectile
     [Networked] public float ConstructRadius { get; private set; }
     [Networked] public float ConstructDelay { get; private set; }
     [Networked] public float SummonLockProgress { get; private set; }
+    [Networked] public bool SummonMoving { get; private set; }
+    [Networked] public int SummonAttackSequence { get; private set; }
     [Networked] private TickTimer ConstructTimer { get; set; }
     private TickTimer summonShotTimer, summonScanTimer;
     private NetworkPrefabRef summonProjectilePrefab;
@@ -46,6 +48,9 @@ public sealed partial class MagicProjectile
             ? ConstructDelay + 1f : Mathf.Max(.1f,entry.effectDuration));
         summonShotTimer = summonScanTimer = TickTimer.None;
         SummonLockProgress = 0f;
+        SummonDamageTaken = 0f;
+        SummonMoving = false;
+        SummonAttackSequence = 0;
     }
 
     public static void TrimSummons(Player owner, int limit, NetworkObject newest)
@@ -63,6 +68,8 @@ public sealed partial class MagicProjectile
 
     private void TickConstruct()
     {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
+        SummonMoving = false;
         if (Finished || Lifetime.Expired(Runner))
         {
             if (Lifetime.Expired(Runner)) Runner.Despawn(Object);
@@ -81,6 +88,7 @@ public sealed partial class MagicProjectile
                 if (distance <= ConstructRadius && HasBlastSight(center,enemy))
                     enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats,distance), Shooter, ShooterId);
             }
+            DamageSummonsInArea(Runner, ShooterTeam, center, ConstructRadius, stats, ShooterId);
             RPC_Impact(center, Magic);
             Lifetime = TickTimer.CreateFromSeconds(Runner,.25f);
             return;
@@ -114,6 +122,7 @@ public sealed partial class MagicProjectile
             {
                 if (TryGetCollision(step,out RaycastHit hit)) step = Mathf.Max(0f,hit.distance-.03f);
                 transform.position += direction * step;
+                SummonMoving = step > .0001f;
             }
             transform.rotation = Quaternion.LookRotation(direction);
         }
@@ -127,14 +136,15 @@ public sealed partial class MagicProjectile
             var projectile = bolt.GetComponent<MagicProjectile>();
             projectile.Initialize(owner,target,SummonBoltStats(stats),direction);
             projectile.ConstructKind = MagicConstructKind.SummonBolt;
+            SummonAttackSequence++;
         }
         SummonLockProgress = 0f;
         summonShotTimer = TickTimer.CreateFromSeconds(Runner,Mathf.Max(.1f,stats.summonAttackInterval));
     }
 
+    // Retain the enemy while chasing: range/occlusion limit acquisition or firing, not pursuit.
     private bool IsSummonTarget(Player target) => target != null && target.Object != null && target.Object.IsValid &&
-        target.Runner == Runner && target.IsAlive && target.TeamIndex != ShooterTeam &&
-        (target.LockAimPoint-transform.position).sqrMagnitude <= stats.range * stats.range && HasBlastSight(target);
+        target.Runner == Runner && target.IsAlive && !target.IsStealthed && target.TeamIndex != ShooterTeam;
 
     private Player FindSummonTarget()
     {
@@ -152,7 +162,7 @@ public sealed partial class MagicProjectile
     private void RenderConstruct()
     {
         if (Finished || impactPresented)
-        { ClearConstructVisual(); return; }
+        { ClearConstructVisual(true); return; }
         if (ConstructKind == MagicConstructKind.ThunderArea)
         {
             if (areaVisual == null) areaVisual = MagicAreaVisual.Create(PresentationStats.areaWarningVfxPrefab,"Thunder confirmed area");
@@ -164,18 +174,23 @@ public sealed partial class MagicProjectile
         }
         else
         {
-            if (summonVisual == null) summonVisual = MagicSummonVisual.Create(PresentationStats.summonVfxPrefab,transform);
+            if (summonVisual == null) summonVisual = MagicSummonVisual.Create(PresentationStats, transform, SummonAttackSequence);
             // Render is read-only. FindTarget clears invalid IDs and is simulation-only.
             Player target = Runner.TryFindObject(TargetId,out NetworkObject targetObject) && targetObject != null
                 ? targetObject.GetComponent<Player>() : null;
             summonVisual.SetLock(target, SummonLockProgress);
+            summonVisual.SetMotion(SummonMoving, SummonAttackSequence);
         }
     }
 
-    private void ClearConstructVisual()
+    private void ClearConstructVisual(bool playSummonDeath = false)
     {
         if (areaVisual != null) Destroy(areaVisual.gameObject);
-        if (summonVisual != null) Destroy(summonVisual.gameObject);
+        if (summonVisual != null)
+        {
+            if (playSummonDeath) summonVisual.Retire();
+            else Destroy(summonVisual.gameObject);
+        }
         areaVisual = null; summonVisual = null;
     }
 }

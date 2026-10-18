@@ -308,6 +308,7 @@ public sealed class CombatPresentation : MonoBehaviour
         {
             Player targetPlayer = target.GetComponent<Player>();
             if (targetPlayer != null && targetPlayer.IsAlive) end = targetPlayer.LockAimPoint;
+            else if (target.TryGetComponent(out MagicProjectile summon) && summon.IsLiveSummon) end = summon.transform.position;
         }
         else if (current == MagicType.Razier)
         {

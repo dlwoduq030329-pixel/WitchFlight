@@ -78,6 +78,7 @@ public class MagicProjectile {
  public NetworkRunner Runner;public NetworkObject Object=new();public bool initialized=true,Finished,IsMine,IsConstruct;
  public MagicStatEntry stats=new(){requiresTarget=true};public int ShooterTeam=2;public NetworkId TargetId;
  public Vector3 direction=new(0,0,1);
+ public MagicProjectile FindSummonTargetById()=>null;
 '@
 $presentationStart = @'
 }

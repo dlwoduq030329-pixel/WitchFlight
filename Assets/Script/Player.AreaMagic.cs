@@ -107,7 +107,8 @@ public partial class Player
         bool held = Input.GetMouseButton(0);
         if (!held) previewNeedsRelease = false;
         bool eligible = Object != null && Object.IsValid && Object.HasInputAuthority && CanAimAreaMagic() &&
-            !CombatPresentation.MenuOpen && !BattlePerkUI.BlocksCombatInput && Cursor.lockState == CursorLockMode.Locked;
+            !CombatPresentation.MenuOpen && !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput &&
+            Cursor.lockState == CursorLockMode.Locked;
         if (!eligible)
         {
             if (held) previewNeedsRelease = true;

@@ -37,17 +37,25 @@ public static class PerkEffects
                 break;
             case PerkId.HealingPower: s.healing *= 1f + a; break;
             case PerkId.BindingLock: s.lockChargeSeconds *= 1f - Mathf.Clamp01(a); break;
-            case PerkId.BindingCost: case PerkId.CurseEfficiency: mana *= 1f - Mathf.Clamp01(a); break;
+            case PerkId.BindingCost: mana *= 1f - Mathf.Clamp01(a); break;
+            case PerkId.CurseEfficiency: s.damagePerSecond *= 1f + a; break;
             case PerkId.DarkCost: s.healthCost *= 1f - Mathf.Clamp01(a); break;
             case PerkId.DarkHarvest: s.healOnHit *= 1f + a; break;
             case PerkId.CurseRange: s.range *= 1f + a; break;
             case PerkId.MineArming:
-                if (s.effect == MagicEffectKind.PursuitSummon) s.lockChargeSeconds *= 1f - Mathf.Clamp01(a);
+                if (s.effect == MagicEffectKind.PursuitSummon) {
+                    s.lockChargeSeconds *= 1f - Mathf.Clamp01(a);
+                    s.summonAttackInterval = Mathf.Max(.1f, s.summonAttackInterval * (1f - Mathf.Clamp01(p.secondaryAmount)));
+                }
                 else s.activationDelay *= 1f - Mathf.Clamp01(a);
                 break;
             case PerkId.SmokeDuration: s.effectDuration += a; break;
         }
     }
+    // Cheap sustained hits must not generate more MP than their channel costs.
+    public static float HitManaRefund(MagicStatEntry s, float maximumMp, float fraction)
+        => s.IsChanneled ? 0f : Mathf.Max(0f, maximumMp) * Mathf.Max(0f, fraction);
+
     public static MagicStatEntry AreaHit(MagicStatEntry s, float distance)
     {
         var p = s.perkSecond;

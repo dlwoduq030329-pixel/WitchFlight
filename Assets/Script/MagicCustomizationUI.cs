@@ -117,7 +117,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     [Header("Description panel visibility (content always follows the selected item)")]
     [FormerlySerializedAs("manageSelectionDetails")]
-    [Tooltip("설명창을 코드가 켜고 끌지 여부입니다. 기존 OnClick이 창을 켠다면 끄세요. 이름/설명/아이콘은 이 옵션과 관계없이 갱신합니다.")]
+    [Tooltip("선택 버튼을 누르면 설명창을 열고, 장착 완료/취소 시 닫습니다. 슬롯 선택/데이터 갱신만으로 다시 열지 않습니다. 직접 OnClick으로만 관리하려면 끄세요.")]
     [SerializeField] private bool manageSelectionPanel;
     [Tooltip("선택 전에는 숨길 상세 UI. 이 스크립트가 붙은 오브젝트/부모는 지정하지 마세요.")]
     [SerializeField] private GameObject selectionPanel;
@@ -127,6 +127,8 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     [SerializeField] private TMP_Text selectedItemName;
     [FormerlySerializedAs("selectedMagicDescription")]
     [SerializeField] private TMP_Text selectedItemDescription;
+    [Tooltip("공용 마법 설명 UI. 메인/라운드 교체 화면에서 같은 MagicStatTable의 Slider·설명을 사용합니다. 비워도 기존 UI는 유지됩니다.")]
+    [SerializeField] private MagicDescriptionUI magicDescriptionUI;
     [Header("Equip confirmation (existing OnClick events are preserved)")]
     [Tooltip("모자/빗자루/마법 공용 장착 버튼. OnClick은 자동 연결되므로 장착 함수를 중복 연결하지 마세요.")]
     [SerializeField] private Button equipButton;
@@ -154,6 +156,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private bool lastProfileReady, lastCanEdit;
     private bool isEquipping;
     private bool refreshControlsAfterClick;
+    private bool selectionDetailsOpen;
 
     private bool ProfileReady => DatabaseManager.Instance != null &&
         DatabaseManager.Instance.IsDataConfigReady && DatabaseManager.Instance.HasLoadedProfile;
@@ -238,8 +241,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         // Restore the selected content after the click, but leave panel visibility
         // to the designer's OnClick when automatic panel management is disabled.
         RefreshEquippedSlots();
-        RefreshSelectionContent();
-        RefreshEquipButton();
+        RefreshSelectionUI();
     }
 
     // Optional manual Button.OnClick entry point: slots are 1 and 2, not 0 and 1.
@@ -287,6 +289,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         }
         SelectedMagic = magic;
         SelectedItemCategory = EquipmentCategory.Magic;
+        selectionDetailsOpen = true;
         SetStatus(string.Empty);
         RefreshFromDataConfig();
     }
@@ -302,6 +305,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         }
         SelectedHat = hat;
         SelectedItemCategory = EquipmentCategory.Hat;
+        selectionDetailsOpen = true;
         SetStatus(string.Empty);
         RefreshFromDataConfig();
     }
@@ -317,6 +321,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         }
         SelectedBroom = broom;
         SelectedItemCategory = EquipmentCategory.Broom;
+        selectionDetailsOpen = true;
         SetStatus(string.Empty);
         RefreshFromDataConfig();
     }
@@ -370,6 +375,8 @@ public sealed class MagicCustomizationUI : MonoBehaviour
                     }
                     break;
             }
+            // Keep the candidate/target slot, but only an item-button click may reopen details.
+            selectionDetailsOpen = false;
             RefreshFromDataConfig();
             SetStatus($"{targetName}에 {itemName} 장착 완료");
             if (category == EquipmentCategory.Hat) onHatEquipped.Invoke(index);
@@ -399,6 +406,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private void ClearPendingSelection()
     {
+        selectionDetailsOpen = false;
         SelectedMagic = MagicType.None;
         SelectedHat = HatType.None;
         SelectedBroom = BroomType.None;
@@ -453,7 +461,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private void RefreshSelectionUI()
     {
         if (manageSelectionPanel)
-            SetVisible(selectionPanel, HasSelectedItem);
+            SetVisible(selectionPanel, HasSelectedItem && selectionDetailsOpen);
         RefreshSelectionContent();
         RefreshEquipButton();
     }
@@ -461,6 +469,9 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private void RefreshSelectionContent()
     {
         bool hasSelection = HasSelectedItem;
+        bool hasMagic = hasSelection && SelectedItemCategory == EquipmentCategory.Magic;
+        // Clear magic-only stats before writing the shared hat/broom text fields.
+        if (!hasMagic && magicDescriptionUI != null) magicDescriptionUI.Clear();
         // Panel activation and content are independent. Existing OnClick may show
         // the panel, while these assigned fields always describe the chosen magic.
         // A preview accidentally assigned to a loadout Image cannot erase it.
@@ -468,6 +479,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
             SetIcon(selectedItemImage, hasSelection ? SelectedItemIcon() : null);
         SetText(selectedItemName, hasSelection ? SelectedItemName() : string.Empty);
         SetText(selectedItemDescription, hasSelection ? SelectedItemDescription() : string.Empty);
+        if (hasMagic && magicDescriptionUI != null) magicDescriptionUI.ShowMagic(SelectedMagic, magicTable);
     }
 
     private void RefreshEquippedSlots()

@@ -149,7 +149,8 @@ public sealed class BattleHud : MonoBehaviour
     private Predicate<MagicProjectile> offscreenThreatFilter;
     private float warningPhase, threatStrength, nextThreatCheck;
     [SerializeField] private Image lockProgressFill;
-    [SerializeField] private TMP_Text lockText;
+    // Retain old scene references only to suppress the retired lock-on text prompts.
+    [SerializeField, HideInInspector] private TMP_Text lockText;
     [SerializeField] private Camera worldCamera;
     [Header("Received damage direction")]
     [Tooltip("비우면 BattleUI의 DamageIndicator를 자동 연결합니다. 공격자의 피격 시점 위치를 표시합니다.")]
@@ -202,7 +203,6 @@ public sealed class BattleHud : MonoBehaviour
     private static BattleHud instance;
     private DamageSlot[] damageSlots;
     private Player owner;
-    private Player lockTarget;
     private float respawnAt;
     private int nextDamageSlot;
     private Image tintedDesiredImage, tintedForwardImage;
@@ -435,27 +435,28 @@ public sealed class BattleHud : MonoBehaviour
     private void BindAim(bool show)
     {
         Visible(reticle, show && desiredAimMarker == null);
-        if (!show) lockTarget = null;
-        else lockTarget = owner.GetDisplayedLockTarget();
-        bool locked = show && owner.SelectedMagicStats.requiresTarget && lockTarget != null &&
-            lockTarget.Object != null && lockTarget.Object.IsValid;
-        // Smoke preserves lock-on gameplay, but a world-space ring must not reveal the target.
-        bool targetVisible = locked && !lockTarget.IsHiddenBySmokeFor(owner);
+        Vector3 lockPoint = default;
+        bool locked = show && owner.SelectedMagicStats.requiresTarget && owner.TryGetDisplayedLockPoint(out lockPoint);
+        // Lock feedback remains visible through smoke; body/health concealment is handled separately.
         if (show && (lockMarker == null || lockChargeMarker == null)) EnsureLockFeedback();
-        bool completed = targetVisible && owner.IsFullyLocked;
-        bool charging = targetVisible && !completed;
-        if (completed && lockMarker != null) completed = Place(lockMarker, lockTarget.LockAimPoint);
+        bool completed = locked && owner.IsFullyLocked;
+        bool charging = locked && !completed;
+        if (completed && lockMarker != null) completed = Place(lockMarker, lockPoint);
         if (charging && lockChargeMarker != null)
         {
-            charging = Place(lockChargeMarker, lockTarget.LockAimPoint);
+            charging = Place(lockChargeMarker, lockPoint);
             lockChargeMarker.sizeDelta = Vector2.one * Mathf.Lerp(lockChargeStartSize, lockChargeEndSize, owner.LockProgress);
         }
         Visible(lockMarker != null ? lockMarker.gameObject : null, completed);
         Visible(lockChargeMarker != null ? lockChargeMarker.gameObject : null, charging);
         Visible(lockProgressFill != null ? lockProgressFill.gameObject : null, locked);
-        Visible(lockText != null ? lockText.gameObject : null, locked);
         if (lockProgressFill != null) lockProgressFill.fillAmount = locked ? Mathf.Clamp01(owner.LockProgress) : 0f;
-        if (lockText != null) SetText(lockText, locked ? owner.IsFullyLocked ? "RELEASE TO FIRE" : $"LOCK {owner.LockProgress:P0}" : "");
+        if (lockText != null)
+        {
+            SetText(lockText, "");
+            // Disable only the text, not a potentially shared ring/marker GameObject.
+            lockText.enabled = false;
+        }
         UpdateThreatWarning(show);
     }
 
@@ -494,7 +495,6 @@ public sealed class BattleHud : MonoBehaviour
     {
         if (lockChargeMarker == null) lockChargeMarker = CreateFeedbackRing("Lock charge", Color.white, lockChargeStartSize, lockChargeSprite);
         if (lockMarker == null) lockMarker = CreateFeedbackRing("Locked", Color.green, lockChargeEndSize, lockCompleteSprite);
-        if (lockText == null) lockText = CreateCentralPrompt("Lock status", -105f, 20f);
     }
 
     private TMP_Text CreateCentralPrompt(string title, float y, float fontSize)

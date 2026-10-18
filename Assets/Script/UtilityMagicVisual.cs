@@ -6,6 +6,7 @@ using UnityEngine.Rendering;
 public sealed class UtilityMagicVisual : MonoBehaviour
 {
     private Material ownedMaterial;
+    private Material ownedFlareMaterial;
     private Player flareOwner;
     private ParticleSystem[] flareParticles;
     private float flareBackOffset, flareEmissionUntil, flareCleanupAt;
@@ -24,28 +25,50 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         GameObject custom = CombatPresentation.InstantiateVfx(stats.utilityVfxPrefab, position,
             root.transform.rotation, root.transform);
         float seconds = Mathf.Max(0.1f, stats.vfxLifetime);
+        float scale = stats.flareVfxScale > 0f ? stats.flareVfxScale : 1.8f;
         visual.flareEmissionUntil = Time.time + seconds;
+        if (custom != null) custom.transform.localScale *= scale;
         if (custom == null)
         {
-            ParticleSystem particles = visual.CreateParticles(CombatPresentation.MagicColor(MagicType.Flare));
+            ParticleSystem particles = visual.CreateParticles(new Color(1f,.48f,.09f,1f), null, true);
+            float brightness = stats.flareVfxBrightness > 0f ? stats.flareVfxBrightness : 2.4f;
+            if (visual.ownedFlareMaterial != null && visual.ownedFlareMaterial.HasProperty("_Intensity"))
+                visual.ownedFlareMaterial.SetFloat("_Intensity", brightness);
             var main = particles.main;
             main.loop = true;
             main.duration = seconds;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.75f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.55f, 1.1f);
             main.startSpeed = new ParticleSystem.MinMaxCurve(stats.flareVfxSpeed * 0.65f, stats.flareVfxSpeed);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.3f);
-            main.maxParticles = 64;
+            main.startSize = new ParticleSystem.MinMaxCurve(0.22f*scale, 0.42f*scale);
+            main.maxParticles = 160;
             var shape = particles.shape;
             shape.shapeType = ParticleSystemShapeType.Cone;
-            shape.angle = 32f;
-            shape.radius = 0.3f;
+            shape.angle = 42f;
+            shape.radius = 0.4f*scale;
             var emission = particles.emission;
-            emission.rateOverTime = 40f;
-            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 24) });
+            emission.rateOverTime = 70f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 40) });
             var renderer = particles.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Stretch;
-            renderer.lengthScale = 3f;
-            renderer.velocityScale = 0.08f;
+            renderer.lengthScale = 4f;
+            renderer.velocityScale = 0.12f;
+            // Broad saturated outer glow stays readable even against a bright sky.
+            // It uses alpha blending; the narrow bright core above uses additive blending.
+            var glowObject = new GameObject("Flare orange afterglow");
+            glowObject.transform.SetParent(root.transform,false);
+            ParticleSystem glow = visual.CreateParticles(new Color(1f,.2f,.025f,.8f),glowObject);
+            var glowMain = glow.main;
+            glowMain.loop = true; glowMain.duration = seconds;
+            glowMain.startLifetime = new ParticleSystem.MinMaxCurve(.35f,.7f);
+            glowMain.startSpeed = new ParticleSystem.MinMaxCurve(stats.flareVfxSpeed*.3f,stats.flareVfxSpeed*.6f);
+            glowMain.startSize = new ParticleSystem.MinMaxCurve(.65f*scale,1.1f*scale);
+            glowMain.maxParticles = 48;
+            var glowShape = glow.shape;
+            glowShape.shapeType = ParticleSystemShapeType.Cone; glowShape.angle = 38f; glowShape.radius = .35f*scale;
+            var glowEmission = glow.emission;
+            glowEmission.rateOverTime = 24f;
+            glowEmission.SetBursts(new[] { new ParticleSystem.Burst(0f,16) });
+            CombatTransientEffect.PlayPulse(position,new Color(1f,.6f,.12f,.65f),1.5f*scale,.2f);
         }
         visual.flareParticles = root.GetComponentsInChildren<ParticleSystem>(true);
         foreach (ParticleSystem particles in visual.flareParticles)
@@ -141,9 +164,9 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         return root;
     }
 
-    private ParticleSystem CreateParticles(Color color)
+    private ParticleSystem CreateParticles(Color color, GameObject emitter = null, bool brightFlare = false)
     {
-        var particles = gameObject.AddComponent<ParticleSystem>();
+        var particles = (emitter != null ? emitter : gameObject).AddComponent<ParticleSystem>();
         particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         var main = particles.main;
         main.playOnAwake = false;
@@ -151,16 +174,23 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         main.startColor = color;
         var collision = particles.collision;
         collision.enabled = false;
+        var trigger = particles.trigger;
+        trigger.enabled = false;
         var colorOverLife = particles.colorOverLifetime;
         colorOverLife.enabled = true;
         var gradient = new Gradient();
         gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
             new[] { new GradientAlphaKey(0.1f, 0f), new GradientAlphaKey(1f, 0.15f), new GradientAlphaKey(0f, 1f) });
         colorOverLife.color = gradient;
-        Shader shader = Resources.Load<Shader>("UtilityMagicParticle");
-        ownedMaterial = shader != null ? new Material(shader) : CombatPresentation.CreateEffectMaterial(Color.white);
+        Material material = brightFlare ? ownedFlareMaterial : ownedMaterial;
+        if (material == null)
+        {
+            Shader shader = Resources.Load<Shader>(brightFlare ? "FlareParticle" : "UtilityMagicParticle");
+            material = shader != null ? new Material(shader) : CombatPresentation.CreateEffectMaterial(Color.white);
+            if (brightFlare) ownedFlareMaterial = material; else ownedMaterial = material;
+        }
         var renderer = particles.GetComponent<ParticleSystemRenderer>();
-        renderer.sharedMaterial = ownedMaterial;
+        renderer.sharedMaterial = material;
         renderer.shadowCastingMode = ShadowCastingMode.Off;
         renderer.receiveShadows = false;
         return particles;
@@ -169,5 +199,6 @@ public sealed class UtilityMagicVisual : MonoBehaviour
     private void OnDestroy()
     {
         if (ownedMaterial != null) Destroy(ownedMaterial);
+        if (ownedFlareMaterial != null) Destroy(ownedFlareMaterial);
     }
 }

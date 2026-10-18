@@ -72,29 +72,37 @@ public static class WitchFlightPerkValidation
         var ids=new HashSet<PerkId>();foreach(var p in table.perks)Check(p!=null&&ids.Add(p.id),"unique stable perk ID");
         var magic=MagicStatTable.Default;Check(magic!=null,"shared MagicStatTable exists");
         MagicStatEntry S(MagicType m,int level,int common=0)=>PerkEffects.Apply(magic.GetStats(m),1,level,common,100,table);
+        float A(PerkId id)=>table.Amount(id);
         for(int i=1;i<=12;i++)
         {
             var m=(MagicType)i;var a=S(m,2);var b=S(m,0);
             Check(a.perkFirst!=null&&a.perkSecond!=null,"stage 2 retains both effects "+m);
             Check(b.perkFirst==null&&b.perkSecond==null,"unupgraded duplicate slot unaffected "+m);
         }
-        Check(Near(S(MagicType.Fire,2).lockChargeSeconds,magic.GetStats(MagicType.Fire).lockChargeSeconds*.7f),"fire lock");
-        Check(Near(S(MagicType.Fire,2).apCost,magic.GetStats(MagicType.Fire).apCost*.85f),"fire mana");
+        Check(Near(S(MagicType.Fire,2).lockChargeSeconds,magic.GetStats(MagicType.Fire).lockChargeSeconds*(1-Mathf.Clamp01(A(PerkId.FireIgnition)))),"fire lock follows table");
+        Check(Near(S(MagicType.Fire,2).apCost,magic.GetStats(MagicType.Fire).apCost*Mathf.Max(1-table.manaDiscountCap,1-table.Get(PerkId.FireIgnition).secondaryAmount)),"fire mana follows table");
         Check(S(MagicType.Ice,1).movementMultiplier<magic.GetStats(MagicType.Ice).movementMultiplier,"ice stronger slow");
-        Check(Near(S(MagicType.Vision,1).hitscanRadius,magic.GetStats(MagicType.Vision).hitscanRadius*1.2f),"vision radius");
+        Check(Near(S(MagicType.Vision,1).hitscanRadius,magic.GetStats(MagicType.Vision).hitscanRadius*(1+A(PerkId.VisionAim))),"vision radius");
         var thunder=S(MagicType.Thunder,2);
-        Check(Near(PerkEffects.AreaHit(thunder,0).damage,thunder.damage*1.45f)&&Near(PerkEffects.AreaHit(thunder,thunder.radius).damage,thunder.damage),"thunder core not whole area");
-        Check(Near(S(MagicType.Healing,1).healing,magic.GetStats(MagicType.Healing).healing*1.2f),"healing amount");
-        Check(Near(S(MagicType.Binding,2).apCost,magic.GetStats(MagicType.Binding).apCost*.65f),"binding mana");
-        Check(Near(S(MagicType.Dark,1).healthCost,40)&&Near(S(MagicType.Dark,2).healOnHit,90),"dark health cost / actual hit heal");
-        Check(Near(S(MagicType.Curse,2).ChannelManaPerSecond(115),magic.GetStats(MagicType.Curse).ChannelManaPerSecond(100)*.75f),"reservoir extends curse duration");
-        Check(Near(S(MagicType.Mine,2).lockChargeSeconds,magic.GetStats(MagicType.Mine).lockChargeSeconds*.7f),"summon lock");
-        Check(Near(S(MagicType.Mine,2).range,magic.GetStats(MagicType.Mine).range*1.3f) &&
-            Near(S(MagicType.Mine,2).summonAttackRange,magic.GetStats(MagicType.Mine).summonAttackRange*1.3f),"summon range");
-        Check(Near(S(MagicType.Razier,1).hitscanRadius,magic.GetStats(MagicType.Razier).hitscanRadius*1.25f),"beam width");
-        Check(Near(S(MagicType.Smoke,2).radius,magic.GetStats(MagicType.Smoke).radius*1.15f)&&Near(S(MagicType.Smoke,2).effectDuration,magic.GetStats(MagicType.Smoke).effectDuration+3),"smoke area and duration");
-        Check(Near(S(MagicType.Binding,2,PerkRules.Bit(PerkId.FrugalRune)).apCost,magic.GetStats(MagicType.Binding).apCost*.6f),"multiplicative mana discount capped 40 percent");
-        Check(Near(S(MagicType.Fire,2,PerkRules.Bit(PerkId.EchoSpell)).cooldownSeconds,magic.GetStats(MagicType.Fire).cooldownSeconds*.9f),"common cooldown");
+        Check(Near(PerkEffects.AreaHit(thunder,0).damage,thunder.damage*(1+A(PerkId.ThunderCore)))&&Near(PerkEffects.AreaHit(thunder,thunder.radius+.01f).damage,thunder.damage),"thunder core not outside area");
+        Check(Near(S(MagicType.Healing,1).healing,magic.GetStats(MagicType.Healing).healing*(1+A(PerkId.HealingPower))),"healing amount");
+        Check(Near(S(MagicType.Binding,2).apCost,magic.GetStats(MagicType.Binding).apCost*Mathf.Max(1-table.manaDiscountCap,1-A(PerkId.BindingCost))),"binding mana");
+        Check(Near(S(MagicType.Dark,1).healthCost,magic.GetStats(MagicType.Dark).healthCost*(1-Mathf.Clamp01(A(PerkId.DarkCost))))&&
+            Near(S(MagicType.Dark,2).healOnHit,magic.GetStats(MagicType.Dark).healOnHit*(1+A(PerkId.DarkHarvest))),"dark health cost / actual hit heal");
+        Check(Near(S(MagicType.Curse,2).ChannelManaPerSecond(125),magic.GetStats(MagicType.Curse).ChannelManaPerSecond(100)),"curse mastery does not discount its low fixed MP cost");
+        Check(Near(S(MagicType.Curse,2).damagePerSecond,magic.GetStats(MagicType.Curse).damagePerSecond*(1+A(PerkId.CurseEfficiency))),"curse mastery amplifies DPS");
+        foreach(var m in new[]{MagicType.Curse,MagicType.Razier})
+            Check(Near(PerkEffects.HitManaRefund(S(m,2),200,A(PerkId.ManaRemnant)),0),"channel cannot generate mana via remnant "+m);
+        Check(Near(PerkEffects.HitManaRefund(S(MagicType.Fire,2),200,A(PerkId.ManaRemnant)),200*A(PerkId.ManaRemnant)),"single-hit spells retain remnant refund");
+        Check(Near(S(MagicType.Mine,2).lockChargeSeconds,magic.GetStats(MagicType.Mine).lockChargeSeconds*(1-Mathf.Clamp01(A(PerkId.MineArming)))),"summon lock");
+        Check(Near(S(MagicType.Mine,2).summonAttackInterval,Mathf.Max(.1f,magic.GetStats(MagicType.Mine).summonAttackInterval*(1-Mathf.Clamp01(table.Get(PerkId.MineArming).secondaryAmount)))),"summon attack interval follows perk");
+        Check(Near(S(MagicType.Mine,2).range,magic.GetStats(MagicType.Mine).range*(1+A(PerkId.MineRadius))) &&
+            Near(S(MagicType.Mine,2).summonAttackRange,magic.GetStats(MagicType.Mine).summonAttackRange*(1+A(PerkId.MineRadius))),"summon range");
+        Check(Near(S(MagicType.Razier,1).hitscanRadius,magic.GetStats(MagicType.Razier).hitscanRadius*(1+A(PerkId.BeamWidth))),"beam width");
+        Check(Near(S(MagicType.Smoke,2).radius,magic.GetStats(MagicType.Smoke).radius*(1+A(PerkId.SmokeRadius)))&&Near(S(MagicType.Smoke,2).effectDuration,magic.GetStats(MagicType.Smoke).effectDuration+A(PerkId.SmokeDuration)),"smoke area and duration");
+        float stackedMana=Mathf.Max(1-table.manaDiscountCap,(1-Mathf.Clamp01(A(PerkId.BindingCost)))*(1-Mathf.Clamp01(A(PerkId.FrugalRune))));
+        Check(Near(S(MagicType.Binding,2,PerkRules.Bit(PerkId.FrugalRune)).apCost,magic.GetStats(MagicType.Binding).apCost*stackedMana),"multiplicative mana discount respects editable cap");
+        Check(Near(S(MagicType.Fire,2,PerkRules.Bit(PerkId.EchoSpell)).cooldownSeconds,magic.GetStats(MagicType.Fire).cooldownSeconds*Mathf.Max(1-table.cooldownDiscountCap,1-A(PerkId.EchoSpell))),"common cooldown");
         foreach(var p in table.perks)Check(!BattlePerkUI.Description(p).Contains("{"),"description tokens expanded "+p.id);
     }
     private static void ValidateBindings()

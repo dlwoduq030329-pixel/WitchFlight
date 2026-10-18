@@ -9,6 +9,7 @@ $trace = @('TraceMagic','GetDotAimDirection','ResolveDotCastDirection','IsFinite
     $method -replace '^    private ', '    public '
 }
 $enum = [regex]::Match((Get-Content Assets/Script/PlayerData.cs -Raw), 'public enum MagicType\s*\{[^}]+\}').Value
+$trace += [regex]::Match((Get-Content Assets/Script/Player.SummonCombat.cs -Raw),'(?ms)^    private Vector3 TraceMagicTargets\([^{}]*?\)\r?\n    \{.*?^    \}').Value.Replace('private Vector3','public Vector3')
 $stubs = @'
 using System;
 namespace HitscanChecks {
@@ -19,6 +20,7 @@ public struct Vector3 {
  public static Vector3 zero=>default;
  public float sqrMagnitude=>x*x+y*y+z*z;
  public Vector3 normalized=>sqrMagnitude>.0000001f?this*(1f/(float)Math.Sqrt(sqrMagnitude)):zero;
+ public static float Distance(Vector3 a,Vector3 b)=>(float)Math.Sqrt((a-b).sqrMagnitude);
  public static Vector3 operator+(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
  public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);
  public static Vector3 operator*(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);
@@ -28,7 +30,10 @@ public class Transform {
  public Transform parent;
  public bool IsChildOf(Transform owner){for(var t=this;t!=null;t=t.parent)if(t==owner)return true;return false;}
 }
-public class MagicProjectile {}
+public class MagicProjectile {
+ public static MagicProjectile TestTarget;public static float TestDistance;
+ public static bool TryTraceSummon(object runner,int team,Vector3 origin,Vector3 direction,float limit,float radius,out MagicProjectile body,out float distance){distance=TestDistance;body=TestTarget!=null&&distance<=limit?TestTarget:null;return body!=null;}
+}
 public class Collider {
  public Transform transform=new();public Player player;public MagicProjectile projectile;
  public T GetComponentInParent<T>() where T:class=>typeof(T)==typeof(Player)?player as T:projectile as T;
@@ -51,6 +56,7 @@ public static class Physics {
 }
 public class Player {
  public Transform transform=new();public RaycastHit[] instantShotHits=new RaycastHit[32];public int lockObstructionMask=123;
+ public object Runner=new();public int TeamIndex=1;
  public Vector3 MagicCastPosition=new(2,3,4);
  public MagicType Magic1=MagicType.Dark,Magic2=MagicType.Vision;
  public MagicStatEntry GetMagicStats(MagicType magic)=>new(){range=magic==MagicType.Vision?260:180};
@@ -131,6 +137,18 @@ public static class Tests {
   p.TraceMagic(stats,p.MagicCastPosition,shotDirection,out victim);
   Check(victim==null&&Physics.Spheres==1,"Body-to-Dot shot still stops at a near wall");
   Check((Physics.LastOrigin-p.MagicCastPosition).sqrMagnitude==0&&(Physics.LastDirection-dotDirection).sqrMagnitude<.00001f,"Authoritative sweep uses physical origin and transmitted Dot direction");
+  MagicProjectile.TestTarget=new();MagicProjectile.TestDistance=5;
+  Physics.Reset(Hit(wall,10));end=p.TraceMagicTargets(stats,origin,forward,out victim,out var body);
+  Check(victim==null&&body==MagicProjectile.TestTarget&&Near(end.z,9),"hostile summon before wall intercepts direct attack");
+  Physics.Reset(Hit(wall,2));p.TraceMagicTargets(stats,origin,forward,out victim,out body);
+  Check(victim==null&&body==null,"summon behind nearer wall cannot be hit");
+  Physics.Reset(Hit(targetCollider,2));p.TraceMagicTargets(stats,origin,forward,out victim,out body);
+  Check(victim==target&&body==null,"player before summon takes hit instead");
+  Physics.Reset(Hit(targetCollider,10));p.TraceMagicTargets(stats,origin,forward,out victim,out body);
+  Check(victim==null&&body!=null,"summon before player absorbs attack rather than damaging both");
+  Physics.Reset();aim=p.GetDotAimDirection(cameraRay);expected=(cameraRay.origin+forward*5-p.MagicCastPosition).normalized;
+  Check((aim-expected).sqrMagnitude<.00001f,"Dot converges on summon body rather than far background");
+  MagicProjectile.TestTarget=null;
   return n;
  }
 }}
@@ -147,7 +165,7 @@ foreach ($id in @(3,4,7,10)) {
     $value = [float]::Parse($radius.Groups[1].Value, [System.Globalization.CultureInfo]::InvariantCulture)
     if (![float]::IsFinite($value) -or $value -lt 0) { throw "Invalid saved radius for magic $id" }
 }
-if ($player -notmatch 'else end = TraceMagic\(stats, MagicCastPosition, transform.forward, out target\)') {
+if ($player -notmatch 'else end = TraceMagicTargets\(stats, MagicCastPosition, transform.forward, out target, out summon\)') {
     throw 'Straight channel must use the same configurable trace'
 }
 $targeting = Get-Content Assets/Script/enemyLockOn.cs -Raw
@@ -228,7 +246,12 @@ Add-Type -TypeDefinition ($uiStubs + $aimRay + $uiChecks)
 "Dot UI projection checks passed: $([DotUiChecks.Tests]::Run())"
 $scene = Get-Content Assets/Scenes/Battle.unity -Raw
 $prefab = Get-Content Assets/UI/Prefab/BattleUI.prefab -Raw
-if ($scene -notmatch 'desiredAimMarker: \{fileID: 2027782585\}' -or
+# The authored Battle scene uses Crosses as the desired aim marker and Dot as the
+# forward marker. Preserve those existing bindings; do not rewrite the scene for a test.
+if ($scene -notmatch 'desiredAimMarker: \{fileID: 2027782581\}' -or
+    $scene -notmatch 'forwardAimMarker: \{fileID: 2027782585\}' -or
+    $scene -notmatch '(?s)&2027782581 stripped\s+RectTransform:\s+m_CorrespondingSourceObject: \{fileID: 5902421080451873667' -or
+    $prefab -notmatch '(?ms)component: \{fileID: 5902421080451873667\}(?:(?!^---).)*m_Name: Crosses' -or
     $scene -notmatch '(?s)&2027782585 stripped\s+RectTransform:\s+m_CorrespondingSourceObject: \{fileID: 8323471176851699074' -or
-    $prefab -notmatch '(?ms)component: \{fileID: 8323471176851699074\}(?:(?!^---).)*m_Name: Dot') { throw 'Battle Dot reference changed; verify binding' }
+    $prefab -notmatch '(?ms)component: \{fileID: 8323471176851699074\}(?:(?!^---).)*m_Name: Dot') { throw 'Battle aim references changed; verify binding' }
 'Dot input, launch, VFX endpoint and Battle scene binding contracts passed.'

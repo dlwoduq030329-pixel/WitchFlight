@@ -188,7 +188,7 @@ public class CameraFollow : MonoBehaviour
         if (targetPlayer == null || targetPlayer.Object == null || !targetPlayer.Object.IsValid ||
             !targetPlayer.Object.HasInputAuthority || !targetPlayer.IsAlive ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            CombatPresentation.MenuOpen || Cursor.lockState != CursorLockMode.Locked ||
+            CombatPresentation.MenuOpen || BattleEmoteUI.CapturesMouse || Cursor.lockState != CursorLockMode.Locked ||
             targetPlayer.IsReturningToMap || boundaryCameraFrozen || boundaryReturnBlending)
             return;
 

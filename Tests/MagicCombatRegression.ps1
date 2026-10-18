@@ -18,11 +18,14 @@ $area = Get-Content (Join-Path $repo 'Assets/Script/Player.AreaMagic.cs') -Raw
 foreach ($name in 'ProcessAreaAim','CanCreateSpecialMagic') {
     $methods += [regex]::Match($area, '(?ms)^    private (?:void|bool) '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}').Value.Replace('private ','public ')
 }
+$summonSource = Get-Content (Join-Path $repo 'Assets/Script/Player.SummonCombat.cs') -Raw
+$methods += [regex]::Match($summonSource,'(?ms)^    public bool TryGetMagicTarget\([^{}]*?\)\r?\n    \{.*?^    \}').Value
 $stubs = @'
 using System;
 namespace UnityEngine {
  public class Object {}
  public class GameObject:Object {}
+ public class AnimationClip:Object {}
  public class Sprite:Object {}
  public class ScriptableObject:Object {}
  public static class Resources {public static T Load<T>(string path) where T:class=>null;}
@@ -74,8 +77,8 @@ public struct NetworkButtons {
 public struct NetworkInputData {public NetworkId lockTarget;public Vector3 aimDirection,magicAimDirection,areaAimPoint;public bool hasAreaAimPoint;}
 public class NetworkObject {
  public bool HasStateAuthority=true,IsValid=true; public PlayerRef InputAuthority;
- public NetworkId Id;public Player Owner;
- public T GetComponent<T>() where T:class=>Owner as T;
+ public NetworkId Id;public Player Owner;public MagicProjectile Summon;
+ public T GetComponent<T>() where T:class=>(Owner as T)??(Summon as T);
 }
 public class RunnerState {
  public bool IsRunning=true;
@@ -98,7 +101,13 @@ public class BattleFlag {
  public bool CanCreateSmoke(RunnerState runner)=>Space;
  public bool CreateSmoke(Player caster,MagicStatEntry stats){Clouds++;return true;}
 }
-public static class MagicProjectile {public static int Breaks;public static int BreakHomingFor(Player defender){Breaks++;return 1;}}
+public class MagicProjectile {
+ public static int Breaks;public static int BreakHomingFor(Player defender){Breaks++;return 1;}
+ public NetworkObject Object=new();public RunnerState Runner;public Transform transform=new();public int TeamIndex=2,Hits;public float Received;public bool Alive=true;
+ public bool IsSummonEnemyOf(Player p)=>Alive&&Object.IsValid&&Runner==p.Runner&&TeamIndex!=p.TeamIndex;
+ public static bool Sight=true;public static bool HasSummonSight(Vector3 a,Vector3 b)=>Sight;
+ public bool ReceiveSummonHit(MagicStatEntry s,int team,NetworkId id){Hits++;Received+=s.damage;return true;}
+}
 public class MagicTestBot {public bool Immortal;}
 public class PrefabRef {public bool IsValid=true;}
 public class Marker {public IDisposable Auto()=>new Scope();private class Scope:IDisposable {public void Dispose(){}}}
@@ -121,6 +130,8 @@ public class Player {
  public float StatusPerkDuration(float duration)=>duration;
  public void StartPerkFlare(MagicStatEntry s)=>MagicProjectile.BreakHomingFor(this);
  public void TrackPerkBeam(Player p,float t,MagicStatEntry s){}
+ public void TrackPerkSummonBeam(MagicProjectile p,float t,MagicStatEntry s){}
+ public float SummonChannelDamage(MagicStatEntry s,NetworkId id,float time)=>s.damagePerSecond*time;
  public MagicStatEntry IncomingPerkDamage(MagicStatEntry s,Player p,NetworkId id)=>s;
  public void OnAcceptedPerkHit(MagicStatEntry s,Player p,NetworkId id){}
  public RunnerState Runner=new();public NetworkObject Object=new();public Transform transform=new();
@@ -158,7 +169,9 @@ public class Player {
  public bool HasLineOfSight(Player other)=>other.Visible;
  public bool IsFiniteDirection(Vector3 v)=>!float.IsNaN(v.x+v.y+v.z);
  public Vector3 TraceMagic(MagicStatEntry s,Vector3 o,Vector3 d,out Player victim){LastTraceOrigin=o;victim=TraceTarget;return o+d;}
- public void LaunchMagic(MagicStatEntry s,Player target){Launches++;LastLaunched=s;LastLaunchDirection=castAimDirection;}
+ public MagicProjectile TraceSummon,LaunchedSummon;
+ public Vector3 TraceMagicTargets(MagicStatEntry s,Vector3 o,Vector3 d,out Player p,out MagicProjectile summon){summon=TraceSummon;var end=TraceMagic(s,o,d,out p);if(summon!=null)p=null;return end;}
+ public void LaunchMagic(MagicStatEntry s,Player target,MagicProjectile summon=null){Launches++;LastLaunched=s;LastLaunchDirection=castAimDirection;LaunchedSummon=summon;}
  public int Predictions;
  public void TryPredictProjectile(MagicStatEntry s){Predictions++;}
  public void RPC_PresentCast(MagicType m,Vector3 a,Vector3 b,float v){LastCastOrigin=a;}
@@ -190,22 +203,23 @@ public static class Tests {
  static void Tick(Player p){p.Runner.Time+=p.Runner.DeltaTime;}
  public static int Run(){
   var table=new MagicStatTable();Check(table.magics.Length==12,"twelve spells including utility counters");
-  float[] originalDamage={45,18,30,35,0,0,65,0,70,0,0,0};
-  float[] originalDps={0,0,0,0,0,0,0,12,0,18,0,0};
-  for(int i=0;i<originalDamage.Length;i++) {
+  float[] balancedDamage={45,25,25,100,0,0,70,0,18,0,0,0};
+  float[] balancedDps={0,0,0,0,0,0,0,10,0,20,0,0};
+  for(int i=0;i<balancedDamage.Length;i++) {
    var stats=table.GetStats((MagicType)(i+1));
    bool lockOn=i==0||i==1||i==5;
-   float multiplier=lockOn?1f:1.5f;
    Check(stats.requiresTarget==lockOn&&stats.requiresFullLock==lockOn,"lock-on classification unchanged for spell "+(i+1));
-   Check(Near(stats.damage,i==8?18:originalDamage[i]*multiplier),"damage baseline (Mine now uses repeated summon bolts) for spell "+(i+1));
-   Check(Near(stats.damagePerSecond,originalDps[i]*multiplier),"non-lock-on channel DPS increased exactly once for spell "+(i+1));
+   Check(Near(stats.damage,balancedDamage[i]),"requested damage baseline for spell "+(i+1));
+   Check(Near(stats.damagePerSecond,balancedDps[i]),"requested DPS baseline for spell "+(i+1));
   }
   Check(Near(table.GetStats(MagicType.Healing).healing,40),"healing is not damage and stays unchanged");
-  Check(Near(table.GetStats(MagicType.Dark).healthCost,50)&&Near(table.GetStats(MagicType.Dark).healOnHit,60),"Dark health cost and lifesteal stay unchanged");
-  Check(Near(table.GetStats(MagicType.Smoke).radius,24),"smoke radius increased from 8 to 24");
-  float[] oldCooldowns={2.5f,1.8f,.6f,4f,12f,12f,3f,.25f,5f,.25f,3f,10f};
-  for(int i=0;i<oldCooldowns.Length;i++)
-   Check(Near(table.GetStats((MagicType)(i+1)).cooldownSeconds,oldCooldowns[i]*1.5f),"cooldown increased exactly 1.5 times for spell "+(i+1));
+  Check(Near(table.GetStats(MagicType.Dark).healthCost,30)&&Near(table.GetStats(MagicType.Dark).healOnHit,40),"Dark requested health cost and healing");
+  Check(Near(table.GetStats(MagicType.Smoke).radius,36)&&Near(table.GetStats(MagicType.Smoke).effectDuration,7),"smoke former perk radius is now base; duration unchanged");
+  float[] cooldowns={3.75f,2.7f,2f,7f,18f,18f,2f,.375f,7.5f,.375f,6f,15f};
+  for(int i=0;i<cooldowns.Length;i++)
+   Check(Near(table.GetStats((MagicType)(i+1)).cooldownSeconds,cooldowns[i]),"requested cooldown for spell "+(i+1));
+  Check(Near(table.GetStats(MagicType.Ice).movementMultiplier,.4f)&&Near(table.GetStats(MagicType.Ice).effectDuration,2.5f),"ice leaves forty percent movement speed for 2.5 seconds");
+  Check(Near(table.GetStats(MagicType.Thunder).range,300)&&Near(table.GetStats(MagicType.Thunder).strikeDelay,1.5f),"thunder range buff retains delayed strike mechanic");
   Check(Near(table.parryCooldownSeconds,.3f),"parry has a separate 0.3 second cooldown");
   var parrying=Caster(MagicType.Fire);parrying.TryStartParry();
   Check(Near(parrying.ParryCooldown.End,.3f)&&Near(parrying.NowAp,84),"parry starts cooldown and spends MP once");
@@ -218,7 +232,7 @@ public static class Tests {
   Check((int)MagicType.Flare==11&&(int)MagicType.Smoke==12,"new IDs append without changing saved old IDs");
   var utility=Caster(MagicType.Flare);
   utility.Input(true);
-  Check(utility.Launches==0&&MagicProjectile.Breaks==1&&Near(utility.NowAp,76),"Flare instantly breaks homing without launching hitscan or moving player");
+  Check(utility.Launches==0&&MagicProjectile.Breaks==1&&Near(utility.NowAp,50),"Flare instantly breaks homing and pays fifty MP");
   utility.Input(true);utility.Input(false);utility.Input(true);
   Check(MagicProjectile.Breaks==1,"holding or reclicking during flare cooldown cannot spam");
   utility.Runner.Time=utility.MagicCooldowns[(int)MagicType.Flare].End;utility.Input(false);utility.Input(true);
@@ -298,17 +312,18 @@ public static class Tests {
   foreach(var magic in new[]{MagicType.Vision,MagicType.Dark,MagicType.Thunder,MagicType.Razier})
    Check(Near(table.GetStats(magic).hitscanRadius,.3f),"adjustable hitscan radius default "+magic);
   Check(Near(table.GetStats(MagicType.Fire).projectileRadius,.12f)&&Near(table.GetStats(MagicType.Mine).projectileRadius,.2f),"fire and summon bolt radii");
-  Check(Near(table.GetStats(MagicType.Curse).ChannelManaPerSecond(150),75f),"Curse drains any hat capacity in two seconds");
-  foreach(float hp in new[]{0f,49f,50f}){
+  foreach(float mp in new[]{100f,150f,200f})
+   Check(Near(table.GetStats(MagicType.Curse).ChannelManaPerSecond(mp),.5f)&&Near(table.GetStats(MagicType.Razier).ChannelManaPerSecond(mp),1),"fixed channel costs independent of maximum MP "+mp);
+  foreach(float hp in new[]{0f,29f,30f}){
    var p=Caster(MagicType.Dark);p.NowHp=hp;p.TryCastSelectedMagic();Check(p.Launches==0&&p.NowHp==hp&&p.CastSequence==0,"Dark low HP blocked "+hp);
   }
-  var d=Caster(MagicType.Dark);d.NowHp=51;d.TryCastSelectedMagic();Check(d.NowHp==1&&d.Launches==1,"Dark pays 50 above threshold");
-  var victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==61&&Near(victim.NowHp,102.5f),"Dark boosted hit still heals only 60");
+  var d=Caster(MagicType.Dark);d.NowHp=31;d.TryCastSelectedMagic();Check(d.NowHp==1&&d.Launches==1,"Dark pays 30 above threshold");
+  var victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==41&&Near(victim.NowHp,130),"Dark actual hit deals seventy and heals forty");
   d=Caster(MagicType.Dark);d.NowHp=80;d.magicStatTable.magics[6].healthCost=20;d.magicStatTable.magics[6].healOnHit=30;
   d.TryCastSelectedMagic();victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==90,"edited cost and healing honored");
   d=Caster(MagicType.Dark);d.NowHp=100;d.TryCastSelectedMagic();victim=Enemy(d);victim.TryStartParry();
-  victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(victim.NowHp==200&&d.NowHp==50&&victim.ParrySequence==1,"parry nullifies Dark and prevents lifesteal, no reflection");
-  victim.Runner.Time=.31f;victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(Near(victim.NowHp,102.5f)&&d.NowHp==110,"boosted damage resumes after parry window");
+  victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(victim.NowHp==200&&d.NowHp==70&&victim.ParrySequence==1,"parry nullifies Dark and prevents lifesteal, no reflection");
+  victim.Runner.Time=.31f;victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(Near(victim.NowHp,130)&&d.NowHp==110,"damage resumes after parry window");
   d=Caster(MagicType.Dark);d.NowHp=100;d.TryCastSelectedMagic();victim=Enemy(d);victim.NowHp=1;
   victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(!victim.IsAlive&&d.NowHp==110,"killing hit still heals");
   d=Caster(MagicType.Healing);d.NowHp=190;d.Input(true);Check(d.NowHp==200&&d.NowAp==80,"Healing caps at max on press");
@@ -387,7 +402,7 @@ public static class Tests {
   d=Caster(MagicType.Curse);d.NowAp=0;Check(!d.CanAcquireMagicTarget(),"paid channel needs some mana even when apCost is zero");
   d.NowAp=.01f;Check(d.CanAcquireMagicTarget(),"channel permits a paid partial final tick");
   d.channelNeedsRelease=true;Check(!d.CanAcquireMagicTarget(),"exhausted channel must release before reacquiring");d.channelNeedsRelease=false;
-  d.magicStatTable.magics[7].maxApFractionPerSecond=0;d.NowAp=0;
+  d.magicStatTable.magics[7].maxApFractionPerSecond=0;d.magicStatTable.magics[7].apPerSecond=0;d.NowAp=0;
   Check(d.CanAcquireMagicTarget(),"configured free channel remains usable without mana");
   d=Caster(MagicType.Fire);victim=Enemy(d);for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}
   victim.Visible=false;d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"wall invalidates completed lock");
@@ -395,20 +410,29 @@ public static class Tests {
   victim.transform.position=new UnityEngine.Vector3(10,0,.1f);Check(d.IsValidLockTarget(victim),"wide forward hemisphere accepted without aim alignment");
   d=Caster(MagicType.Vision);d.Input(true);d.Input(true);Check(d.Launches==1,"hitscan press only, no held repeats");
   d.Input(false);Tick(d);d.Input(true);Check(d.Launches==1,"cooldown blocks repeated shot");
-  d.Runner.Time=1;d.Input(false);d.Input(true);Check(d.Launches==2,"cast after cooldown");
+  d.Runner.Time=1;d.Input(false);d.Input(true);Check(d.Launches==1,"new Vision cooldown still active after one second");
+  d.Runner.Time=2;d.Input(false);d.Input(true);Check(d.Launches==2,"cast after two-second cooldown");
   d=Caster(MagicType.Thunder);d.Input(true);Check(d.Launches==0&&d.pendingMagic==MagicType.None&&d.NowAp==100,"Thunder hold only aims");
   d.Input(false);Check(d.Launches==1&&d.LastLaunched.effect==MagicEffectKind.DelayedArea&&d.NowAp==20,"Thunder release creates delayed world area");
   d=Caster(MagicType.Curse);victim=Enemy(d);victim.MaxHp=victim.NowHp=1000;
   for(int i=0;i<100;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
-  Check(Near(d.NowAp,0)&&!d.IsChanneling&&d.channelNeedsRelease,"Curse spends full mana in two seconds without regen");
-  Check(Near(victim.NowHp,964),"Curse deals 1.5 times DPS over the same channel duration");
+  Check(Near(d.NowAp,99)&&d.IsChanneling&&!d.channelNeedsRelease,"Curse spends one actual MP across two seconds with no natural regen");
+  Check(Near(victim.NowHp,980),"Curse deals ten DPS over two seconds");
+  d.NowAp=.005f;float partialHp=victim.NowHp;d.Input(true,false,victim.Object.Id);
+  Check(Near(d.NowAp,0)&&!d.IsChanneling&&d.channelNeedsRelease&&Near(partialHp-victim.NowHp,.1f),"partial final channel tick pays only remaining MP and applies proportional damage");
   d.NowAp=20;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"exhaustion requires release");
   d.Input(false);d.Runner.Time+=1;d.Input(true,false,victim.Object.Id);Check(d.IsChanneling,"channel restarts after release");
   victim.Visible=false;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"Curse ends behind wall");
+  d=Caster(MagicType.Curse);victim=Enemy(d);victim.MaxHp=victim.NowHp=10000;d.Runner.DeltaTime=1f/64f;
+  for(int i=0;i<160*64;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
+  Check(Near(d.NowAp,20)&&d.IsChanneling,"Curse can sustain the full 160-second round for eighty MP, without regeneration");
+  d=Caster(MagicType.Curse);d.MaxAp=d.NowAp=200;victim=Enemy(d);
+  for(int i=0;i<50;i++){d.Input(true,false,victim.Object.Id);Tick(d);}
+  Check(Near(d.NowAp,199.5f),"larger hat capacity does not multiply fixed Curse drain");
   d=Caster(MagicType.Razier);victim=Enemy(d);d.TraceTarget=victim;
   d.CastOffset=new Vector3(3,2,1);
   for(int i=0;i<50;i++){d.Input(true);d.RegenerateAp();Tick(d);}
-  Check(Near(d.NowAp,60)&&Near(victim.NowHp,173),"Razier deals 1.5 times DPS without increasing MP consumption");
+  Check(Near(d.NowAp,99)&&Near(victim.NowHp,180),"Razier deals twenty DPS for one actual MP per second");
   Check(d.LastTraceOrigin.x==3&&d.LastTraceOrigin.y==2,"straight channel traces from the editable cast root");
   d.CastOffset=new Vector3(4,5,6);d.Input(true);Check(d.LastTraceOrigin.x==4&&d.LastTraceOrigin.y==5,"channel follows the current cast root each tick");
   d.Input(false);Check(!d.IsChanneling&&d.TimerIsActive(d.MagicCooldowns[(int)MagicType.Razier]),"release ends channel and starts cooldown");
@@ -422,6 +446,27 @@ public static class Tests {
   Check(victim.NowHp==200&&victim.HitSequence==0,"proxy cannot apply damage");
   d=Caster(MagicType.Healing);d.CastOffset=new Vector3(3,2,1);d.NowHp=100;d.Input(true);
   Check(d.LastCastOrigin.x==d.LockAimPoint.x&&d.LastCastOrigin.y==d.LockAimPoint.y,"self-healing remains body-centered, independent of muzzle");
+  MagicProjectile Body(Player p,int id=3){var b=new MagicProjectile{Runner=p.Runner};b.Object.Id=new(id);b.Object.Summon=b;b.transform.position=new(0,0,10);p.Runner.Objects[id]=b.Object;return b;}
+  d=Caster(MagicType.Fire);var body=Body(d);
+  Check(d.TryGetMagicTarget(body.Object.Id,out var bodyPlayer,out var bodyTarget,out var bodyPoint)&&bodyPlayer==null&&bodyTarget==body&&bodyPoint.z==10,"summon network ID resolves to hostile lockable body");
+  for(int i=0;i<80;i++){d.Input(true,false,body.Object.Id);Tick(d);}Check(d.IsFullyLocked,"ordinary lock-on charges on summon");
+  d.Input(false,false,body.Object.Id);Check(d.Launches==1&&d.LaunchedSummon==body&&Near(d.NowAp,40),"release launches paid homing spell toward summon");
+  d=Caster(MagicType.Binding);body=Body(d);body.TeamIndex=1;Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"friendly summon cannot be selected");
+  body.TeamIndex=2;body.Alive=false;Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"destroyed summon cannot be selected");body.Alive=true;
+  MagicProjectile.Sight=false;Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"wall rejects summon lock");MagicProjectile.Sight=true;
+  body.transform.position=new(0,0,-10);Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"summon still requires forward hemisphere");
+  body.transform.position=new(0,0,300);Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"summon lock respects spell range");
+  foreach(var magic in new[]{MagicType.Curse,MagicType.Razier}){
+   d=Caster(magic);body=Body(d);d.TraceSummon=body;
+   int ticks=magic==MagicType.Curse?250:125;
+   for(int i=0;i<ticks;i++){d.Input(true,false,body.Object.Id);Tick(d);}
+   Check(Near(body.Received,50)&&Near(d.NowAp,97.5f),"real channel tick path delivers fifty damage and pays correct MP to body: "+magic);
+   Check(d.ChannelTargetId.Equals(body.Object.Id),"channel visuals track summon network ID: "+magic);
+  }
+  d=Caster(MagicType.Curse);body=Body(d);var nextBody=Body(d,4);
+  for(int i=0;i<3;i++){d.Input(true,false,body.Object.Id);Tick(d);}
+  for(int i=0;i<5;i++){d.Input(true,false,nextBody.Object.Id);Tick(d);}
+  Check(Near(body.Received,0)&&Near(nextBody.Received,1),"switching summons discards prior partial channel damage");
   return n;
  }
 }}
@@ -438,19 +483,22 @@ $defaultMagicTable = [CombatChecks.MagicStatTable]::new()
 foreach ($entry in $savedEntries) {
     $id = [int]$entry.Groups[1].Value
     $stats = $defaultMagicTable.GetStats([CombatChecks.MagicType]$id)
-    foreach ($field in 'damage','damagePerSecond','healthCost','healOnHit','healing','apCost','apPerSecond','maxApFractionPerSecond') {
+    foreach ($field in 'damage','damagePerSecond','healthCost','healOnHit','healing','apCost','apPerSecond','maxApFractionPerSecond','range','lockChargeSeconds','projectileSpeed','castSeconds','movementMultiplier','effectDuration') {
         $savedValue = [float][regex]::Match($entry.Groups[2].Value, "(?m)^    ${field}: ([\d.]+)").Groups[1].Value
         if ([Math]::Abs($savedValue - $stats.$field) -gt 0.001) { throw "Saved $field differs from default for magic $id" }
     }
-    if ($id -eq 12 -and $entry.Groups[2].Value -notmatch '(?m)^    radius: 24\r?$') { throw 'Saved smoke radius must be 24' }
+    if ($id -eq 12 -and $entry.Groups[2].Value -notmatch '(?m)^    radius: 36\r?$') { throw 'Saved smoke radius must be 36' }
     $cooldown = [float][regex]::Match($entry.Groups[2].Value, '(?m)^    cooldownSeconds: ([\d.]+)').Groups[1].Value
     if ([Math]::Abs($cooldown - $defaultMagicTable.GetStats([CombatChecks.MagicType]$id).cooldownSeconds) -gt 0.001) {
         throw "Saved cooldown differs from updated default for magic $id"
     }
 }
-if ($savedMagicTable -notmatch '(?m)^  parryCooldownSeconds: 0\.3\r?$' -or
-    $savedMagicTable -notmatch '(?m)^  parryWindowSeconds: 0\.5\r?$') {
-    throw 'Parry cooldown must be 0.3 seconds without changing the current 0.5 second success window'
+foreach ($field in 'parryApCost','parryCooldownSeconds','parryWindowSeconds') {
+    # Authored parry balance is independent of this twelve-spell revision.
+    $value = [regex]::Match($savedMagicTable,"(?m)^  ${field}: ([\d.]+)\r?$").Groups[1].Value
+    if (!$value -or [double]::Parse($value,[Globalization.CultureInfo]::InvariantCulture) -lt 0) {
+        throw "Missing or invalid editable parry setting: $field"
+    }
 }
 foreach ($prefab in 'Assets/Ch/ChPrefab.prefab','Assets/Prefab/MagicDummy_LockOnAttacker.prefab','Assets/Prefab/MagicDummy_Immortal.prefab') {
     if ((Get-Content $prefab -Raw) -notmatch '(?m)^  parryCooldownSeconds: 0\.3\r?$') { throw "Stale parry fallback in $prefab" }

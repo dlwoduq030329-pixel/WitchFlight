@@ -13,6 +13,7 @@ public partial class Player
     private float lifeStartMaxHp, perkClock, nextManaRemnant;
     private MagicStatEntry pendingPerkStats, channelPerkStats, flarePerkStats;
     private float flarePulseAt = -1f, flareCastAt;
+    private int flarePulsesRemaining;
     private bool flareRefunded;
     private NetworkId beamVictim;
     private float beamContact, beamLastContact = -100f;
@@ -95,14 +96,19 @@ public partial class Player
         }
         if (flarePulseAt >= 0f && perkClock >= flarePulseAt && IsAlive)
         {
-            flarePulseAt = -1f; TriggerPerkFlare(flarePerkStats);
+            flarePulsesRemaining--;
+            flarePulseAt = flarePulsesRemaining > 0
+                ? perkClock + Mathf.Max(.05f, flarePerkStats.perkFirst.seconds) : -1f;
+            TriggerPerkFlare(flarePerkStats);
             RPC_PresentCast(MagicType.Flare, LockAimPoint, -transform.forward, 0f);
         }
     }
     private void StartPerkFlare(MagicStatEntry stats)
     {
         flarePerkStats = stats; flareRefunded = false; flareCastAt = perkClock;
-        flarePulseAt = stats.perkFirst?.id == PerkId.FlarePulse ? perkClock + Mathf.Max(0f,stats.perkFirst.seconds) : -1f;
+        flarePulsesRemaining = stats.perkFirst?.id == PerkId.FlarePulse
+            ? Mathf.Clamp(Mathf.RoundToInt(stats.perkFirst.amount), 0, 8) : 0;
+        flarePulseAt = flarePulsesRemaining > 0 ? perkClock + Mathf.Max(.05f,stats.perkFirst.seconds) : -1f;
         TriggerPerkFlare(stats);
     }
     private void TriggerPerkFlare(MagicStatEntry stats)
@@ -155,10 +161,11 @@ public partial class Player
     {
         if (source != null && source != this && source.TeamIndex != TeamIndex)
         {
-            if (source.CommonAmount(PerkId.ManaRemnant) > 0f && source.perkClock >= source.nextManaRemnant)
+            float manaRefund = PerkEffects.HitManaRefund(s, source.MaxAp, source.CommonAmount(PerkId.ManaRemnant));
+            if (manaRefund > 0f && source.perkClock >= source.nextManaRemnant)
             {
                 source.nextManaRemnant = source.perkClock + Mathf.Max(0f,source.Perks.Get(PerkId.ManaRemnant).seconds);
-                source.RestoreAp(source.MaxAp * source.CommonAmount(PerkId.ManaRemnant));
+                source.RestoreAp(manaRefund);
             }
             if (IsAlive && s.perkSecond?.id == PerkId.IceMark)
                 iceMarks[sourceId] = new IceMark { slot=s.perkSlot, expires=perkClock+s.perkSecond.seconds,
