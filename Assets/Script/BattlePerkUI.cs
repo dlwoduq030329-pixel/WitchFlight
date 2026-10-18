@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -18,6 +19,21 @@ public sealed class PerkPlayerView
     public Image profile;
     public TMP_Text slot1Text, slot2Text;
     public Image slot1Icon, slot2Icon;
+    [Header("Magic 1 / Magic 2: fixed stage 1 and stage 2 rows")]
+    public PerkCardView[] slot1Effects = new PerkCardView[2];
+    public PerkCardView[] slot2Effects = new PerkCardView[2];
+    [Header("Broom / mana common perks (up to two)")]
+    public PerkCardView[] commonEffects = new PerkCardView[2];
+    [Header("Match totals (TMP text; optional)")]
+    public TMP_Text damageDealtText, damageTakenText;
+    public TMP_Text killsText, deathsText;
+    [Tooltip("Optional combined text, e.g. 1 / 2. Leave empty when using separate Kills / Deaths.")]
+    public TMP_Text killsDeathsText;
+    [Header("Current flag possession")]
+    [Tooltip("The flag icon object only, enabled while this player carries the flag.")]
+    public GameObject flagIndicator;
+    public TMP_Text flagStatusText;
+    [HideInInspector] // Preserve existing flat-list bindings without mixing the new columns.
     [Tooltip("Four acquired effects. A mastered slot shows both stage 1 and stage 2.")]
     public PerkCardView[] effects = new PerkCardView[4];
 }
@@ -241,17 +257,40 @@ public sealed class BattlePerkUI : MonoBehaviour
         if (comparisonKey == key) return;
         comparisonKey = key; FillPlayer(ownView,local); FillPlayer(opponentView,opponent);
     }
-    private string SnapshotKey(PlayerData d) => !Ready(d) ? "loading" : $"{d.Object.Id}/{d.PerkRevision}/{d.magic1}/{d.magic2}/{d.playerName}/{d.playerprofile}";
+    private string SnapshotKey(PlayerData d) => !Ready(d) ? "loading" : $"{d.Object.Id}/{d.PerkRevision}/{d.magic1}/{d.magic2}/{d.playerName}/{d.playerprofile}/{d.BattleStatsRevision}/{CarriesFlag(d)}";
+    private bool CarriesFlag(PlayerData d)
+    {
+        BattleFlag flag = BattleFlag.Instance;
+        return Ready(d) && flag != null && flag.Object != null && flag.Object.IsValid &&
+            flag.Runner == d.Runner && d.Object.InputAuthority != Fusion.PlayerRef.None &&
+            flag.Carrier == d.Object.InputAuthority;
+    }
     private void FillPlayer(PerkPlayerView view, PlayerData d)
     {
         if (view == null) return;
         bool ready = Ready(d);
         Text(view.playerName,ready ? d.playerName.ToString() : "정보를 불러오는 중…");
         SetIcon(view.profile,ready && profileTable != null ? profileTable.GetSprite(d.playerprofile) : null);
-        Text(view.slot1Text,ready ? SlotText(d.magic1,d.PerkSlot1Level) : "—");
-        Text(view.slot2Text,ready ? SlotText(d.magic2,d.PerkSlot2Level) : "—");
+        Text(view.slot1Text,ready ? MagicName(d.magic1) : "—");
+        Text(view.slot2Text,ready ? MagicName(d.magic2) : "—");
         SetIcon(view.slot1Icon,ready && magicTable != null ? magicTable.GetIcon(d.magic1) : null);
         SetIcon(view.slot2Icon,ready && magicTable != null ? magicTable.GetIcon(d.magic2) : null);
+        FillSpellEffects(view.slot1Effects,d,1,ready);
+        FillSpellEffects(view.slot2Effects,d,2,ready);
+        int commonIndex = 0;
+        if (ready && view.commonEffects != null)
+            for (int id = 25; id <= 34 && commonIndex < view.commonEffects.Length; id++)
+                if (d.HasCommonPerk((PerkId)id)) Fill(view.commonEffects[commonIndex++],(PerkId)id,"공용 증강",d);
+        if (view.commonEffects != null)
+            for (; commonIndex < view.commonEffects.Length; commonIndex++) ClearEffect(view.commonEffects[commonIndex],ready);
+        Text(view.damageDealtText,ready ? DamageText(d.BattleDamageDealt) : "—");
+        Text(view.damageTakenText,ready ? DamageText(d.BattleDamageTaken) : "—");
+        Text(view.killsText,ready ? d.BattleKills.ToString() : "—");
+        Text(view.deathsText,ready ? d.BattleDeaths.ToString() : "—");
+        Text(view.killsDeathsText,ready ? $"{d.BattleKills} / {d.BattleDeaths}" : "— / —");
+        bool hasFlag = ready && CarriesFlag(d);
+        Show(view.flagIndicator,hasFlag);
+        Text(view.flagStatusText,!ready ? "—" : hasFlag ? "보유" : "미보유");
         int n=0;
         if (ready)
         {
@@ -267,7 +306,25 @@ public sealed class BattlePerkUI : MonoBehaviour
     }
     private void FillRow(PerkPlayerView view,ref int n,PerkId id,string hint,PlayerData data)
     { if(view.effects!=null && n<view.effects.Length) Fill(view.effects[n],id,hint,data); n++; }
-    private string SlotText(MagicType magic,int level) => $"{(magicTable != null ? magicTable.GetStats(magic).displayName : magic.ToString())} · {level}/2";
+    private void FillSpellEffects(PerkCardView[] rows,PlayerData data,int slot,bool ready)
+    {
+        if (rows == null) return;
+        for (int i = 0; i < rows.Length; i++)
+        {
+            PerkId id = ready && i < 2 && data.PerkLevel(slot) > i
+                ? PerkRules.Spell(slot == 1 ? data.magic1 : data.magic2,i+1) : PerkId.None;
+            if (id != PerkId.None) Fill(rows[i],id,$"슬롯 {slot} · {i+1}단계",data);
+            else ClearEffect(rows[i],ready);
+        }
+    }
+    private static void ClearEffect(PerkCardView row,bool ready)
+    {
+        if (row == null) return;
+        SetIcon(row.icon,null); Text(row.title,"—");
+        Text(row.description,ready ? "아직 획득하지 않음" : "정보 대기 중"); Text(row.hint,"");
+    }
+    private static string DamageText(float amount) => Math.Max(0d,amount).ToString("N0",CultureInfo.InvariantCulture);
+    private string MagicName(MagicType magic) => magic == MagicType.None ? "빈 슬롯" : magicTable != null ? magicTable.GetStats(magic).displayName : magic.ToString();
     private static void Text(TMP_Text t,string s) { if(t!=null && t.text!=s)t.text=s; }
     private static void SetIcon(Image i,Sprite s) { if(i==null)return; i.sprite=s; i.enabled=s!=null; }
     private static void Show(GameObject root,bool show) { if(root!=null && root.activeSelf!=show)root.SetActive(show); }
@@ -347,20 +404,38 @@ public sealed class BattlePerkUI : MonoBehaviour
     private void BuildComparison()
     {
         comparisonRoot=Rect("PerkComparison",CanvasRoot(),new Vector2(.5f,.5f),Vector2.zero,new Vector2(1920,1080)).gameObject;
-        ownView=PlayerPanel("Own",new Vector2(-660,20)); opponentView=PlayerPanel("Opponent",new Vector2(660,20));
+        ownView=PlayerPanel("Own",new Vector2(0,145)); opponentView=PlayerPanel("Opponent",new Vector2(0,-145));
     }
     private PerkPlayerView PlayerPanel(string name,Vector2 position)
     {
-        var root=Rect(name,comparisonRoot.transform,new Vector2(.5f,.5f),position,new Vector2(440,590));
-        var bg=root.gameObject.AddComponent<Image>();bg.color=new Color(.03f,.055f,.08f,.86f);bg.raycastTarget=false;
-        var v=new PerkPlayerView();
-        v.profile=Image("Profile",root,new Vector2(-171,252),new Vector2(52,52),Color.white);
-        v.playerName=Label("Name",root,new Vector2(29,252),new Vector2(325,42),24);
-        v.slot1Icon=Image("Slot1Icon",root,new Vector2(-185,197),new Vector2(36,36),Color.white);
-        v.slot1Text=Label("Slot1",root,new Vector2(20,197),new Vector2(345,32),20);
-        v.slot2Icon=Image("Slot2Icon",root,new Vector2(-185,153),new Vector2(36,36),Color.white);
-        v.slot2Text=Label("Slot2",root,new Vector2(20,153),new Vector2(345,32),20);
-        for(int i=0;i<4;i++)v.effects[i]=Card(root,"Effect"+i,new Vector2(0,76-i*104),new Vector2(412,96));
+        var root=Rect(name,comparisonRoot.transform,new Vector2(.5f,.5f),position,new Vector2(1660,240));
+        var bg=root.gameObject.AddComponent<Image>();
+        bg.color=name=="Own" ? new Color(.025f,.16f,.19f,.86f) : new Color(.23f,.035f,.07f,.86f);bg.raycastTarget=false;
+        var v=new PerkPlayerView { effects=Array.Empty<PerkCardView>() };
+        v.profile=Image("Profile",root,new Vector2(-766,24),new Vector2(64,64),Color.white);
+        v.playerName=Label("Name",root,new Vector2(-598,24),new Vector2(235,60),23);
+        v.slot1Icon=Image("Slot1Icon",root,new Vector2(-430,70),new Vector2(38,38),Color.white);
+        v.slot1Text=Label("Slot1",root,new Vector2(-310,70),new Vector2(180,38),22);
+        v.slot2Icon=Image("Slot2Icon",root,new Vector2(-170,70),new Vector2(38,38),Color.white);
+        v.slot2Text=Label("Slot2",root,new Vector2(-50,70),new Vector2(180,38),22);
+        Label("CommonHeader",root,new Vector2(170,70),new Vector2(200,38),20).text="빗자루 / 마력";
+        for(int i=0;i<2;i++)
+        {
+            float y=16-i*54;
+            v.slot1Effects[i]=ComparisonEffect(root,"Magic1Effect"+i,new Vector2(-340,y));
+            v.slot2Effects[i]=ComparisonEffect(root,"Magic2Effect"+i,new Vector2(-80,y));
+            v.commonEffects[i]=ComparisonEffect(root,"CommonEffect"+i,new Vector2(170,y));
+        }
+        Label("DealtHeader",root,new Vector2(365,64),new Vector2(140,32),18,TextAlignmentOptions.Center).text="가한 피해";
+        Label("TakenHeader",root,new Vector2(510,64),new Vector2(140,32),18,TextAlignmentOptions.Center).text="받은 피해";
+        Label("KDHeader",root,new Vector2(660,64),new Vector2(140,32),18,TextAlignmentOptions.Center).text="킬 / 데스";
+        Label("FlagHeader",root,new Vector2(770,64),new Vector2(90,32),18,TextAlignmentOptions.Center).text="깃발";
+        v.damageDealtText=Label("DamageDealt",root,new Vector2(365,0),new Vector2(140,40),24,TextAlignmentOptions.Center);
+        v.damageTakenText=Label("DamageTaken",root,new Vector2(510,0),new Vector2(140,40),24,TextAlignmentOptions.Center);
+        v.killsDeathsText=Label("KillsDeaths",root,new Vector2(660,0),new Vector2(140,40),24,TextAlignmentOptions.Center);
+        v.flagStatusText=Label("FlagStatus",root,new Vector2(770,0),new Vector2(90,40),20,TextAlignmentOptions.Center);
         return v;
     }
+    private PerkCardView ComparisonEffect(Transform root,string name,Vector2 position)
+        => new PerkCardView { title=Label(name,root,position,new Vector2(220,42),19) };
 }

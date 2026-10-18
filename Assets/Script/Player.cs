@@ -1441,6 +1441,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         NotifyDamageDirection(attacker, attackerId);
         float hpBefore = NowHp;
         NowHp = Mathf.Max(NowHp - damage, testBot != null && testBot.Immortal ? 1f : 0f);
+        if (testBot == null)
+            PlayerData.FindPerkData(Runner, Object.InputAuthority)?.RecordBattleDamage(attacker, hpBefore - NowHp);
         PlayerData.FindPerkData(Runner,attacker)?.AwardPerkDamage(this, hpBefore-NowHp, lifeStartMaxHp > 0f ? lifeStartMaxHp : MaxHp);
         ApplyHitStun(hitStunSeconds >= 0f ? hitStunSeconds : defaultHitStunSeconds);
         ApplyKnockbackFrom(attacker, knockbackForce);

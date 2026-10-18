@@ -156,7 +156,8 @@ public class BattleManager : MonoBehaviour
         this.spawnedPlayers = spawnedPlayers;
         pendingRespawns.Clear();
         resultAnnounced = false;
-        foreach (PlayerData data in playerDatas.Values) if (data != null) data.ResetMatchPerks();
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null) { data.ResetMatchPerks(); data.ResetBattleStats(); }
         FindSpawnPoints();
         SpawnBattlePlayers(playerPrefab);
         SpawnFlag();
@@ -303,6 +304,7 @@ public class BattleManager : MonoBehaviour
         Player deadPilot = deadObject.GetComponent<Player>();
         playerDatas.TryGetValue(deadPlayer, out PlayerData victim);
         playerDatas.TryGetValue(killerPlayer, out PlayerData killer);
+        victim?.RecordBattleDeath(deadObject.Id, killer);
         if (killer != null && killer != victim) killer.AwardPerkKill(deadPilot);
         battleFlag?.AnnounceKill(killer != null ? killer.playerName.ToString() : "환경 / 더미",
             killer != null ? killer.playerprofile : -1,

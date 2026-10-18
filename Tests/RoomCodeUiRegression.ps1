@@ -138,8 +138,39 @@ $unusedEnter = [regex]::Match($multi, '(?ms)^--- !u!114 &7255987890633575930\r?\
 if ($unusedEnter -notmatch 'm_Enabled: 0') { throw 'Unused duplicate input controller should be disabled.' }
 foreach ($file in @('Assets/UI/Prefab/IntroAndRobby.prefab','Assets/Scenes/Eunseo.unity')) {
     $yaml = Get-Content (Join-Path $repo $file) -Raw
-    if ($yaml -notmatch 'target: \{fileID: 5543811334814847006, guid: b0fa21d2f98732245bed505eaa601452, type: 3\}\r?\n      propertyPath: m_Enabled\r?\n      value: 0') {
+    $hasReplacement = $yaml -match 'm_Script: \{fileID: 11500000, guid: a8347015f0377d34a9b523d15deff38e, type: 3\}'
+    $baseDisabled = $yaml -match 'target: \{fileID: 5543811334814847006, guid: b0fa21d2f98732245bed505eaa601452, type: 3\}\r?\n      propertyPath: m_Enabled\r?\n      value: 0'
+    # The merged Eunseo scene now uses Multi directly, without an added EnterRoom.
+    # Disable the inherited controller only when this variant actually replaces it.
+    if ($hasReplacement -and !$baseDisabled) {
         throw "Inherited input controller must not compete with this variant's controller: $file"
     }
+    if (!$hasReplacement -and $baseDisabled) {
+        throw "Input controller is disabled without a replacement: $file"
+    }
 }
-'Room code prefab wiring checks passed: 12'
+
+function RoomBlock([string]$fileId) {
+    $result = [regex]::Match($multi, '(?ms)^--- !u!\d+ &' + $fileId + '\r?\n.*?(?=^--- !u!|\z)')
+    if (!$result.Success) { throw "Missing room UI object: $fileId" }
+    $result.Value
+}
+$joinButton = RoomBlock '1382500624263959315'
+if ($joinButton -notmatch 'm_Target: \{fileID: 5543811334814847006\}' -or
+    $joinButton -notmatch 'm_MethodName: TryEnterRoom') { throw 'Join button must call the active EnterRoom controller.' }
+$joinController = RoomBlock '5543811334814847006'
+if ($joinController -notmatch 'm_Enabled: 1') { throw 'Auto-advance controller must be enabled.' }
+$inputs = [regex]::Match($joinController, '(?s)  texts:\r?\n(.*?)  robbyUI:').Groups[1].Value
+$ids = @([regex]::Matches($inputs, 'fileID: (\d+)') | ForEach-Object { $_.Groups[1].Value })
+if ($ids.Count -ne 4 -or @($ids | Select-Object -Unique).Count -ne 4) { throw 'Join requires four distinct input fields.' }
+for ($i=0; $i -lt $ids.Count; $i++) {
+    $inputBlock = RoomBlock $ids[$i]
+    $goId = [regex]::Match($inputBlock, 'm_GameObject: \{fileID: (\d+)').Groups[1].Value
+    $goBlock = RoomBlock $goId
+    $expectedName = 'InputField0' + ($i+1)
+    if ($goBlock -notmatch ('m_Name: ' + $expectedName + '\r?\n') -or
+        $goBlock -notmatch 'm_IsActive: 1' -or $inputBlock -notmatch 'm_Enabled: 1' -or
+        $inputBlock -notmatch 'm_Interactable: 1' -or $inputBlock -notmatch 'm_ReadOnly: 0' -or
+        $inputBlock -notmatch 'm_CharacterLimit: 1') { throw "Incorrect auto-advance field order or state: $expectedName" }
+}
+'Room code prefab wiring checks passed: 19'

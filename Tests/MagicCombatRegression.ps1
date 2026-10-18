@@ -62,6 +62,7 @@ public class PlayerData {
  public static PlayerData FindPerkData(RunnerState runner,PlayerRef who)=>null;
  public void AwardPerkBinding(Player victim){}
  public void AwardPerkDamage(Player victim,float damage,float maximum){}
+ public void RecordBattleDamage(PlayerRef attacker,float damage){}
 }
 public enum PlayerInputButton {Lock,Parry}
 public struct NetworkId {public int Id; public NetworkId(int id){Id=id;} public bool Equals(NetworkId other)=>Id==other.Id;}
