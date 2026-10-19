@@ -11,7 +11,7 @@ using UnityEngine.UI;
 // Local-only presentation. Never instantiate a Player prefab or change its layers.
 [DefaultExecutionOrder(50)]
 [DisallowMultipleComponent]
-public sealed class BattleIntroPresentation : MonoBehaviour
+public sealed partial class BattleIntroPresentation : MonoBehaviour
 {
     private const int PortraitLayer = 31;
 
@@ -61,6 +61,7 @@ public sealed class BattleIntroPresentation : MonoBehaviour
     private bool hasDisplayedPhase;
     private bool reportedSnapshotFailure;
     private int displayedCountdown = -1;
+    private bool displayedTeamMode;
 
     private void Awake()
     {
@@ -80,10 +81,11 @@ public sealed class BattleIntroPresentation : MonoBehaviour
     {
         BattleManager battle = BattleManager.Instance;
         BattleStartPhase phase = battle != null ? battle.Phase : BattleStartPhase.WaitingForPlayers;
-        if (!hasDisplayedPhase || displayedPhase != phase)
+        if (!hasDisplayedPhase || displayedPhase != phase || displayedTeamMode != IsTeamBattle)
         {
             bool leavingIntro = hasDisplayedPhase && displayedPhase == BattleStartPhase.Intro;
             displayedPhase = phase;
+            displayedTeamMode = IsTeamBattle;
             hasDisplayedPhase = true;
             SetUIPhase(phase);
             if (leavingIntro)
@@ -94,26 +96,37 @@ public sealed class BattleIntroPresentation : MonoBehaviour
                 ReleasePortraits();
         }
 
-        if (phase == BattleStartPhase.Countdown && countdownText != null && battle != null)
+        TMP_Text activeCountdown = IsTeamBattle ? teamCountdownText : countdownText;
+        if (phase == BattleStartPhase.Countdown && activeCountdown != null && battle != null)
         {
             int seconds = Mathf.Clamp(Mathf.CeilToInt(battle.PhaseRemainingSeconds), 1, 3);
             if (seconds != displayedCountdown)
             {
-                countdownText.text = seconds.ToString();
+                activeCountdown.text = seconds.ToString();
                 displayedCountdown = seconds;
             }
         }
 
         FreezeCompletedSnapshot(localSnapshot);
         FreezeCompletedSnapshot(opponentSnapshot);
+        foreach (PortraitSnapshot snapshot in teamSnapshots) FreezeCompletedSnapshot(snapshot);
+        UpdateTeamIntroAnimation(phase);
         if (battle == null || (phase != BattleStartPhase.WaitingForPlayers && phase != BattleStartPhase.Intro) ||
             Time.unscaledTime < nextPreparationTime)
             return;
 
         // Baking runs after animation. Discovery and reliable readiness retries are at most once per second.
         nextPreparationTime = Time.unscaledTime + 1f;
+        if (IsTeamBattle) { PrepareTeamPresentation(phase); return; }
         if (!TryResolvePlayers(battle, out Player local, out Player opponent))
             return;
+
+        if (battle.IsTraining)
+        {
+            // No opponent/profile/snapshot barrier in the solo practice mode.
+            if (phase == BattleStartPhase.WaitingForPlayers) local.ReportBattleSceneReady();
+            return;
+        }
 
         bool solo = battle.ExpectedPlayerCount <= 1;
         if (soloText != null)
@@ -374,6 +387,8 @@ public sealed class BattleIntroPresentation : MonoBehaviour
             localSnapshot.RenderedFrame = Time.frameCount;
         if (opponentSnapshot != null && opponentSnapshot.Camera == camera)
             opponentSnapshot.RenderedFrame = Time.frameCount;
+        foreach (PortraitSnapshot snapshot in teamSnapshots)
+            if (snapshot != null && snapshot.Camera == camera) snapshot.RenderedFrame = Time.frameCount;
     }
 
     private static void FreezeCompletedSnapshot(PortraitSnapshot snapshot)
@@ -385,9 +400,10 @@ public sealed class BattleIntroPresentation : MonoBehaviour
 
     private void SetUIPhase(BattleStartPhase phase)
     {
+        bool training = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
         bool intro = phase == BattleStartPhase.Intro;
         bool countdown = phase == BattleStartPhase.Countdown;
-        if (countdown) EnsureCountdownText();
+        if (countdown && !IsTeamBattle) EnsureCountdownText();
         bool waiting = phase == BattleStartPhase.WaitingForPlayers;
         // Allow optional start buttons while waiting; lock flight input again for the countdown.
         if (phase != BattleStartPhase.Ended)
@@ -400,16 +416,17 @@ public sealed class BattleIntroPresentation : MonoBehaviour
         if (introPanel != null)
         {
             bool containsActiveText = countdown && countdownText != null && countdownText.transform.IsChildOf(introPanel.transform);
-            introPanel.SetActive(waiting || intro || containsActiveText);
+            introPanel.SetActive(!IsTeamBattle && ((!training && (waiting || intro)) || containsActiveText));
         }
         UpdatePortraitVisibility(phase);
         if (soloText != null)
             soloText.gameObject.SetActive(intro && BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount <= 1);
         if (countdownText != null)
-            countdownText.gameObject.SetActive(countdown);
+            countdownText.gameObject.SetActive(countdown && !IsTeamBattle);
         if (waitingText != null)
             waitingText.gameObject.SetActive(false);
         displayedCountdown = -1;
+        SetTeamUIPhase(phase);
     }
 
     private void EnsureCountdownText()
@@ -441,7 +458,8 @@ public sealed class BattleIntroPresentation : MonoBehaviour
 
     private void UpdatePortraitVisibility(BattleStartPhase phase)
     {
-        bool visible = phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro;
+        bool training = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
+        bool visible = !training && !IsTeamBattle && (phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro);
         if (localPortrait != null)
             localPortrait.enabled = visible && localPortrait.texture != null;
         if (opponentPortrait != null)
@@ -457,6 +475,11 @@ public sealed class BattleIntroPresentation : MonoBehaviour
             opponentPortrait.texture = null;
         ReleaseSnapshot(ref localSnapshot);
         ReleaseSnapshot(ref opponentSnapshot);
+        for (int i = 0; i < teamSnapshots.Length; i++)
+        {
+            if (teamCards != null && i < teamCards.Length && teamCards[i]?.portrait != null) teamCards[i].portrait.texture = null;
+            ReleaseSnapshot(ref teamSnapshots[i]);
+        }
 
         // Panel visibility is controlled by SetUIPhase, not texture cleanup.
 
@@ -499,5 +522,6 @@ public sealed class BattleIntroPresentation : MonoBehaviour
     private void OnDestroy()
     {
         ReleasePortraits();
+        if (teamCanvas != null) Destroy(teamCanvas.gameObject);
     }
 }

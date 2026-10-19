@@ -45,6 +45,8 @@ public class FlightProbe {
  public PerkStatTable Perks=new();
  public float TurnMultiplier()=>GetTurnMultiplier();
  float CommonAmount(PerkId id)=>0;
+ public float ItemMultiplier=1;
+ float GetItemSpeedMultiplier()=>ItemMultiplier;
  void CancelCombatForPerks(){ClearLockTargetInternal();StopChannel();pendingMagic=MagicType.None;}
  public RunnerState Runner=new RunnerState(); public Obj Object=new Obj();
  public bool SimulatesMovement=true,IsAlive=true,IsHitStunned,IsBoosting,boostNeedsRelease;
@@ -152,6 +154,15 @@ public static class Tests {
   for(int i=0;i<160;i++)p.Step();
   var replayed=carrierSnapshot.Snapshot();BattleFlag.Instance.Runner=replayed.Runner;
   for(int i=0;i<160;i++)replayed.Step();Equal(p,replayed,"carrier speed penalty is stable across snapshot replay");
+  BattleFlag.Instance=null;p=new FlightProbe{SpeedStage=3,ItemMultiplier=1.3f};
+  for(int i=0;i<500;i++)p.Step();Check(Near(p.Speed,78),"item booster increases stage speed by configured multiplier");
+  p.ItemMultiplier=1;for(int i=0;i<120;i++)p.Step();Check(Near(p.Speed,60),"expired booster brakes smoothly to normal stage speed");
+  p=new FlightProbe{SpeedStage=0,ItemMultiplier=1.3f};for(int i=0;i<120;i++)p.Step();
+  Check(Near(p.Speed,0),"booster never starts movement from zero stage");
+  p=new FlightProbe{SpeedStage=-3,ItemMultiplier=1.3f};for(int i=0;i<500;i++)p.Step();
+  Check(Near(p.Speed,-78),"booster also respects reverse stage direction");
+  p=new FlightProbe{SpeedStage=3,ItemMultiplier=1.3f};BattleFlag.Instance=new(){Runner=p.Runner,Carrier=PlayerRef.One};
+  for(int i=0;i<500;i++)p.Step();Check(Near(p.Speed,62.4f),"item bonus retains current-carrier speed penalty");
   return n;
  }
 }}

@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
+using UnityEngine.Serialization;
 
 [RequireComponent(typeof(RandomMatchUI))]
 public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
@@ -19,6 +20,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public bool IsMatching => _runner != null || startInProgress || stopInProgress;
     public NetworkRunner Runner => _runner;
     public bool IsRandomMatch { get; private set; }
+    public bool IsTraining { get; private set; }
     public bool IsCancellingMatch => cancelRequested || stopInProgress;
     public bool IsBattleTransitioning => isGameStarting;
     public string MatchStatus { get; private set; } = "";
@@ -26,10 +28,26 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         !cancelRequested && !stopInProgress &&
         (startInProgress || _runner == null || _runner.SceneManager == null || !_runner.SceneManager.IsBusy);
     public bool IsBattleSceneLoaded { get; private set; }
-    public int RequiredPlayerCount => activePlayerCount > 0 ? activePlayerCount : Mathf.Max(1, maxPlayerCount);
+    public BattleMatchMode CurrentMatchMode
+    {
+        get
+        {
+            if (IsRandomMatch) return BattleMatchMode.TwoVsTwo;
+            if (_runner != null && _runner.IsRunning)
+                foreach (PlayerData data in PlayerData.PerkPlayers)
+                    if (data != null && data.Object != null && data.Object.IsValid && data.Runner == _runner && data.IsRoomOwner)
+                        return data.RoomMatchMode;
+            return roomMatchMode;
+        }
+    }
+    public int RequiredPlayerCount => IsTraining ? 1 : BattleMatchRules.PlayerCount(CurrentMatchMode);
+    public int ConnectedPlayerCount
+    {
+        get { int count = 0; if (_runner != null && _runner.IsRunning) foreach (PlayerRef p in _runner.ActivePlayers) count++; return count; }
+    }
     public bool IsRoomHost => _runner != null && _runner.IsRunning && _runner.IsServer;
-    public bool CanStartRoomGame => !IsRandomMatch && CanBeginBattle();
-    public bool IsWaitingInCodeRoom => !IsRandomMatch && _runner != null && _runner.IsRunning &&
+    public bool CanStartRoomGame => !IsTraining && !IsRandomMatch && CanBeginBattle();
+    public bool IsWaitingInCodeRoom => !IsTraining && !IsRandomMatch && _runner != null && _runner.IsRunning &&
         initialSceneLoaded && !startInProgress && !stopInProgress && !cancelRequested &&
         !isGameStarting && !IsBattleSceneLoaded;
 
@@ -39,16 +57,17 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     [Header("Room")]
     [SerializeField] private TMP_InputField roomIdInput;
-    [SerializeField] private int maxPlayerCount = 2;
+    [FormerlySerializedAs("maxPlayerCount")]
+    [SerializeField] private BattleMatchMode roomMatchMode = BattleMatchMode.TwoVsTwo;
     [Header("Matchmaking UI (optional)")]
     [SerializeField] private TMP_Text matchmakingStatusText;
     [Header("Random match start")]
-    [Tooltip("양쪽 RandomMatchUI에서 상대 프로필을 1초 표시한 뒤 전투를 시작합니다. 끄면 UI 확인 없이 데이터 준비 후 1초 뒤 시작하는 테스트 모드입니다.")]
+    [Tooltip("모든 참가자의 RandomMatchUI에서 4명의 프로필을 1초 표시한 뒤 전투를 시작합니다. 끄면 데이터 준비 후 1초 뒤 시작하는 테스트 모드입니다.")]
     [SerializeField] private bool requireRandomMatchProfilePreview = true;
 
-    private const int RandomPlayerCount = 2;
-    private const string RandomLobbyName = "WitchFlight-Random-1v1-v1";
-    private enum MatchRequest { CreateRoom, JoinRoom, Random, LegacyCodeMatch }
+    private const int RandomPlayerCount = 4;
+    private const string RandomLobbyName = "WitchFlight-Random-2v2-v1";
+    private enum MatchRequest { CreateRoom, JoinRoom, Random, LegacyCodeMatch, Training }
 
     [Header("Network Prefabs")]
     [SerializeField] private NetworkPrefabRef playerPrefab;
@@ -58,7 +77,6 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private GameObject runnerObject;
     private CancellationTokenSource matchCancellation;
     private bool startInProgress, stopInProgress, cancelRequested, initialSceneLoaded;
-    private int activePlayerCount;
     private float nextWaitingStatusRefresh;
     private float randomPlayersReadyAt = -1f;
 
@@ -88,8 +106,9 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private void Update()
     {
         // Re-check after startup/scene loading completes as those callbacks can precede
-        // loadout initialization. Only random matchmaking may start automatically.
-        if (IsRandomMatch && IsRoomHost) CheckPlayerCount();
+        // loadout initialization. Random matchmaking and solo training auto-start.
+        if ((IsRandomMatch || IsTraining) && IsRoomHost) CheckPlayerCount();
+        RefreshRoomAdmission();
         if (Time.unscaledTime >= nextWaitingStatusRefresh)
         {
             nextWaitingStatusRefresh = Time.unscaledTime + 0.25f;
@@ -132,6 +151,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (instance == null)
         {
             instance = this;
+            if (roomMatchMode != BattleMatchMode.OneVsOne) roomMatchMode = BattleMatchMode.TwoVsTwo;
+            if (GetComponent<RoomMatchSettingsUI>() == null) gameObject.AddComponent<RoomMatchSettingsUI>();
             DontDestroyOnLoad(gameObject);
         }
         else
@@ -236,6 +257,90 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (!IsMatching) StartGame(MatchRequest.Random, null);
     }
 
+    // Main scene training button: a local Fusion simulation, never a public room.
+    public void StartTraining()
+    {
+        if (!IsMatching) StartGame(MatchRequest.Training, null);
+    }
+
+    // Unity Button.OnClick entry point. Keeps the login/profile when returning to Main.
+    public async void ExitTraining()
+    {
+        if (IsTraining && IsBattleSceneLoaded) await ReturnToMainMenuAsync();
+    }
+
+    internal bool IsTrainingScene(Scene scene) => IsTraining && scene.buildIndex == battleSceneIndex;
+
+    // Dropdown value 0 = 1v1, 1 = 2v2. Only the host can change a connected code room.
+    public bool TrySetRoomMatchMode(int dropdownValue)
+    {
+        if (dropdownValue != 0 && dropdownValue != 1) return false;
+        BattleMatchMode selected = dropdownValue == 0 ? BattleMatchMode.OneVsOne : BattleMatchMode.TwoVsTwo;
+        if (IsMatching && (!IsWaitingInCodeRoom || !IsRoomHost)) return false;
+        if (ConnectedPlayerCount > BattleMatchRules.PlayerCount(selected))
+        {
+            SetMatchStatus("참가자가 3명 이상이면 1대1로 변경할 수 없습니다.");
+            return false;
+        }
+        if (selected == CurrentMatchMode) return true; // Keep manually selected teams on a no-op UI event.
+        if (IsRoomHost)
+        {
+            PlayerData owner = GetPlayerData(_runner.LocalPlayer);
+            if (owner == null || !owner.IsRoomOwner) return false;
+            owner.SetRoomMatchMode(selected);
+            // Two remaining players may be on the same side after others leave.
+            var participants = new List<PlayerRef>(_runner.ActivePlayers);
+            participants.Sort((a, b) => a.RawEncoded.CompareTo(b.RawEncoded));
+            assignedTeamIndexes.Clear();
+            foreach (PlayerRef player in participants)
+            {
+                int team = NextTeamIndex();
+                assignedTeamIndexes[player] = team;
+                if (playerDatas.TryGetValue(player, out PlayerData data) && data != null)
+                { data.teamIndex = team; data.camp = team == 1 ? Camp.A : Camp.B; }
+            }
+        }
+        roomMatchMode = selected;
+        RefreshRoomAdmission();
+        UpdateWaitingStatus();
+        return true;
+    }
+
+    public void SetRoomMatchMode(int dropdownValue) => TrySetRoomMatchMode(dropdownValue);
+
+    // Host-authoritative team changes. PlayerData's owner-only RPC supplies the requester.
+    public bool TrySetWaitingTeam(PlayerData data, int team)
+    {
+        if (!IsRoomHost || !IsWaitingInCodeRoom || CurrentMatchMode != BattleMatchMode.TwoVsTwo ||
+            (team != 1 && team != 2) || data == null || data.Object == null || !data.Object.IsValid ||
+            !data.Object.HasStateAuthority || data.Runner != _runner || !data.IsLoadoutInitialized)
+            return false;
+        PlayerRef player = data.Object.InputAuthority;
+        if (GetPlayerData(player) != data || !assignedTeamIndexes.ContainsKey(player)) return false;
+        bool connected = false;
+        foreach (PlayerRef participant in _runner.ActivePlayers)
+            if (participant == player) { connected = true; break; }
+        if (!connected) return false;
+        // Count reservations too: another join can be awaiting its PlayerData.Spawned callback.
+        int others = 0;
+        foreach (PlayerRef participant in _runner.ActivePlayers)
+            if (participant != player && assignedTeamIndexes.TryGetValue(participant, out int assigned) && assigned == team)
+                others++;
+        if (others >= 2) return false;
+        assignedTeamIndexes[player] = team;
+        data.teamIndex = team;
+        data.camp = team == 1 ? Camp.A : Camp.B;
+        UpdateWaitingStatus();
+        return true;
+    }
+
+    private void RefreshRoomAdmission()
+    {
+        if (IsTraining || !IsRoomHost || isGameStarting || IsBattleSceneLoaded || cancelRequested || stopInProgress) return;
+        bool open = ConnectedPlayerCount < RequiredPlayerCount;
+        if (_runner.SessionInfo.IsOpen != open) _runner.SessionInfo.IsOpen = open;
+    }
+
     // Main/code-room start button. This is separate from BattleManager.startGame()
     // which begins the intro/countdown AFTER Battle has loaded.
     public void StartRoomGame()
@@ -304,7 +409,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         // Guard every code-room entry point, including the legacy create-or-join button.
         // Never truncate an overlong code into another room's code.
-        if (request != MatchRequest.Random)
+        if (request != MatchRequest.Random && request != MatchRequest.Training)
         {
             if (!RoomCodeRules.TryValidate(roomId, out string code, out string error))
             {
@@ -332,8 +437,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         startInProgress = true;
         cancelRequested = false;
         IsRandomMatch = randomMatch;
+        IsTraining = request == MatchRequest.Training;
         randomPlayersReadyAt = -1f;
-        activePlayerCount = randomMatch ? RandomPlayerCount : Mathf.Max(1, maxPlayerCount);
         var cancellation = new CancellationTokenSource();
         matchCancellation = cancellation;
         NetworkRunner sessionRunner = null;
@@ -349,12 +454,13 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             _runner = sessionRunner;
             sessionRunner.AddCallbacks(this);
             sessionRunner.ProvideInput = true;
-            var sceneManager = runnerObject.AddComponent<NetworkSceneManagerDefault>();
+            var sceneManager = runnerObject.AddComponent<BattleNetworkSceneManager>();
             SetMatchStatus(request switch
             {
                 MatchRequest.CreateRoom => "코드 방을 만드는 중...",
                 MatchRequest.JoinRoom => "코드 방에 접속 중...",
                 MatchRequest.Random => "랜덤 상대를 찾는 중...",
+                MatchRequest.Training => "훈련장을 준비하는 중...",
                 _ => "코드 방에 연결 중..."
             });
 
@@ -364,22 +470,25 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 {
                     MatchRequest.CreateRoom => GameMode.Host,
                     MatchRequest.JoinRoom => GameMode.Client,
+                    MatchRequest.Training => GameMode.Single,
                     _ => GameMode.AutoHostOrClient
                 },
                 // Explicit join must never silently create a room when the code is absent.
                 EnableClientSessionCreation = request != MatchRequest.JoinRoom,
                 // Null + AutoHostOrClient = join random or create, handled by Photon.
                 SessionName = roomId,
-                PlayerCount = activePlayerCount,
+                // Keep transport capacity at four so a code-room host can switch mode.
+                // Admission and launch enforce the selected two/four-player game size.
+                PlayerCount = IsTraining ? 1 : RandomPlayerCount,
                 CustomLobbyName = randomMatch ? RandomLobbyName : null,
                 SessionProperties = randomMatch ? new Dictionary<string, SessionProperty>
                 {
-                    { "queue", "random-1v1" },
+                    { "queue", "random-2v2" },
                     { "players", RandomPlayerCount },
                     { "battle", battleSceneIndex }
                 } : null,
                 IsVisible = randomMatch,
-                IsOpen = true,
+                IsOpen = !IsTraining,
                 MatchmakingMode = Fusion.Photon.Realtime.MatchmakingMode.FillRoom,
                 Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex),
                 SceneManager = sceneManager,
@@ -524,8 +633,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         latchedButtons = default;
         _runner = null;
         isGameStarting = false;
-        activePlayerCount = 0;
         IsRandomMatch = false;
+        IsTraining = false;
         spawnedPlayers.Clear();
         playerDatas.Clear();
         assignedTeamIndexes.Clear();
@@ -556,10 +665,12 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (_runner == null || !_runner.IsRunning || isGameStarting || IsBattleSceneLoaded || cancelRequested) return;
         int count = 0;
         foreach (PlayerRef player in _runner.ActivePlayers) count++;
-        if (IsRandomMatch)
+        if (IsTraining)
+            SetMatchStatus("훈련장을 준비하는 중...");
+        else if (IsRandomMatch)
             SetMatchStatus(count >= RequiredPlayerCount
                 ? (requireRandomMatchProfilePreview
-                    ? "매칭 완료! 상대 프로필 표시 및 1초 대기 중..."
+                    ? "매칭 완료! 팀 프로필 표시 및 1초 대기 중..."
                     : "매칭 완료! 참가자 데이터 준비 및 1초 대기 중...")
                 : $"랜덤 상대 대기 중 ({count}/{RequiredPlayerCount})");
         else if (count < RequiredPlayerCount)
@@ -590,6 +701,10 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (!runner.IsServer)
             return;
 
+        // Two clients may pass the connection check in the same frame. Enforce the
+        // selected capacity again before reserving a team or spawning PlayerData.
+        if (assignedTeamIndexes.Count >= RequiredPlayerCount && !assignedTeamIndexes.ContainsKey(player))
+        { runner.Disconnect(player); return; }
         if (playerDatas.ContainsKey(player) || assignedTeamIndexes.ContainsKey(player))
             return;
 
@@ -639,6 +754,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
         data.teamIndex = teamIndex;
         data.camp = teamIndex == 1 ? Camp.A : Camp.B;
+        if (data.IsRoomOwner) data.SetRoomMatchMode(IsRandomMatch ? BattleMatchMode.TwoVsTwo : roomMatchMode);
     }
 
     private int NextTeamIndex()
@@ -696,12 +812,12 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // 현재 플레이어가 최대 인원인지 확인
     private void CheckPlayerCount()
     {
-        if (!IsRandomMatch || !CanBeginBattle())
+        if ((!IsRandomMatch && !IsTraining) || !CanBeginBattle())
         {
             randomPlayersReadyAt = -1f;
             return;
         }
-        if (AreRandomStartRequirementsMet()) BeginBattleTransition();
+        if (IsTraining || AreRandomStartRequirementsMet()) BeginBattleTransition();
     }
 
     private bool AreRandomStartRequirementsMet()
@@ -719,20 +835,16 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     private bool AreRandomProfilesPresented()
     {
-        // Each peer acknowledges only after its replicated opponent profile was displayed
-        // for one second. A host-only delay would skip the remote client's loading time.
+        // Every peer must display EVERY other participant, including its teammate.
         foreach (PlayerRef playerRef in _runner.ActivePlayers)
         {
             if (!playerDatas.TryGetValue(playerRef, out PlayerData data) || data == null) return false;
-            bool presented = false;
             foreach (PlayerRef opponentRef in _runner.ActivePlayers)
             {
                 if (opponentRef == playerRef) continue;
-                if (playerDatas.TryGetValue(opponentRef, out PlayerData opponent) && opponent != null &&
-                    opponent.teamIndex != data.teamIndex && data.HasPresentedLobbyOpponent(opponent))
-                    presented = true;
+                if (!playerDatas.TryGetValue(opponentRef, out PlayerData opponent) || opponent == null ||
+                    !data.HasPresentedLobbyOpponent(opponent)) return false;
             }
-            if (!presented) return false;
         }
         return true;
     }
@@ -747,9 +859,12 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         if (IsRandomMatch && !AreRandomStartRequirementsMet()) return;
         isGameStarting = true;
-        _runner.SessionInfo.IsOpen = false;
-        _runner.SessionInfo.IsVisible = false;
-        SetMatchStatus("매칭 완료! Battle 씬으로 이동 중...");
+        if (!IsTraining)
+        {
+            _runner.SessionInfo.IsOpen = false;
+            _runner.SessionInfo.IsVisible = false;
+        }
+        SetMatchStatus(IsTraining ? "훈련장으로 이동 중..." : "매칭 완료! Battle 씬으로 이동 중...");
 
         LoadBattleScene();
     }
@@ -784,7 +899,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (sceneIndex != battleSceneIndex)
             return;
         isGameStarting = true;
-        SetMatchStatus("매칭 완료");
+        SetMatchStatus(IsTraining ? "훈련장" : "매칭 완료");
 
         if (!runner.IsServer)
             return;
@@ -832,7 +947,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private bool AreBattlePlayerDatasReady()
     {
         if (_runner == null || !_runner.IsRunning || !_runner.IsServer) return false;
-        int count = 0;
+        int count = 0, teamA = 0, teamB = 0;
         // Count connected participants, not stale dictionary entries after disconnects.
         foreach (PlayerRef player in _runner.ActivePlayers)
         {
@@ -841,8 +956,10 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 data == null || data.Object == null || !data.Object.IsValid || data.Runner != _runner || !data.IsLoadoutInitialized ||
                 (data.teamIndex != 1 && data.teamIndex != 2))
                 return false;
+            if (data.teamIndex == 1) teamA++; else teamB++;
         }
-        return count >= RequiredPlayerCount;
+        if (IsTraining) return count == 1 && teamA == 1 && playerDatas.ContainsKey(_runner.LocalPlayer);
+        return count == RequiredPlayerCount && teamA == RequiredPlayerCount / 2 && teamB == RequiredPlayerCount / 2;
     }
     // 다른 스크립트에서 특정 플레이어의 PlayerData가 필요할 때 호출
     public PlayerData GetPlayerData(
@@ -956,6 +1073,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         Player local = Player.LocalPlayer;
         if (local != null)
         {
+            data.portalExitSequence = local.PortalExitSequence;
             if (inputPlayer != local)
             {
                 inputPlayer = local;
@@ -975,6 +1093,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             if (inputCameraFollow != null)
             {
                 CameraFollow follow = inputCameraFollow;
+                follow.SynchronizePortalExit();
                 data.aimDirection = (follow.GetDisplayedAimPoint() - local.LockAimPoint).normalized;
                 if (follow.TryGetSteeringInput(out Vector3 direction, out Vector3 up))
                 {
@@ -1047,7 +1166,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunnerCallbackArgs.ConnectRequest request,
         byte[] token)
     {
-        if (runner != _runner || isGameStarting || cancelRequested)
+        if (IsTraining || runner != _runner || isGameStarting || cancelRequested || ConnectedPlayerCount >= RequiredPlayerCount)
             request.Refuse();
         else
             request.Accept();

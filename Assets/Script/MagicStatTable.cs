@@ -138,7 +138,7 @@ public struct MagicStatEntry
     [SerializeField, Min(0f)] public float flareVfxSpeed;
     [Tooltip("플레어 크기 배율. 기본 입자와 직접 지정한 플레어 프리팹에 적용합니다. 이전 데이터의 0은 기본값 1.8로 처리합니다.")]
     [SerializeField, Min(0.1f)] public float flareVfxScale;
-    [Tooltip("기본 플레어의 발광 강도. 직접 지정한 VFX의 재질은 변경하지 않습니다. 이전 데이터의 0은 기본값 2.4로 처리합니다.")]
+    [Tooltip("기본 플레어의 발광 강도. 직접 지정한 VFX의 재질은 변경하지 않습니다. 이전 데이터의 0은 기본값 2로 처리합니다.")]
     [SerializeField, Min(0.1f)] public float flareVfxBrightness;
 
     public bool IsChanneled => effect == MagicEffectKind.GuidedChannel || effect == MagicEffectKind.BeamChannel;
@@ -284,7 +284,7 @@ public sealed class MagicStatTable : ScriptableObject
             case MagicType.Flare:
                 e.effect = MagicEffectKind.Flare; e.apCost = 50; e.cooldownSeconds = 6;
                 e.flareVfxBackOffset = 0.7f; e.flareVfxSpeed = 14f; e.vfxLifetime = 3f;
-                e.flareVfxScale = 1.8f; e.flareVfxBrightness = 2.4f;
+                e.flareVfxScale = 1.8f; e.flareVfxBrightness = 2f;
                 e.displayName = "플레어";
                 e.description = "등 뒤로 플레어를 방출하여 이미 자신을 추적 중인 유도탄의 추적을 끊습니다. 무적이나 회피 이동은 부여하지 않습니다."; break;
             case MagicType.Smoke:

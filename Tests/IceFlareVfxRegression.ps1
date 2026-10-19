@@ -134,14 +134,14 @@ foreach($token in 'collider.enabled = false','body.detectCollisions = false','co
 $prediction = Get-Content Assets/Script/ProjectilePredictionView.cs -Raw
 Require ($prediction.Contains('stats.magic != MagicType.Ice || !table.iceImpactFollowUpEnabled')) 'Ice launch satellites must be deferred'
 $utility = Get-Content Assets/Script/UtilityMagicVisual.cs -Raw
-foreach($token in 'main.maxParticles = 160','glowMain.maxParticles = 48','emission.rateOverTime = 70f','Flare orange afterglow','Destroy(ownedFlareMaterial)') {Require ($utility.Contains($token)) "Flare visual/lifetime contract missing: $token"}
+foreach($token in 'main.maxParticles = 160','glowMain.maxParticles = 48','emission.rateOverTime = 64f','glowEmission.rateOverTime = 22f','new Color(1f,.2f,.025f,.7f)','Flare orange afterglow','Destroy(ownedFlareMaterial)') {Require ($utility.Contains($token)) "Flare visual/lifetime contract missing: $token"}
 Require ($utility.Contains('if (custom == null)') -and $utility.Contains('custom.transform.localScale *= scale')) 'Preserve custom flare VFX replacement'
 $smoke=[regex]::Match($utility,'(?ms)^    public static GameObject CreateSmoke.*?^    \}').Value
 Require ($smoke.Contains('main.maxParticles = 64') -and $smoke.Contains('smokeColor.a = 0.65f') -and !$smoke.Contains('FlareParticle')) 'Smoke visuals must remain unchanged'
 $shader=Get-Content Assets/Resources/FlareParticle.shader -Raw
 Require ($shader.Contains('Blend SrcAlpha One') -and $shader.Contains('_Intensity') -and $shader.Contains('ZWrite Off')) 'Flare has a dedicated additive glow shader'
 $asset=Get-Content Assets/Resources/MagicStatTable.asset -Raw
-foreach($setting in 'iceImpactFollowUpEnabled: 1','iceImpactLaunchInterval: 0.07','iceImpactShardSpeed: 110','flareVfxScale: 1.8','flareVfxBrightness: 2.4'){Require ($asset.Contains($setting)) "Saved visual setting missing: $setting"}
+foreach($setting in 'iceImpactFollowUpEnabled: 1','iceImpactLaunchInterval: 0.07','iceImpactShardSpeed: 110','flareVfxScale: 1.8','flareVfxBrightness: 2'){Require ($asset -match ('(?m)^\s*'+[regex]::Escape($setting)+'\r?$')) "Saved visual setting missing: $setting"}
 $ids=[regex]::Matches($asset,'(?m)^  - magic: (\d+)\r?$') | ForEach-Object {[int]$_.Groups[1].Value}
 Require ((($ids | Sort-Object) -join ',') -eq '1,2,3,4,5,6,7,8,9,10,11,12') 'Explicit magic IDs preserved regardless of Inspector order'
 Write-Output 'Flare visibility, custom VFX, bounded cleanup, Ice collision-free presentation and saved settings passed.'

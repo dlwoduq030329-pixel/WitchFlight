@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 // Designer-authored UI with generated lock-on / incoming-magic fallbacks.
 [DisallowMultipleComponent]
-public sealed class BattleHud : MonoBehaviour
+public sealed partial class BattleHud : MonoBehaviour
 {
     [Header("UI style")]
     [Tooltip("DungGeunMo SDF: 자동 생성되는 경고/록온/부활 텍스트에 사용합니다.")]
@@ -276,7 +276,7 @@ public sealed class BattleHud : MonoBehaviour
         Visible(hudRoot, true);
         Visible(playerPanel, valid);
         if (matchTimeText != null)
-            SetText(matchTimeText, battle.IsOvertime ? "연장전" : TimeSpan.FromSeconds(Mathf.Max(0f, battle.RemainingSeconds)).ToString(@"mm\:ss"));
+            SetText(matchTimeText, battle.IsTraining ? "훈련장" : battle.IsOvertime ? "연장전" : TimeSpan.FromSeconds(Mathf.Max(0f, battle.RemainingSeconds)).ToString(@"mm\:ss"));
         BattleFlag flag = BattleFlag.Instance;
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null) SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
@@ -958,6 +958,7 @@ public sealed class BattleHud : MonoBehaviour
     private void SetMenuOpen(bool open)
     {
         BattleManager battle = BattleManager.Instance;
+        if (open && menuPanel == null && battle != null && battle.IsTraining) EnsureTrainingMenu();
         MenuOpen = open && menuPanel != null && battle != null &&
             (battle.IsGameplayActive || battle.IsBattleEnded);
         Visible(menuPanel, MenuOpen);

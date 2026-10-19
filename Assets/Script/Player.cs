@@ -109,7 +109,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private NetworkTransform portalNetworkTransform;
     private bool hasPendingPortalTeleport;
     private Vector3 pendingPortalPosition;
+    private Quaternion pendingPortalRotation;
     private TickTimer portalReentryTimer;
+    private readonly Collider[] portalExitOverlaps = new Collider[64];
+    [Networked] public int PortalExitSequence { get; private set; }
+    [Networked] public Quaternion PortalExitRotation { get; private set; }
     // Replay must start with the SAME path and progress as the server snapshot.
     [Networked] private Vector3 mapReturnStart { get; set; }
     [Networked] private Vector3 mapReturnControl1 { get; set; }
@@ -295,6 +299,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         IsAlive = true;
         Speed = 0f;
         SpeedStage = 0;
+        ResetItemBoost();
         LastReceivedDamage = 0f;
         LastCastMagic = MagicType.None;
         LockTargetId = default;
@@ -455,6 +460,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
         {
+            if (Object.HasStateAuthority) ResetItemBoost();
             areaAimArmed = false;
             IsReturningToMap = false;
             hasPendingPortalTeleport = false;
@@ -611,6 +617,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     // Physics callbacks may run outside Fusion ticks; only queue the request here.
     public bool TryQueuePortalTeleport(Vector3 destination, float reentryDelay)
     {
+        return TryQueuePortalTeleport(destination, transform.rotation, reentryDelay);
+    }
+
+    public bool TryQueuePortalTeleport(Vector3 destination, Quaternion exitRotation, float reentryDelay)
+    {
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority ||
             Runner == null || !Runner.IsRunning || !IsAlive || IsReturningToMap ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
@@ -625,7 +636,14 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return false;
         }
 
+        if (!CanOccupyPortalExit(destination, exitRotation))
+        {
+            Debug.LogWarning("Portal: exit overlaps a solid obstacle. Adjust Destination, Exit Direction or Exit Forward Offset. Teleport cancelled to prevent getting stuck.", this);
+            return false;
+        }
+
         pendingPortalPosition = destination;
+        pendingPortalRotation = exitRotation;
         hasPendingPortalTeleport = true;
         portalReentryTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.1f, reentryDelay));
         return true;
@@ -634,14 +652,26 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void ApplyPortalTeleport()
     {
         hasPendingPortalTeleport = false;
+        // A moving obstacle may have entered the exit since the trigger callback.
+        if (!CanOccupyPortalExit(pendingPortalPosition, pendingPortalRotation)) return;
         bool controllerWasEnabled = characterController != null && characterController.enabled;
         if (controllerWasEnabled)
             characterController.enabled = false;
         try
         {
             // Replicate a teleport, not an interpolated flight across the map.
-            // Preserve flight direction, speed, HP, equipment and input authority.
-            portalNetworkTransform.Teleport(pendingPortalPosition);
+            // Preserve speed magnitude, HP/equipment and authority, but leave FORWARD
+            // even if the pilot entered in reverse. No leftover impulse into the wall.
+            portalNetworkTransform.Teleport(pendingPortalPosition, pendingPortalRotation);
+            currentPitch = NormalizePitch(pendingPortalRotation.eulerAngles.x);
+            currentYaw = pendingPortalRotation.eulerAngles.y;
+            currentAimTurnSpeed = 0f;
+            currentTurnSpeed = 0f;
+            KnockbackVelocity = Vector3.zero;
+            SpeedStage = Mathf.Abs(SpeedStage);
+            Speed = Mathf.Abs(Speed);
+            PortalExitRotation = pendingPortalRotation;
+            PortalExitSequence++;
         }
         finally
         {
@@ -649,6 +679,29 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 characterController.enabled = true;
         }
         controllerNeedsRenderReset = false;
+    }
+
+    private bool CanOccupyPortalExit(Vector3 position, Quaternion rotation)
+    {
+        BattleFlag.GetCapsule(this, out Vector3 center, out Vector3 halfAxis, out float radius);
+        Quaternion delta = rotation * Quaternion.Inverse(transform.rotation);
+        center = position + delta * (center - transform.position);
+        halfAxis = delta * halfAxis;
+        // Use this runner's physics scene, not another peer's colliders in multi-peer mode.
+        int count = Runner.GetPhysicsScene().OverlapCapsule(center - halfAxis, center + halfAxis,
+            radius + 0.05f, portalExitOverlaps, ~0, QueryTriggerInteraction.Ignore);
+        if (count >= portalExitOverlaps.Length) return false; // Fail safely on buffer overflow.
+        for (int i = 0; i < count; i++)
+        {
+            Collider hit = portalExitOverlaps[i];
+            if (hit == null || hit.transform.IsChildOf(transform) ||
+                hit.GetComponentInParent<Player>() != null || hit.GetComponentInParent<MagicProjectile>() != null ||
+                Physics.GetIgnoreLayerCollision(gameObject.layer, hit.gameObject.layer) ||
+                (characterController != null && Physics.GetIgnoreCollision(characterController, hit)))
+                continue;
+            return false;
+        }
+        return true;
     }
 
     private void ResetControllerAfterRender()
@@ -878,7 +931,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void UpdateSpeed()
     {
         float targetSpeed = flightMaxSpeed * SpeedStage / 3f;
-        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier();
+        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier();
 
         if (IsBoosting)
             targetSpeed *= boostMultiplier;
@@ -1616,6 +1669,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         StopChannel();
         IsAlive = false;
+        ResetItemBoost();
         RespawnTimer = testBot == null && BattleManager.Instance != null
             ? TickTimer.CreateFromSeconds(Runner, BattleManager.Instance.RespawnDelaySeconds)
             : TickTimer.None;
@@ -1904,6 +1958,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void PlayerTurn(NetworkInputData data, NetworkButtons buttons)
     {
+        // In-flight packets still contain the pre-portal camera direction. Wait until
+        // the owner has observed the exit and reset its camera, including during replay.
+        if (data.portalExitSequence != PortalExitSequence) return;
         if (data.steerToAim && IsFiniteDirection(data.aimDirection) && data.aimDirection.sqrMagnitude > 0.0001f)
         {
             Vector3 forward = data.aimDirection.normalized;

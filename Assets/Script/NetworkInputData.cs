@@ -28,6 +28,8 @@ public struct NetworkInputData : INetworkInput
     public NetworkBool hasAreaAimPoint;
     public Vector3 aimUp;
     public NetworkBool steerToAim;
+    // Acknowledges the exit-facing camera reset; stale pre-portal steering is ignored.
+    public int portalExitSequence;
     public NetworkId lockTarget;
     public NetworkBool suppressActions;
     // Perk selection consumes only mouse combat; flight and camera remain responsive.

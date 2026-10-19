@@ -187,12 +187,13 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         if (Phase == BattleStartPhase.WaitingForPlayers)
         {
             BattleManager manager = BattleManager.Instance;
-            if (!startRequested && manager != null && manager.AutoStartWhenReady)
+            if (!startRequested && manager != null && (manager.AutoStartWhenReady || manager.IsTraining))
                 manager.startGame();
             if (!startRequested)
                 return;
-            Phase = BattleStartPhase.Intro;
-            PhaseTimer = TickTimer.CreateFromSeconds(Runner, introSeconds);
+            bool training = manager != null && manager.IsTraining;
+            Phase = training ? BattleStartPhase.Countdown : BattleStartPhase.Intro;
+            PhaseTimer = TickTimer.CreateFromSeconds(Runner, training ? 3f : introSeconds);
         }
         else if (Phase == BattleStartPhase.Intro && PhaseTimer.Expired(Runner))
         {
@@ -220,7 +221,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         HasStarted = true;
         Phase = BattleStartPhase.Playing;
         PhaseTimer = TickTimer.None;
-        MatchTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, durationSeconds));
+        MatchTimer = BattleManager.Instance != null && BattleManager.Instance.IsTraining
+            ? TickTimer.None : TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, durationSeconds));
         previousPositions.Clear();
     }
 
@@ -238,7 +240,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             TickPreparation();
             return;
         }
-        if (MatchTimer.Expired(Runner))
+        bool training = BattleManager.Instance != null && BattleManager.Instance.IsTraining;
+        if (!training && MatchTimer.Expired(Runner))
         {
             if (LastCarrierTeam == 1 || LastCarrierTeam == 2)
             {
@@ -262,11 +265,12 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         UpdateDescent();
         CheckPickupAndRecordPositions();
         transform.position = WorldPosition;
-        if (IsOvertime && LastCarrierTeam > 0) FinishRound(LastCarrierTeam);
+        if (!training && IsOvertime && LastCarrierTeam > 0) FinishRound(LastCarrierTeam);
     }
 
     private void FinishRound(int team)
     {
+        if (BattleManager.Instance != null && BattleManager.Instance.IsTraining) return;
         if (!Object.HasStateAuthority || Phase != BattleStartPhase.Playing || HasEnded ||
             (team != 1 && team != 2)) return;
         LastRoundWinner = team;
@@ -312,6 +316,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
 
     public void EndSeriesByForfeit(int team)
     {
+        if (BattleManager.Instance != null && BattleManager.Instance.IsTraining) return;
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority || HasEnded ||
             (team != 1 && team != 2)) return;
         if (team == 1) Team1Wins = WinsRequired; else Team2Wins = WinsRequired;
@@ -466,7 +471,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         return all;
     }
 
-    private static void GetCapsule(Player player, out Vector3 center, out Vector3 halfAxis, out float radius)
+    // Shared with map-item pickup so both use the actual player capsule dimensions.
+    internal static void GetCapsule(Player player, out Vector3 center, out Vector3 halfAxis, out float radius)
     {
         Transform playerTransform = player.transform;
         CharacterController controller = player.GetComponent<CharacterController>();
@@ -496,7 +502,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         radius = 0.2f;
     }
 
-    private static float SegmentDistanceSquared(Vector3 a0, Vector3 a1, Vector3 b0, Vector3 b1,
+    internal static float SegmentDistanceSquared(Vector3 a0, Vector3 a1, Vector3 b0, Vector3 b1,
         out Vector3 closestPlayerCenter)
     {
         closestPlayerCenter = a0;

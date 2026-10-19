@@ -88,6 +88,7 @@ public class CameraFollow : MonoBehaviour
     private Renderer[] targetRenderers;
     private float mouseOrbitYaw;
     private Quaternion mouseAimRotation = Quaternion.identity;
+    private int observedPortalExitSequence;
     private float speedShakeIntensity;
     private int speedShakeUpdatedFrame = -1;
     private bool speedShakeViewApplied;
@@ -128,6 +129,7 @@ public class CameraFollow : MonoBehaviour
         if (viewCamera == null)
             return;
         originalCullingMask = viewCamera.cullingMask;
+        viewCamera.cullingMask = BattleWorldUI.IncludeInMask(viewCamera.cullingMask);
         int portraitLayer = LayerMask.NameToLayer("BattlePortrait");
         if (portraitLayer >= 0)
             viewCamera.cullingMask &= ~(1 << portraitLayer);
@@ -159,6 +161,8 @@ public class CameraFollow : MonoBehaviour
         boundaryReturnBlending = false;
         target = targetObject;
         targetPlayer = targetObject != null ? targetObject.GetComponent<Player>() : null;
+        observedPortalExitSequence = targetPlayer != null && targetPlayer.Object != null && targetPlayer.Object.IsValid
+            ? targetPlayer.PortalExitSequence : 0;
         mouseAimRotation = targetObject != null ? targetObject.transform.rotation : Quaternion.identity;
         hasFollowAnchor = false;
         head = FindHead(targetObject);
@@ -180,6 +184,7 @@ public class CameraFollow : MonoBehaviour
 
     private void Update()
     {
+        SynchronizePortalExit();
         if (!enableMouseAimSteering && !enableMouseYawOrbit)
         {
             mouseOrbitYaw = 0f;
@@ -364,6 +369,7 @@ public class CameraFollow : MonoBehaviour
 
     private void UpdateCamera(bool forceSnap)
     {
+        SynchronizePortalExit();
         bool returning = targetPlayer != null && targetPlayer.Object != null && targetPlayer.Object.IsValid &&
             targetPlayer.IsAlive && targetPlayer.IsReturningToMap &&
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
@@ -479,6 +485,21 @@ public class CameraFollow : MonoBehaviour
             return;
         }
         transform.SetPositionAndRotation(desiredPosition, rawRotation);
+    }
+
+    public void SynchronizePortalExit()
+    {
+        if (targetPlayer == null || targetPlayer.Object == null || !targetPlayer.Object.IsValid ||
+            !targetPlayer.Object.HasInputAuthority || observedPortalExitSequence == targetPlayer.PortalExitSequence)
+            return;
+        observedPortalExitSequence = targetPlayer.PortalExitSequence;
+        mouseAimRotation = targetPlayer.PortalExitRotation;
+        mouseOrbitYaw = 0f;
+        boundaryCameraFrozen = false;
+        boundaryReturnBlending = false;
+        hasFollowAnchor = false; // Also snap when the destination is less than 12m away.
+        ResetSpeedShake();
+        ResetTopSpeedKick();
     }
 
     private void UpdateBoundaryObservation()

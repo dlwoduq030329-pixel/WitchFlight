@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -70,6 +71,11 @@ public sealed class BattlePerkUI : MonoBehaviour
     [SerializeField] private GameObject comparisonRoot;
     [SerializeField] private PerkPlayerView ownView = new();
     [SerializeField] private PerkPlayerView opponentView = new();
+    [Header("2v2 Tab (empty root = generated four rows)")]
+    [SerializeField] private GameObject teamComparisonRoot;
+    [Tooltip("순서: 나, 우리 팀원, 상대 1, 상대 2. 1대1 UI와 별도로 할당합니다.")]
+    [SerializeField] private PerkPlayerView[] teamViews = new PerkPlayerView[4];
+    private readonly List<PlayerData> comparisonRoster = new();
     [Header("Presentation only - never delays input")]
     [SerializeField, Min(0f)] private float openSeconds = .12f;
     [SerializeField, Min(0f)] private float collapseSeconds = .18f;
@@ -109,6 +115,8 @@ public sealed class BattlePerkUI : MonoBehaviour
         if (profileTable == null) profileTable = ProfileImageTable.Default;
         ValidateRoot(ref selectionRoot); ValidateRoot(ref comparisonRoot); ValidateRoot(ref acquiredRoot);
         ValidateRoot(ref benefitAnimation);
+        ValidateRoot(ref teamComparisonRoot);
+        if (teamComparisonRoot != null) { ReadOnly(teamComparisonRoot); Show(teamComparisonRoot,false); }
         if (selectionRoot == null) BuildSelection();
         if (comparisonRoot == null) BuildComparison();
         if (acquiredRoot == null) BuildAcquired();
@@ -168,7 +176,10 @@ public sealed class BattlePerkUI : MonoBehaviour
             selectionRoot.transform.localScale = Vector3.one * Mathf.Lerp(.92f,1f,Mathf.Min(t,collapse));
         }
         bool compare = Allowed && !BattleEmoteUI.CapturesMouse && !gate.Showing && Input.GetKey(KeyCode.Tab);
-        Show(comparisonRoot,compare);
+        bool teamBattle = BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2;
+        if (compare && teamBattle && teamComparisonRoot == null) BuildTeamComparison();
+        Show(comparisonRoot,compare && !teamBattle);
+        Show(teamComparisonRoot,compare && teamBattle);
         if (compare) UpdateComparison();
         UpdateExperience(); UpdateFeedback(); UpdateBenefitAvailability();
     }
@@ -278,13 +289,36 @@ public sealed class BattlePerkUI : MonoBehaviour
     }
     private void UpdateComparison()
     {
+        BattleMatchRules.CollectRoster(Ready(local) ? local.Runner : null, comparisonRoster);
+        if (BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2)
+        {
+            string teamKey = "team";
+            for (int i = 0; i < 4; i++) teamKey += "|" + SnapshotKey(TeamViewData(i));
+            if (comparisonKey == teamKey) return;
+            comparisonKey = teamKey;
+            for (int i = 0; i < 4 && i < teamViews.Length; i++) FillPlayer(teamViews[i], TeamViewData(i));
+            return;
+        }
         PlayerData opponent = null;
-        if (Ready(local)) foreach (var data in PlayerData.PerkPlayers)
+        if (Ready(local)) foreach (var data in comparisonRoster)
             if (data != local && data != null && data.Object != null && data.Object.IsValid && data.Runner == local.Runner && data.teamIndex != local.teamIndex)
             { opponent = data; break; }
         string key = SnapshotKey(local)+"|"+SnapshotKey(opponent);
         if (comparisonKey == key) return;
         comparisonKey = key; FillPlayer(ownView,local); FillPlayer(opponentView,opponent);
+    }
+    private PlayerData TeamViewData(int slot)
+    {
+        if (!Ready(local)) return null;
+        if (slot == 0) return local;
+        int enemy = 2;
+        foreach (PlayerData data in comparisonRoster)
+        {
+            if (data == local) continue;
+            if (data.teamIndex == local.teamIndex) { if (slot == 1) return data; }
+            else if (enemy++ == slot) return data;
+        }
+        return null;
     }
     private string SnapshotKey(PlayerData d) => !Ready(d) ? "loading" : $"{d.Object.Id}/{d.PerkRevision}/{d.magic1}/{d.magic2}/{d.playerName}/{d.playerprofile}/{d.BattleStatsRevision}/{CarriesFlag(d)}";
     private bool CarriesFlag(PlayerData d)
@@ -357,11 +391,12 @@ public sealed class BattlePerkUI : MonoBehaviour
     private static void Text(TMP_Text t,string s) { if(t!=null && t.text!=s)t.text=s; }
     private static void SetIcon(Image i,Sprite s) { if(i==null)return; i.sprite=s; i.enabled=s!=null; }
     private static void Show(GameObject root,bool show) { if(root!=null && root.activeSelf!=show)root.SetActive(show); }
-    private void OnApplicationFocus(bool focus) { if(!focus){Show(selectionRoot,false);Show(comparisonRoot,false);Show(acquiredRoot,false);Show(benefitAnimation,false);} }
+    private void OnApplicationFocus(bool focus) { if(!focus){Show(selectionRoot,false);Show(comparisonRoot,false);Show(teamComparisonRoot,false);Show(acquiredRoot,false);Show(benefitAnimation,false);} }
     private void OnDisable()
     {
         if(active==this)active=null;
         Show(selectionRoot,false);Show(comparisonRoot,false);Show(acquiredRoot,false);
+        Show(teamComparisonRoot,false);
         Show(benefitAnimation,false);
     }
     private void OnEnable() => active=this;
@@ -436,11 +471,26 @@ public sealed class BattlePerkUI : MonoBehaviour
         comparisonRoot=Rect("PerkComparison",CanvasRoot(),new Vector2(.5f,.5f),Vector2.zero,new Vector2(1920,1080)).gameObject;
         ownView=PlayerPanel("Own",new Vector2(0,145)); opponentView=PlayerPanel("Opponent",new Vector2(0,-145));
     }
-    private PerkPlayerView PlayerPanel(string name,Vector2 position)
+    private void BuildTeamComparison()
     {
-        var root=Rect(name,comparisonRoot.transform,new Vector2(.5f,.5f),position,new Vector2(1660,240));
+        teamComparisonRoot=Rect("TeamTabUI",CanvasRoot(),new Vector2(.5f,.5f),Vector2.zero,new Vector2(1920,1080)).gameObject;
+        teamViews = new PerkPlayerView[4];
+        float[] positions = {330,110,-140,-360};
+        for (int i = 0; i < 4; i++)
+        {
+            string name = i < 2 ? "Own " + i : "Opponent " + (i-2);
+            teamViews[i] = PlayerPanel(name,new Vector2(0,positions[i]),teamComparisonRoot.transform);
+            teamViews[i].profile.transform.parent.localScale = Vector3.one * .85f;
+        }
+        Label("OwnTeam",teamComparisonRoot.transform,new Vector2(-700,460),new Vector2(400,38),24).text="우리 팀";
+        Label("EnemyTeam",teamComparisonRoot.transform,new Vector2(-700,-10),new Vector2(400,38),24).text="상대 팀";
+        ReadOnly(teamComparisonRoot);
+    }
+    private PerkPlayerView PlayerPanel(string name,Vector2 position,Transform parent = null)
+    {
+        var root=Rect(name,parent != null ? parent : comparisonRoot.transform,new Vector2(.5f,.5f),position,new Vector2(1660,240));
         var bg=root.gameObject.AddComponent<Image>();
-        bg.color=name=="Own" ? new Color(.025f,.16f,.19f,.86f) : new Color(.23f,.035f,.07f,.86f);bg.raycastTarget=false;
+        bg.color=name.StartsWith("Own",StringComparison.Ordinal) ? new Color(.025f,.16f,.19f,.86f) : new Color(.23f,.035f,.07f,.86f);bg.raycastTarget=false;
         var v=new PerkPlayerView { effects=Array.Empty<PerkCardView>() };
         v.profile=Image("Profile",root,new Vector2(-766,24),new Vector2(64,64),Color.white);
         v.playerName=Label("Name",root,new Vector2(-598,24),new Vector2(235,60),23);

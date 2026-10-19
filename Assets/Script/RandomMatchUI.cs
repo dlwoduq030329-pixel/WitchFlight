@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using System.Collections.Generic;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem.UI;
 #endif
@@ -20,6 +21,11 @@ public sealed class RandomMatchUI : MonoBehaviour
     [SerializeField] private Image opponentProfileImage;
     [SerializeField] private TMP_Text localNameText;
     [SerializeField] private TMP_Text opponentNameText;
+    [Header("2v2: additional portraits (empty = generated)")]
+    [SerializeField] private Image teammateProfileImage;
+    [SerializeField] private TMP_Text teammateNameText;
+    [SerializeField] private Image secondOpponentProfileImage;
+    [SerializeField] private TMP_Text secondOpponentNameText;
     [Tooltip("OnClick에 별도로 함수를 넣지 않아도 자동 연결합니다. 기존 이벤트는 유지합니다.")]
     [SerializeField] private Button cancelButton;
     [Tooltip("선택: 매칭 중 표시하고 매칭 완료 시 숨길 로딩 오브젝트")]
@@ -38,10 +44,11 @@ public sealed class RandomMatchUI : MonoBehaviour
     private Sprite missingProfileSprite;
     private bool showing;
     private float nextSnapshot;
-    private PlayerData localData, opponentData;
+    private PlayerData localData, opponentData, teammateData, secondOpponentData;
+    private readonly List<PlayerData> participants = new();
     private NetworkRunner snapshotRunner, previewRunner;
-    private PlayerData previewLocal, previewOpponent;
-    private int previewOwnProfile, previewOpponentProfile;
+    private PlayerData previewLocal;
+    private string previewRosterKey;
     private float previewStartedAt = -1f;
     private bool previewConfirmed;
     private static readonly Color Teal = new Color(0.22f, 0.86f, 0.83f);
@@ -79,9 +86,9 @@ public sealed class RandomMatchUI : MonoBehaviour
             RefreshSnapshot();
         }
 
-        bool ready = IsCurrentParticipant(localData) && IsCurrentParticipant(opponentData) &&
-            localData.IsLoadoutInitialized && opponentData.IsLoadoutInitialized &&
-            localData.teamIndex > 0 && opponentData.teamIndex > 0 && localData.teamIndex != opponentData.teamIndex;
+        bool ready = IsCurrentParticipant(localData) && manager.ConnectedPlayerCount == manager.RequiredPlayerCount &&
+            BattleMatchRules.IsFullBalanced(participants, manager.RequiredPlayerCount);
+        foreach (PlayerData data in participants) ready &= IsCurrentParticipant(data);
         bool cancelling = manager.IsCancellingMatch;
         // Keep the last completed presentation while Fusion loads Battle.
         if (!manager.IsBattleTransitioning)
@@ -90,8 +97,9 @@ public sealed class RandomMatchUI : MonoBehaviour
                 localData.IsLoadoutInitialized ? localData.playerprofile : DataConfig.playerprofile));
             SetText(localNameText, IsCurrentParticipant(localData) && localData.IsLoadoutInitialized
                 ? localData.playerName.ToString() : DataConfig.playerName);
-            SetPortrait(opponentProfileImage, ready ? ResolveProfile(opponentData.playerprofile) : null);
-            SetText(opponentNameText, ready ? opponentData.playerName.ToString() : "상대를 찾고 있어요");
+            ShowParticipant(teammateData, teammateProfileImage, teammateNameText, "팀원을 기다리는 중");
+            ShowParticipant(opponentData, opponentProfileImage, opponentNameText, "상대를 기다리는 중");
+            ShowParticipant(secondOpponentData, secondOpponentProfileImage, secondOpponentNameText, "상대를 기다리는 중");
         }
         SetText(statusText, cancelling ? "매칭 취소 중..." : ready || manager.IsBattleTransitioning ? "매칭 완료" : "매칭 중");
         Show(loadingObject, !ready && !manager.IsBattleTransitioning);
@@ -113,40 +121,60 @@ public sealed class RandomMatchUI : MonoBehaviour
     private void RefreshSnapshot()
     {
         snapshotRunner = manager.Runner;
-        localData = null;
-        opponentData = null;
-        if (snapshotRunner == null || !snapshotRunner.IsRunning) return;
-        foreach (PlayerData data in FindObjectsByType<PlayerData>(FindObjectsSortMode.None))
-        {
-            if (!IsCurrentParticipant(data)) continue;
+        localData = opponentData = teammateData = secondOpponentData = null;
+        BattleMatchRules.CollectRoster(snapshotRunner, participants);
+        foreach (PlayerData data in participants)
             if (data.Object.HasInputAuthority) localData = data;
-            else opponentData = data;
+        if (localData == null) return;
+        foreach (PlayerData data in participants)
+        {
+            if (data == localData) continue;
+            if (data.teamIndex == localData.teamIndex) teammateData = data;
+            else if (opponentData == null) opponentData = data;
+            else secondOpponentData = data;
         }
+    }
+
+    private void ShowParticipant(PlayerData data, Image image, TMP_Text label, string emptyText)
+    {
+        bool ready = IsCurrentParticipant(data) && data.IsLoadoutInitialized;
+        SetPortrait(image, ready ? ResolveProfile(data.playerprofile) : null);
+        SetText(label, ready ? data.playerName.ToString() : emptyText);
+    }
+
+    private string RosterKey()
+    {
+        string key = "";
+        foreach (PlayerData data in participants)
+            key += $"/{data.Object.Id}:{data.playerprofile}:{data.teamIndex}:{data.playerName}";
+        return key;
     }
 
     private void UpdatePreview(bool ready)
     {
         if (!ready || !IsPortraitVisible(localProfileImage, ResolveProfile(localData.playerprofile)) ||
-            !IsPortraitVisible(opponentProfileImage, ResolveProfile(opponentData.playerprofile)))
+            !IsPortraitVisible(opponentProfileImage, ResolveProfile(opponentData.playerprofile)) ||
+            !IsCurrentParticipant(teammateData) || !IsCurrentParticipant(secondOpponentData) ||
+            !IsPortraitVisible(teammateProfileImage, ResolveProfile(teammateData.playerprofile)) ||
+            !IsPortraitVisible(secondOpponentProfileImage, ResolveProfile(secondOpponentData.playerprofile)))
         {
             ResetPreview();
             return;
         }
-        if (previewRunner != manager.Runner || previewLocal != localData || previewOpponent != opponentData ||
-            previewOwnProfile != localData.playerprofile || previewOpponentProfile != opponentData.playerprofile)
+        string rosterKey = RosterKey();
+        if (previewRunner != manager.Runner || previewLocal != localData || previewRosterKey != rosterKey)
         {
             ResetPreview();
             previewRunner = manager.Runner;
             previewLocal = localData;
-            previewOpponent = opponentData;
-            previewOwnProfile = localData.playerprofile;
-            previewOpponentProfile = opponentData.playerprofile;
+            previewRosterKey = rosterKey;
             previewStartedAt = Time.unscaledTime;
         }
         if (!previewConfirmed && Time.unscaledTime - previewStartedAt >= 1f)
         {
             previewConfirmed = true;
-            localData.ConfirmLobbyProfilePreview(opponentData);
+            foreach (PlayerData data in participants)
+                if (data != localData) localData.ConfirmLobbyProfilePreview(data);
         }
     }
 
@@ -159,7 +187,7 @@ public sealed class RandomMatchUI : MonoBehaviour
         previewStartedAt = -1f;
         previewRunner = null;
         previewLocal = null;
-        previewOpponent = null;
+        previewRosterKey = null;
     }
 
     private static bool IsPortraitVisible(Image image, Sprite expected)
@@ -182,7 +210,8 @@ public sealed class RandomMatchUI : MonoBehaviour
         Show(matchingPanel, false);
         if (generatedInput != null) Show(generatedInput, false);
         showing = false;
-        localData = opponentData = null;
+        localData = opponentData = teammateData = secondOpponentData = null;
+        participants.Clear();
         snapshotRunner = null;
     }
 
@@ -238,15 +267,19 @@ public sealed class RandomMatchUI : MonoBehaviour
             panel.rectTransform.anchorMin = Vector2.zero;
             panel.rectTransform.anchorMax = Vector2.one;
             matchingPanel = panel.gameObject;
-            NewText("Heading", panel.transform, new Vector2(0, 325), new Vector2(800, 70), "RANDOM MATCH", 30, Teal);
+            NewText("Heading", panel.transform, new Vector2(0, 325), new Vector2(800, 70), "2 vs 2 RANDOM MATCH", 30, Teal);
             NewText("Versus", panel.transform, Vector2.zero, new Vector2(160, 90), "VS", 48, Teal);
         }
         Transform parent = matchingPanel.transform;
         if (statusText == null) statusText = NewText("Status", parent, new Vector2(0, 225), new Vector2(900, 80), "매칭 중", 48, Color.white);
-        if (localProfileImage == null) localProfileImage = NewImage("My Profile", parent, new Vector2(-320, 0), new Vector2(210, 210), Color.white);
-        if (opponentProfileImage == null) opponentProfileImage = NewImage("Opponent Profile", parent, new Vector2(320, 0), new Vector2(210, 210), Color.white);
-        if (localNameText == null) localNameText = NewText("My Name", parent, new Vector2(-320, -150), new Vector2(500, 65), "", 27, Teal);
-        if (opponentNameText == null) opponentNameText = NewText("Opponent Name", parent, new Vector2(320, -150), new Vector2(500, 65), "", 27, Color.white);
+        if (localProfileImage == null) localProfileImage = NewImage("My Profile", parent, new Vector2(-520, 0), new Vector2(190, 190), Color.white);
+        if (opponentProfileImage == null) opponentProfileImage = NewImage("Opponent Profile", parent, new Vector2(270, 0), new Vector2(190, 190), Color.white);
+        if (localNameText == null) localNameText = NewText("My Name", parent, new Vector2(-520, -135), new Vector2(240, 65), "", 24, Teal);
+        if (opponentNameText == null) opponentNameText = NewText("Opponent Name", parent, new Vector2(270, -135), new Vector2(240, 65), "", 24, Color.white);
+        if (teammateProfileImage == null) teammateProfileImage = NewImage("Teammate Profile", parent, new Vector2(-270, 0), new Vector2(190, 190), Color.white);
+        if (secondOpponentProfileImage == null) secondOpponentProfileImage = NewImage("Second Opponent Profile", parent, new Vector2(520, 0), new Vector2(190, 190), Color.white);
+        if (teammateNameText == null) teammateNameText = NewText("Teammate Name", parent, new Vector2(-270, -135), new Vector2(240,65), "", 24, Teal);
+        if (secondOpponentNameText == null) secondOpponentNameText = NewText("Second Opponent Name", parent, new Vector2(520, -135), new Vector2(240,65), "", 24, Color.white);
         if (cancelButton == null)
         {
             Image background = NewImage("Cancel Match", parent, new Vector2(0, -350), new Vector2(300, 75), Teal);

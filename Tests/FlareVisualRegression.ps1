@@ -69,7 +69,7 @@ public static class Tests {
 '@
 Add-Type -TypeDefinition ($stubs + (Method 'LateUpdate') + (Method 'StopFlareEmission') + (Method 'HasLiveFlareParticles') + $tests)
 "Flare emitter lifecycle checks passed: $([FlareVisualChecks.Tests]::Run())"
-foreach ($token in 'emission.rateOverTime = 40f', 'main.loop = true', 'main.simulationSpace = ParticleSystemSimulationSpace.World') {
+foreach ($token in 'emission.rateOverTime = 64f', 'main.loop = true', 'main.simulationSpace = ParticleSystemSimulationSpace.World') {
     if (!$visual.Contains($token)) { throw "Continuous world-space flare configuration missing: $token" }
 }
 $presentation = Get-Content Assets/Script/CombatPresentation.cs -Raw

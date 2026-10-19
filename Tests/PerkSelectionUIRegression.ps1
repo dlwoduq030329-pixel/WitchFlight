@@ -55,7 +55,7 @@ public class SelectionProbe {
  public PlayerData local=new();public bool requestPending;public string selectionKey;
  public int benefitDismissedAtChoices=-1,benefitObservedChoices=-1,awaitedRevision=-1;public float feedbackAt;
  public Image acquiredIcon=new();public TMP_Text acquiredText=new();
- public GameObject benefitAnimation=new(),selectionRoot=new(),comparisonRoot=new(),acquiredRoot=new();
+ public GameObject benefitAnimation=new(),selectionRoot=new(),comparisonRoot=new(),teamComparisonRoot=new(),acquiredRoot=new();
  public MagicStatTable magicTable=new();public TMP_Text availableChoicesText=new();
  public PerkCardView leftCandidate=Card(),rightCandidate=Card();
  public static PerkCardView Card()=>new(){icon=new Image(),title=new TMP_Text(),description=new TMP_Text(),hint=new TMP_Text()};

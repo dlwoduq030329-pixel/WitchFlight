@@ -1,6 +1,6 @@
 Shader "WitchFlight/FlareParticle"
 {
-    Properties { _Intensity ("Glow intensity", Range(0.1, 8)) = 2.4 }
+    Properties { _Intensity ("Glow intensity", Range(0.1, 8)) = 2 }
     SubShader
     {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" }

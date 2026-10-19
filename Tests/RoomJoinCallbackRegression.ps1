@@ -12,6 +12,7 @@ $methods = @(
     'public void CreateRoom()',
     'public void CreateRoom(string roomId, Action onSuccess, Action<string> onFailed)',
     'public void StartMatch()',
+    'public void StartTraining()',
     'private bool TryReadRoomId(',
     'public void JoinRoom(string roomId)',
     'public void JoinRoom(string roomId, Action onSuccess, Action<string> onFailed)',
@@ -42,7 +43,7 @@ namespace UnityEngine {
 namespace Fusion.Photon.Realtime {public enum MatchmakingMode {FillRoom}}
 namespace RoomJoinChecks {
  using UnityEngine;
- public enum GameMode {Host,Client,AutoHostOrClient}
+ public enum GameMode {Host,Client,AutoHostOrClient,Single}
  public enum ShutdownReason {Ok,OperationCanceled,GameNotFound,GameIdAlreadyExists,GameIsFull,GameClosed,ConnectionTimeout}
  public class StartResult {public bool Ok;public ShutdownReason ShutdownReason;public string ErrorMessage;}
  public class Transform {public void SetParent(Transform parent,bool world){}}
@@ -51,6 +52,7 @@ namespace RoomJoinChecks {
   public T AddComponent<T>() where T:new()=>typeof(T)==typeof(NetworkRunner)?(T)(object)NetworkRunner.Next:new T();
  }
  public class NetworkSceneManagerDefault {}
+ public class BattleNetworkSceneManager:NetworkSceneManagerDefault {}
  public struct SessionProperty {
   public static implicit operator SessionProperty(string s)=>default;
   public static implicit operator SessionProperty(int s)=>default;
@@ -78,11 +80,11 @@ namespace RoomJoinChecks {
  public class ManagerProbe:UnityEngine.Object {
   public class InputField {public string text;}
   public InputField roomIdInput;
-  enum MatchRequest {CreateRoom,JoinRoom,Random,LegacyCodeMatch}
-  const int RandomPlayerCount=2;const string RandomLobbyName="WitchFlight-Random-1v1-v1";
+  enum MatchRequest {CreateRoom,JoinRoom,Random,LegacyCodeMatch,Training}
+  const int RandomPlayerCount=4;const string RandomLobbyName="WitchFlight-Random-2v2-v1";
   public Transform transform=new();private NetworkRunner _runner;private GameObject runnerObject;
   private CancellationTokenSource matchCancellation;
-  public bool startInProgress,stopInProgress,cancelRequested,ValidSetup=true,IsRandomMatch;
+  public bool startInProgress,stopInProgress,cancelRequested,ValidSetup=true,IsRandomMatch,IsTraining;
   private float randomPlayersReadyAt;private int activePlayerCount,maxPlayerCount=2,battleSceneIndex=1;
   public int Shutdowns,WaitingUpdates;public string MatchStatus="";
   public bool IsMatching=>_runner!=null||startInProgress||stopInProgress;
@@ -103,6 +105,15 @@ namespace RoomJoinChecks {
   static StartResult Failed(ShutdownReason why)=>new StartResult{ShutdownReason=why};
   static void Wait(ManualResetEventSlim done){if(!done.Wait(3000))throw new Exception("Callback timeout");}
   public static int Run(){
+   {
+    var m=Fresh();m.StartTraining();var args=NetworkRunner.Next.Args;
+    Check(m.IsConnected&&m.IsTraining&&!m.IsRandomMatch,"training starts without code/input field");
+    Check(args.GameMode==GameMode.Single&&args.PlayerCount==1,"training is a solo local simulation");
+    Check(!args.IsOpen&&!args.IsVisible&&args.SessionName==null&&args.CustomLobbyName==null&&args.SessionProperties==null,"training has no public room or random lobby");
+    m.StartTraining();Check(NetworkRunner.Next.Starts==1,"repeated training click cannot start second runner");
+    m=Fresh();LoginManager.Instance=new LoginManager{IsLoggedIn=false};m.StartTraining();
+    Check(NetworkRunner.Next.Starts==0,"training preserves login readiness guard");
+   }
    foreach(string invalid in new string[]{null,"","1","123","12345","abcdefgh","1 23","12\t3"}){
     var m=Fresh();int bad=0;m.CreateRoom(invalid,null,s=>bad++);
     Check(bad==1&&NetworkRunner.Next.Starts==0&&!m.IsMatching,"invalid create never starts: "+invalid);
@@ -184,6 +195,7 @@ namespace RoomJoinChecks {
     var m=Fresh();m.JoinRoom("1234");Check(m.IsConnected,"existing string-only overload still works");
     m=Fresh();m.StartOtherMode(false);Check(m.IsConnected&&NetworkRunner.Next.Args.GameMode==GameMode.Host,"create-room flow preserved");
     m=Fresh();m.StartOtherMode(true);Check(m.IsConnected&&NetworkRunner.Next.Args.GameMode==GameMode.AutoHostOrClient&&NetworkRunner.Next.Args.EnableClientSessionCreation,"random flow preserved");
+    Check(NetworkRunner.Next.Args.PlayerCount==4&&NetworkRunner.Next.Args.CustomLobbyName.Contains("2v2"),"four-player random queue separate from legacy 1v1");
    }
    return checks;
   }

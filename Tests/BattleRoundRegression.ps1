@@ -66,7 +66,7 @@ $managerStub = @'
 public class BattleManager {
  public static BattleManager Instance;
  public NetworkRunner runner;public BattleFlag battleFlag;
- public bool AutoStartWhenReady=true,Connected=true;
+ public bool AutoStartWhenReady=true,Connected=true,IsTraining;
  public bool HasValidFlag=>battleFlag!=null&&battleFlag.Object.IsValid;
  public int Changes,Resets,Results;public Dictionary<PlayerRef,PlayerData> playerDatas=new();
  public void startGame()=>battleFlag.RequestStart();
@@ -88,6 +88,18 @@ public static class Tests {
  static void Start(BattleFlag f){f.FixedUpdateNetwork();Check(f.Phase==BattleStartPhase.Intro,"ready begins VS");f.Runner.Time=f.PhaseTimer.End;f.FixedUpdateNetwork();Check(f.Phase==BattleStartPhase.Countdown,"VS completes into shared countdown");f.Runner.Time=f.PhaseTimer.End;f.FixedUpdateNetwork();Check(f.Phase==BattleStartPhase.Playing,"countdown starts round");}
  static void Win(BattleFlag f,int team){f.LastCarrierTeam=team;f.Runner.Time=f.MatchTimer.End;f.FixedUpdateNetwork();}
  public static int Run(){
+  {
+   var f=New();BattleManager.Instance.IsTraining=true;BattleManager.Instance.AutoStartWhenReady=false;
+   f.ExpectedPlayerCount=1;f.FixedUpdateNetwork();
+   Check(f.Phase==BattleStartPhase.Countdown&&f.PhaseTimer.End==3,"training auto-starts countdown without VS or start button");
+   f.Runner.Time=3;f.FixedUpdateNetwork();
+   Check(f.HasStarted&&f.Phase==BattleStartPhase.Playing&&!f.MatchTimer.IsRunning,"training starts without match timer");
+   f.LastCarrierTeam=1;f.Runner.Time=100000;f.FixedUpdateNetwork();
+   Check(!f.HasEnded&&!f.IsOvertime&&f.Team1Wins==0,"holding flag cannot end unlimited training");
+   f.IsOvertime=true;f.MatchTimer=TickTimer.CreateFromSeconds(f.Runner,1);f.Runner.Time+=2;f.FixedUpdateNetwork();
+   f.FinishRound(1);f.EndSeriesByForfeit(2);
+   Check(f.Phase==BattleStartPhase.Playing&&!f.HasEnded&&f.Team1Wins+f.Team2Wins==0&&BattleManager.Instance.Results==0,"training ignores timer/overtime/round win/forfeit paths");
+  }
   foreach(var outcomes in new[]{new[]{1,1},new[]{2,2},new[]{1,2,1},new[]{2,1,2}}){
    var f=New();Start(f);
    for(int i=0;i<outcomes.Length;i++){

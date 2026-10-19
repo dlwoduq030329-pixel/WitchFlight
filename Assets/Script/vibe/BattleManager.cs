@@ -18,6 +18,10 @@ public class BattleManager : MonoBehaviour
     [Header("Battle Spawn Point")]
     [SerializeField] private Transform playerSpawnA;
     [SerializeField] private Transform playerSpawnB;
+    [Tooltip("2대2 두 번째 팀원 위치. 비우면 기존 팀 스폰 지점 옆에 간격을 두고 생성합니다.")]
+    [SerializeField] private Transform playerSpawnA2;
+    [SerializeField] private Transform playerSpawnB2;
+    [SerializeField, Min(1f)] private float teammateSpawnSpacing = 3f;
     [SerializeField] private Transform flagSpawnPoint;
 
     [Header("Map boundary")]
@@ -66,6 +70,7 @@ public class BattleManager : MonoBehaviour
     private bool HasValidFlag => battleFlag != null && battleFlag.Object != null && battleFlag.Object.IsValid;
     public BattleStartPhase Phase => HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
     public bool IsGameplayActive => Phase == BattleStartPhase.Playing;
+    public bool IsTraining => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
     public bool AutoStartWhenReady => autoStartWhenReady;
     public int ExpectedPlayerCount => HasValidFlag && battleFlag.ExpectedPlayerCount > 0
         ? battleFlag.ExpectedPlayerCount : NetworkGameManager.Instance != null
@@ -169,6 +174,8 @@ public class BattleManager : MonoBehaviour
             playerSpawnA = FindSpawnPoint("PlayerSpawnA", "spawnA");
         if (playerSpawnB == null)
             playerSpawnB = FindSpawnPoint("PlayerSpawnB", "spawnB");
+        if (playerSpawnA2 == null) playerSpawnA2 = FindSpawnPoint("PlayerSpawnA2", "spawnA2");
+        if (playerSpawnB2 == null) playerSpawnB2 = FindSpawnPoint("PlayerSpawnB2", "spawnB2");
         if (flagSpawnPoint == null)
             flagSpawnPoint = FindSpawnPoint("FlagSpawn", "Flag");
     }
@@ -200,7 +207,18 @@ public class BattleManager : MonoBehaviour
             return;
         }
 
-        NetworkObject playerObject = runner.Spawn(prefab, spawn.position, spawn.rotation, playerRef);
+        int teamSlot = 0;
+        foreach (var pair in playerDatas)
+            if (pair.Value != null && pair.Value.teamIndex == playerData.teamIndex && IsConnected(pair.Key) &&
+                pair.Key.RawEncoded < playerRef.RawEncoded) teamSlot++;
+        Transform secondary = playerData.teamIndex == 1 ? playerSpawnA2 : playerSpawnB2;
+        Vector3 spawnPosition = spawn.position;
+        if (teamSlot > 0)
+        {
+            if (secondary != null) { spawn = secondary; spawnPosition = spawn.position; }
+            else spawnPosition += spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * teamSlot;
+        }
+        NetworkObject playerObject = runner.Spawn(prefab, spawnPosition, spawn.rotation, playerRef);
         if (playerObject == null)
             return;
 
@@ -329,9 +347,10 @@ public class BattleManager : MonoBehaviour
         if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject playerObject) && playerObject != null)
             battleFlag?.DropCarrier(playerRef, playerObject.transform.position);
         pendingRespawns.RemoveAll(pending => pending.PlayerRef == playerRef);
+        int departedTeam = playerDatas.TryGetValue(playerRef, out PlayerData departed) && departed != null ? departed.teamIndex : 0;
         if (ExpectedPlayerCount > 1 && !IsBattleEnded)
             foreach (var pair in playerDatas)
-                if (pair.Key != playerRef && pair.Value != null && IsConnected(pair.Key))
+                if (pair.Key != playerRef && pair.Value != null && pair.Value.teamIndex != departedTeam && IsConnected(pair.Key))
                 {
                     battleFlag?.EndSeriesByForfeit(pair.Value.teamIndex);
                     break;

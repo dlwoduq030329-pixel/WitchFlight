@@ -1,5 +1,6 @@
 using Fusion;
 using UnityEngine;
+using System.Collections.Generic;
 
 public enum HatType { None, Classic, Twisted, Elemental, Serenity, Cosmic }
 public enum BroomType { None, Slow, Standard, Speed }
@@ -15,13 +16,33 @@ public partial class PlayerData : NetworkBehaviour
     [Networked] public MagicType MagicChangeBase2 { get; private set; }
     public event System.Action<int, int, bool, string> RoundMagicChangeResult;
     // Lobby presentation acknowledgements are host-local; PlayerData is still the RPC owner.
-    private PlayerData previewedOpponent;
-    private int previewedOpponentProfile, previewedOwnProfile;
+    private readonly Dictionary<PlayerRef, (PlayerData data, int profile, int ownProfile, int team, int ownTeam)> lobbyPreviews = new();
+    [Networked] public BattleMatchMode RoomMatchMode { get; private set; } = BattleMatchMode.TwoVsTwo;
+
+    public void SetRoomMatchMode(BattleMatchMode mode)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || !IsRoomOwner) return;
+        RoomMatchMode = mode == BattleMatchMode.OneVsOne ? BattleMatchMode.OneVsOne : BattleMatchMode.TwoVsTwo;
+    }
+
+    public void RequestWaitingTeam(int team)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasInputAuthority || (team != 1 && team != 2)) return;
+        RPC_RequestWaitingTeam(team);
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_RequestWaitingTeam(int team)
+    {
+        NetworkGameManager.Instance?.TrySetWaitingTeam(this, team);
+    }
 
     public bool HasPresentedLobbyOpponent(PlayerData opponent)
     {
-        return opponent != null && previewedOpponent == opponent &&
-            previewedOpponentProfile == opponent.playerprofile && previewedOwnProfile == playerprofile;
+        return opponent != null && opponent.Object != null && opponent.Object.IsValid &&
+            lobbyPreviews.TryGetValue(opponent.Object.InputAuthority, out var preview) && preview.data == opponent &&
+            preview.profile == opponent.playerprofile && preview.ownProfile == playerprofile &&
+            preview.team == opponent.teamIndex && preview.ownTeam == teamIndex;
     }
 
     public void ConfirmLobbyProfilePreview(PlayerData opponent)
@@ -39,10 +60,8 @@ public partial class PlayerData : NetworkBehaviour
         PlayerData opponent = manager.GetPlayerData(opponentRef);
         if (!IsLoadoutInitialized || opponent == null || opponent == this ||
             !opponent.IsLoadoutInitialized || teamIndex <= 0 || opponent.teamIndex <= 0 ||
-            opponent.teamIndex == teamIndex || opponent.playerprofile != opponentProfile || playerprofile != ownProfile) return;
-        previewedOpponent = opponent;
-        previewedOpponentProfile = opponentProfile;
-        previewedOwnProfile = ownProfile;
+            opponent.playerprofile != opponentProfile || playerprofile != ownProfile) return;
+        lobbyPreviews[opponentRef] = (opponent, opponentProfile, ownProfile, opponent.teamIndex, teamIndex);
     }
 
     public void ClearLobbyProfilePreview()
@@ -54,7 +73,7 @@ public partial class PlayerData : NetworkBehaviour
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     private void RPC_ClearLobbyProfilePreview()
     {
-        previewedOpponent = null;
+        lobbyPreviews.Clear();
     }
 
     // Profile image ID only. Image selection/rendering and backend storage are separate.

@@ -104,7 +104,7 @@ SphereCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
@@ -117,6 +117,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7369487517400404835}
+  - component: {fileID: 7369487517400404836}
+  - component: {fileID: 7369487517400404837}
   m_Layer: 0
   m_Name: HP_Item
   m_TagString: Untagged
@@ -140,3 +142,44 @@ Transform:
   - {fileID: 2888235870074328530}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7369487517400404836
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5393463799735827179}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  SortKey: 2665726260
+  ObjectInterest: 1
+  Flags: 262145
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: 7369487517400404837}
+  ForceRemoteRenderTimeframe: 0
+--- !u!114 &7369487517400404837
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5393463799735827179}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 03eab103bf384856bc0a59b42beca173, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  itemType: 1
+  healAmount: 40
+  speedMultiplier: 1.3
+  boostDurationSeconds: 5
+  pickupRadius: 1.5
+  pickupOffset: {x: 0, y: 0, z: 0}
+  respawnSeconds: 20
+  visualRoot: {fileID: 1368338541648890353}
+  _Consumed:
+    _value: 0

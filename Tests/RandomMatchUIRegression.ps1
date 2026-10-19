@@ -8,7 +8,7 @@ function Method([string]$source, [string]$signature) {
     if (!$match.Success) { throw "Missing production method: $signature" }
     $match.Value -replace '\bprivate\b', 'public'
 }
-$previewMethods = @('private void UpdatePreview(bool ready)', 'private void ResetPreview()') |
+$previewMethods = @('private void UpdatePreview(bool ready)', 'private void ResetPreview()', 'private string RosterKey()') |
     ForEach-Object { Method $ui $_ }
 $sessionMethods = @('public async void CancelMatch()', 'private async Task ShutdownSession(NetworkRunner sessionRunner)',
     'private bool AreRandomStartRequirementsMet()', 'private bool AreRandomProfilesPresented()') |
@@ -31,20 +31,23 @@ namespace RandomMatchChecks {
   public TaskCompletionSource<bool> Completion=new();public int ShutdownCalls;
   public async Task Shutdown(bool destroyGameObject){ShutdownCalls++;await Completion.Task;IsRunning=false;}
  }
- public class NetworkObject {public bool IsValid=true;}
+ public class NetworkObject {static int next;public int Id=++next,InputAuthority;public bool IsValid=true;}
  public class PlayerData {
-  public NetworkObject Object=new();public NetworkRunner Runner;public int playerprofile,teamIndex;
+  public NetworkObject Object=new();public NetworkRunner Runner;public int playerprofile,teamIndex;public string playerName="";
   public GameObject gameObject=new();public int Confirmations,Clears;public PlayerData ConfirmedOpponent;
-  public void ConfirmLobbyProfilePreview(PlayerData opponent){Confirmations++;ConfirmedOpponent=opponent;}
-  public void ClearLobbyProfilePreview(){Clears++;ConfirmedOpponent=null;}
-  public bool HasPresentedLobbyOpponent(PlayerData opponent)=>ConfirmedOpponent==opponent;
+  public HashSet<PlayerData> Acked=new();
+  public void ConfirmLobbyProfilePreview(PlayerData opponent){Confirmations++;ConfirmedOpponent=opponent;Acked.Add(opponent);}
+  public void ClearLobbyProfilePreview(){Clears++;ConfirmedOpponent=null;Acked.Clear();}
+  public bool HasPresentedLobbyOpponent(PlayerData opponent)=>Acked.Contains(opponent);
  }
  public class Image {public bool Visible=true;public int Profile;}
  public class UIProbe {
-  public SessionProbe manager=new();public PlayerData localData,opponentData,previewLocal,previewOpponent;
-  public NetworkRunner previewRunner;public int previewOwnProfile,previewOpponentProfile;
+  public SessionProbe manager=new();public PlayerData localData,opponentData,teammateData,secondOpponentData,previewLocal;
+  public List<PlayerData> participants=new();public string previewRosterKey;
+  public NetworkRunner previewRunner;
   public float previewStartedAt=-1;public bool previewConfirmed;
-  public Image localProfileImage=new(),opponentProfileImage=new();
+  public Image localProfileImage=new(),opponentProfileImage=new(),teammateProfileImage=new(),secondOpponentProfileImage=new();
+  bool IsCurrentParticipant(PlayerData d)=>d!=null&&d.Object.IsValid&&d.Runner==manager.Runner&&manager.Runner.ActivePlayers.Contains(d.Object.InputAuthority);
   public int ResolveProfile(int index)=>index;
   public static bool IsPortraitVisible(Image image,int profile)=>image.Visible&&image.Profile==profile;
 '@
@@ -71,6 +74,12 @@ $tests = @'
    var view=new UIProbe();view.manager._runner=runner;
    view.localData=new PlayerData{Runner=runner,playerprofile=2,teamIndex=1};
    view.opponentData=new PlayerData{Runner=runner,playerprofile=5,teamIndex=2};
+   view.teammateData=new PlayerData{Runner=runner,playerprofile=3,teamIndex=1};
+   view.secondOpponentData=new PlayerData{Runner=runner,playerprofile=4,teamIndex=2};
+   view.localData.Object.InputAuthority=1;view.opponentData.Object.InputAuthority=2;view.teammateData.Object.InputAuthority=3;view.secondOpponentData.Object.InputAuthority=4;
+   runner.ActivePlayers.AddRange(new[]{1,2,3,4});
+   view.participants.AddRange(new[]{view.localData,view.teammateData,view.opponentData,view.secondOpponentData});
+   view.teammateProfileImage.Profile=3;view.secondOpponentProfileImage.Profile=4;
    view.localProfileImage.Profile=2;view.opponentProfileImage.Profile=5;return view;
   }
   public static int Run(){
@@ -79,13 +88,13 @@ $tests = @'
    view.UpdatePreview(true);Time.unscaledTime=0.99f;view.UpdatePreview(true);
    Check(view.localData.Confirmations==0,"full one-second presentation required");
    Time.unscaledTime=1;view.UpdatePreview(true);
-   Check(view.localData.Confirmations==1&&view.localData.ConfirmedOpponent==view.opponentData,"ack exact opponent after one second");
-   Time.unscaledTime=4;view.UpdatePreview(true);Check(view.localData.Confirmations==1,"no repeated RPC each frame");
+   Check(view.localData.Confirmations==3&&view.localData.Acked.Contains(view.opponentData)&&view.localData.Acked.Contains(view.teammateData),"ack all three participants after one second");
+   Time.unscaledTime=4;view.UpdatePreview(true);Check(view.localData.Confirmations==3,"no repeated RPC each frame");
    view.opponentProfileImage.Visible=false;view.UpdatePreview(true);
    Check(!view.previewConfirmed&&view.localData.Clears==1,"hidden panel retracts acknowledgement");
    Time.unscaledTime=5;view.opponentProfileImage.Visible=true;view.UpdatePreview(true);
-   Time.unscaledTime=5.9f;view.UpdatePreview(true);Check(view.localData.Confirmations==1,"hidden time does not count");
-   Time.unscaledTime=6;view.UpdatePreview(true);Check(view.localData.Confirmations==2,"redisplay starts full fresh delay");
+   Time.unscaledTime=5.9f;view.UpdatePreview(true);Check(view.localData.Confirmations==3,"hidden time does not count");
+   Time.unscaledTime=6;view.UpdatePreview(true);Check(view.localData.Confirmations==6,"redisplay starts full fresh delay");
    view.opponentData.playerprofile=3;view.opponentProfileImage.Profile=3;view.UpdatePreview(true);
    Check(!view.previewConfirmed&&view.localData.Clears==2,"changed opponent profile invalidates old confirmation");
    Time.unscaledTime=7;view.UpdatePreview(true);Check(view.previewConfirmed,"new profile can confirm");
@@ -97,14 +106,18 @@ $tests = @'
    Check(view.previewStartedAt<0,"wrong/stale sprite cannot start timer");
    view.opponentProfileImage.Profile=5;view.UpdatePreview(true);
    var oldOpponent=view.opponentData;view.opponentData=new PlayerData{Runner=view.manager.Runner,playerprofile=5,teamIndex=2};
+   view.opponentData.Object.InputAuthority=2;view.participants[2]=view.opponentData;
    Time.unscaledTime=10.8f;view.UpdatePreview(true);Time.unscaledTime=11;view.UpdatePreview(true);
    Check(view.localData.Confirmations==0,"replacement opponent with same icon resets delay");
-   Time.unscaledTime=12;view.UpdatePreview(true);Check(view.localData.ConfirmedOpponent==view.opponentData,"replacement acknowledged instead of old player");
-   var host=view.manager;host.Runner.ActivePlayers.AddRange(new[]{1,2});
-   host.playerDatas[1]=view.localData;host.playerDatas[2]=view.opponentData;
+   Time.unscaledTime=12;view.UpdatePreview(true);Check(view.localData.Acked.Contains(view.opponentData)&&!view.localData.Acked.Contains(oldOpponent),"replacement acknowledged instead of old player");
+   var host=view.manager;
+   host.playerDatas[1]=view.localData;host.playerDatas[2]=view.opponentData;host.playerDatas[3]=view.teammateData;host.playerDatas[4]=view.secondOpponentData;
    Check(!host.AreRandomStartRequirementsMet(),"host cannot start on its own presentation only");
-   view.opponentData.ConfirmLobbyProfilePreview(view.localData);
-   Check(host.AreRandomStartRequirementsMet(),"both peer acknowledgements allow battle");
+   foreach(var peer in host.playerDatas.Values) foreach(var otherPeer in host.playerDatas.Values) if(peer!=otherPeer)peer.ConfirmLobbyProfilePreview(otherPeer);
+   view.localData.Acked.Remove(view.teammateData);Check(!host.AreRandomStartRequirementsMet(),"teammate acknowledgement is required, not just an opponent");
+   view.localData.ConfirmLobbyProfilePreview(view.teammateData);
+   Check(host.AreRandomStartRequirementsMet(),"all four peers acknowledged the full roster");
+   view.secondOpponentProfileImage.Visible=false;view.UpdatePreview(true);Check(!view.previewConfirmed,"hidden fourth portrait retracts preview");
    host.playerDatas.Remove(2);Check(!host.AreRandomStartRequirementsMet(),"disconnected peer blocks transition");
    var starting=new SessionProbe{_runner=new NetworkRunner(),startInProgress=true};starting.CancelMatch();
    Check(starting.cancelRequested&&starting.matchCancellation.IsCancellationRequested,"startup cancel requests token cancellation");
@@ -140,7 +153,7 @@ foreach ($value in @('m_GameObject: {fileID: 244481543}', 'guid: 4da3259defcd433
     'guid: 37691fc4619c43d2b0525e0e9b8de71f', 'guid: ad82f58d7f40a25448fe68d46ecb6f2c')) {
     if (!$component.Contains($value)) {throw "Main UI binding missing: $value"}
 }
-foreach ($field in @('matchingPanel','statusText','localProfileImage','opponentProfileImage','localNameText','opponentNameText','cancelButton','loadingObject')) {
+foreach ($field in @('matchingPanel','statusText','localProfileImage','opponentProfileImage','localNameText','opponentNameText','teammateProfileImage','secondOpponentProfileImage','cancelButton','loadingObject')) {
     if ($ui -notmatch ('if \(' + $field + ' == null\)')) {throw "Missing fallback for $field"}
 }
 if ($ui.Contains('RemoveAllListeners') -or $ui.Contains('Application.isFocused')) {throw 'Preserve custom button callbacks and support unfocused second client'}

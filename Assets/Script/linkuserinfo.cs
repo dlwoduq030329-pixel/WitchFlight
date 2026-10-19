@@ -9,7 +9,7 @@ using UnityEngine.Serialization;
 
 // Local UI bridge only. Fusion's existing PlayerData remains the source of truth.
 [DisallowMultipleComponent]
-public sealed class linkuserinfo : MonoBehaviour
+public sealed partial class linkuserinfo : MonoBehaviour
 {
     [Serializable]
     public sealed class PlayerDataEvent : UnityEvent<PlayerData> { }
@@ -17,6 +17,8 @@ public sealed class linkuserinfo : MonoBehaviour
     [Serializable]
     public sealed class WaitingRoomSlot
     {
+        [Tooltip("카드 전체. 1대1에서는 3·4번 카드만 숨기고, 2대2에서는 빈 자리여도 카드를 표시합니다.")]
+        public GameObject slotRoot;
         public GameObject occupiedRoot;
         public GameObject emptyRoot;
         public Image profileImage;
@@ -75,6 +77,7 @@ public sealed class linkuserinfo : MonoBehaviour
     public PlayerData LocalPlayerData => IsReady(localPlayerData) ? localPlayerData : null;
     public PlayerData OpponentPlayerData => IsReady(opponentPlayerData) ? opponentPlayerData : null;
     public IReadOnlyList<PlayerData> AllPlayerDatas => players.AsReadOnly();
+    public GameObject CodeWaitingRoomPanel => waitingRoomStartButton != null ? waitingRoomPanel : null;
     public event Action UsersChanged;
 
     private readonly List<PlayerData> players = new List<PlayerData>();
@@ -172,17 +175,19 @@ public sealed class linkuserinfo : MonoBehaviour
         if (waitingRoomCodeText != null)
             waitingRoomCodeText.text = waiting ? runner.SessionInfo.Name : "";
         if (waitingRoomCountText != null)
-            waitingRoomCountText.text = waiting ? $"{waitingParticipants.Count} / {runner.SessionInfo.MaxPlayers}" : "";
+            waitingRoomCountText.text = waiting ? $"{waitingParticipants.Count} / {manager.RequiredPlayerCount}" : "";
         // Preserve legacy slots, but also make their first slot explicitly the host's.
         if (owner != null)
         {
             PlayerRef ownerRef = owner.Object.InputAuthority;
             if (waitingParticipants.Remove(ownerRef)) waitingParticipants.Insert(0, ownerRef);
         }
+        if (waiting) EnsureAuthoredWaitingSlots();
         for (int i = 0; waitingRoomSlots != null && i < waitingRoomSlots.Length; i++)
         {
             WaitingRoomSlot slot = waitingRoomSlots[i];
             if (slot == null) continue;
+            if (slot.slotRoot != null) slot.slotRoot.SetActive(i < 2 || (waiting && manager.RequiredPlayerCount == 4));
             bool occupied = waiting && i < waitingParticipants.Count;
             PlayerRef playerRef = occupied ? waitingParticipants[i] : PlayerRef.None;
             PlayerData data = occupied ? GetPlayerData(playerRef) : null;
@@ -196,7 +201,7 @@ public sealed class linkuserinfo : MonoBehaviour
                 slot.playerLabel.text = !occupied ? "" : data == null ? "정보 받는 중..." : data.playerName.ToString();
             }
             if (slot.teamLabel != null)
-                slot.teamLabel.text = data == null ? "" : $"팀 {data.teamIndex}";
+                slot.teamLabel.text = data == null ? "" : data.teamIndex == 1 ? "A팀" : "B팀";
             if (slot.localPlayerMarker != null)
                 slot.localPlayerMarker.SetActive(occupied && playerRef == runner.LocalPlayer);
         }
@@ -287,7 +292,7 @@ public sealed class linkuserinfo : MonoBehaviour
     private void UpdateLobbyPreview()
     {
         NetworkGameManager manager = NetworkGameManager.Instance;
-        if (!confirmRandomMatchPreview || manager == null || !manager.IsRandomMatch ||
+        if (!confirmRandomMatchPreview || manager == null || manager.RequiredPlayerCount > 2 || !manager.IsRandomMatch ||
             manager.IsBattleSceneLoaded || !manager.CanCancelMatch || !IsReady(localPlayerData) ||
             !IsReady(opponentPlayerData) || !IsOpponentProfileVisible())
         {

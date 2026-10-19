@@ -31,7 +31,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         if (custom == null)
         {
             ParticleSystem particles = visual.CreateParticles(new Color(1f,.48f,.09f,1f), null, true);
-            float brightness = stats.flareVfxBrightness > 0f ? stats.flareVfxBrightness : 2.4f;
+            float brightness = stats.flareVfxBrightness > 0f ? stats.flareVfxBrightness : 2f;
             if (visual.ownedFlareMaterial != null && visual.ownedFlareMaterial.HasProperty("_Intensity"))
                 visual.ownedFlareMaterial.SetFloat("_Intensity", brightness);
             var main = particles.main;
@@ -46,8 +46,8 @@ public sealed class UtilityMagicVisual : MonoBehaviour
             shape.angle = 42f;
             shape.radius = 0.4f*scale;
             var emission = particles.emission;
-            emission.rateOverTime = 70f;
-            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 40) });
+            emission.rateOverTime = 64f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 36) });
             var renderer = particles.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Stretch;
             renderer.lengthScale = 4f;
@@ -56,7 +56,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
             // It uses alpha blending; the narrow bright core above uses additive blending.
             var glowObject = new GameObject("Flare orange afterglow");
             glowObject.transform.SetParent(root.transform,false);
-            ParticleSystem glow = visual.CreateParticles(new Color(1f,.2f,.025f,.8f),glowObject);
+            ParticleSystem glow = visual.CreateParticles(new Color(1f,.2f,.025f,.7f),glowObject);
             var glowMain = glow.main;
             glowMain.loop = true; glowMain.duration = seconds;
             glowMain.startLifetime = new ParticleSystem.MinMaxCurve(.35f,.7f);
@@ -66,9 +66,9 @@ public sealed class UtilityMagicVisual : MonoBehaviour
             var glowShape = glow.shape;
             glowShape.shapeType = ParticleSystemShapeType.Cone; glowShape.angle = 38f; glowShape.radius = .35f*scale;
             var glowEmission = glow.emission;
-            glowEmission.rateOverTime = 24f;
-            glowEmission.SetBursts(new[] { new ParticleSystem.Burst(0f,16) });
-            CombatTransientEffect.PlayPulse(position,new Color(1f,.6f,.12f,.65f),1.5f*scale,.2f);
+            glowEmission.rateOverTime = 22f;
+            glowEmission.SetBursts(new[] { new ParticleSystem.Burst(0f,14) });
+            CombatTransientEffect.PlayPulse(position,new Color(1f,.6f,.12f,.55f),1.5f*scale,.2f);
         }
         visual.flareParticles = root.GetComponentsInChildren<ParticleSystem>(true);
         foreach (ParticleSystem particles in visual.flareParticles)

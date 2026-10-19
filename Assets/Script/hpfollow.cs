@@ -141,7 +141,12 @@ public sealed class hpfollow : MonoBehaviour
         healthDirty = false;
         if (fallbackFill != null) fallbackFill.anchorMax = new Vector2(healthFraction, 1f);
         else if (gridBar != null)
+        {
             gridBar.UpdateHealth(healthFraction * maxHealth, maxHealth);
+            // A GridHPBar may clone an external template when maximum HP increases.
+            // Route those newly created images to the same world camera as the root.
+            BattleWorldUI.ApplyLayer(viewRoot);
+        }
         else if (slider != null)
             slider.SetValueWithoutNotify(healthFraction);
         else if (filledImage != null)
@@ -198,20 +203,19 @@ public sealed class hpfollow : MonoBehaviour
         if (haloRoot == null)
         {
             haloRoot = new GameObject("Enemy red halo (local)", typeof(RectTransform), typeof(Canvas));
-            haloRoot.layer = 5;
             if (gameObject.scene.IsValid() && gameObject.scene.isLoaded)
                 SceneManager.MoveGameObjectToScene(haloRoot, gameObject.scene);
             haloCanvas = haloRoot.GetComponent<Canvas>();
             haloCanvas.renderMode = RenderMode.WorldSpace;
             var glow = new GameObject("Glow", typeof(RectTransform), typeof(CanvasRenderer),
                 enemyHaloSprite != null ? typeof(Image) : typeof(CombatFeedbackGraphic));
-            glow.layer = 5;
             glow.transform.SetParent(haloRoot.transform, false);
             haloGraphic = glow.GetComponent<Graphic>();
             haloGraphic.raycastTarget = false;
             if (haloGraphic is Image image) { image.sprite = enemyHaloSprite; image.preserveAspect = true; }
             else ((CombatFeedbackGraphic)haloGraphic).Glow = true;
             renderedHaloSprite = enemyHaloSprite;
+            BattleWorldUI.ApplyLayer(haloRoot);
         }
         haloCanvas.worldCamera = viewCamera;
         haloGraphic.color = enemyHaloColor;
@@ -248,7 +252,6 @@ public sealed class hpfollow : MonoBehaviour
 
         // A separate scene object keeps flight pitch/scale and equipment visibility from moving the UI.
         viewRoot = new GameObject("Enemy HP - " + gameObject.name, typeof(RectTransform), typeof(Canvas));
-        viewRoot.layer = 5; // Unity's UI layer.
         viewRoot.SetActive(false);
         Scene scene = gameObject.scene;
         if (scene.IsValid() && scene.isLoaded)
@@ -285,6 +288,8 @@ public sealed class hpfollow : MonoBehaviour
         foreach (Graphic graphic in instance.GetComponentsInChildren<Graphic>(true))
             graphic.raycastTarget = false;
 
+        BattleWorldUI.ApplyLayer(viewRoot);
+
         gridBar = instance.GetComponentInChildren<GridHPBar>(true);
         if (gridBar == null)
         {
@@ -319,14 +324,12 @@ public sealed class hpfollow : MonoBehaviour
     private void CreateFallback()
     {
         viewRoot = new GameObject("Enemy HP (generated)", typeof(RectTransform), typeof(Canvas));
-        viewRoot.layer = 5;
         if (gameObject.scene.IsValid() && gameObject.scene.isLoaded)
             SceneManager.MoveGameObjectToScene(viewRoot, gameObject.scene);
         viewCanvas = viewRoot.GetComponent<Canvas>();
         viewCanvas.renderMode = RenderMode.WorldSpace;
         ((RectTransform)viewRoot.transform).sizeDelta = new Vector2(120f, 12f);
         var background = new GameObject("Background", typeof(RectTransform), typeof(Image));
-        background.layer = 5;
         background.transform.SetParent(viewRoot.transform, false);
         var backgroundRect = (RectTransform)background.transform;
         backgroundRect.anchorMin = Vector2.zero;
@@ -335,7 +338,6 @@ public sealed class hpfollow : MonoBehaviour
         background.GetComponent<Image>().color = new Color(0.03f, 0.03f, 0.03f, 0.85f);
         background.GetComponent<Image>().raycastTarget = false;
         var fill = new GameObject("Health", typeof(RectTransform), typeof(Image));
-        fill.layer = 5;
         fill.transform.SetParent(background.transform, false);
         fallbackFill = (RectTransform)fill.transform;
         fallbackFill.anchorMin = Vector2.zero;
@@ -343,6 +345,7 @@ public sealed class hpfollow : MonoBehaviour
         fallbackFill.offsetMin = fallbackFill.offsetMax = Vector2.zero;
         fill.GetComponent<Image>().color = new Color(0.9f, 0.2f, 0.25f);
         fill.GetComponent<Image>().raycastTarget = false;
+        BattleWorldUI.ApplyLayer(viewRoot);
         healthDirty = true;
     }
 

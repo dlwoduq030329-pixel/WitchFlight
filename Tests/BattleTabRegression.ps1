@@ -32,7 +32,7 @@ namespace UnityEngine.UI {public class Image {public Sprite sprite;public bool e
 namespace TMPro {public class TMP_Text {public string text="placeholder";}}
 namespace Fusion {
  public class NetworkedAttribute:Attribute {}
- public enum PlayerRef {None,A,B,C}
+ public enum PlayerRef {None,A,B,C,D}
  public struct NetworkId {public int Raw;public NetworkId(int raw){Raw=raw;}public override string ToString()=>Raw.ToString();}
  public class NetworkRunner {}
  public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;public NetworkId Id;public PlayerRef InputAuthority;}
@@ -52,7 +52,8 @@ public class MagicStatTable {
  public PerkDefinition GetStats(MagicType m)=>new PerkDefinition{displayName="Magic"+(int)m};
 }
 public class ProfileImageTable {public Sprite GetSprite(int id)=>new Sprite(id);}
-public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
+public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;public int ExpectedPlayerCount=2;}
+public static class BattleMatchRules {public static void CollectRoster(NetworkRunner r,List<PlayerData> list){list.Clear();foreach(var d in PlayerData.PerkPlayers)if(d.Runner==r&&d.Object.IsValid)list.Add(d);list.Sort((a,b)=>a.Object.InputAuthority.CompareTo(b.Object.InputAuthority));}}
 public class BattleFlag:NetworkBehaviour {public static BattleFlag Instance;public PlayerRef Carrier;}
 public partial class PlayerData:NetworkBehaviour {
  public static List<PlayerData> PerkPlayers=new();
@@ -73,11 +74,12 @@ $source += @'
 public class TabProbe {
  public PlayerData local;public string comparisonKey;
  public PerkPlayerView ownView,opponentView;
+ public PerkPlayerView[] teamViews=new PerkPlayerView[4];public List<PlayerData> comparisonRoster=new();
  public MagicStatTable magicTable=new();public ProfileImageTable profileTable=new();
 '@
 $methods=@()
 foreach ($s in @('private bool CarriesFlag(', 'private void FillPlayer(', 'private void FillSpellEffects(',
-    'private static void ClearEffect(', 'private void Fill(', 'private Sprite Icon(', 'private void UpdateComparison(')) { $methods+=Block $s }
+    'private static void ClearEffect(', 'private void Fill(', 'private Sprite Icon(', 'private void UpdateComparison(', 'private PlayerData TeamViewData(')) { $methods+=Block $s }
 foreach ($s in @('private bool Ready(', 'private string SnapshotKey(', 'private static string DamageText(',
     'private string MagicName(', 'private static void Text(', 'private static void SetIcon(', 'private static void Show(')) { $methods+=Line $s }
 $methods += [regex]::Match($ui,'(?ms)^    public static string Description\(.*?;').Value
@@ -146,6 +148,13 @@ public static class BattleTabChecks {
   b.PerksInitialized=false;tab.UpdateComparison();Check(tab.opponentView.playerName.text.Contains("정보")&&tab.opponentView.damageTakenText.text=="—"&&tab.opponentView.profile.sprite==null,"unready opponent clears stale data");
   b.PerksInitialized=true;tab.local=b;tab.UpdateComparison();Check(tab.ownView.playerName.text=="B"&&tab.opponentView.playerName.text=="A","guest sees self on top, not host");
   tab.FillPlayer(new PerkPlayerView{slot1Effects=null,slot2Effects=null,commonEffects=null,effects=null},a);Check(true,"optional UI fields may remain empty");
+  var ally=Make(runner,PlayerRef.D,1);BattleManager.Instance.ExpectedPlayerCount=4;tab.local=a;
+  for(int i=0;i<4;i++)tab.teamViews[i]=View();tab.UpdateComparison();
+  Check(tab.teamViews[0].playerName.text=="A"&&tab.teamViews[1].playerName.text=="D"&&tab.teamViews[2].playerName.text=="B"&&tab.teamViews[3].playerName.text=="C","team Tab: self, ally, both enemies");
+  flag.Runner=runner;flag.Carrier=PlayerRef.C;tab.UpdateComparison();
+  Check(!tab.teamViews[0].flagIndicator.activeSelf&&!tab.teamViews[1].flagIndicator.activeSelf&&!tab.teamViews[2].flagIndicator.activeSelf&&tab.teamViews[3].flagIndicator.activeSelf,"fourth row independently owns flag");
+  tab.local=b;tab.UpdateComparison();Check(tab.teamViews[0].playerName.text=="B"&&tab.teamViews[1].playerName.text=="C"&&tab.teamViews[2].playerName.text=="A"&&tab.teamViews[3].playerName.text=="D","opposite-side client sees own team first");
+  friendly.Object.IsValid=false;tab.UpdateComparison();Check(tab.teamViews[1].profile.sprite==null&&tab.teamViews[2].playerName.text=="A","departure leaves teammate slot empty without shifting enemies");
   a.ResetBattleStats();b.ResetBattleStats();Check(a.BattleDamageDealt==0&&a.BattleKills==0&&b.BattleDeaths==0&&b.BattleDamageTaken==0,"new match resets totals");
   b.RecordBattleDeath(new NetworkId(100),a);Check(b.BattleDeaths==1&&a.BattleKills==1,"new match resets death deduplication");
   return count;
