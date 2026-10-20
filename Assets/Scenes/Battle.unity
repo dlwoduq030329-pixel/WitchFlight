@@ -9778,6 +9778,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 1372199563}
+  exitDirection: {fileID: 0}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -16726,6 +16728,11 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4910135957328015409, guid: ee52773c3921975459b8f5ad6efab768, type: 3}
   m_PrefabInstance: {fileID: 685025136}
   m_PrefabAsset: {fileID: 0}
+--- !u!224 &686578339 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+  m_PrefabInstance: {fileID: 1694351707562739269}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &689416522
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -17459,6 +17466,10 @@ PrefabInstance:
     - target: {fileID: 2070208136584148500, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2070208136584148501, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
+      propertyPath: SortKey
+      value: 2673181269
       objectReference: {fileID: 0}
     - target: {fileID: 4947370934349224945, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
       propertyPath: m_Name
@@ -33306,6 +33317,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 1855128619}
+  exitDirection: {fileID: 0}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -34046,6 +34059,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 424424437}
+  exitDirection: {fileID: 0}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -37496,6 +37511,9 @@ MonoBehaviour:
   perkStatTable: {fileID: 11400000, guid: 26a08712a9f8258cdae35dbe4cb1a8f4, type: 2}
   playerSpawnA: {fileID: 1844755102}
   playerSpawnB: {fileID: 2070964829}
+  playerSpawnA2: {fileID: 0}
+  playerSpawnB2: {fileID: 0}
+  teammateSpawnSpacing: 3
   flagSpawnPoint: {fileID: 971768125}
   mapBoundaryTable: {fileID: 11400000, guid: d9cf1b2915b640f797388509fbb4c72d, type: 2}
   autoStartWhenReady: 1
@@ -37532,6 +37550,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f37c84b6dc44419a6ef2b7d16804e96, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  teamIntroPanel: {fileID: 0}
+  teamCards:
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  teamCountdownText: {fileID: 0}
+  teamProfileTable: {fileID: 0}
   localPortrait: {fileID: 2045787909}
   opponentPortrait: {fileID: 922351904}
   introPanel: {fileID: 1625006623}
@@ -37855,6 +37893,236 @@ MonoBehaviour:
     deathsText: {fileID: 9107315106126317490}
     killsDeathsText: {fileID: 0}
     flagIndicator: {fileID: 9107315106126317491}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  teamComparisonRoot: {fileID: 0}
+  teamViews:
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
     flagStatusText: {fileID: 0}
     effects:
     - icon: {fileID: 0}
@@ -46174,6 +46442,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 1349514748}
+  exitDirection: {fileID: 0}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -52033,6 +52303,7 @@ RectTransform:
   - {fileID: 2027782579}
   - {fileID: 9107315106126317456}
   - {fileID: 299076963}
+  - {fileID: 686578339}
   m_Father: {fileID: 1560913679}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -54086,6 +54357,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2070208136584148501, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
+      propertyPath: SortKey
+      value: 1485206730
+      objectReference: {fileID: 0}
     - target: {fileID: 4947370934349224945, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
       propertyPath: m_Name
       value: MP_Item (1)
@@ -54100,6 +54375,107 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2070208136584148500, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
   m_PrefabInstance: {fileID: 2145477700}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1694351707562739269
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2072900282}
+    m_Modifications:
+    - target: {fileID: 4718165058268200611, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 6626169344546265773, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_Name
+      value: GameOverUI
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_Pivot.x
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_Pivot.y
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8688626309184453217, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f36f967302d72dd448d0dbc506b4b84c, type: 3}
 --- !u!1001 &3395347641043298457
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -54108,6 +54484,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2027782579}
     m_Modifications:
+    - target: {fileID: 178798803833249096, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: -121.100006
+      objectReference: {fileID: 0}
     - target: {fileID: 3224377536595355905, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
       propertyPath: m_SizeDelta.x
       value: 74.4
@@ -54220,6 +54600,18 @@ PrefabInstance:
       propertyPath: m_SizeDelta.y
       value: 28.97
       objectReference: {fileID: 0}
+    - target: {fileID: 7093386198836179644, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 16.300003
+      objectReference: {fileID: 0}
+    - target: {fileID: 7380918018513330352, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: -139.79999
+      objectReference: {fileID: 0}
+    - target: {fileID: 7475938493181390779, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: -19.300003
+      objectReference: {fileID: 0}
     - target: {fileID: 8942007188192223981, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
       propertyPath: m_SizeDelta.x
       value: 299.38
@@ -54227,6 +54619,10 @@ PrefabInstance:
     - target: {fileID: 8942007188192223981, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
       propertyPath: m_SizeDelta.y
       value: 21.48
+      objectReference: {fileID: 0}
+    - target: {fileID: 8942007188192223981, guid: bbd98078509b20b4da6b1b4a825ec7b4, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 15.399994
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -54568,6 +54964,10 @@ PrefabInstance:
     - target: {fileID: 3433349103594021449, guid: 14ff792b49290734a87c242a17b34d51, type: 3}
       propertyPath: m_SizeDelta.y
       value: 34.76
+      objectReference: {fileID: 0}
+    - target: {fileID: 3499232102216117688, guid: 14ff792b49290734a87c242a17b34d51, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 160.29999
       objectReference: {fileID: 0}
     - target: {fileID: 3750248433596117582, guid: 14ff792b49290734a87c242a17b34d51, type: 3}
       propertyPath: m_SizeDelta.x
