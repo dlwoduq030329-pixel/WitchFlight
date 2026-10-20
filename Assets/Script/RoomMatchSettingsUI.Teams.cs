@@ -40,8 +40,9 @@ public sealed partial class RoomMatchSettingsUI
         if (teamDropdown == null) return;
         if (!show)
         {
-            teamDropdown.Hide();
-            teamDropdown.gameObject.SetActive(false);
+            // TMP Hide() selects even an inactive dropdown, stealing input focus every frame.
+            // OnDisable already destroys its open list and blocker without selecting it.
+            if (teamDropdown.gameObject.activeSelf) teamDropdown.gameObject.SetActive(false);
             teamOptionsKey = null;
             return;
         }
@@ -59,7 +60,7 @@ public sealed partial class RoomMatchSettingsUI
         if (key != teamOptionsKey)
         {
             // Close a stale menu when another player's request claims its last free place.
-            teamDropdown.Hide();
+            if (teamDropdown.IsExpanded) teamDropdown.Hide();
             teamOptionsKey = key;
             teamDropdown.options[0].text = $"A팀 ({teamA}/2)" + (!allowTeamA ? " · 정원" : "");
             teamDropdown.options[1].text = $"B팀 ({teamB}/2)" + (!allowTeamB ? " · 정원" : "");
@@ -124,7 +125,8 @@ public sealed partial class RoomMatchSettingsUI
 
     private void OnDisable()
     {
-        if (teamDropdown != null) { teamDropdown.Hide(); teamDropdown.gameObject.SetActive(false); }
+        if (teamDropdown != null && teamDropdown.gameObject.activeSelf)
+            teamDropdown.gameObject.SetActive(false);
     }
 
     private void ReleaseTeamDropdown()
