@@ -66,7 +66,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
     [SerializeField, InspectorName("Bslotname")] private TMP_Text Bslotname;
     [SerializeField, InspectorName("AslotProfile")] private Image AslotProfile;
     [SerializeField, InspectorName("BslotProfile")] private Image BslotProfile;
-    [Tooltip("방장에게만 표시합니다. 정원과 PlayerData가 준비되면 클릭할 수 있습니다. OnClick에 NetworkGameManager.StartRoomGame()을 직접 연결하세요.")]
+    [Tooltip("방장에게만 표시합니다. 정원과 PlayerData가 준비되면 클릭할 수 있습니다. 시작 클릭은 자동 연결됩니다. 기존 StartRoomGame 연결도 지원합니다.")]
     [SerializeField, InspectorName("startButton")] private Button waitingRoomStartButton;
 
     [Header("Optional UI hooks (null means the user is unavailable)")]
@@ -130,6 +130,8 @@ public sealed partial class linkuserinfo : MonoBehaviour
 
     private void OnEnable()
     {
+        if (waitingRoomStartButton != null)
+            waitingRoomStartButton.onClick.AddListener(StartWaitingRoomGame);
         if (magicTable == null) magicTable = MagicStatTable.Default;
         if (waitingRoomPanel != null && transform.IsChildOf(waitingRoomPanel.transform))
             Debug.LogWarning("Waiting Room Panel must not contain its linkuserinfo controller. Place the controller on an always-active sibling; automatic panel visibility is skipped for this hierarchy.", this);
@@ -423,8 +425,27 @@ public sealed partial class linkuserinfo : MonoBehaviour
                data.IsLoadoutInitialized && data.teamIndex > 0;
     }
 
+    // Prefab assets cannot retain a reference to the scene's network manager.
+    // Resolve the current instance at click time, including after leaving/rejoining.
+    private void StartWaitingRoomGame()
+    {
+        if (waitingRoomStartButton == null) return;
+        var click = waitingRoomStartButton.onClick;
+        for (int i = 0; i < click.GetPersistentEventCount(); i++)
+        {
+            if (click.GetPersistentListenerState(i) != UnityEventCallState.Off &&
+                click.GetPersistentTarget(i) == NetworkGameManager.Instance &&
+                NetworkGameManager.Instance != null &&
+                click.GetPersistentMethodName(i) == nameof(NetworkGameManager.StartRoomGame))
+                return; // An authored, live listener already handles this click.
+        }
+        NetworkGameManager.Instance?.StartRoomGame();
+    }
+
     private void OnDisable()
     {
+        if (waitingRoomStartButton != null)
+            waitingRoomStartButton.onClick.RemoveListener(StartWaitingRoomGame);
         ResetLobbyPreview();
         ApplyProfile(localProfileImage, null);
         ApplyProfile(opponentProfileImage, null);
