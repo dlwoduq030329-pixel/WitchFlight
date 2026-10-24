@@ -5,5 +5,7 @@ public enum StatusEffectType
     None = 0,
     Binding = 1,
     Slow = 2,
-    HitStun = 3
+    HitStun = 3,
+    Burn = 4,
+    Healing = 5
 }

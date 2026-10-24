@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -19,12 +20,23 @@ public sealed class hpfollow : MonoBehaviour
     [Tooltip("먼 거리에서도 읽을 수 있는 체력바의 최소 화면 높이(픽셀). 0이면 원래 월드 크기만 사용합니다.")]
     [SerializeField, Min(0f)] private float minimumScreenHeight = 8f;
 
-    [Header("Enemy halo (local view only)")]
+    [Header("Nickname above HP bar")]
+    [SerializeField] private TMP_FontAsset nicknameFont;
+    [SerializeField, Min(1f)] private float nicknameFontSize = 20f;
+    [SerializeField, Range(0f, 1f)] private float nicknameOutlineWidth = .2f;
+    [SerializeField] private Vector2 nicknameSize = new Vector2(260f, 30f);
+    [SerializeField] private Vector2 nicknameOffset = new Vector2(0f, 4f);
+
+    [Header("Team halo (other characters, local view only)")]
+    [Tooltip("다른 캐릭터의 후광 표시. 적은 빨강, 아군은 파랑이며 본인은 숨깁니다.")]
     [SerializeField] private bool showEnemyHalo = true;
-    [Tooltip("비우면 부드러운 붉은 원형 후광을 생성합니다.")]
+    [Tooltip("비우면 부드러운 원형 후광을 생성합니다.")]
     [SerializeField] private Sprite enemyHaloSprite;
     [SerializeField] private Color enemyHaloColor = new Color(1f, 0.08f, 0.12f, 0.6f);
+    [SerializeField] private Color allyHaloColor = new Color(0.1f, 0.4f, 1f, 0.6f);
     [SerializeField] private Vector2 enemyHaloSize = new Vector2(3.2f, 3.2f);
+    [Tooltip("기존 후광 크기에 곱하는 배율. 기본값은 기존 크기의 1.5배입니다.")]
+    [SerializeField, Min(0.01f)] private float haloSizeMultiplier = 1.5f;
     [Tooltip("Lock Aim Point에서 후광 중심까지의 월드 오프셋입니다.")]
     [SerializeField] private Vector3 enemyHaloOffset = new Vector3(0f, -0.25f, 0f);
     [Tooltip("카메라에서 보았을 때 몸보다 뒤에 놓을 거리입니다.")]
@@ -54,6 +66,9 @@ public sealed class hpfollow : MonoBehaviour
     private float nextVisibilityCheck;
     private bool lineOfSight;
     private Player visibilityObserver;
+    private TMP_Text nicknameText;
+    private Material nicknameOutlineMaterial;
+    private float nextNicknameRefresh;
 
     private void Awake()
     {
@@ -136,6 +151,7 @@ public sealed class hpfollow : MonoBehaviour
         viewRoot.transform.localScale = Vector3.one * Mathf.Max(Mathf.Max(0.0001f, worldSpaceScale), minScale);
         SetVisible(true);
         UpdateEnemyHalo();
+        UpdateNickname();
 
         if (!healthDirty) return;
         healthDirty = false;
@@ -162,7 +178,7 @@ public sealed class hpfollow : MonoBehaviour
                local != null && local.Object != null && local.Object.IsValid &&
                local.Runner == owner.Runner &&
                local != owner && !owner.Object.HasInputAuthority &&
-               local.TeamIndex > 0 && owner.TeamIndex > 0 && local.TeamIndex != owner.TeamIndex &&
+               local.TeamIndex > 0 && owner.TeamIndex > 0 &&
                local.IsAlive && owner.IsAlive && maxHealth > 0f && !owner.IsStealthed &&
                !owner.IsHiddenBySmokeFor(local);
     }
@@ -202,7 +218,7 @@ public sealed class hpfollow : MonoBehaviour
         }
         if (haloRoot == null)
         {
-            haloRoot = new GameObject("Enemy red halo (local)", typeof(RectTransform), typeof(Canvas));
+            haloRoot = new GameObject("Character team halo (local)", typeof(RectTransform), typeof(Canvas));
             if (gameObject.scene.IsValid() && gameObject.scene.isLoaded)
                 SceneManager.MoveGameObjectToScene(haloRoot, gameObject.scene);
             haloCanvas = haloRoot.GetComponent<Canvas>();
@@ -218,12 +234,55 @@ public sealed class hpfollow : MonoBehaviour
             BattleWorldUI.ApplyLayer(haloRoot);
         }
         haloCanvas.worldCamera = viewCamera;
-        haloGraphic.color = enemyHaloColor;
-        haloGraphic.rectTransform.sizeDelta = new Vector2(Mathf.Max(0.01f, enemyHaloSize.x), Mathf.Max(0.01f, enemyHaloSize.y));
+        haloGraphic.color = owner.TeamIndex == Player.LocalPlayer.TeamIndex ? allyHaloColor : enemyHaloColor;
+        haloGraphic.rectTransform.sizeDelta = new Vector2(Mathf.Max(0.01f, enemyHaloSize.x), Mathf.Max(0.01f, enemyHaloSize.y)) * Mathf.Max(0.01f, haloSizeMultiplier);
         // World-space depth testing puts the glow behind the body, not over its face.
         haloRoot.transform.SetPositionAndRotation(owner.LockAimPoint + enemyHaloOffset +
             viewCamera.transform.forward * Mathf.Max(0f, enemyHaloDepthOffset), viewCamera.transform.rotation);
         haloRoot.SetActive(true);
+    }
+
+    private void UpdateNickname()
+    {
+        if (nicknameText == null)
+        {
+            var label = new GameObject("Player nickname", typeof(RectTransform), typeof(TextMeshProUGUI));
+            label.transform.SetParent(viewRoot.transform, false);
+            nicknameText = label.GetComponent<TextMeshProUGUI>();
+            TMP_FontAsset font = nicknameFont != null ? nicknameFont : FindFirstObjectByType<BattleHud>()?.FeedbackFont;
+            if (font != null) nicknameText.font = font;
+            nicknameText.fontSize = nicknameFontSize;
+            nicknameText.alignment = TextAlignmentOptions.Center;
+            nicknameText.textWrappingMode = TextWrappingModes.NoWrap;
+            nicknameText.overflowMode = TextOverflowModes.Ellipsis;
+            nicknameText.color = Color.white;
+            nicknameText.richText = false;
+            nicknameText.raycastTarget = false;
+            Material sourceMaterial = nicknameText.fontSharedMaterial;
+            if (sourceMaterial != null && sourceMaterial.HasProperty(ShaderUtilities.ID_OutlineWidth))
+            {
+                nicknameOutlineMaterial = new Material(sourceMaterial) { name = "Character nickname outline (local)" };
+                nicknameOutlineMaterial.SetColor(ShaderUtilities.ID_OutlineColor, Color.black);
+                nicknameOutlineMaterial.SetFloat(ShaderUtilities.ID_OutlineWidth, Mathf.Clamp01(nicknameOutlineWidth));
+                nicknameOutlineMaterial.EnableKeyword("OUTLINE_ON");
+                nicknameText.fontSharedMaterial = nicknameOutlineMaterial;
+                nicknameText.extraPadding = true;
+                nicknameText.UpdateMeshPadding();
+            }
+            RectTransform rect = nicknameText.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(.5f, 1f);
+            rect.pivot = new Vector2(.5f, 0f);
+            rect.sizeDelta = nicknameSize;
+            rect.anchoredPosition = nicknameOffset;
+            BattleWorldUI.ApplyLayer(label);
+            nextNicknameRefresh = 0f;
+        }
+        if (Time.unscaledTime < nextNicknameRefresh) return;
+        nextNicknameRefresh = Time.unscaledTime + .25f;
+        PlayerData data = PlayerData.FindPerkData(owner.Runner, owner.Object.InputAuthority);
+        string value = data != null && data.Object != null && data.Object.IsValid && data.IsLoadoutInitialized
+            ? data.playerName.ToString() : owner.IsTestBot ? "훈련 봇" : "플레이어";
+        if (nicknameText.text != value) nicknameText.text = value;
     }
 
     private void CreateView()
@@ -251,7 +310,7 @@ public sealed class hpfollow : MonoBehaviour
         }
 
         // A separate scene object keeps flight pitch/scale and equipment visibility from moving the UI.
-        viewRoot = new GameObject("Enemy HP - " + gameObject.name, typeof(RectTransform), typeof(Canvas));
+        viewRoot = new GameObject("Character HP - " + gameObject.name, typeof(RectTransform), typeof(Canvas));
         viewRoot.SetActive(false);
         Scene scene = gameObject.scene;
         if (scene.IsValid() && scene.isLoaded)
@@ -323,7 +382,7 @@ public sealed class hpfollow : MonoBehaviour
 
     private void CreateFallback()
     {
-        viewRoot = new GameObject("Enemy HP (generated)", typeof(RectTransform), typeof(Canvas));
+        viewRoot = new GameObject("Character HP (generated)", typeof(RectTransform), typeof(Canvas));
         if (gameObject.scene.IsValid() && gameObject.scene.isLoaded)
             SceneManager.MoveGameObjectToScene(viewRoot, gameObject.scene);
         viewCanvas = viewRoot.GetComponent<Canvas>();
@@ -380,6 +439,9 @@ public sealed class hpfollow : MonoBehaviour
         gridBar = null;
         slider = null;
         filledImage = null;
+        nicknameText = null;
+        if (nicknameOutlineMaterial != null) Destroy(nicknameOutlineMaterial);
+        nicknameOutlineMaterial = null;
         fallbackFill = null;
         attemptedCreation = false;
     }

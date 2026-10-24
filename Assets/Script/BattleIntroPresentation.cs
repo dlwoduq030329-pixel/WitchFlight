@@ -45,6 +45,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     private sealed class PortraitSnapshot
     {
         public Player Player;
+        public Player Teammate;
         public GameObject Stage;
         public Camera Camera;
         public RenderTexture Texture;
@@ -96,7 +97,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
                 ReleasePortraits();
         }
 
-        TMP_Text activeCountdown = IsTeamBattle ? teamCountdownText : countdownText;
+        TMP_Text activeCountdown = countdownText;
         if (phase == BattleStartPhase.Countdown && activeCountdown != null && battle != null)
         {
             int seconds = Mathf.Clamp(Mathf.CeilToInt(battle.PhaseRemainingSeconds), 1, 3);
@@ -110,7 +111,6 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         FreezeCompletedSnapshot(localSnapshot);
         FreezeCompletedSnapshot(opponentSnapshot);
         foreach (PortraitSnapshot snapshot in teamSnapshots) FreezeCompletedSnapshot(snapshot);
-        UpdateTeamIntroAnimation(phase);
         if (battle == null || (phase != BattleStartPhase.WaitingForPlayers && phase != BattleStartPhase.Intro) ||
             Time.unscaledTime < nextPreparationTime)
             return;
@@ -403,7 +403,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         bool training = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
         bool intro = phase == BattleStartPhase.Intro;
         bool countdown = phase == BattleStartPhase.Countdown;
-        if (countdown && !IsTeamBattle) EnsureCountdownText();
+        if (countdown) EnsureCountdownText();
         bool waiting = phase == BattleStartPhase.WaitingForPlayers;
         // Allow optional start buttons while waiting; lock flight input again for the countdown.
         if (phase != BattleStartPhase.Ended)
@@ -416,13 +416,13 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         if (introPanel != null)
         {
             bool containsActiveText = countdown && countdownText != null && countdownText.transform.IsChildOf(introPanel.transform);
-            introPanel.SetActive(!IsTeamBattle && ((!training && (waiting || intro)) || containsActiveText));
+            introPanel.SetActive((!training && (waiting || intro)) || containsActiveText);
         }
         UpdatePortraitVisibility(phase);
         if (soloText != null)
             soloText.gameObject.SetActive(intro && BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount <= 1);
         if (countdownText != null)
-            countdownText.gameObject.SetActive(countdown && !IsTeamBattle);
+            countdownText.gameObject.SetActive(countdown);
         if (waitingText != null)
             waitingText.gameObject.SetActive(false);
         displayedCountdown = -1;
@@ -459,7 +459,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     private void UpdatePortraitVisibility(BattleStartPhase phase)
     {
         bool training = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
-        bool visible = !training && !IsTeamBattle && (phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro);
+        bool visible = !training && (phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro);
         if (localPortrait != null)
             localPortrait.enabled = visible && localPortrait.texture != null;
         if (opponentPortrait != null)
@@ -522,6 +522,5 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     private void OnDestroy()
     {
         ReleasePortraits();
-        if (teamCanvas != null) Destroy(teamCanvas.gameObject);
     }
 }

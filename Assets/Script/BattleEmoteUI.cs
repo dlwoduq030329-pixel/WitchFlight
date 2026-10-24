@@ -18,6 +18,8 @@ public sealed class EmoteDisplayView
     public GameObject root;
     public Image icon;
     public TMP_Text senderName;
+    [Tooltip("감정표현 프리팹이 생성될 위치. 이 표시 Root 내부에 할당하세요. 비우면 Icon 위치를 사용합니다.")]
+    public RectTransform prefabAnchor;
     [Tooltip("직접 할당한 UI에도 아래 Anchor/Position을 적용합니다. 끄면 직접 배치한 위치를 유지합니다.")]
     public bool overridePosition;
     public Vector2 anchor = new Vector2(.5f, 0f);
@@ -26,6 +28,10 @@ public sealed class EmoteDisplayView
     [NonSerialized] internal Vector3 baseScale;
     [NonSerialized] internal bool generated;
     [NonSerialized] internal float startedAt = -1000f;
+    [NonSerialized] internal GameObject prefabInstance;
+    [NonSerialized] internal bool usesPrefab;
+    [NonSerialized] internal float lifetime;
+    [NonSerialized] internal Material originalNameMaterial, nameOutlineMaterial;
 }
 
 // Attach to an always-active Battle object, NOT inside one of the toggled UI roots.
@@ -62,6 +68,8 @@ public sealed class BattleEmoteUI : MonoBehaviour
     [SerializeField, Min(.01f)] private float fadeSeconds = .35f;
     [SerializeField, Min(.01f)] private float popSeconds = .12f;
     [SerializeField] private TMP_FontAsset font;
+    [Tooltip("감정표현 사용자 이름의 검은 아웃라인 두께입니다.")]
+    [SerializeField, Range(0f, 1f)] private float senderNameOutlineWidth = .2f;
 
     private static BattleEmoteUI active;
     private readonly EmoteInputGate gate = new EmoteInputGate();
@@ -210,17 +218,124 @@ public sealed class BattleEmoteUI : MonoBehaviour
             view.senderName.text = name + " · " + entry.displayName;
         }
         view.startedAt = Time.unscaledTime;
+        Show(view.root, true);
+        active.PlayDisplayPrefab(view, entry);
         active.AnimateDisplay(view, true);
+    }
+
+    private void PlayDisplayPrefab(EmoteDisplayView view, EmoteEntry entry)
+    {
+        ClearDisplayPrefab(view);
+        view.lifetime = Mathf.Max(.1f, displaySeconds);
+        GameObject prefab = entry.displayPrefab != null ? entry.displayPrefab : Table != null ? Table.DefaultDisplayPrefab : null;
+        if (prefab == null) return;
+        if (prefab.GetComponent<RectTransform>() == null ||
+            prefab.GetComponentInChildren<Fusion.NetworkObject>(true) != null)
+        {
+            Debug.LogWarning("Emote display prefab must be local UI with a RectTransform and no NetworkObject.", prefab);
+            return;
+        }
+        Transform anchor = view.prefabAnchor != null && view.prefabAnchor.IsChildOf(view.root.transform)
+            ? view.prefabAnchor : view.icon.transform;
+        GameObject instance = Instantiate(prefab, anchor, false);
+        view.prefabInstance = instance;
+        view.usesPrefab = true;
+        view.icon.enabled = false;
+        instance.SetActive(true);
+        ReadOnly(instance);
+        float animationSeconds = 0f;
+        string animationName = entry.animationName != null ? entry.animationName.Trim() : string.Empty;
+        bool namedAnimation = animationName.Length > 0;
+        bool matchedAnimation = false;
+        foreach (Animator animator in instance.GetComponentsInChildren<Animator>(true))
+        {
+            if (!animator.isActiveAndEnabled || animator.runtimeAnimatorController == null) continue;
+            animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+            animator.Rebind();
+            animator.Update(0f);
+            if (namedAnimation)
+            {
+                if (TryPlayNamedAnimator(animator, animationName, out float seconds))
+                {
+                    matchedAnimation = true;
+                    animationSeconds = Mathf.Max(animationSeconds, seconds);
+                }
+                continue;
+            }
+            for (int layer = 0; layer < animator.layerCount; layer++)
+            {
+                AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(layer);
+                float speed = Mathf.Abs(animator.speed * state.speed * state.speedMultiplier);
+                if (speed > .0001f) animationSeconds = Mathf.Max(animationSeconds, state.length / speed);
+            }
+        }
+        foreach (Animation animation in instance.GetComponentsInChildren<Animation>(true))
+        {
+            if (!animation.isActiveAndEnabled) continue;
+            string clipName = namedAnimation ? animationName : animation.clip != null ? animation.clip.name : null;
+            AnimationState state = clipName != null ? animation[clipName] : null;
+            if (state == null) continue;
+            animation.Stop();
+            state.time = 0f;
+            matchedAnimation |= animation.Play(clipName);
+            float speed = Mathf.Abs(state.speed);
+            if (speed > .0001f) animationSeconds = Mathf.Max(animationSeconds, state.length / speed);
+        }
+        if (namedAnimation && !matchedAnimation)
+        {
+            Debug.LogWarning($"Emote {entry.id}: animation '{animationName}' was not found in '{prefab.name}'. Showing the icon instead.", prefab);
+            ClearDisplayPrefab(view);
+            view.icon.enabled = true;
+            return;
+        }
+        view.lifetime = entry.prefabDisplaySeconds > 0f ? entry.prefabDisplaySeconds :
+            animationSeconds > 0f ? animationSeconds : Mathf.Max(.1f, displaySeconds);
+    }
+
+    private static bool TryPlayNamedAnimator(Animator animator, string animationName, out float seconds)
+    {
+        seconds = 0f;
+        for (int layer = 0; layer < animator.layerCount; layer++)
+        {
+            int hash = Animator.StringToHash(animationName);
+            if (!animator.HasState(layer, hash))
+            {
+                hash = Animator.StringToHash(animator.GetLayerName(layer) + "." + animationName);
+                if (!animator.HasState(layer, hash)) continue;
+            }
+            animator.Play(hash, layer, 0f);
+            animator.Update(0f);
+            AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(layer);
+            float speed = Mathf.Abs(animator.speed * state.speed * state.speedMultiplier);
+            seconds = speed > .0001f ? state.length / speed : 0f;
+            return true;
+        }
+        return false;
+    }
+
+    private static void ClearDisplayPrefab(EmoteDisplayView view)
+    {
+        if (view == null) return;
+        if (view.prefabInstance != null) { view.prefabInstance.SetActive(false); Destroy(view.prefabInstance); }
+        view.prefabInstance = null;
+        view.usesPrefab = false;
     }
 
     private void AnimateDisplay(EmoteDisplayView view, bool playing)
     {
         float age = Time.unscaledTime - view.startedAt;
         if (!playing) view.startedAt = -1000f;
-        bool visible = playing && age >= 0f && age < Mathf.Max(.1f, displaySeconds);
+        float duration = view.usesPrefab ? Mathf.Max(.1f, view.lifetime) : Mathf.Max(.1f, displaySeconds);
+        bool visible = playing && age >= 0f && age < duration;
         Show(view.root, visible);
-        if (!visible) { view.root.transform.localScale = view.baseScale; return; }
+        if (!visible) { view.startedAt = -1000f; ClearDisplayPrefab(view); view.root.transform.localScale = view.baseScale; return; }
         ApplyPosition(view);
+        if (view.usesPrefab)
+        {
+            view.group.alpha = 1f;
+            view.root.transform.localScale = view.baseScale;
+            return; // The authored prefab owns its entrance/exit animation.
+        }
         float fade = Mathf.Min(Mathf.Max(.01f, fadeSeconds), Mathf.Max(.1f, displaySeconds));
         view.group.alpha = Mathf.Clamp01((displaySeconds - age) / fade);
         float pop = Mathf.Clamp01(age / Mathf.Max(.01f, popSeconds));
@@ -248,11 +363,14 @@ public sealed class BattleEmoteUI : MonoBehaviour
         gate.Reset();
         Show(wheelRoot, false);
         Show(localDisplay?.root, false); Show(opponentDisplay?.root, false);
+        ClearDisplayPrefab(localDisplay); ClearDisplayPrefab(opponentDisplay);
         if (localDisplay != null) localDisplay.startedAt = -1000f;
         if (opponentDisplay != null) opponentDisplay.startedAt = -1000f;
     }
     private void OnDestroy()
     {
+        ReleaseNameOutline(localDisplay);
+        ReleaseNameOutline(opponentDisplay);
         if (generatedCanvas != null) Destroy(generatedCanvas.gameObject);
         foreach (Sprite icon in defaultIcons)
             if (icon != null) { Destroy(icon.texture); Destroy(icon); }
@@ -345,10 +463,39 @@ public sealed class BattleEmoteUI : MonoBehaviour
         }
         if (view.icon == null) view.icon = Picture("Icon",view.root.transform,new Vector2(0,12),new Vector2(96,96),Color.white);
         if (view.senderName == null) view.senderName = Label("Sender",view.root.transform,new Vector2(0,-52),new Vector2(230,32),18);
+        ApplyNameOutline(view);
         view.baseScale = view.root.transform.localScale;
         view.group = ReadOnly(view.root);
         ApplyPosition(view);
         Show(view.root, false);
+    }
+
+    private void ApplyNameOutline(EmoteDisplayView view)
+    {
+        if (view.senderName == null || view.nameOutlineMaterial != null) return;
+        Material source = view.senderName.fontSharedMaterial;
+        if (source == null || !source.HasProperty(ShaderUtilities.ID_OutlineWidth)) return;
+        view.originalNameMaterial = source;
+        view.nameOutlineMaterial = new Material(source) { name = "Emote sender outline (local)" };
+        view.nameOutlineMaterial.SetColor(ShaderUtilities.ID_OutlineColor, Color.black);
+        view.nameOutlineMaterial.SetFloat(ShaderUtilities.ID_OutlineWidth, Mathf.Clamp01(senderNameOutlineWidth));
+        view.nameOutlineMaterial.EnableKeyword("OUTLINE_ON");
+        view.senderName.fontSharedMaterial = view.nameOutlineMaterial;
+        view.senderName.extraPadding = true;
+        view.senderName.UpdateMeshPadding();
+    }
+
+    private static void ReleaseNameOutline(EmoteDisplayView view)
+    {
+        if (view == null || view.nameOutlineMaterial == null) return;
+        if (view.senderName != null && view.senderName.fontSharedMaterial == view.nameOutlineMaterial)
+        {
+            view.senderName.fontSharedMaterial = view.originalNameMaterial;
+            view.senderName.UpdateMeshPadding();
+        }
+        Destroy(view.nameOutlineMaterial);
+        view.nameOutlineMaterial = null;
+        view.originalNameMaterial = null;
     }
     private static void ApplyPosition(EmoteDisplayView view)
     {

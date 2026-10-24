@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// One LOCAL batch, started only by the core's confirmed-hit RPC on each observer.
-// Eight cosmetic shards: no colliders, physics queries, damage, hit markers or extra network objects.
+// One LOCAL batch after core contact. The authority applies one hit when the batch is due.
+// Shards never apply damage, physics queries or extra network objects themselves.
 public sealed class IceImpactFollowUpVisual : MonoBehaviour
 {
     public const int ShardCount = 8;
@@ -16,33 +16,42 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
     private readonly Shard[] shards = new Shard[ShardCount];
     private Player caster, victim;
     private MagicStatTable table;
+    private GameObject shardPrefab;
     private Vector3 bodyPoint, targetPoint;
     private Quaternion bodyRotation;
     private float startedAt, interval, expiresAt;
+    private float flightSeconds;
     private int launched, arrived;
+    private bool impactPlayed;
     private Material ownedMaterial;
     private Mesh ownedMesh;
 
-    public static void Play(Player caster, Player victim, Vector3 hitPoint, MagicStatTable table)
+    public static bool Play(Player caster, Player victim, Vector3 hitPoint, MagicStatTable table,
+        float launchInterval = -1f, float flightSeconds = -1f)
     {
-        if (caster == null || table == null || !table.iceImpactFollowUpEnabled) return;
+        if (caster == null || table == null || !table.iceImpactFollowUpEnabled) return false;
         var root = new GameObject("Ice confirmed-hit follow-up (8 cosmetic shards)");
         // Not parented to the core: its network object despawns before these shards finish.
         var effect = root.AddComponent<IceImpactFollowUpVisual>();
         effect.caster = caster;
         effect.victim = victim;
         effect.table = table;
+        effect.shardPrefab = table.GetSecondaryProjectileVfx(table.GetStats(MagicType.Ice), true);
         effect.bodyPoint = caster.LockAimPoint; // Explicitly the body, not MagicCastRoot.
         effect.bodyRotation = caster.transform.rotation;
         effect.targetPoint = victim != null ? victim.LockAimPoint : hitPoint;
         effect.startedAt = Time.time;
-        effect.interval = Mathf.Clamp(table.iceImpactLaunchInterval, .01f, .5f);
-        effect.expiresAt = Time.time + (ShardCount-1)*effect.interval + 4.5f;
+        effect.interval = Mathf.Clamp(launchInterval > 0f ? launchInterval : table.iceImpactLaunchInterval, .01f, .5f);
+        effect.flightSeconds = flightSeconds > 0f ? flightSeconds : Mathf.Clamp(
+            Vector3.Distance(effect.bodyPoint, effect.targetPoint)/Mathf.Max(1f,table.iceImpactShardSpeed), .18f, 4f);
+        effect.expiresAt = Time.time + (ShardCount-1)*effect.interval + effect.flightSeconds + .5f;
+        return true;
     }
 
     private void Update()
     {
-        if (table == null || Time.time >= expiresAt || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        if (impactPlayed) return;
+        if (table == null || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
         { Destroy(gameObject); return; }
         if (caster != null && caster.Object != null && caster.Object.IsValid && caster.IsAlive)
         {
@@ -51,6 +60,7 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
         }
         if (victim != null && victim.Object != null && victim.Object.IsValid && victim.IsAlive)
             targetPoint = victim.LockAimPoint;
+        if (Time.time >= expiresAt) { FinishImpact(); return; }
         // References stay bound to the original actors. Despawn/respawn cannot retarget a new life.
         while (launched < ShardCount && ShouldLaunch(launched, Time.time-startedAt, interval))
             Launch(launched++);
@@ -58,19 +68,28 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
         {
             Shard shard = shards[i];
             if (shard.arrived) continue;
-            if (shard.view == null) { shard.arrived = true; arrived++; continue; }
             float t = Mathf.Clamp01((Time.time-shard.launchedAt)/shard.duration);
-            Vector3 next = FlightPosition(shard.origin, shard.control, targetPoint, t);
-            Vector3 delta = next-shard.view.position;
-            if (delta.sqrMagnitude > .000001f) shard.view.rotation = Quaternion.LookRotation(delta);
-            shard.view.position = next;
-            shard.view.localScale = shard.scale * Mathf.Lerp(1f,.4f,t*t);
+            if (shard.view != null)
+            {
+                Vector3 next = FlightPosition(shard.origin, shard.control, targetPoint, t);
+                Vector3 delta = next-shard.view.position;
+                if (delta.sqrMagnitude > .000001f) shard.view.rotation = Quaternion.LookRotation(delta);
+                shard.view.position = next;
+                shard.view.localScale = shard.scale * Mathf.Lerp(1f,.4f,t*t);
+            }
             if (t < 1f) continue;
             shard.arrived = true; arrived++;
-            shard.view.gameObject.SetActive(false);
-            CombatTransientEffect.PlayPulse(targetPoint, new Color(.5f,.9f,1f,.55f), .4f, .12f);
+            if (shard.view != null) shard.view.gameObject.SetActive(false);
         }
-        if (arrived == ShardCount) Destroy(gameObject);
+        if (arrived == ShardCount) FinishImpact();
+    }
+
+    private void FinishImpact()
+    {
+        if (impactPlayed) return;
+        impactPlayed = true;
+        CombatPresentation.ShowImpact(targetPoint, MagicType.Ice);
+        Destroy(gameObject);
     }
 
     private void Launch(int index)
@@ -79,7 +98,7 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
         Vector3 origin = bodyPoint + radial * Mathf.Max(0f,table.iceImpactRingRadius);
         Vector3 heading = targetPoint-origin;
         Quaternion rotation = heading.sqrMagnitude > .0001f ? Quaternion.LookRotation(heading) : bodyRotation;
-        GameObject view = CombatPresentation.InstantiateVfx(table.iceImpactShardVfxPrefab,origin,rotation,transform);
+        GameObject view = CombatPresentation.InstantiateVfx(shardPrefab,origin,rotation,transform);
         if (view == null)
         {
             view = new GameObject("Ice crystal",typeof(MeshFilter),typeof(MeshRenderer));
@@ -111,7 +130,7 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
             view = view.transform, origin = origin, scale = scale,
             control = origin + heading*.3f + radial*Mathf.Max(0f,table.iceImpactCurve),
             launchedAt = startedAt + index*interval,
-            duration = Mathf.Clamp(heading.magnitude/Mathf.Max(1f,table.iceImpactShardSpeed),.18f,4f)
+            duration = flightSeconds // All observers use the same authority-scheduled flight duration.
         };
     }
 

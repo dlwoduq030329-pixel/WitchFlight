@@ -72,7 +72,7 @@ public struct MagicStatEntry
     public bool requiresFullLock;
 
     [Header("Thunder: hold to aim, release to confirm (world-space sphere)")]
-    [Tooltip("확정 후 낙뢰까지의 시간. Cast Seconds와 별개이며 확정된 위치는 움직이지 않습니다.")]
+    [Tooltip("범위 확정 시 번쩍인 뒤 폭발/피해까지의 시간. 기본 1.5초. Cast Seconds와 별개이며 위치는 고정됩니다.")]
     [Min(0.1f)] public float strikeDelay;
     [Tooltip("아무것도 조준하지 않을 때 공중 지정 거리. 누르는 동안 휠로 거리를 조절합니다.")]
     [Min(1f)] public float areaAimDistance;
@@ -80,6 +80,16 @@ public struct MagicStatEntry
     [Tooltip("반경 1 기준의 범위 프리팹. Collider / NetworkObject 없이 제작. 비우면 원 3개로 구형 범위를 표시합니다.")]
     public GameObject areaPreviewVfxPrefab;
     public GameObject areaWarningVfxPrefab;
+    [Tooltip("범위 확정 순간 한 번 번쩍일 프리팹. 중심 원점, 아래 Reference Radius 기준으로 제작. 비우면 기본 섬광을 생성합니다.")]
+    public GameObject thunderFlashVfxPrefab;
+    [Tooltip("Strike Delay 후 작게 시작해 팍 커질 폭발 오브젝트. 비우면 Impact Vfx Prefab, 그것도 비우면 기본 구체를 사용합니다.")]
+    public GameObject thunderBurstVfxPrefab;
+    [Tooltip("프리팹이 Scale 1일 때의 반경. 0은 기본 1로 처리. 실제 피해 반경 / 이 값으로 크기를 맞춥니다.")]
+    [Min(0.01f)] public float thunderVfxReferenceRadius;
+    [Tooltip("폭발 확대 시간. 0은 기본 0.12초로 처리합니다.")]
+    [Min(0.01f)] public float thunderBurstExpandSeconds;
+    [Tooltip("최종 크기 대비 시작 크기. 0은 기본 0.08(8%)로 처리합니다.")]
+    [Range(0.01f, 1f)] public float thunderBurstStartScale;
 
     [Header("Mine replacement: pursuing familiar (multiple summons)")]
     [Tooltip("플레이어당 동시 소환 수. 한도에서 새로 소환하면 가장 오래된 소환체를 교체합니다.")]
@@ -122,13 +132,26 @@ public struct MagicStatEntry
     [Tooltip("Curse 자동 유도의 조준 방향 기준 반각(도).")]
     [Range(1f, 90f)] public float autoAimHalfAngle;
 
-    [Header("Optional local-only VFX (empty = generated fallback)")]
-    [SerializeField] public GameObject castVfxPrefab;
+    [Header("1. Lock-on complete VFX (at Player Magic Cast Root)")]
+    [Tooltip("록온 완료 순간 지팡이 끝의 기존 MAGICROOT에 붙여 재생합니다. 발사/록온 취소 시 제거. 비우면 작은 빛을 생성합니다. NetworkObject 없는 연출 프리팹만 넣으세요.")]
+    [SerializeField] public GameObject lockOnCompleteVfxPrefab;
+    [Header("2. Main projectile VFX (visual only)")]
+    [Tooltip("실제 투사체에 붙일 외형입니다. 기존 Projectile Vfx Prefab 할당을 그대로 사용합니다. 피해/충돌 판정은 Player의 네트워크 투사체가 담당합니다.")]
     [SerializeField] public GameObject projectileVfxPrefab;
+    [Header("3. Secondary projectile VFX (no extra damage)")]
+    [Tooltip("마법별 작은 연출용 투사체. 얼음은 메인 탄 적중 후 몸에서 발사되는 8개, 다른 투사체 마법은 기존 위성탄 연출에 사용합니다. 비우면 테이블 공통 프리팹/기본 연출을 사용합니다.")]
+    [SerializeField] public GameObject secondaryProjectileVfxPrefab;
+    [Header("4. Impact VFX")]
+    [Tooltip("적중 연출. 얼음은 후속 작은 탄 8개가 전부 도착한 뒤 한 번 재생합니다. 후속 연출을 끄거나 벽/패링에 부딪힌 경우에는 즉시 재생합니다.")]
     [SerializeField] public GameObject impactVfxPrefab;
-    [Tooltip("LineRenderer 사용 또는 길이 1의 +Z 방향 프리팹.")]
+    [Header("Cast / instant / channeled VFX")]
+    [Tooltip("발사/시전 순간의 연출입니다. 록온 완료 연출과 별개이며 즉발 마법에도 사용합니다.")]
+    [SerializeField] public GameObject castVfxPrefab;
+    [Tooltip("즉발/유지 광선 연출. LineRenderer 사용 또는 길이 1의 +Z 방향 프리팹. 천둥은 전용 Flash / Burst 슬롯을 사용합니다.")]
     [SerializeField] public GameObject beamVfxPrefab;
-    [Tooltip("VFX 유지 시간(초). Flare는 캐릭터 등 뒤에서 계속 분출하는 시간이며 추적 해제/무적 지속 시간이 아닙니다.")]
+    [Tooltip("광선 LineRenderer에 사용할 재질. 프리팹 없이 재질만 넣어도 적용됩니다. 프리팹에 LineRenderer가 있으면 그 재질을 덮어쓰며, 없으면 적용하지 않습니다. 비우면 프리팹 재질 또는 기본 마법 색상을 사용합니다.")]
+    [SerializeField] public Material beamMaterial;
+    [Tooltip("록온 완료/시전/적중 VFX 유지 시간(초). 록온 완료 VFX는 발사/취소 시 먼저 제거됩니다. Flare는 등 뒤 분출 시간이며 추적 해제/무적 지속 시간이 아닙니다.")]
     [Min(0.05f)] public float vfxLifetime;
 
     [Header("Flare / Smoke (visual-only prefabs, optional)")]
@@ -142,7 +165,9 @@ public struct MagicStatEntry
     [SerializeField, Min(0.1f)] public float flareVfxBrightness;
 
     public bool IsChanneled => effect == MagicEffectKind.GuidedChannel || effect == MagicEffectKind.BeamChannel;
-    public bool UsesAutoTarget => requiresTarget || effect == MagicEffectKind.GuidedChannel;
+    public bool TargetsAllies => effect == MagicEffectKind.Healing;
+    public bool UsesLockIndicator => requiresTarget || TargetsAllies;
+    public bool UsesAutoTarget => UsesLockIndicator || effect == MagicEffectKind.GuidedChannel;
     public float ChannelManaPerSecond(float maxAp) =>
         Mathf.Max(0f, apPerSecond) + Mathf.Max(0f, maxAp) * Mathf.Max(0f, maxApFractionPerSecond);
 }
@@ -164,6 +189,12 @@ public sealed class MagicStatTable : ScriptableObject
     public Sprite GetIcon(MagicType magic)
     {
         return magic >= MagicType.Fire && magic <= MagicType.Smoke ? GetStats(magic).icon : null;
+    }
+
+    public GameObject GetSecondaryProjectileVfx(MagicStatEntry stats, bool iceFollowUp = false)
+    {
+        if (stats.secondaryProjectileVfxPrefab != null) return stats.secondaryProjectileVfxPrefab;
+        return iceFollowUp ? iceImpactShardVfxPrefab : projectileSatelliteVfxPrefab;
     }
 
     [Header("Local projectile prediction (visual only; server decides hits)")]
@@ -192,13 +223,13 @@ public sealed class MagicStatTable : ScriptableObject
     [SerializeField, Min(0.01f)] public float projectileMergeStartDistance = 18f;
     [Tooltip("적까지 남은 거리가 이 값 이하이면 합체를 완료합니다. 시작 거리보다 작게 설정하세요.")]
     [SerializeField, Min(0f)] public float projectileMergeEndDistance = 3f;
-    [Header("Ice confirmed-hit follow-up (8 cosmetic shards; no extra damage)")]
-    [Tooltip("얼음은 발사 시 위성탄을 만들지 않고, 메인 탄의 적중 확인 후 시전자 몸에서 작은 탄 8개를 시계방향으로 발사합니다.")]
+    [Header("Ice follow-up (8 visual shards; one delayed hit)")]
+    [Tooltip("메인 탄 접촉 후 몸에서 작은 탄 8개를 발사하고 마지막 탄 도착 시 피해/둔화를 한 번 적용합니다. 끄면 메인 탄 접촉 즉시 적용합니다.")]
     [SerializeField] public bool iceImpactFollowUpEnabled = true;
     [Tooltip("작은 얼음탄 VFX. 비우면 얼음 결정과 궤적을 생성합니다. NetworkObject 없는 프리팹만 넣으세요.")]
     [SerializeField] public GameObject iceImpactShardVfxPrefab;
     [SerializeField, Range(0.01f, 0.5f)] public float iceImpactLaunchInterval = 0.07f;
-    [Tooltip("연출 전용 속도. 한 탄의 비행 연출은 최대 4초이며 실제 투사체의 피해/속도는 바꾸지 않습니다.")]
+    [Tooltip("후속 탄 속도. 접촉 시 거리로 비행 시간을 계산하며 0.18~4초로 제한됩니다. 8번째 도착 시점에 서버가 피해/둔화를 적용합니다. 피해량은 바꾸지 않습니다.")]
     [SerializeField, Min(1f)] public float iceImpactShardSpeed = 110f;
     [SerializeField, Min(0f)] public float iceImpactRingRadius = 0.85f;
     [SerializeField, Min(0f)] public float iceImpactCurve = 2f;
@@ -249,6 +280,7 @@ public sealed class MagicStatTable : ScriptableObject
                 e.effect = MagicEffectKind.DelayedArea; e.damage = 100; e.apCost = 80;
                 e.range = 300; e.cooldownSeconds = 7; e.radius = 12;
                 e.strikeDelay = 1.5f; e.areaAimDistance = 50; e.areaAimScrollSpeed = 10;
+                e.thunderVfxReferenceRadius = 1f; e.thunderBurstExpandSeconds = .12f; e.thunderBurstStartScale = .08f;
                 e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "누르는 동안 공중의 범위를 조준하고 휠로 거리를 조절합니다. 놓으면 확정된 위치에 잠시 뒤 낙뢰가 떨어집니다."; break;
             case MagicType.Mine:
@@ -266,7 +298,7 @@ public sealed class MagicStatTable : ScriptableObject
                 e.description = "체력 30을 소모하는 즉발 공격. 적에게 피해를 입히면 체력 40을 회복합니다."; break;
             case MagicType.Healing:
                 e.effect = MagicEffectKind.Healing; e.healing = 40; e.apCost = 20; e.cooldownSeconds = 18;
-                e.description = "체력 40을 즉시 회복합니다. 재사용 대기 시간이 깁니다."; break;
+                e.description = "전방의 아군을 즉시 지정해 체력 40을 회복합니다. 지정한 아군이 없으면 자신을 회복합니다."; break;
             case MagicType.Binding:
                 e.effect = MagicEffectKind.Binding; e.apCost = 50; e.cooldownSeconds = 18;
                 e.range = 190; e.effectDuration = 3; e.lockChargeSeconds = 0.6f;

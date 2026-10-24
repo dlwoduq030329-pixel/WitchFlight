@@ -58,6 +58,7 @@ namespace FormationChecks {
  public struct MagicStatEntry {public float projectileSpeed;public int magic;}
  public class MagicStatTable {
   public int projectileSatelliteCount=6;public GameObject projectileSatelliteVfxPrefab;
+  public GameObject GetSecondaryProjectileVfx(MagicStatEntry entry)=>projectileSatelliteVfxPrefab;
   public float projectileCoreVisualScale=1.8f,projectileSatelliteVisualScale=.35f,projectileSatelliteBackDistance=2,projectileSatelliteBackSeconds=.18f;
   public float projectileSatelliteSpeedMultiplier=2.5f,projectileSatelliteSpread=1,projectileSatelliteLeadDistance=3,projectileMergeStartDistance=18,projectileMergeEndDistance=3;
  }
@@ -152,11 +153,15 @@ foreach ($file in @('Assets/Ch/ChPrefab.prefab','Assets/Prefab/MagicDummy_Immort
     $anchors = [regex]::Matches($yaml, '(?m)^--- !u!\d+ &(-?\d+)') | ForEach-Object { $_.Groups[1].Value }
     if (($anchors | Group-Object | Where-Object Count -gt 1).Count -gt 0) { throw "Duplicate prefab anchor: $file" }
     if ([regex]::Matches($yaml,'m_Name: MagicCastRoot\r?$',[System.Text.RegularExpressions.RegexOptions]::Multiline).Count -ne 1) { throw "Missing/duplicate root: $file" }
-    if ($yaml -notmatch 'magicCastRoot: \{fileID: 862026100900000002\}') { throw "Player reference missing: $file" }
-    if ($yaml -notmatch '(?m)^  - \{fileID: 862026100900000002\}') { throw "Root not in hierarchy: $file" }
-    $rootBlock = [regex]::Match($yaml,'(?ms)^--- !u!4 &862026100900000002\r?\n.*?(?=^---|\z)').Value
-    $parent = if ($file -like '*ChPrefab*') {'5553512542147760588'} else {'1017679280241420192'}
-    if ($rootBlock -notmatch ('m_Father: \{fileID: '+$parent+'\}')) { throw "Cast root must be a direct Player child: $file" }
+    # The authored player now uses the wand's MAGICROOT; dummy prefabs keep their own root.
+    $rootId = [regex]::Match($yaml,'magicCastRoot: \{fileID: (\d+)\}').Groups[1].Value
+    if (!$rootId -or $rootId -eq '0') { throw "Player reference missing: $file" }
+    if ($yaml -notmatch ('(?m)^  - \{fileID: '+$rootId+'\}')) { throw "Root not in hierarchy: $file" }
+    $rootBlock = [regex]::Match($yaml,'(?ms)^--- !u!4 &'+$rootId+'\r?\n.*?(?=^---|\z)').Value
+    $objectId = [regex]::Match($rootBlock,'m_GameObject: \{fileID: (\d+)\}').Groups[1].Value
+    $objectBlock = [regex]::Match($yaml,'(?ms)^--- !u!1 &'+$objectId+'\r?\n.*?(?=^---|\z)').Value
+    $rootName = if ($file -like '*ChPrefab*') {'MAGICROOT'} else {'MagicCastRoot'}
+    if (!$objectBlock.Contains('m_Name: '+$rootName)) { throw "Unexpected cast anchor in $file" }
 }
 $prediction = Get-Content Assets/Script/ProjectilePredictionView.cs -Raw
 $presentation = Get-Content Assets/Script/CombatPresentation.cs -Raw

@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3291923993194141559}
   - component: {fileID: 46951131663521878}
   - component: {fileID: 7203746853840371007}
+  - component: {fileID: 8724910352026102501}
   m_Layer: 5
   m_Name: ControlTab
   m_TagString: Untagged
@@ -2871,7 +2872,7 @@ MonoBehaviour:
   m_MinValue: 0
   m_MaxValue: 1
   m_WholeNumbers: 0
-  m_Value: 1
+  m_Value: 0.5
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -5100,6 +5101,7 @@ GameObject:
   - component: {fileID: 5369451162421760482}
   - component: {fileID: 8082590807905987122}
   - component: {fileID: 6379239046742539502}
+  - component: {fileID: 8724910352026102502}
   m_Layer: 5
   m_Name: GraphicTab
   m_TagString: Untagged
@@ -7511,9 +7513,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '100
-
-'
+  m_text: 50
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: b0ff0b2baaf8f0c4eb68cd68b7163d8a, type: 2}
   m_sharedMaterial: {fileID: -1268448741817053876, guid: b0ff0b2baaf8f0c4eb68cd68b7163d8a, type: 2}
@@ -16343,3 +16343,63 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_HorizontalFit: 2
   m_VerticalFit: 2
+--- !u!114 &8724910352026102501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1758822879005824}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 113e3fe1b3054de894df18a7b2b2164c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sensitivitySlider: {fileID: 6658767125429576106}
+  sensitivityText: {fileID: 2801612673896603415}
+  bindings:
+  - action: 0
+    button: {fileID: 6610696919678389614}
+    keyText: {fileID: 6145257775483327340}
+  - action: 1
+    button: {fileID: 2546140546820336423}
+    keyText: {fileID: 5619966672990135105}
+  - action: 2
+    button: {fileID: 4861072207491052464}
+    keyText: {fileID: 2018675956886261785}
+  - action: 3
+    button: {fileID: 1517511936786058040}
+    keyText: {fileID: 2817487127742176988}
+  - action: 4
+    button: {fileID: 4019958629720478745}
+    keyText: {fileID: 3579355579242745327}
+  - action: 5
+    button: {fileID: 6124935117327030812}
+    keyText: {fileID: 8464255373781198059}
+  - action: 6
+    button: {fileID: 4586231835891130928}
+    keyText: {fileID: 3233334846127472804}
+  - action: 7
+    button: {fileID: 1297590548971029719}
+    keyText: {fileID: 605185938012642238}
+  - action: 8
+    button: {fileID: 615427221415201435}
+    keyText: {fileID: 2602349574957928093}
+--- !u!114 &8724910352026102502
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2516560662043281053}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c78a9a5580e499dac92e58b6d176be2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  displayModeDropdown: {fileID: 8213570471776293083}
+  qualityDropdown: {fileID: 5418774407816777929}
+  postProcessingDropdown: {fileID: 1930404164133891981}
+  performanceSlider: {fileID: 7865605333048371274}
+  performanceText: {fileID: 980630591731850302}
+  targetFps: 60

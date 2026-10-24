@@ -39,7 +39,7 @@ internal sealed class ProjectileFormationVisual
         for (int i = 0; i < count; i++)
         {
             Vector3 initial = birthPosition + birthRotation * RingOffset(i, count) * 0.15f;
-            GameObject view = CombatPresentation.InstantiateVfx(table.projectileSatelliteVfxPrefab,
+            GameObject view = CombatPresentation.InstantiateVfx(table.GetSecondaryProjectileVfx(stats),
                 initial, birthRotation, root.transform);
             if (view == null)
             {

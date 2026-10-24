@@ -11,22 +11,35 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 507fcbd4653949f1a336dffc87876a44, type: 3}
   m_Name: EmoteTable
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
+  defaultDisplayPrefab: {fileID: 6520132606335008295, guid: ef4bbe5081b5eac44863a166008abde8, type: 3}
   entries:
   - id: 1
-    displayName: "안녕!"
-    icon: {fileID: 0}
+    displayName: ...
+    icon: {fileID: 21300000, guid: 0a232bbfa3f3c8f4fa84a06dc9bc77af, type: 3}
+    displayPrefab: {fileID: 0}
+    animationName: BlankFace
+    prefabDisplaySeconds: 0
     fallbackFace: 0
   - id: 2
-    displayName: "신나요!"
-    icon: {fileID: 0}
+    displayName: "\uAFC8\uBED1\uAFC8\uBED1"
+    icon: {fileID: 21300000, guid: 31f61a8dfb6d01e40b8771d0cbd140e8, type: 3}
+    displayPrefab: {fileID: 0}
+    animationName: AngryFace
+    prefabDisplaySeconds: 0
     fallbackFace: 1
   - id: 3
-    displayName: "아쉬워요"
-    icon: {fileID: 0}
+    displayName: "\uC798\uD588\uC5B4\uC694!"
+    icon: {fileID: 21300000, guid: eac99748a41a17c469b62ff2d13ec4c9, type: 3}
+    displayPrefab: {fileID: 0}
+    animationName: Sudam
+    prefabDisplaySeconds: 0
     fallbackFace: 2
   - id: 4
-    displayName: "으으!"
-    icon: {fileID: 0}
+    displayName: "\uC800\uC9C8"
+    icon: {fileID: 21300000, guid: d58a9f7757a0a7145bf810eb839bf756, type: 3}
+    displayPrefab: {fileID: 0}
+    animationName: Fuck
+    prefabDisplaySeconds: 0
     fallbackFace: 3
-  minimumInterval: 1
+  minimumInterval: 3

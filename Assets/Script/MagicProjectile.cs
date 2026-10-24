@@ -27,6 +27,10 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     private ProjectilePredictionView view;
     private bool impactPresented;
     private bool iceFollowUpPresented;
+    private bool iceFollowUpStarted;
+    private bool iceDamagePending;
+    private Player iceDamageVictim;
+    private TickTimer iceDamageTimer;
     private readonly RaycastHit[] collisionHits = new RaycastHit[32];
     private readonly Collider[] overlapHits = new Collider[32];
     // Main-thread, non-reentrant visibility queries; no damage callbacks within them.
@@ -37,6 +41,9 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     {
         impactPresented = false;
         iceFollowUpPresented = false;
+        iceFollowUpStarted = false;
+        iceDamagePending = false;
+        iceDamageVictim = null;
         // Projectiles remain server-simulated: even their shooter renders remote snapshots.
         Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
         active.Add(this);
@@ -82,6 +89,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             return;
         }
         if (IsConstruct) { TickConstruct(); return; }
+        if (iceDamagePending) { TickIceFollowUpDamage(); return; }
         if (Lifetime.Expired(Runner))
         {
             if (!Finished && !IsMine && stats.effect == MagicEffectKind.AreaDamage)
@@ -299,7 +307,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
                 if (player == null || !player.IsAlive || (!IsMine && player.TeamIndex == ShooterTeam) ||
                     (player.LockAimPoint - point).sqrMagnitude > stats.radius * stats.radius || !HasBlastSight(player))
                     continue;
-                player.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(player.LockAimPoint,point)), Shooter, ShooterId);
+                player.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(player.LockAimPoint,point)), Shooter, ShooterId, player.LockAimPoint - point);
             }
         }
         else if (summonHit != null)
@@ -308,16 +316,47 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         }
         else if (directHit != null && directHit.IsAlive && directHit.TeamIndex != ShooterTeam)
         {
-            int hitBefore = directHit.HitSequence;
-            directHit.ReceiveMagicHit(stats, Shooter, ShooterId);
-            // Only a confirmed core hit starts this cosmetic sequence: not walls, parries or prediction.
-            if (Magic == MagicType.Ice && ConstructKind == MagicConstructKind.Projectile &&
-                directHit.HitSequence != hitBefore)
-                RPC_IceFollowUp(directHit.Object.Id, point);
+            if (TryBeginIceFollowUp(directHit, point))
+            {
+                RPC_Impact(point, Magic);
+                return;
+            }
+            directHit.ReceiveMagicHit(stats, Shooter, ShooterId, direction);
         }
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
         Lifetime = TickTimer.CreateFromSeconds(Runner, 0.2f);
+    }
+
+    private bool TryBeginIceFollowUp(Player victim, Vector3 point)
+    {
+        if (Magic != MagicType.Ice || ConstructKind != MagicConstructKind.Projectile || victim.IsParrying ||
+            !Runner.TryFindObject(ShooterId, out NetworkObject source) || source == null) return false;
+        Player caster = source.GetComponent<Player>();
+        MagicStatTable table = caster != null ? caster.MagicTable : null;
+        if (table == null || !table.iceImpactFollowUpEnabled) return false;
+        float interval = Mathf.Clamp(table.iceImpactLaunchInterval, .01f, .5f);
+        float flight = Mathf.Clamp(Vector3.Distance(caster.LockAimPoint, victim.LockAimPoint) /
+            Mathf.Max(1f, table.iceImpactShardSpeed), .18f, 4f);
+        float total = (IceImpactFollowUpVisual.ShardCount - 1) * interval + flight;
+        iceDamageVictim = victim;
+        iceDamagePending = true;
+        iceDamageTimer = TickTimer.CreateFromSeconds(Runner, total);
+        Lifetime = TickTimer.CreateFromSeconds(Runner, total + .3f);
+        RPC_IceFollowUp(victim.Object.Id, point, interval, flight);
+        return true;
+    }
+
+    private void TickIceFollowUpDamage()
+    {
+        if (!Object.HasStateAuthority || !iceDamagePending || !iceDamageTimer.Expired(Runner)) return;
+        iceDamagePending = false; // Clear before damage callbacks; the whole batch deals one hit.
+        Player victim = iceDamageVictim;
+        iceDamageVictim = null;
+        if (victim != null && victim.Object != null && victim.Object.IsValid && victim.Runner == Runner &&
+            victim.IsAlive && victim.TeamIndex != ShooterTeam)
+            victim.ReceiveMagicHit(stats, Shooter, ShooterId);
+        Lifetime = TickTimer.CreateFromSeconds(Runner, .2f);
     }
 
     private bool HasBlastSight(Player target)
@@ -462,7 +501,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_IceFollowUp(NetworkId victimId, Vector3 impactPoint)
+    private void RPC_IceFollowUp(NetworkId victimId, Vector3 impactPoint, float launchInterval = -1f, float flightSeconds = -1f)
     {
         if (iceFollowUpPresented || Magic != MagicType.Ice) return;
         iceFollowUpPresented = true;
@@ -471,7 +510,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         if (caster == null) return;
         Player victim = Runner.TryFindObject(victimId, out NetworkObject hit) && hit != null
             ? hit.GetComponent<Player>() : null;
-        IceImpactFollowUpVisual.Play(caster, victim, impactPoint, caster.MagicTable);
+        iceFollowUpStarted = IceImpactFollowUpVisual.Play(caster, victim, impactPoint, caster.MagicTable, launchInterval, flightSeconds);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -480,8 +519,16 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         impactPresented = true;
         if (IsConstruct) ClearConstructVisual(true);
         if (view != null) view.ConfirmImpact();
-        if (ConstructKind == MagicConstructKind.ThunderArea) MagicAreaVisual.Lightning(position, PresentationStats);
-        CombatPresentation.ShowImpact(position, magic);
+        if (ConstructKind == MagicConstructKind.ThunderArea)
+        {
+            MagicStatEntry visualStats = PresentationStats;
+            visualStats.radius = ConstructRadius;
+            MagicAreaVisual.ThunderBurst(position, visualStats);
+            return; // The expanding burst owns Impact VFX too; do not play it twice.
+        }
+        // Reliable RPCs on this object arrive in order: a confirmed Ice follow-up owns its final impact.
+        // Walls/parries/disabled follow-ups/missing casters retain the immediate impact fallback.
+        if (magic != MagicType.Ice || !iceFollowUpStarted) CombatPresentation.ShowImpact(position, magic);
     }
 
     public override void Render()

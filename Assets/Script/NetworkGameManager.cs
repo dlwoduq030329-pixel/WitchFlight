@@ -127,14 +127,14 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         // Retain a brief wheel opening even when it occurs entirely between Fusion input ticks.
         pendingEmoteCombatSuppression |= BattleEmoteUI.BlocksCombatInput;
         if (BattleEmoteUI.CapturesMouse) accumulatedLook = Vector2.zero;
-        else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
-        LatchButton(PlayerInputButton.Accelerate, Input.GetKeyDown(KeyCode.W));
+        else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * ControlSettings.SensitivityMultiplier;
+        LatchButton(PlayerInputButton.Accelerate, ControlSettings.Down(ControlAction.Accelerate));
         LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
         if (BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
-        else LatchButton(PlayerInputButton.Parry, Input.GetMouseButtonDown(1));
-        LatchButton(PlayerInputButton.Boost, Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift));
-        LatchButton(PlayerInputButton.MagicSlot1, Input.GetKeyDown(KeyCode.Alpha1));
-        LatchButton(PlayerInputButton.MagicSlot2, Input.GetKeyDown(KeyCode.Alpha2));
+        else LatchButton(PlayerInputButton.Parry, ControlSettings.Down(ControlAction.Parry));
+        LatchButton(PlayerInputButton.Boost, ControlSettings.Down(ControlAction.Boost));
+        LatchButton(PlayerInputButton.MagicSlot1, ControlSettings.Down(ControlAction.MagicSlot1));
+        LatchButton(PlayerInputButton.MagicSlot2, ControlSettings.Down(ControlAction.MagicSlot2));
         LatchButton(PlayerInputButton.MagicSlot3, Input.GetKeyDown(KeyCode.Alpha3));
     }
 
@@ -1042,16 +1042,15 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             input.Set(data);
             return;
         }
-        data.buttons.Set(PlayerInputButton.Accelerate, Input.GetKey(KeyCode.W));
+        data.buttons.Set(PlayerInputButton.Accelerate, ControlSettings.Held(ControlAction.Accelerate));
         data.buttons.Set(PlayerInputButton.Decelerate, Input.GetKey(KeyCode.S));
-        data.buttons.Set(PlayerInputButton.TurnLeft, Input.GetKey(KeyCode.A));
-        data.buttons.Set(PlayerInputButton.TurnRight, Input.GetKey(KeyCode.D));
-        data.buttons.Set(PlayerInputButton.Lock, Input.GetMouseButton(0));
-        data.buttons.Set(PlayerInputButton.Parry, Input.GetMouseButton(1));
-        data.buttons.Set(PlayerInputButton.Boost,
-            Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
-        data.buttons.Set(PlayerInputButton.MagicSlot1, Input.GetKey(KeyCode.Alpha1));
-        data.buttons.Set(PlayerInputButton.MagicSlot2, Input.GetKey(KeyCode.Alpha2));
+        data.buttons.Set(PlayerInputButton.TurnLeft, ControlSettings.Held(ControlAction.TurnLeft));
+        data.buttons.Set(PlayerInputButton.TurnRight, ControlSettings.Held(ControlAction.TurnRight));
+        data.buttons.Set(PlayerInputButton.Lock, ControlSettings.Held(ControlAction.LockOn));
+        data.buttons.Set(PlayerInputButton.Parry, ControlSettings.Held(ControlAction.Parry));
+        data.buttons.Set(PlayerInputButton.Boost, ControlSettings.Held(ControlAction.Boost));
+        data.buttons.Set(PlayerInputButton.MagicSlot1, ControlSettings.Held(ControlAction.MagicSlot1));
+        data.buttons.Set(PlayerInputButton.MagicSlot2, ControlSettings.Held(ControlAction.MagicSlot2));
         data.buttons.Set(PlayerInputButton.MagicSlot3, Input.GetKey(KeyCode.Alpha3));
         data.buttons.Set(PlayerInputButton.Menu, Input.GetKey(KeyCode.Escape));
 

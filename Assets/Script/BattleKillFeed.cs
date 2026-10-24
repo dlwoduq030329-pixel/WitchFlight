@@ -18,6 +18,11 @@ public sealed class BattleKillFeed : MonoBehaviour
     [Tooltip("공용 프로필 테이블. 비우면 Resources/ProfileImageTable을 자동 사용합니다.")]
     [SerializeField] private ProfileImageTable profileTable;
     [SerializeField] private TMP_FontAsset uiFont;
+    [Header("Stacked notices")]
+    [Tooltip("등장과 퇴장 연출을 포함한 각 처치 UI의 총 표시 시간입니다.")]
+    [SerializeField, Min(0.1f)] private float displaySeconds = 2f;
+    [SerializeField, Min(0f)] private float rowSpacing = 12f;
+    [SerializeField, Range(1, 16)] private int maxVisibleNotices = 8;
     [Header("Pop -> shrink + fade (unscaled seconds)")]
     [SerializeField, Min(0.01f)] private float popSeconds = 0.12f;
     [SerializeField, Min(0.01f)] private float shrinkFadeSeconds = 0.75f;
@@ -25,12 +30,17 @@ public sealed class BattleKillFeed : MonoBehaviour
     [SerializeField, Min(0.01f)] private float peakScale = 1.2f;
     [SerializeField, Min(0.01f)] private float endScale = 0.6f;
 
-    private struct Notice { public string Killer, Victim; public int KillerProfile, VictimProfile; }
-    private readonly Queue<Notice> pending = new Queue<Notice>();
+    private sealed class NoticeView
+    {
+        public GameObject Root;
+        public CanvasGroup Group;
+        public float Started;
+    }
+    private readonly List<NoticeView> notices = new List<NoticeView>();
     private CanvasGroup group;
     private Vector3 authoredScale;
-    private float authoredAlpha = 1f, started;
-    private bool showing;
+    private float authoredAlpha = 1f;
+    private GameObject generatedRoot;
 
     private void Awake()
     {
@@ -48,38 +58,69 @@ public sealed class BattleKillFeed : MonoBehaviour
     public void ShowKill(string killer, int killerProfile, string victim, int victimProfile)
     {
         if (!isActiveAndEnabled) return;
-        if (pending.Count >= 8) pending.Dequeue();
-        pending.Enqueue(new Notice { Killer = killer, KillerProfile = killerProfile, Victim = victim, VictimProfile = victimProfile });
-        if (!showing) ShowNext();
-    }
-
-    private void ShowNext()
-    {
-        if (pending.Count == 0) return;
         EnsurePanel();
-        Notice notice = pending.Dequeue();
-        SetName(killerNameText, notice.Killer);
-        SetName(victimNameText, notice.Victim);
-        SetProfile(killerProfileImage, notice.KillerProfile);
-        SetProfile(victimProfileImage, notice.VictimProfile);
-        started = Time.unscaledTime;
-        showing = true;
-        killPanel.SetActive(true);
-        ApplyAnimation(0f);
+        while (notices.Count >= Mathf.Max(1, maxVisibleNotices)) RemoveNotice(0);
+        // The assigned panel stays inactive as the template; each kill owns independent text and timing.
+        GameObject copy = Instantiate(killPanel, killPanel.transform.parent, false);
+        copy.name = "Kill notice";
+        var notice = new NoticeView { Root = copy, Group = copy.GetComponent<CanvasGroup>(), Started = Time.unscaledTime };
+        SetName(CloneBinding(killerNameText, copy.transform), killer);
+        SetName(CloneBinding(victimNameText, copy.transform), victim);
+        SetProfile(CloneBinding(killerProfileImage, copy.transform), killerProfile);
+        SetProfile(CloneBinding(victimProfileImage, copy.transform), victimProfile);
+        foreach (Graphic graphic in copy.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
+        LayoutElement layout = copy.GetComponent<LayoutElement>();
+        if (layout == null) layout = copy.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
+        notices.Add(notice);
+        PositionNotices();
+        ApplyAnimation(notice, 0f);
+        copy.SetActive(true);
     }
 
     private void Update()
     {
-        if (!showing || killPanel == null) return;
-        float elapsed = Time.unscaledTime - started;
-        if (elapsed >= Mathf.Max(0.01f, popSeconds) + Mathf.Max(0.01f, shrinkFadeSeconds))
+        for (int i = notices.Count - 1; i >= 0; i--)
         {
-            showing = false;
-            RestorePanel();
-            ShowNext();
-            return;
+            NoticeView notice = notices[i];
+            float elapsed = Time.unscaledTime - notice.Started;
+            if (notice.Root == null || elapsed >= Mathf.Max(.1f, displaySeconds)) RemoveNotice(i);
+            else ApplyAnimation(notice, elapsed);
         }
-        ApplyAnimation(elapsed);
+        PositionNotices();
+    }
+
+    private T CloneBinding<T>(T source, Transform copy) where T : Component
+    {
+        if (source == null || !source.transform.IsChildOf(killPanel.transform)) return null;
+        // Sibling indices handle duplicate child names such as the two "Profile" images.
+        var path = new Stack<int>();
+        for (Transform node = source.transform; node != killPanel.transform; node = node.parent)
+            path.Push(node.GetSiblingIndex());
+        while (path.Count > 0) copy = copy.GetChild(path.Pop());
+        return copy.GetComponent<T>();
+    }
+
+    private void PositionNotices()
+    {
+        if (killPanel == null) return;
+        RectTransform template = killPanel.transform as RectTransform;
+        float height = template != null ? template.rect.height : 100f;
+        float step = height * Mathf.Abs(authoredScale.y) * Mathf.Max(startScale, Mathf.Max(peakScale, endScale)) + rowSpacing;
+        for (int i = 0; i < notices.Count; i++)
+        {
+            if (notices[i].Root == null) continue;
+            if (template != null && notices[i].Root.transform is RectTransform rect)
+                rect.anchoredPosition3D = template.anchoredPosition3D + Vector3.down * (step * i);
+            else notices[i].Root.transform.localPosition = killPanel.transform.localPosition + Vector3.down * (step * i);
+        }
+    }
+
+    private void RemoveNotice(int index)
+    {
+        GameObject root = notices[index].Root;
+        if (root != null) { root.SetActive(false); Destroy(root); }
+        notices.RemoveAt(index);
     }
 
     public static Vector2 EvaluateAnimation(float elapsed, float pop, float fade, float start, float peak, float end)
@@ -94,11 +135,23 @@ public sealed class BattleKillFeed : MonoBehaviour
         return new Vector2(Mathf.Lerp(peak, end, 1f - Mathf.Pow(1f - shrink, 3f)), 1f - shrink);
     }
 
-    private void ApplyAnimation(float elapsed)
+    public static Vector2 EvaluateNoticeAnimation(float elapsed, float total, float pop, float fade, float start, float peak, float end)
     {
-        Vector2 sample = EvaluateAnimation(elapsed, popSeconds, shrinkFadeSeconds, startScale, peakScale, endScale);
-        killPanel.transform.localScale = authoredScale * sample.x;
-        group.alpha = authoredAlpha * sample.y;
+        total = Mathf.Max(.1f, total);
+        if (elapsed >= total) return new Vector2(end, 0f);
+        pop = Mathf.Clamp(pop, .01f, total - .01f);
+        fade = Mathf.Clamp(fade, .01f, total - pop);
+        if (elapsed < pop) return EvaluateAnimation(elapsed, pop, fade, start, peak, end);
+        float fadeStart = total - fade;
+        if (elapsed < fadeStart) return new Vector2(peak, 1f);
+        return EvaluateAnimation(pop + elapsed - fadeStart, pop, fade, start, peak, end);
+    }
+
+    private void ApplyAnimation(NoticeView notice, float elapsed)
+    {
+        Vector2 sample = EvaluateNoticeAnimation(elapsed, displaySeconds, popSeconds, shrinkFadeSeconds, startScale, peakScale, endScale);
+        notice.Root.transform.localScale = authoredScale * sample.x;
+        notice.Group.alpha = authoredAlpha * sample.y;
     }
 
     private static void SetName(TMP_Text label, string name)
@@ -131,6 +184,7 @@ public sealed class BattleKillFeed : MonoBehaviour
     {
         if (killPanel != null) return;
         var root = new GameObject("Generated kill feed", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+        generatedRoot = root;
         root.transform.SetParent(transform, false);
         var canvas = root.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 250;
@@ -179,6 +233,10 @@ public sealed class BattleKillFeed : MonoBehaviour
         killPanel.SetActive(false); killPanel.transform.localScale = authoredScale;
         if (group != null) group.alpha = authoredAlpha;
     }
-    private void OnDisable() { showing = false; pending.Clear(); RestorePanel(); }
-    private void OnDestroy() { if (Instance == this) Instance = null; }
+    private void OnDisable() { while (notices.Count > 0) RemoveNotice(notices.Count - 1); RestorePanel(); }
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+        if (generatedRoot != null) Destroy(generatedRoot);
+    }
 }

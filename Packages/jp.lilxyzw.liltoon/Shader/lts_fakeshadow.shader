@@ -113,6 +113,7 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_DissolveNoiseMask
             #define LIL_FEATURE_OutlineTex
             #define LIL_FEATURE_OutlineWidthMask
+            #define LIL_FEATURE_OutlineVectorTex
             #define LIL_OPTIMIZE_APPLY_SHADOW_FA
             #define LIL_OPTIMIZE_USE_FORWARDADD
             #define LIL_OPTIMIZE_USE_VERTEXLIGHT
@@ -266,6 +267,7 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_DissolveNoiseMask
             #define LIL_FEATURE_OutlineTex
             #define LIL_FEATURE_OutlineWidthMask
+            #define LIL_FEATURE_OutlineVectorTex
             #define LIL_OPTIMIZE_APPLY_SHADOW_FA
             #define LIL_OPTIMIZE_USE_FORWARDADD
             #define LIL_OPTIMIZE_USE_VERTEXLIGHT

@@ -13,6 +13,7 @@ public partial class Player
             point = player.LockAimPoint;
             return IsValidLockTarget(player);
         }
+        if (SelectedMagicStats.TargetsAllies) return false; // Healing never selects enemy summon bodies.
         summon = obj.GetComponent<MagicProjectile>();
         if (summon == null || !summon.IsSummonEnemyOf(this)) return false;
         point = summon.transform.position;
@@ -27,8 +28,10 @@ public partial class Player
         point = default;
         // Rendering reads the selected ID; physics validation stays in input/simulation.
         if (!CanAcquireMagicTarget() || !Runner.TryFindObject(LockTargetId, out NetworkObject obj) || obj == null || !obj.IsValid) return false;
-        if (obj.TryGetComponent(out Player player) && player.IsTargetableBy(this))
+        if (obj.TryGetComponent(out Player player) &&
+            (SelectedMagicStats.TargetsAllies ? IsHealingAlly(player) : player.IsTargetableBy(this)))
         { point = player.LockAimPoint; return true; }
+        if (SelectedMagicStats.TargetsAllies) return false;
         if (obj.TryGetComponent(out MagicProjectile summon) && summon.IsSummonEnemyOf(this))
         { point = summon.transform.position; return true; }
         return false;

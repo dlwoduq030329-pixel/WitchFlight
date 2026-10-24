@@ -86,7 +86,7 @@ public sealed partial class MagicProjectile
                     !enemy.IsAlive || enemy.TeamIndex == ShooterTeam) continue;
                 float distance = Vector3.Distance(center, enemy.LockAimPoint);
                 if (distance <= ConstructRadius && HasBlastSight(center,enemy))
-                    enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats,distance), Shooter, ShooterId);
+                    enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats,distance), Shooter, ShooterId, enemy.LockAimPoint - center);
             }
             DamageSummonsInArea(Runner, ShooterTeam, center, ConstructRadius, stats, ShooterId);
             RPC_Impact(center, Magic);
@@ -165,7 +165,11 @@ public sealed partial class MagicProjectile
         { ClearConstructVisual(true); return; }
         if (ConstructKind == MagicConstructKind.ThunderArea)
         {
-            if (areaVisual == null) areaVisual = MagicAreaVisual.Create(PresentationStats.areaWarningVfxPrefab,"Thunder confirmed area");
+            if (areaVisual == null)
+            {
+                areaVisual = MagicAreaVisual.Create(PresentationStats.areaWarningVfxPrefab,"Thunder confirmed area");
+                MagicAreaVisual.ThunderFlash(transform.position, ConstructRadius, PresentationStats);
+            }
             bool friendly = Player.LocalPlayer != null && Player.LocalPlayer.Object != null && Player.LocalPlayer.Object.IsValid &&
                 Player.LocalPlayer.TeamIndex == ShooterTeam;
             float remaining = ConstructTimer.RemainingTime(Runner) ?? 0f;

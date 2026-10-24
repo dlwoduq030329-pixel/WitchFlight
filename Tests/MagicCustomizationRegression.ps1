@@ -26,6 +26,7 @@ namespace UnityEngine {
  public class MonoBehaviour : Object { public bool isActiveAndEnabled=true; public GameObject gameObject=new GameObject(); public Transform transform=>gameObject.transform; }
  public class ScriptableObject : Object {public static T CreateInstance<T>() where T:new()=>new T();}
  public class Sprite : Object {}
+ public class Material : Object {}
  public class AnimationClip : Object {}
  public class GameObject : Object {
   public object ChildComponent;public T GetComponentInChildren<T>(bool includeInactive) where T:class=>ChildComponent as T;

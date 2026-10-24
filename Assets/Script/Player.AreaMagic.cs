@@ -95,16 +95,17 @@ public partial class Player
         // Initialize in onBeforeSpawned, so all observers receive the mode in the initial snapshot.
         NetworkObject spawned = Runner.Spawn(magicProjectilePrefab, origin, Quaternion.identity, Object.InputAuthority,
             onBeforeSpawned: (runner, obj) => obj.GetComponent<MagicProjectile>().InitializeConstruct(this, s, magicProjectilePrefab));
-        if (spawned != null && !area)
+        if (spawned != null)
         {
-            MagicProjectile.TrimSummons(this, Mathf.Clamp(s.summonMaxCount,1,16), spawned);
-            RPC_PresentCast(s.magic, origin, origin, 0f);
+            if (!area) MagicProjectile.TrimSummons(this, Mathf.Clamp(s.summonMaxCount,1,16), spawned);
+            // Telegraph/impact stay with the construct. This is only the caster's launch effect.
+            RPC_PresentCast(s.magic, MagicCastPosition, MagicCastPosition, 0f);
         }
     }
 
     private void UpdateAreaAimPreview()
     {
-        bool held = Input.GetMouseButton(0);
+        bool held = ControlSettings.Held(ControlAction.MagicUse);
         if (!held) previewNeedsRelease = false;
         bool eligible = Object != null && Object.IsValid && Object.HasInputAuthority && CanAimAreaMagic() &&
             !CombatPresentation.MenuOpen && !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput &&

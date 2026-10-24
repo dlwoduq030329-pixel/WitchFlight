@@ -79,6 +79,7 @@ $code+=$guard
 $code+=@'
 }
 public class FlareProbe {
+ public bool HasBurnStatus;
  public NetworkObject Object=new();public NetworkRunner Runner=new();public bool IsAlive=true;
  private float perkClock,flareCastAt,flarePulseAt=-1;private int flarePulsesRemaining;private bool flareRefunded;
  private MagicStatEntry flarePerkStats;public Vector3 LockAimPoint;public Transform transform=new();
@@ -187,6 +188,7 @@ using NetworkId=BalanceChecks.NetworkId;using NetworkObject=BalanceChecks.Networ
 #pragma warning disable CS0649
 public class Player {
  public NetworkObject Object=new();public int TeamIndex=1;public bool IsAlive=true;
+ public bool HasBurnStatus;
  public float MaxAp=100,Restored,perkClock;private float nextManaRemnant;
  public PerkStatTable Perks=new();public int commonMask;
  private float CommonAmount(PerkId id)=>(commonMask&PerkRules.Bit(id))!=0?Perks.Amount(id):0;

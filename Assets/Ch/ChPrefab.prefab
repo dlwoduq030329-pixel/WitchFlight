@@ -5578,6 +5578,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   magicCastRoot: {fileID: 1722307067430147900}
+  healingFeedbackSeconds: 1.5
   magicStatTable: {fileID: 11400000, guid: d81c29d2f62042b1944c5e42544d9636, type: 2}
   magicProjectilePrefab:
     RawGuidValue: 1af9a38d86554be0a519edc0452ebc9f
@@ -5618,6 +5619,7 @@ MonoBehaviour:
   _HitSequence: 0
   _ParryStartSequence: 0
   _ParrySequence: 0
+  _ParryFacingDirection: {x: 0, y: 0, z: 0}
   _DeathSequence: 0
   equipment: {fileID: 0}
   _PortalExitSequence: 0
@@ -5745,8 +5747,40 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   deathFadeSeconds: 2
   hitFlashSeconds: 0.18
-  parryShieldVfxPrefab: {fileID: 0}
-  parryShieldDuration: 0.35
+  statusEffectVfxViews:
+  - status: 1
+    vfxPrefab: {fileID: 5310361573421146954, guid: 138510276a9931c4abde295e7d1cf0a2, type: 3}
+    anchor: {fileID: 0}
+    localOffset: {x: 0, y: 1, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    scale: 1
+  - status: 2
+    vfxPrefab: {fileID: 6402233944704474063, guid: 46501670152c14cfc8f02b308faa22af, type: 3}
+    anchor: {fileID: 0}
+    localOffset: {x: 0, y: 1, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    scale: 0.5
+  - status: 3
+    vfxPrefab: {fileID: 0}
+    anchor: {fileID: 0}
+    localOffset: {x: 0, y: 1, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    scale: 1
+  - status: 4
+    vfxPrefab: {fileID: 8082686504469160570, guid: 86b771667e28b4719939c8689fb0a15d, type: 3}
+    anchor: {fileID: 0}
+    localOffset: {x: 0, y: 1, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    scale: 0.5
+  - status: 5
+    vfxPrefab: {fileID: 9017484664307500583, guid: 1245b8d2997d5b34fb1637be70a7eb05, type: 3}
+    anchor: {fileID: 0}
+    localOffset: {x: 0, y: 1, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    scale: 1
+  parryShieldVfxPrefab: {fileID: 1070897446116272, guid: 189038a8fc10a2946b97658479b710ff, type: 3}
+  parryShieldDuration: 1
+  parryShieldForwardOffset: 1
 --- !u!143 &8619302157754221902
 CharacterController:
   m_ObjectHideFlags: 0
@@ -5789,10 +5823,17 @@ MonoBehaviour:
   worldOffset: {x: 0, y: 0.3, z: 0}
   worldSpaceScale: 0.01
   minimumScreenHeight: 8
+  nicknameFont: {fileID: 0}
+  nicknameFontSize: 20
+  nicknameOutlineWidth: 0.4
+  nicknameSize: {x: 260, y: 30}
+  nicknameOffset: {x: 0, y: 4}
   showEnemyHalo: 1
   enemyHaloSprite: {fileID: 0}
   enemyHaloColor: {r: 1, g: 0.08, b: 0.12, a: 0.6}
+  allyHaloColor: {r: 0.1, g: 0.4, b: 1, a: 0.6}
   enemyHaloSize: {x: 3.2, y: 3.2}
+  haloSizeMultiplier: 1.5
   enemyHaloOffset: {x: 0, y: -0.25, z: 0}
   enemyHaloDepthOffset: 0.6
   obstructionMask:
@@ -9648,7 +9689,7 @@ Transform:
   m_GameObject: {fileID: 3697787964095112824}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.007, y: 0, z: 0}
+  m_LocalPosition: {x: -0.007, y: -0, z: 0.218}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

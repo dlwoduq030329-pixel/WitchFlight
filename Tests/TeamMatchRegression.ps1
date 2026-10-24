@@ -195,14 +195,31 @@ foreach($contract in @(
  @($random,'ShowParticipant(secondOpponentData'),
  @($tab,'Show(teamComparisonRoot,compare && teamBattle);'),
  @($tab,'Input.GetKey(KeyCode.Tab)'),
- @($teams,'if (phase == BattleStartPhase.WaitingForPlayers && allReady && localPlayer != null)'),
- @($teams,'EnsureSnapshot(ref teamSnapshots[i], player, i)'),
+ @($teams,'phase == BattleStartPhase.WaitingForPlayers && teamSnapshots[0].IsReady && teamSnapshots[1].IsReady'),
+ @($teams,'EnsureTeamSnapshot(ref teamSnapshots[0], teamPlayers[0], teamPlayers[1], 0, localPortrait)'),
+ @($teams,'EnsureTeamSnapshot(ref teamSnapshots[1], teamPlayers[2], teamPlayers[3], 1, opponentPortrait)'),
  @($intro,'ReleaseSnapshot(ref teamSnapshots[i]);'),
  @($intro,'foreach (PortraitSnapshot snapshot in teamSnapshots) FreezeCompletedSnapshot(snapshot);')
 )) {if(!$contract[0].Contains($contract[1])) {throw "Missing integration: $($contract[1])"}}
 $main=Get-Content Assets/Scenes/Main.unity -Raw
 if(!$main.Contains('roomMatchMode: 4') -or !$main.Contains('component: {fileID: 244481548}') -or !$main.Contains('guid: 045445890bfb427480029a3aca1a8bb8')){throw 'Main scene mode/dropdown controller binding missing'}
-'Team matching, dropdown, four-player intro and held-Tab integration contracts passed: 16'
+'Team matching, dropdown, two-camera team intro and held-Tab integration contracts passed: 17'
+
+foreach ($contract in @(
+ @($teams,'new PortraitSnapshot[2]'),
+ @($teams,'"PlayerProfile (1)"'),
+ @($teams,'"EnemyProfile (1)"'),
+ @($teams,'child.name.Trim()'),
+ @($teams,'secondVisual.SetParent(snapshot.Stage.transform, false)'),
+ @($teams,'snapshot.OwnedMeshes.AddRange(companion.OwnedMeshes)'),
+ @($teams,'companion.OwnedMeshes.Clear()'),
+ @($teams,'ReleaseSnapshot(ref companion)'),
+ @($intro,'if (countdown) EnsureCountdownText();'),
+ @($intro,'TMP_Text activeCountdown = countdownText;')
+)) {if(!$contract[0].Contains($contract[1])){throw "Missing authored VS integration: $($contract[1])"}}
+if($teams.Contains('Generated Team VS UI') -or $teams.Contains('TeamVSPanel')){throw 'Obsolete generated 2v2 panel must not replace authored VSUI'}
+if($teams -match 'teamPlayers\[[^]]+\]\.transform\.|first\.transform\.|second\.transform\.|Teleport\('){throw 'Team framing must not move network gameplay actors'}
+'Authored VS profiles, two shared cameras, mesh ownership, spawn preservation and common countdown contracts passed.'
 
 $teamUI=Get-Content Assets/Script/RoomMatchSettingsUI.Teams.cs -Raw
 $waiting=Get-Content Assets/Script/linkuserinfo.WaitingRoom.cs -Raw
