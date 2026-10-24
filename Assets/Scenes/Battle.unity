@@ -625,6 +625,37 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 3.94, z: 1}
   m_Center: {x: 0.33, y: 2.04, z: -0.55}
+--- !u!1 &22711697
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 22711698}
+  m_Layer: 0
+  m_Name: direction
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &22711698
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 22711697}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: -1, z: 0, w: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 424424437}
+  m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
 --- !u!1001 &23795369
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -9743,7 +9774,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 4688908902728973254, guid: 6742090cf21046048b2e9f5f0efb0948, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 22711698}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3927875199924452846, guid: 6742090cf21046048b2e9f5f0efb0948, type: 3}
       insertIndex: -1
@@ -9778,6 +9812,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 1372199563}
+  exitDirection: {fileID: 22711698}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -17459,6 +17495,10 @@ PrefabInstance:
     - target: {fileID: 2070208136584148500, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2070208136584148501, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
+      propertyPath: SortKey
+      value: 2673181269
       objectReference: {fileID: 0}
     - target: {fileID: 4947370934349224945, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
       propertyPath: m_Name
@@ -27359,6 +27399,37 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4910135957328015409, guid: ee52773c3921975459b8f5ad6efab768, type: 3}
   m_PrefabInstance: {fileID: 1102681229}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1103081459
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1103081460}
+  m_Layer: 0
+  m_Name: direction
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1103081460
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1103081459}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1349514748}
+  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!1001 &1105729945
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -33271,7 +33342,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 4688908902728973254, guid: 6742090cf21046048b2e9f5f0efb0948, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1103081460}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3927875199924452846, guid: 6742090cf21046048b2e9f5f0efb0948, type: 3}
       insertIndex: -1
@@ -33306,6 +33380,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 1855128619}
+  exitDirection: {fileID: 0}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -34011,7 +34087,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 6266826192659898581, guid: 68d166040125fee488334579f5622770, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1411280954}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 6031759511743048033, guid: 68d166040125fee488334579f5622770, type: 3}
       insertIndex: -1
@@ -34046,6 +34125,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 424424437}
+  exitDirection: {fileID: 0}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -34835,6 +34916,37 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 5, y: 6, z: 7}
   m_Center: {x: 2, y: 3, z: -4}
+--- !u!1 &1411280953
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1411280954}
+  m_Layer: 0
+  m_Name: direction
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1411280954
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1411280953}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1372199563}
+  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!1001 &1413612978
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -35261,6 +35373,37 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4910135957328015409, guid: ee52773c3921975459b8f5ad6efab768, type: 3}
   m_PrefabInstance: {fileID: 1421760761}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1423889445
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1423889446}
+  m_Layer: 0
+  m_Name: direction
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1423889446
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1423889445}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1855128619}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1428814574
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -37496,6 +37639,9 @@ MonoBehaviour:
   perkStatTable: {fileID: 11400000, guid: 26a08712a9f8258cdae35dbe4cb1a8f4, type: 2}
   playerSpawnA: {fileID: 1844755102}
   playerSpawnB: {fileID: 2070964829}
+  playerSpawnA2: {fileID: 0}
+  playerSpawnB2: {fileID: 0}
+  teammateSpawnSpacing: 3
   flagSpawnPoint: {fileID: 971768125}
   mapBoundaryTable: {fileID: 11400000, guid: d9cf1b2915b640f797388509fbb4c72d, type: 2}
   autoStartWhenReady: 1
@@ -37532,6 +37678,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f37c84b6dc44419a6ef2b7d16804e96, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  teamIntroPanel: {fileID: 0}
+  teamCards:
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  - portrait: {fileID: 0}
+    profile: {fileID: 0}
+    playerName: {fileID: 0}
+    magicNames: {fileID: 0}
+  teamCountdownText: {fileID: 0}
+  teamProfileTable: {fileID: 0}
   localPortrait: {fileID: 2045787909}
   opponentPortrait: {fileID: 922351904}
   introPanel: {fileID: 1625006623}
@@ -37855,6 +38021,236 @@ MonoBehaviour:
     deathsText: {fileID: 9107315106126317490}
     killsDeathsText: {fileID: 0}
     flagIndicator: {fileID: 9107315106126317491}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  teamComparisonRoot: {fileID: 0}
+  teamViews:
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
+    flagStatusText: {fileID: 0}
+    effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+  - playerName: {fileID: 0}
+    profile: {fileID: 0}
+    slot1Text: {fileID: 0}
+    slot2Text: {fileID: 0}
+    slot1Icon: {fileID: 0}
+    slot2Icon: {fileID: 0}
+    slot1Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    slot2Effects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    commonEffects:
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    - icon: {fileID: 0}
+      title: {fileID: 0}
+      description: {fileID: 0}
+      hint: {fileID: 0}
+    damageDealtText: {fileID: 0}
+    damageTakenText: {fileID: 0}
+    killsText: {fileID: 0}
+    deathsText: {fileID: 0}
+    killsDeathsText: {fileID: 0}
+    flagIndicator: {fileID: 0}
     flagStatusText: {fileID: 0}
     effects:
     - icon: {fileID: 0}
@@ -46139,7 +46535,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 6266826192659898581, guid: 68d166040125fee488334579f5622770, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1423889446}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 6031759511743048033, guid: 68d166040125fee488334579f5622770, type: 3}
       insertIndex: -1
@@ -46174,6 +46573,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   destination: {fileID: 1349514748}
+  exitDirection: {fileID: 0}
+  exitForwardOffset: 1.5
   cooldownSeconds: 3
   reentryDelay: 0.5
   onPortalUsed:
@@ -54085,6 +54486,10 @@ PrefabInstance:
     - target: {fileID: 2070208136584148500, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2070208136584148501, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
+      propertyPath: SortKey
+      value: 1485206730
       objectReference: {fileID: 0}
     - target: {fileID: 4947370934349224945, guid: c663a7ae85d2ee943bb061e413cc2c62, type: 3}
       propertyPath: m_Name
