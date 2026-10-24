@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 5980706476718139433}
   - component: {fileID: 5980706476718139434}
   m_Layer: 0
-  m_Name: Booster
+  m_Name: SpeedBooster
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -67,6 +67,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemType: 0
   healAmount: 40
+  manaRestoreAmount: 40
   speedMultiplier: 1.3
   boostDurationSeconds: 5
   pickupRadius: 3
@@ -140,7 +141,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 276927b9a68b4d746ac88c5708f9cae6, type: 2}
+  - {fileID: 2100000, guid: e358a2d6738018742811bda9ffe1df71, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
