@@ -14,6 +14,7 @@ $source = @'
 using System;
 using System.Collections.Generic;
 namespace ItemChecks {
+public enum BattleSound {HealthPotion,ManaPotion,BoosterPickup,HealingReceived}
 public static class Mathf {
  public static float Max(float a,float b)=>Math.Max(a,b);
  public static float Min(float a,float b)=>Math.Min(a,b);
@@ -44,6 +45,7 @@ $source += [regex]::Match($pickup, 'public enum BattleItemType[^\r\n]+').Value
 $source += "`n" + (($items.Substring($items.IndexOf('public partial class Player'))) -replace '\[Networked\]\s*','' -replace '\bprivate\b','public')
 $source += @'
 public partial class Player {
+ public int AudioEvents;private void RPC_PlayBattleSound(BattleSound sound){AudioEvents++;}
  public NetworkObject Object=new();public NetworkRunner Runner=new();
  public bool IsAlive=true,IsTestBot,IsReturningToMap;
  public TickTimer HealingFeedbackTimer;public float healingFeedbackSeconds=1.5f;
@@ -164,7 +166,7 @@ if (!(Method $pickup 'CheckPickup').Contains('sample.objectId == playerObject.Id
     !(Method $pickup 'CheckPickup').Contains('maxSweep * maxSweep') -or
     !(Method $pickup 'CheckPickup').Contains('HasPickupSight(contact, point)')) {throw 'Missing respawn, teleport, or wall pickup protection'}
 if (!(Method $pickup 'HasPickupSight').Contains('QueryTriggerInteraction.Ignore')) {throw 'Pickup sight must ignore trigger volumes'}
-foreach ($prefabName in 'Booster','HP_Item','MP_Item') {
+foreach ($prefabName in 'SpeedBooster','HP_Item','MP_Item') {
     $path="Assets/Item/$prefabName.prefab"
     $yaml=Get-Content $path -Raw
     $ids=@([regex]::Matches($yaml,'(?m)^--- !u!\d+ &(\d+)') | ForEach-Object {$_.Groups[1].Value})

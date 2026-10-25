@@ -74,6 +74,8 @@ namespace Suimono.Core
 		private float doTransitionTimer = 0f;
 		 
 		public bool isUnderwater = false;
+        private bool cameraIsSubmerged;
+        private SuimonoObject cameraWaterSurface;
 		static bool doWaterTransition = false;
 
 
@@ -603,6 +605,11 @@ namespace Suimono.Core
 
 			//Cache Time for performance
 			_deltaTime = Time.deltaTime;
+            // CameraFollow runs before this LateUpdate. Evaluate entry/exit every rendered
+            // frame, then update audio from the same result (not from a stale physics tick).
+            Suimono_CheckCamera();
+            StoreSurfaceHeight();
+            PlayUnderwaterSound();
 
 
 			//Update Random
@@ -773,10 +780,6 @@ namespace Suimono.Core
 				}
 			}
 
-			//play underwater sounds
-			PlayUnderwaterSound();
-			
-
 			//######## HANDLE FORWARD RENDERING SWITCH #######
 			if (setCamera != null){
 				isForward = 0.0f;
@@ -834,69 +837,69 @@ namespace Suimono.Core
 
 
 		void OnDisable(){
-			CancelInvoke("StoreSurfaceHeight");
-		}
-
-		void OnEnable(){
-			InvokeRepeating("StoreSurfaceHeight",0.01f,0.1f);
+            cameraIsSubmerged = false;
+            isUnderwater = false;
+            Shader.SetGlobalFloat("_Suimono_IsUnderwater", 0f);
+            if (cameraWaterSurface != null) cameraWaterSurface.useShader = cameraWaterSurface.shader_Surface;
+            if (underSoundComponent != null) underSoundComponent.Stop();
 		}
 
 		void StoreSurfaceHeight(){
 			if (this.enabled){
 				if (setCamera != null){
 
-					heightValues = SuimonoGetHeightAll(setCamera.transform.position);
-					currentSurfaceLevel = heightValues[1];
-					currentObjectDepth = heightValues[3];
-					currentObjectIsOver = heightValues[4];
-					currentTransitionDepth = heightValues[9];
-					objectEnableUnderwaterFX = heightValues[10];
+                    CalculateHeights(setCamera.position);
+                    currentSurfaceLevel = getheight;
+                    currentObjectDepth = isOverWater ? getheight - setCamera.position.y : 0f;
+                    currentObjectIsOver = isOverWater ? 1f : 0f;
+                    currentTransitionDepth = currentObjectDepth;
+                    objectEnableUnderwaterFX = suimonoObject != null && suimonoObject.enableUnderwater ? 1f : 0f;
 
-					checkUnderwaterEffects();
-					checkWaterTransition();
-				}
-			}
-		}
+                    if (cameraWaterSurface != null && (!isOverWater || cameraWaterSurface != suimonoObject))
+                        cameraWaterSurface.useShader = cameraWaterSurface.shader_Surface;
+                    cameraWaterSurface = isOverWater ? suimonoObject : null;
 
+                    cameraIsSubmerged = ShouldRemainSubmerged(cameraIsSubmerged,
+                        isOverWater && cameraWaterSurface != null, currentObjectDepth, underwaterThreshold);
 
-
-		void PlayUnderwaterSound(){
-		if (Application.isPlaying){
-			if (underSoundObject != null && setTrack != null && underSoundComponent != null){
-				underSoundObject.transform.position = setTrack.position;
-
-				if (currentTransitionDepth > 0.0f){
-					if (playSoundBelow && playSounds){
-						underSoundComponent.clip = suimonoModuleLibrary.sndparentobj.underwaterSound;
-						underSoundComponent.volume = maxVolume;
-						underSoundComponent.loop = true;
-						if (!underSoundComponent.isPlaying){
-							underSoundComponent.Play();
-						}
-					} else {
-						underSoundComponent.Stop();
-					}
 				} else {
-					if (suimonoModuleLibrary.sndparentobj.underwaterSound != null){
-						if (playSoundAbove && playSounds){
-							underSoundComponent.clip = suimonoModuleLibrary.sndparentobj.abovewaterSound;
-							underSoundComponent.volume = 0.45f*maxVolume;
-							underSoundComponent.loop = true;
-							if (!underSoundComponent.isPlaying){
-								underSoundComponent.Play();
-							}
-						} else {
-							underSoundComponent.Stop();
-						}
-					}
+                    cameraIsSubmerged = false;
 				}
+                checkUnderwaterEffects();
+                checkWaterTransition();
 			}
 		}
-		}
+
+        // Hysteresis prevents wave-edge chatter, but never keeps the camera submerged above water.
+        public static bool ShouldRemainSubmerged(bool wasSubmerged, bool hasWater, float depth, float enterDepth)
+        {
+            return hasWater && depth > (wasSubmerged ? 0f : Mathf.Max(0f, enterDepth));
+        }
 
 
 
-
+        void PlayUnderwaterSound(){
+            if (!Application.isPlaying || underSoundComponent == null) return;
+            AudioClip clip = null;
+            if (playSounds && setCamera != null && suimonoModuleLibrary != null && suimonoModuleLibrary.sndparentobj != null)
+            {
+                if (cameraIsSubmerged && playSoundBelow)
+                    clip = suimonoModuleLibrary.sndparentobj.underwaterSound;
+                else if (!cameraIsSubmerged && playSoundAbove)
+                    clip = suimonoModuleLibrary.sndparentobj.abovewaterSound;
+            }
+            if (clip == null || underSoundComponent.clip != clip)
+            {
+                underSoundComponent.Stop();
+                underSoundComponent.clip = clip;
+            }
+            if (clip == null) return;
+            if (underSoundObject != null)
+                underSoundObject.transform.position = setCamera.position;
+            underSoundComponent.volume = (cameraIsSubmerged ? 1f : 0.45f) * maxVolume;
+            underSoundComponent.loop = true;
+            if (!underSoundComponent.isPlaying) underSoundComponent.Play();
+        }
         public void AddFX(int fxSystem, Vector3 effectPos, int addRate, float addSize, float addRot, float addARot, Vector3 addVeloc, Color addCol){
             if (suimonoModuleLibrary == null || suimonoModuleLibrary.fxObject == null || addRate <= 0) return;
             var systems = suimonoModuleLibrary.fxObject.fxParticles;
@@ -1011,52 +1014,28 @@ namespace Suimono.Core
 
 
 
-		void checkUnderwaterEffects(){
-
-			if (Application.isPlaying){
-				if (currentTransitionDepth > underwaterThreshold){
-				
-					if (suimonoObject != null){
-						if (enableUnderwaterFX && suimonoObject.enableUnderwater && currentObjectIsOver==1.0f){
-							
-							isUnderwater = true;
-							Shader.SetGlobalFloat("_Suimono_IsUnderwater",1.0f);
-							if (suimonoObject != null){
-								suimonoObject.useShader = suimonoObject.shader_Under;
-							}
-							if (suimonoModuleLibrary.causticHandlerObject != null){
-								suimonoModuleLibrary.causticHandlerObjectTrans.isUnderwater = true;
-								suimonoModuleLibrary.causticHandlerObject.isUnderwater = true;
-							}
-						}
-					}
-					
-				} else {
-					//swap camera rendering to back to default
-					isUnderwater = false;
-			   		Shader.SetGlobalFloat("_Suimono_IsUnderwater",0.0f);
-					if (suimonoObject != null){
-						suimonoObject.useShader = suimonoObject.shader_Surface;
-					}
-					if (suimonoModuleLibrary.causticHandlerObject != null){
-						suimonoModuleLibrary.causticHandlerObjectTrans.isUnderwater = false;
-						suimonoModuleLibrary.causticHandlerObject.isUnderwater = false;
-					}
-				}
-			}
-		}
-
-
-
-
-
+        void checkUnderwaterEffects(){
+            if (!Application.isPlaying) return;
+            isUnderwater = cameraIsSubmerged && enableUnderwaterFX &&
+                cameraWaterSurface != null && cameraWaterSurface.enableUnderwater;
+            Shader.SetGlobalFloat("_Suimono_IsUnderwater", isUnderwater ? 1f : 0f);
+            if (cameraWaterSurface != null)
+                cameraWaterSurface.useShader = isUnderwater ? cameraWaterSurface.shader_Under : cameraWaterSurface.shader_Surface;
+            if (suimonoModuleLibrary != null)
+            {
+                if (suimonoModuleLibrary.causticHandlerObjectTrans != null)
+                    suimonoModuleLibrary.causticHandlerObjectTrans.isUnderwater = isUnderwater;
+                if (suimonoModuleLibrary.causticHandlerObject != null)
+                    suimonoModuleLibrary.causticHandlerObject.isUnderwater = isUnderwater;
+            }
+        }
 		void checkWaterTransition () {
 		if (Application.isPlaying){
 
 			doTransitionTimer += _deltaTime;
 			
 			//SET COLORS
-			if (currentTransitionDepth > underwaterThreshold && currentObjectIsOver==1.0f){
+			if (isUnderwater){
 				
 				doWaterTransition = true;
 
@@ -1143,7 +1122,9 @@ namespace Suimono.Core
 				}
 
 		    } else {
-
+                // A pending underwater cancellation must not consume the exit transition
+                // if the fog component's LateUpdate runs after this component.
+                if (underwaterObject != null) underwaterObject.cancelTransition = false;
 		        //reset underwater debris
 		        if (suimonoModuleLibrary.underwaterDebris != null){
 		       		suimonoModuleLibrary.underwaterDebrisRendererComponent.enabled=false;
@@ -1274,6 +1255,18 @@ namespace Suimono.Core
 
 
 
+
+        // Allocation-free world height for flight wakes. Preserve the camera's selected water body.
+        public bool TryGetSurfaceHeight(Vector3 position, out float height) {
+            var previousSurface=currentSurfaceObject;
+            var previousObject=suimonoObject;
+            CalculateHeights(position);
+            height=getheight; // CalculateHeights already includes baseHeight; do not add it a second time.
+            bool found=isOverWater;
+            currentSurfaceObject=previousSurface;
+            suimonoObject=previousObject;
+            return found;
+        }
 
 		public float SuimonoGetHeight(Vector3 testObject, string returnMode) {
 
@@ -1474,9 +1467,7 @@ namespace Suimono.Core
 				targetSurface = hit.transform.gameObject;
 				if (currentSurfaceObject != targetSurface || suimonoObject == null){
 					currentSurfaceObject = targetSurface;
-					if (hit.transform.parent != null && hit.transform.parent.gameObject.GetComponent<Suimono.Core.SuimonoObject>() != null){
-						suimonoObject = hit.transform.parent.gameObject.GetComponent<Suimono.Core.SuimonoObject>();
-					}
+                    suimonoObject = hit.transform.GetComponentInParent<Suimono.Core.SuimonoObject>();
 				}
 
 				if (suimonoObject != null){

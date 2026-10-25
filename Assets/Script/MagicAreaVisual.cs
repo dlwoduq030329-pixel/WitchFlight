@@ -55,12 +55,14 @@ public sealed class MagicAreaVisual : MonoBehaviour
 
     public static void ThunderFlash(Vector3 point, float radius, MagicStatEntry stats)
     {
+        BattleAudio.PlayMagic(MagicType.Thunder, MagicSound.AreaWarning, point);
         CreateBurst(point, radius, stats.thunderFlashVfxPrefab, stats.thunderVfxReferenceRadius,
             1f, .01f, .14f, new Color(1f,.92f,.6f,.3f));
     }
 
     public static void ThunderBurst(Vector3 point, MagicStatEntry stats)
     {
+        BattleAudio.PlayMagic(MagicType.Thunder, MagicSound.Impact, point);
         float expand = stats.thunderBurstExpandSeconds > 0f ? stats.thunderBurstExpandSeconds : .12f;
         float start = stats.thunderBurstStartScale > 0f ? stats.thunderBurstStartScale : .08f;
         CreateBurst(point, stats.radius, stats.thunderBurstVfxPrefab != null ? stats.thunderBurstVfxPrefab : stats.impactVfxPrefab,

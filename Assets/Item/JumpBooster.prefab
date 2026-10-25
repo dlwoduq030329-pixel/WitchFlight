@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3196051113637178015}
+  - component: {fileID: 8724910352026102503}
   m_Layer: 0
   m_Name: JumpBooster
   m_TagString: Untagged
@@ -136,8 +137,24 @@ MeshCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 5
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &8724910352026102503
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5487999210794166400}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 247e4962d931b3a4886d6f852d4796c6, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  launchSpeed: 35
+  cooldownSeconds: 1
+  activationRadius: 2.5
+  activationOffset: {x: 0, y: 0.5, z: 0}

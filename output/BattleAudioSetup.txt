@@ -1,0 +1,76 @@
+전투 사운드 할당 안내
+
+Project에서 Assets/Resources/BattleAudioTable.asset 선택.
+별도로 씬에 드래그하지 않아도 런타임에 자동으로 읽습니다.
+Common Sounds 또는 Magic Sounds를 펼치고 해당 Audio의 Clip에 AudioClip을 넣으세요.
+비워둔 Clip은 무음이며 기본 사운드를 임의로 재생하지 않습니다.
+Resources 안의 이 파일 이름을 유지하세요. 새 테이블을 생성해도 자동으로 교체되지는 않습니다.
+
+공통 사운드 (Common Sounds)
+ParryReady: 느낌표가 패링 가능 표시로 바뀌는 순간. 본인에게만 재생.
+  같은 투사체는 한 번만 알립니다. 동시에 여러 발이면 0.12초 최소 간격으로 겹침을 제한합니다.
+  화면 밖 투사체 경고의 기존 조건을 따르며, 패링 불가/쿨타임/마나 부족 상태에는 울리지 않습니다.
+ParryStart / ParrySuccess: 패링 시도 / 패링 성공.
+DamageReceived / HitConfirmed: 피해를 받음 / 내 공격의 명중 확인.
+Death / Respawn: 사망 / 부활.
+HealingReceived: 실제 HP 회복 (회복 마법, 포션, 흡혈 등).
+MagicSlotChanged: 본인 마법 슬롯 변경.
+BoostStart / BoostLoop: 부스트 시작 / 유지 중 반복음.
+Portal: 포탈 출구 도착.
+HealthPotion / ManaPotion / BoosterPickup / Updraft: 각 아이템 사용 성공.
+InsufficientMana: 기존 MP 부족 피드백과 동시에 재생.
+PerkAvailable / PerkSelected: 새 특전 획득 기회 / 선택 확정.
+Emote: 감정표현 실행. 개별 애니메이션 내부 사운드와 중복되지 않게 사용하세요.
+KillNotice: 처치 UI 알림 (전체 관전자에게 표시되는 킬 로그 기준).
+FlagPickup / FlagDrop: 깃발 획득 / 드롭 알림.
+MatchIntro / Countdown / RoundStart: VS 시작 / 3·2·1 / 전투 시작.
+RoundWin / RoundLose: 본인 팀 기준 라운드 승리·패배.
+MatchVictory / MatchDefeat: 본인 팀 기준 최종 승리·패배.
+Binding / Slow / HitStun / Burn: 속박·둔화·경직·화상에 새로 걸릴 때.
+WallCrash: 최고 속도에서 벽 충돌 판정이 성공했을 때.
+UIClick / UIConfirm / UICancel: 사용자 제작 UI에서 수동으로 연결할 공용 항목.
+
+마법별 사운드 (Magic Sounds)
+마법 ID는 기존 MagicType/MagicStatTable과 같습니다.
+1 화염, 2 얼음, 3 비전, 4 천둥, 5 회복, 6 속박,
+7 암흑, 8 저주, 9 소환, 10 광선, 11 플레어, 12 연막.
+
+Lock Complete: 록온 완료. 시전자 본인에게만 재생.
+Cast: 마법 발동. 지속 시전 마법은 시작할 때 한 번.
+Projectile Loop: 투사체 비행 중 반복음. 소환 마법은 소환체 및 소환탄에도 적용.
+Impact: 타격/충돌 연출 시 재생. 얼음은 작은 투사체 모두 도착 후,
+  큰 투사체가 패링되거나 벽에 부딪히면 즉시 재생. 천둥은 실제 폭발 시 재생.
+Channel Loop / Channel End: 저주·광선의 지속 시전 중 반복음 / 종료음.
+Follow Up: 얼음 적중 후 작은 투사체 연출이 시작될 때 시전자 위치에서 한 번.
+Area Warning: 천둥의 지정 범위가 확정되어 번쩍일 때.
+Summon Attack: 소환체가 유도탄을 발사할 때.
+Effect Loop: 플레어 분사 / 연막 유지 중 반복음.
+
+각 마법에서 실제 사용하는 단계의 Clip만 넣으면 됩니다.
+예: 회복은 Cast + 공통 HealingReceived, 연막은 Cast + EffectLoop.
+지속음은 종료·사망·비활성화·투사체 제거·씬 종료 때 정리됩니다.
+시전음과 타격음은 각 클라이언트의 기존 전투 연출과 연결되어 있습니다.
+게임 시작 시 이미 지나간 피격/패링/라운드 이벤트를 다시 재생하지 않습니다.
+
+조절값
+Master Volume: 이 테이블 전체 음량.
+Output Mixer: 선택 사항. AudioMixerGroup으로 전체 전투 효과음 라우팅.
+Max Voices: 동시에 사용할 AudioSource 최대 개수 (기본 48).
+Volume / Pitch: 해당 효과음 음량 / 음높이.
+Minimum Interval: 같은 소리가 너무 빠르게 반복되지 않게 하는 최소 간격.
+Spatial Blend: 0=2D, 1=3D. 알림 및 본인 피드백은 항상 2D로 재생됩니다.
+Min Distance / Max Distance: 3D 효과음의 거리 감쇠 범위.
+Loop 항목은 런타임에서 반복 재생하므로 연결한 AudioClip이 자연스럽게 이어지도록 제작하세요.
+씬의 기존 AudioListener를 사용하며 새 AudioListener를 추가하지 않습니다.
+
+사용자 제작 UI / 애니메이션 이벤트 연결
+대상 오브젝트에 BattleAudioEvent 컴포넌트를 추가합니다.
+Sound에서 UIClick, UIConfirm, UICancel 등 원하는 공통 항목을 선택합니다.
+Button OnClick에 BattleAudioEvent.PlaySound()를 연결합니다.
+애니메이션 이벤트에서도 같은 PlaySound 함수를 호출할 수 있습니다.
+Screen Sound가 켜져 있으면 2D, 꺼져 있으면 해당 오브젝트 위치에서 재생합니다.
+이미 자동 연결된 전투 이벤트에 추가 연결하면 중복될 수 있습니다.
+
+검증
+코드 컴파일 및 오디오 런타임의 중복 제한·반복음 종료·풀 재사용·라운드 알림 검사를 수행했습니다.
+실제 클립은 미할당 상태이므로 청음 및 2인/4인 네트워크 플레이 검증은 별도로 필요합니다.

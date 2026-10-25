@@ -11,6 +11,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
     private ParticleSystem[] flareParticles;
     private float flareBackOffset, flareEmissionUntil, flareCleanupAt;
     private bool isFlare, flareStopped;
+    private BattleAudio.Loop effectAudio;
 
     public static void PlayFlare(Player caster, Vector3 origin, Vector3 rear, MagicStatEntry stats)
     {
@@ -20,6 +21,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         root.transform.SetPositionAndRotation(position, Quaternion.LookRotation(rear));
         var visual = root.AddComponent<UtilityMagicVisual>();
         visual.isFlare = true;
+        visual.effectAudio = BattleAudio.StartMagicLoop(MagicType.Flare, MagicSound.EffectLoop, root.transform);
         visual.flareOwner = caster;
         visual.flareBackOffset = Mathf.Max(0f, stats.flareVfxBackOffset);
         GameObject custom = CombatPresentation.InstantiateVfx(stats.utilityVfxPrefab, position,
@@ -107,6 +109,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
     private void StopFlareEmission()
     {
         flareStopped = true;
+        effectAudio.Stop();
         flareOwner = null;
         // Allow existing particles to fade, with a hard bound for supplied looping sub-emitters.
         flareCleanupAt = Time.time + 8f;
@@ -128,6 +131,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         var root = new GameObject("Smoke cloud (local VFX)");
         root.transform.position = center;
         var visual = root.AddComponent<UtilityMagicVisual>();
+        visual.effectAudio = BattleAudio.StartMagicLoop(MagicType.Smoke, MagicSound.EffectLoop, root.transform);
         GameObject custom = CombatPresentation.InstantiateVfx(prefab, center, Quaternion.identity, root.transform);
         if (custom != null)
         {
@@ -198,6 +202,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
 
     private void OnDestroy()
     {
+        effectAudio.Stop();
         if (ownedMaterial != null) Destroy(ownedMaterial);
         if (ownedFlareMaterial != null) Destroy(ownedFlareMaterial);
     }

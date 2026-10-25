@@ -30,12 +30,14 @@ public partial class Player
         {
             if (!IsPositiveFiniteItemValue(healing)) return false;
             RestoreHealth(healing); // Existing health/HUD/PlayerData notification path.
+            RPC_PlayBattleSound(BattleSound.HealthPotion);
             return true;
         }
         if (type == BattleItemType.ManaPotion)
         {
             if (!IsPositiveFiniteItemValue(manaRecovery)) return false;
             RestoreAp(manaRecovery); // Existing replicated MP/PlayerData notification path.
+            RPC_PlayBattleSound(BattleSound.ManaPotion);
             return true;
         }
         if (!IsPositiveFiniteItemValue(multiplier) || multiplier <= 1f ||
@@ -46,6 +48,7 @@ public partial class Player
         float remaining = ItemSpeedBoostRemaining;
         ItemBoostMultiplier = Mathf.Max(HasItemSpeedBoost ? ItemBoostMultiplier : 1f, multiplier);
         ItemBoostTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(remaining, seconds));
+        RPC_PlayBattleSound(BattleSound.BoosterPickup);
         return true;
     }
 

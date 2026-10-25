@@ -26,6 +26,8 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     private bool initialized;
     private ProjectilePredictionView view;
     private bool impactPresented;
+    private bool audioStarted;
+    private BattleAudio.Loop flightAudio;
     private bool iceFollowUpPresented;
     private bool iceFollowUpStarted;
     private bool iceDamagePending;
@@ -39,6 +41,8 @@ public sealed partial class MagicProjectile : NetworkBehaviour
 
     public override void Spawned()
     {
+        flightAudio.Stop();
+        audioStarted = false;
         impactPresented = false;
         iceFollowUpPresented = false;
         iceFollowUpStarted = false;
@@ -408,8 +412,10 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         => TryGetIncomingThreat(observer, range, out distance, out _);
 
     public static bool TryGetIncomingThreat(Player observer, float range, out float distance, out MagicProjectile nearest,
-        float warningLeadSeconds = 0f, System.Predicate<MagicProjectile> candidateFilter = null)
+        float warningLeadSeconds = 0f, System.Predicate<MagicProjectile> candidateFilter = null,
+        List<MagicProjectile> threats = null)
     {
+        threats?.Clear();
         distance = range;
         nearest = null;
         if (observer == null || observer.Object == null || !observer.Object.IsValid) return false;
@@ -428,6 +434,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             // A visible foreground shot must not mask a different off-screen threat.
             if (candidateFilter != null && !candidateFilter(shot)) continue;
             if (!HasBlastSight(shot.transform.position, observer)) continue;
+            threats?.Add(shot);
             float candidateDistance = Mathf.Sqrt(sqr);
             // Prefer the first predicted collision, not a nearby but slow/passing projectile.
             float score = timed ? impactSeconds : 10000f + candidateDistance;
@@ -505,9 +512,11 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     {
         if (iceFollowUpPresented || Magic != MagicType.Ice) return;
         iceFollowUpPresented = true;
+        flightAudio.Stop();
         if (!Runner.TryFindObject(ShooterId, out NetworkObject shooter) || shooter == null) return;
         Player caster = shooter.GetComponent<Player>();
         if (caster == null) return;
+        BattleAudio.PlayMagic(MagicType.Ice, MagicSound.FollowUp, caster.MagicCastPosition, caster.transform);
         Player victim = Runner.TryFindObject(victimId, out NetworkObject hit) && hit != null
             ? hit.GetComponent<Player>() : null;
         iceFollowUpStarted = IceImpactFollowUpVisual.Play(caster, victim, impactPoint, caster.MagicTable, launchInterval, flightSeconds);
@@ -516,6 +525,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_Impact(Vector3 position, MagicType magic)
     {
+        flightAudio.Stop();
         impactPresented = true;
         if (IsConstruct) ClearConstructVisual(true);
         if (view != null) view.ConfirmImpact();
@@ -534,6 +544,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     public override void Render()
     {
         if (Magic == MagicType.None) return;
+        UpdateFlightAudio();
         if (IsConstruct) { RenderConstruct(); return; }
         if (view == null) view = ProjectilePredictionView.Attach(this, PresentationStats);
         if (Finished || impactPresented) view.ConfirmImpact();
@@ -541,6 +552,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        flightAudio.Stop();
         active.Remove(this);
         ClearConstructVisual(true);
         if (view != null) Destroy(view.gameObject);
@@ -550,7 +562,21 @@ public sealed partial class MagicProjectile : NetworkBehaviour
 
     private void OnDestroy()
     {
+        flightAudio.Stop();
         ClearConstructVisual();
         active.Remove(this);
+    }
+
+    private void UpdateFlightAudio()
+    {
+        if (Finished || impactPresented) { flightAudio.Stop(); return; }
+        if (!audioStarted)
+        {
+            audioStarted = true;
+            if (ConstructKind != MagicConstructKind.ThunderArea)
+                flightAudio = BattleAudio.StartMagicLoop(Magic, MagicSound.ProjectileLoop, transform);
+            if (ConstructKind == MagicConstructKind.SummonBolt)
+                BattleAudio.PlayMagic(Magic, MagicSound.SummonAttack, transform.position);
+        }
     }
 }

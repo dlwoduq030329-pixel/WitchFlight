@@ -980,19 +980,7 @@ namespace Suimono.Core
 				//-------------------------------------------------------
 				//###  enable / disable infinite scale surface  ###
 				//-------------------------------------------------------
-				if (typeIndex == 0 && Application.isPlaying){
-					if (moduleObject.isUnderwater){
-						if (scaleRenderer != null) scaleRenderer.enabled = false;
-						if (scaleCollider != null) scaleCollider.enabled = false;
-
-					} else {
-						if (scaleRenderer != null) scaleRenderer.enabled = true;
-						if (scaleCollider != null) scaleCollider.enabled = true;
-					}
-				} else {
-					if (scaleRenderer != null) scaleRenderer.enabled = false;
-					if (scaleCollider != null) scaleCollider.enabled = false;
-				}
+                UpdateInfiniteSurfaceVisibility();
 
 
 
@@ -1755,6 +1743,17 @@ namespace Suimono.Core
 
 
 
+
+        private void UpdateInfiniteSurfaceVisibility()
+        {
+            bool infiniteOcean = typeIndex == 0 && Application.isPlaying;
+            if (scaleRenderer != null)
+                scaleRenderer.enabled = infiniteOcean && !moduleObject.isUnderwater;
+            // Height queries still need the water collider when the far surface is hidden.
+            // Disabling it underwater creates an enter -> missed query -> exit feedback loop.
+            // The water physics layer already excludes player collisions.
+            if (scaleCollider != null) scaleCollider.enabled = infiniteOcean;
+        }
 
 	}
 }

@@ -1,0 +1,1383 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c83c085d698148398d8f9c26b3c4d691, type: 3}
+  m_Name: BattleAudioTable
+  m_EditorClassIdentifier:
+  masterVolume: 1
+  outputMixer: {fileID: 0}
+  maxVoices: 48
+  commonSounds:
+  - label: ParryReady - 패링 가능 타이밍
+    sound: 0
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.12
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: ParryStart - 패링 시도
+    sound: 1
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: ParrySuccess - 패링 성공
+    sound: 2
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: DamageReceived - 피해 받음
+    sound: 3
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: HitConfirmed - 공격 명중 확인
+    sound: 4
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Death - 사망
+    sound: 5
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Respawn - 부활
+    sound: 6
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: HealingReceived - 회복 받음
+    sound: 7
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: MagicSlotChanged - 마법 슬롯 변경
+    sound: 8
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: BoostStart - 부스트 시작
+    sound: 9
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: BoostLoop - 부스트 지속
+    sound: 10
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Portal - 포탈 이동
+    sound: 11
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: HealthPotion - HP 포션 획득
+    sound: 12
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: ManaPotion - MP 포션 획득
+    sound: 13
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: BoosterPickup - 속도 부스터 획득
+    sound: 14
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Updraft - 상승기류
+    sound: 15
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: InsufficientMana - 마나 부족
+    sound: 16
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.25
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: PerkAvailable - 특전 선택 가능
+    sound: 17
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: PerkSelected - 특전 선택 완료
+    sound: 18
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Emote - 감정표현
+    sound: 19
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: KillNotice - 처치 알림
+    sound: 20
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: FlagPickup - 깃발 획득
+    sound: 21
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: FlagDrop - 깃발 드롭
+    sound: 22
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: MatchIntro - VS 시작
+    sound: 23
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Countdown - 카운트다운
+    sound: 24
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: RoundStart - 라운드 시작
+    sound: 25
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: RoundWin - 라운드 승리
+    sound: 26
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: RoundLose - 라운드 패배
+    sound: 27
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: MatchVictory - 최종 승리
+    sound: 28
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: MatchDefeat - 최종 패배
+    sound: 29
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Binding - 속박
+    sound: 30
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Slow - 둔화
+    sound: 31
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: HitStun - 경직
+    sound: 32
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Burn - 화상
+    sound: 33
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: WallCrash - 벽 충돌
+    sound: 34
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: UIClick - UI 클릭 (수동 연결)
+    sound: 35
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: UIConfirm - UI 확인 (수동 연결)
+    sound: 36
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: UICancel - UI 취소 (수동 연결)
+    sound: 37
+    audio:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.06
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  magicSounds:
+  - label: Fire 화염
+    magic: 1
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Ice 얼음
+    magic: 2
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Vision 비전
+    magic: 3
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Thunder 천둥
+    magic: 4
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Healing 회복
+    magic: 5
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Binding 속박
+    magic: 6
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Dark 암흑
+    magic: 7
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Curse 저주
+    magic: 8
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Mine 소환
+    magic: 9
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Razier 광선
+    magic: 10
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Flare 플레어
+    magic: 11
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: Smoke 연막
+    magic: 12
+    lockComplete:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80

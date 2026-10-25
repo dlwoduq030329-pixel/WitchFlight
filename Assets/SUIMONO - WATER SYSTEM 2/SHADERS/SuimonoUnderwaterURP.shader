@@ -52,24 +52,26 @@ half4 Frag(Varyings i):SV_Target {
    float3 direction=normalize(WorldAt(duv)-_WorldSpaceCameraPos);
    float depthFac=saturate(lerp(.3,1.6,dot(direction,float3(0,-1,0))));
    Light sun=GetMainLight();
-   half3 fogColor=_WaterColor.rgb*.25;
+   half3 fogColor=_WaterColor.rgb*.65;
 #ifdef UNITY_COLORSPACE_GAMMA
    fogColor*=2.2;
 #endif
-   fogColor=lerp(fogColor,fogColor*.1,depthFac);
+   // Keep downward/deep views readable instead of fading nearly to black.
+   fogColor=lerp(fogColor,fogColor*.55,depthFac);
    float lightFac=saturate(lerp(0,.8,dot(direction,sun.direction))-depthFac);
    fogColor=lerp(fogColor,fogColor*2,lightFac);
    float lightFac2=saturate(lerp(-5,.5,dot(direction,sun.direction))-depthFac)*2;
    fogColor=lerp(fogColor,fogColor*1.4,lightFac2);
    fogColor*=_WaterLight.rgb*_WaterFog.z;
    float heightDark=saturate(lerp(-.2,1,saturate(max(0,_WaterLevel-_WorldSpaceCameraPos.y)/_HeightFog.z)));
-   fogColor=lerp(fogColor,fogColor*.05,heightDark);
+   fogColor=lerp(fogColor,fogColor*.35,heightDark);
    // Original ten depth-aware blur offsets. Each sample receives its own fog amount.
    const float2 taps[10]={float2(1,1),float2(-1,-1),float2(1,-1),float2(-1,1),float2(-1,1),float2(1,-1),float2(.5,.5),float2(-.5,-.5),float2(.25,-.25),float2(.25,-.25)};
    float2 blur=_BlitTexture_TexelSize.xy*_WaterDistort.w*4*FogAt(duv,5);
    half3 sum=0;
    [unroll] for(int n=0;n<10;n++) {float2 sampleUV=duv+blur*taps[n];sum+=lerp(Scene(sampleUV),fogColor,FogAt(sampleUV,_FogOptions.w));}
-   result=lerp(sum*.1,fogColor*_WaterLight.rgb*_WaterFog.z,FogAt(duv,_FogOptions.w));
+   // Each tap already contains fog and lighting; applying both again crushes visibility.
+   result=sum*.1;
  } else {
    float3 baseTex=UnpackNormal(tex2D(_DistortTex,uv*.4-float2(_Time.x*1.3,_Time.x*1.3)));
    float baseDis=uv.x+baseTex.x*.05;

@@ -10,6 +10,13 @@ public sealed class MapBoundaryTable : ScriptableObject
     public float zmin = -200f;
     public float zmax = 200f;
 
+    [Header("Lower boundary / solid floor (world Y)")]
+    public bool lowerLimitEnabled = false;
+    [Tooltip("플레이어 위치가 이 월드 Y 좌표 아래로 내려가지 못하도록 막습니다. 자동 복귀는 실행하지 않습니다.")]
+    public float ymin = -50f;
+    public bool HasValidLowerLimit => IsFinite(ymin) &&
+        (!altitudeLimitEnabled || !HasValidAltitudeLimit || ymin < altitudeFadeStartY);
+
     [Header("Altitude blackout / death (world Y)")]
     public bool altitudeLimitEnabled = true;
     public float ymax = 100f;
@@ -39,14 +46,28 @@ public sealed class MapBoundaryTable : ScriptableObject
 
     public bool Contains(Vector3 position)
     {
+        // Only horizontal edges trigger the automatic U-turn.
         return position.x >= xmin && position.x <= xmax && position.z >= zmin && position.z <= zmax;
+    }
+
+    public Vector3 ClampToLowerLimit(Vector3 position)
+    {
+        if (boundaryEnabled && lowerLimitEnabled && HasValidLowerLimit)
+            position.y = Mathf.Max(position.y, ymin);
+        return position;
+    }
+
+    public Vector3 ConstrainMovement(Vector3 position, Vector3 movement)
+    {
+        return ClampToLowerLimit(position + movement) - position;
     }
 
     public Vector3 ClampInside(Vector3 position)
     {
         float xInset = Mathf.Clamp(returnInset, 0.1f, (xmax - xmin) * 0.45f);
         float zInset = Mathf.Clamp(returnInset, 0.1f, (zmax - zmin) * 0.45f);
-        return new Vector3(Mathf.Clamp(position.x, xmin + xInset, xmax - xInset), position.y,
+        float y = ClampToLowerLimit(position).y;
+        return new Vector3(Mathf.Clamp(position.x, xmin + xInset, xmax - xInset), y,
             Mathf.Clamp(position.z, zmin + zInset, zmax - zInset));
     }
 
