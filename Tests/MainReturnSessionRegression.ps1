@@ -33,7 +33,7 @@ namespace ReturnChecks {
   public bool TryLoadPlayerSetting(bool apply){LoadCount++;HasLoadedProfile=LoadResult;return LoadResult;}
   public void SuspendLobbyInitialization(){IsDataConfigReady=false;SuspendCount++;}
  }
- public class LonginLink {public UnityEngine.GameObject gameObject=new();}
+ public class LonginLink {public UnityEngine.GameObject gameObject=new();public void ShowStatus(string message){}}
  public class LobbyPlayerInitializer {
   public int ApplyCount,RefreshCount;public bool ApplyResult=true;
   public bool InitializeFromLoadedData(){ApplyCount++;DatabaseManager.Instance.IsDataConfigReady=ApplyResult;return ApplyResult;}

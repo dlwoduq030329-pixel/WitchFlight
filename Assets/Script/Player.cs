@@ -2306,7 +2306,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             Alive = IsAlive,
             Intro = battle != null && battle.Phase == BattleStartPhase.Intro,
             Playing = battle != null && battle.IsGameplayActive,
-            TopSpeed = Mathf.Abs(SpeedStage) >= 3,
+            TopSpeed = broomAnimation.UseFastPose(SpeedStage, Mathf.Abs(Speed) / Mathf.Max(1f, flightMaxSpeed)),
             Disarmed = CurrentMagicSlot == 3,
             Attacking = LockProgress > 0f || IsChanneling || areaAimArmed,
             Parrying = IsParrying,

@@ -77,6 +77,7 @@ public class CameraFollow : MonoBehaviour
     private Transform head;
     private bool wasFaceView;
     private Camera viewCamera;
+    private SpeedCameraEffects speedEffects;
     private int originalCullingMask;
     private bool boundaryCameraFrozen;
     private Vector3 boundaryCameraPosition;
@@ -126,6 +127,7 @@ public class CameraFollow : MonoBehaviour
     private void OnEnable()
     {
         viewCamera = GetComponent<Camera>();
+        speedEffects = GetComponent<SpeedCameraEffects>();
         if (viewCamera == null)
             return;
         originalCullingMask = viewCamera.cullingMask;
@@ -465,7 +467,8 @@ public class CameraFollow : MonoBehaviour
         float kickDistance = UpdateTopSpeedKick(canKick);
         // Keep the baseline offset and mouse steering unchanged; add the temporary
         // dolly only to the displayed camera pose, so it cannot accumulate or drift.
-        Vector3 displayOffset = currentLocalOffset + Vector3.back * kickDistance;
+        float flightDistance = canKick && speedEffects != null ? speedEffects.FlightCameraDistance : 0f;
+        Vector3 displayOffset = currentLocalOffset + Vector3.back * (kickDistance + flightDistance);
         Vector3 desiredPosition = rawPosition + rawRotation * displayOffset;
         if (boundaryReturnBlending)
         {

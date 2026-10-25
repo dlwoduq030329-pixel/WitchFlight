@@ -164,6 +164,7 @@ public sealed class LoginFlowController : MonoBehaviour
         SetActive(loginPanel, true);
         if (loginForm != null) loginForm.gameObject.SetActive(true);
         if (errorText != null) errorText.text = message;
+        if (loginForm != null) loginForm.ShowStatus(message);
         SetActive(errorPanel, true);
         Debug.LogError(message);
         onFlowFailed.Invoke(message);

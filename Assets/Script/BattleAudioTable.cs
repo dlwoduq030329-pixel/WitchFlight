@@ -68,6 +68,12 @@ public sealed class BattleAudioTable : ScriptableObject
     [Range(0f, 1f)] public float masterVolume = 1f;
     public AudioMixerGroup outputMixer;
     [Range(8, 128)] public int maxVoices = 48;
+    [Header("Local flight speed sounds")]
+    public AudioClip flightWindClip;
+    [Range(0f, 1f)] public float flightWindVolume = .18f;
+    [Tooltip("비워두면 비행 바람을 짧게 부풀렸다 줄이는 소리로 사용합니다.")]
+    public AudioClip flightPassClip;
+    [Range(0f, 1f)] public float flightPassVolume = .3f;
     public BattleSoundEntry[] commonSounds = Array.Empty<BattleSoundEntry>();
     public MagicSoundEntry[] magicSounds = Array.Empty<MagicSoundEntry>();
 

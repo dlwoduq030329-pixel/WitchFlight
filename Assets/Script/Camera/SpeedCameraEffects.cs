@@ -10,6 +10,9 @@ using UnityEngine.Rendering.Universal;
 public sealed class SpeedCameraEffects : MonoBehaviour
 {
     [SerializeField] private Volume speedVolume;
+    [Header("Flight sensation (actual speed / acceleration / scenery)")]
+    [SerializeField] private FlightSpeedPresentation flightSensation = new();
+    public float FlightCameraDistance => flightSensation != null ? flightSensation.CameraDistance : 0f;
     [Header("Death presentation")]
     [SerializeField] private bool deathGrayscale = true;
     [Header("Stage 3 effects")]
@@ -24,7 +27,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [SerializeField, Range(0f, 0.2f)] private float motionBlurClamp = 0.12f;
     [SerializeField, Min(0.01f)] private float transitionSpeed = 5f;
     [Header("Stage-based field of view (added to the camera's base FOV)")]
-    [Tooltip("실제 속도/빗자루 종류가 아니라 전진 속도 단계로 정합니다. 정지/후진은 기본 FOV입니다.")]
+    [Tooltip("전진 단계별 FOV 증가 상한입니다. Flight Sensation을 켜면 실제 이동속도에 따라 증가하며, 정지/후진은 기본 FOV로 돌아갑니다.")]
     [SerializeField, Range(0f, 30f)] private float stage1FieldOfViewIncrease = 3f;
     [SerializeField, Range(0f, 30f)] private float stage2FieldOfViewIncrease = 6f;
     [InspectorName("Stage 3 Field Of View Increase")]
@@ -190,6 +193,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
         bool boundaryView = player != null && player.Object != null && player.Object.IsValid &&
             (player.IsReturningToMap || (cameraFollow != null && cameraFollow.IsBoundaryPresentationActive));
+        flightSensation.Update(player, transform, canShow && !boundaryView);
         playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur, playerMotionBlur, !boundaryView);
 
         if (!canShow)
@@ -205,20 +209,23 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
         UpdatePlayerMotionVectors(player);
         UpdateInnerRadius(player.CurrentSpeedStage, player.IsBoosting);
-        UpdateFieldOfView(boundaryView ? 0 : player.CurrentSpeedStage);
+        int displayStage = boundaryView ? 0 : player.CurrentSpeedStage;
+        UpdateFieldOfView(displayStage, false, flightSensation.FieldOfViewScale(displayStage),
+            flightSensation.ExtraFieldOfView);
 
         // Extra peripheral blur follows real forward speed; selecting stage 3 at rest
         // does not trigger it. Boost reaches the same capped maximum, never an overload.
         float speedBlend = Mathf.InverseLerp(Mathf.Clamp(peripheralBlurStartSpeedRatio, 0f, 0.99f),
             1f, player.ForwardCruiseSpeedRatio);
-        float peripheralTarget = enablePeripheralBlur ? Mathf.SmoothStep(0f, 1f, speedBlend) : 0f;
+        float peripheralTarget = enablePeripheralBlur && !boundaryView
+            ? Mathf.SmoothStep(0f, 1f, speedBlend) * flightSensation.BlurWeight : 0f;
         peripheralWeight = Mathf.Lerp(peripheralWeight, peripheralTarget,
             1f - Mathf.Exp(-Mathf.Max(0.01f, transitionSpeed) * Time.unscaledDeltaTime));
         if (Mathf.Abs(peripheralWeight - peripheralTarget) < 0.001f) peripheralWeight = peripheralTarget;
 
-        // Stage selection is intentional; this does not wait for actual max speed.
-        // Reverse stage -3 and somebody else's stage never activate the effect.
-        float target = player.CurrentSpeedStage == 3 ? 1f : 0f;
+        // Build with actual speed, leaving contrast for acceleration and boost.
+        // Disabling Flight Sensation restores the previous stage-only response.
+        float target = player.CurrentSpeedStage == 3 && !boundaryView ? flightSensation.BlurWeight : 0f;
         float weight = Mathf.Lerp(effectWeight, target,
             1f - Mathf.Exp(-Mathf.Max(0.01f, transitionSpeed) * Time.unscaledDeltaTime));
         if (Mathf.Abs(weight - target) < 0.001f)
@@ -242,6 +249,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         // Follow actual boost state: release, mana exhaustion and stun end the override.
         if (useBoostInnerRadius && isBoosting)
             targetRadius = innerRadiusBoost;
+        targetRadius = Mathf.Max(targetRadius, flightSensation.ClearRadius);
         targetRadius = Mathf.Clamp(targetRadius, 0f, 0.9f);
         // Do not carry the previous player's/phase's radius into a new presentation.
         currentInnerRadius = !hasInnerRadius ? targetRadius : Mathf.Lerp(currentInnerRadius, targetRadius,
@@ -264,14 +272,15 @@ public sealed class SpeedCameraEffects : MonoBehaviour
             motionBlur.clamp.Override(motionBlurClamp);
         }
         if (windLines != null)
-            windLines.SetPresentation(showWindLines ? weight * windOpacity * (1f - altitudeFullBlack) : 0f,
-                windColor, windLineCount, windSpeed, windMinWidth, windMaxWidth);
+            windLines.SetPresentation(showWindLines ?
+                (flightSensation.enabled ? flightSensation.WindWeight : weight) * windOpacity * (1f - altitudeFullBlack) : 0f,
+                windColor, windLineCount, windSpeed * flightSensation.WindTravel, windMinWidth, windMaxWidth);
     }
 
-    private void UpdateFieldOfView(int stage, bool immediate = false)
+    private void UpdateFieldOfView(int stage, bool immediate = false, float speedScale = 1f, float additional = 0f)
     {
         float target = StageFieldOfViewIncrease(stage, stage1FieldOfViewIncrease,
-            stage2FieldOfViewIncrease, extraFieldOfView);
+            stage2FieldOfViewIncrease, extraFieldOfView) * Mathf.Clamp01(speedScale) + Mathf.Max(0f, additional);
         fieldOfViewIncrease = immediate ? target : Mathf.Lerp(fieldOfViewIncrease, target,
             1f - Mathf.Exp(-Mathf.Max(0.01f, fieldOfViewTransitionSpeed) * Time.unscaledDeltaTime));
         if (Mathf.Abs(fieldOfViewIncrease - target) < 0.001f) fieldOfViewIncrease = target;
@@ -393,6 +402,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnDisable()
     {
+        flightSensation.Dispose();
         playerBlur?.Dispose();
         playerBlur = null;
         RestorePlayerMotionVectors();

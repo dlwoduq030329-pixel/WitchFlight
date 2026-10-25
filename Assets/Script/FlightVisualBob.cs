@@ -17,6 +17,8 @@ public sealed class FlightVisualBob : MonoBehaviour
     [SerializeField, Min(0.01f)] private float fullAmplitudeSpeed = 10f;
     [Tooltip("흔들림이 나타나고 사라지는 반응성입니다.")]
     [SerializeField, Min(0.01f)] private float blendSpeed = 4f;
+    [Tooltip("고속에서는 상하 출렁임을 줄여 안정적인 활공 자세를 유지합니다.")]
+    [SerializeField, Range(0f, 1f)] private float highSpeedBobMultiplier = .35f;
 
     [Header("Turn banking")]
     [Tooltip("선회 시 최대 기울기(도). 0이면 기울임을 끕니다.")]
@@ -112,8 +114,10 @@ public sealed class FlightVisualBob : MonoBehaviour
             phase = 0f;
         }
         phase = Mathf.Repeat(phase + Time.deltaTime * frequency * Mathf.PI * 2f, Mathf.PI * 2f);
+        float glideMultiplier = Mathf.Lerp(1f, highSpeedBobMultiplier,
+            Mathf.SmoothStep(0f, 1f, owner.ForwardCruiseSpeedRatio));
         Vector3 worldOffset = frequency > 0f
-            ? Vector3.up * (Mathf.Sin(phase) * amplitude * blend) : Vector3.zero;
+            ? Vector3.up * (Mathf.Sin(phase) * amplitude * blend * glideMultiplier) : Vector3.zero;
 
         // Sample the rendered network root, not local keyboard input: opponents bank
         // too, without adding a second network movement/rotation system.
