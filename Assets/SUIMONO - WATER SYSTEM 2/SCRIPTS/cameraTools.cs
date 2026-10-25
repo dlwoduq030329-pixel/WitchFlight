@@ -410,6 +410,43 @@ namespace Suimono.Core
 
 
 		        static bool renderingUrpCapture;
+        WaterCaptureSettings captureSettings;
+        SuimonoModule settingsModule;
+        bool captureInitialized;
+        float lastCaptureTime;
+        Vector3 lastCapturePosition;
+        Quaternion lastCaptureRotation;
+        Matrix4x4 lastCaptureProjection;
+        Camera lastCaptureCamera;
+        bool lastCaptureUnderwater;
+        int lastCaptureResolution;
+
+        bool CanReuseUrpCapture() {
+            if (captureSettings == null || !captureSettings.isActiveAndEnabled ||
+                cameraType == suiCamToolType.shorelineObject) return false;
+            bool reflectionCamera = cameraType == suiCamToolType.localReflection;
+            bool changed = copyCam != lastCaptureCamera || resolution != lastCaptureResolution ||
+                copyCam.nonJitteredProjectionMatrix != lastCaptureProjection ||
+                suimonoModuleObject.isUnderwater != lastCaptureUnderwater || renderTexDiff == null ||
+                renderTexDiff.format != CaptureTextureFormat();
+            return !WaterCaptureSettings.NeedsRefresh(captureInitialized, Time.unscaledTime-lastCaptureTime,
+                reflectionCamera ? captureSettings.reflectionFramesPerSecond : captureSettings.screenCaptureFramesPerSecond,
+                (copyCam.transform.position-lastCapturePosition).sqrMagnitude,
+                reflectionCamera ? captureSettings.reflectionMovementThreshold : captureSettings.screenMovementThreshold,
+                Quaternion.Angle(copyCam.transform.rotation,lastCaptureRotation),
+                reflectionCamera ? captureSettings.reflectionRotationThreshold : captureSettings.screenRotationThreshold, changed);
+        }
+
+        void RememberUrpCapture() {
+            captureInitialized=true; lastCaptureTime=Time.unscaledTime;
+            lastCaptureCamera=copyCam; lastCapturePosition=copyCam.transform.position;
+            lastCaptureRotation=copyCam.transform.rotation;
+            lastCaptureProjection=copyCam.nonJitteredProjectionMatrix;
+            lastCaptureUnderwater=suimonoModuleObject.isUnderwater; lastCaptureResolution=resolution;
+        }
+
+        void OnDisable() { captureInitialized=false; }
+
         void UpdateUrpCamera() {
             if (cam == null) cam = GetComponent<Camera>();
             cam.enabled = false;
@@ -418,6 +455,10 @@ namespace Suimono.Core
             SetCopyCamera();
             if (copyCam == null || suimonoModuleObject == null) return;
             var module = suimonoModuleObject;
+            if (settingsModule != module) {
+                settingsModule=module; captureSettings=module.GetComponent<WaterCaptureSettings>();
+                captureInitialized=false;
+            }
             var mainData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(copyCam);
             mainData.requiresDepthTexture = true; mainData.requiresColorTexture = true;
             if (!Application.isPlaying && cameraType != suiCamToolType.shorelineObject) return;
@@ -426,7 +467,9 @@ namespace Suimono.Core
             }
             if (cameraType == suiCamToolType.transparent && !module.enableTransparency) { Shader.SetGlobalFloat("_SuimonoCaptureValid",0); return; }
             if (cameraType == suiCamToolType.transparentCaustic && (!module.enableCaustics || !module.enableCausticsBlending)) return;
-            if (renderTexDiff == null || currResolution != resolution) { currResolution=resolution; UpdateRenderTex(); }
+            if (CanReuseUrpCapture()) return;
+            if (renderTexDiff == null || currResolution != resolution || renderTexDiff.format != CaptureTextureFormat())
+                { currResolution=resolution; UpdateRenderTex(); }
             if (cameraType != suiCamToolType.shorelineObject && cameraType != suiCamToolType.localReflection) {
                 cam.transform.SetPositionAndRotation(copyCam.transform.position,copyCam.transform.rotation);
                 cam.worldToCameraMatrix=copyCam.worldToCameraMatrix;
@@ -434,10 +477,22 @@ namespace Suimono.Core
                 cam.nearClipPlane=copyCam.nearClipPlane; cam.farClipPlane=copyCam.farClipPlane;
                 cam.orthographic=copyCam.orthographic; cam.orthographicSize=copyCam.orthographicSize;
                 cam.fieldOfView=copyCam.fieldOfView; cam.aspect=copyCam.aspect;
+                if (captureSettings != null && captureSettings.isActiveAndEnabled &&
+                    (cameraType == suiCamToolType.transparent || cameraType == suiCamToolType.transparentCaustic)) {
+                    cam.farClipPlane=Mathf.Max(cam.nearClipPlane+.1f,
+                        Mathf.Min(copyCam.farClipPlane, Mathf.Min(module.transRenderDistance*1.2f, captureSettings.transparencyRenderDistance)));
+                    cam.ResetProjectionMatrix(); // A copied projection otherwise keeps the original far plane.
+                }
                 if (cameraOffset != 0) {cam.transform.Translate(Vector3.forward*cameraOffset);cam.ResetWorldToCameraMatrix();}
             }
             var cameraData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(cam);
             cameraData.renderPostProcessing=false; cameraData.requiresColorTexture=false; cameraData.requiresDepthTexture=true;
+            if (captureSettings != null && captureSettings.isActiveAndEnabled) {
+                cameraData.SetRenderer(captureSettings.rendererIndex);
+                cameraData.renderShadows=captureSettings.captureShadows;
+                cameraData.requiresDepthTexture=cameraType != suiCamToolType.normals &&
+                    cameraType != suiCamToolType.wakeEffects && cameraType != suiCamToolType.shorelineCapture;
+            }
             bool savedCulling=GL.invertCulling;
             try {
                 renderingUrpCapture=true;
@@ -451,6 +506,7 @@ namespace Suimono.Core
                 var request=new UnityEngine.Rendering.Universal.UniversalRenderPipeline.SingleCameraRequest {destination=renderTexDiff};
                 if (!RenderPipeline.SupportsRenderRequest(cam,request)) return;
                 RenderPipeline.SubmitRenderRequest(cam,request);
+                RememberUrpCapture();
                 switch(cameraType) {
                     case suiCamToolType.transparent:
                         Shader.SetGlobalTexture("_suimono_TransTex",renderTexDiff);
@@ -483,18 +539,26 @@ namespace Suimono.Core
             if (renderTexDiff != null) { if(cam!=null) cam.targetTexture=null; renderTexDiff.Release(); DestroyImmediate(renderTexDiff); }
             if(cameraType==suiCamToolType.transparent) Shader.SetGlobalFloat("_SuimonoCaptureValid",0);
         }
+        RenderTextureFormat CaptureTextureFormat() {
+            bool half = captureSettings != null && captureSettings.isActiveAndEnabled && captureSettings.halfPrecisionTextures &&
+                cameraType != suiCamToolType.shorelineObject && cameraType != suiCamToolType.depthMask &&
+                SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf);
+            return half ? RenderTextureFormat.ARGBHalf : RenderTextureFormat.ARGBFloat;
+        }
+
         void UpdateRenderTex(){
 
 			if (resolution < 4) resolution = 4;
 				
 			if (renderTexDiff != null){
 				if (cam != null) cam.targetTexture = null;
-				DestroyImmediate(renderTexDiff);
+				renderTexDiff.Release();
+                if (Application.isPlaying) Destroy(renderTexDiff); else DestroyImmediate(renderTexDiff);
 			}
 			//renderTexDiff = new RenderTexture(resolution,resolution,24,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear);
 			//renderTexDiff = new RenderTexture(resolution,resolution,24,RenderTextureFormat.DefaultHDR,RenderTextureReadWrite.Linear);
 			//renderTexDiff = new RenderTexture(resolution,resolution,24,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
-			renderTexDiff = new RenderTexture(resolution,resolution,24,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+			renderTexDiff = new RenderTexture(resolution,resolution,24,CaptureTextureFormat(),RenderTextureReadWrite.Linear);
 			//renderTexDiff = new RenderTexture(resolution,resolution,24,RenderTextureFormat.ARGB4444,RenderTextureReadWrite.sRGB);
 
 			#if UNITY_5_4_OR_NEWER
@@ -528,6 +592,11 @@ namespace Suimono.Core
 
 		    //set camera properties
 		    cam.CopyFrom(copyCam);
+            if (captureSettings != null && captureSettings.isActiveAndEnabled) {
+                cam.farClipPlane=Mathf.Max(cam.nearClipPlane+.1f,
+                    Mathf.Min(copyCam.farClipPlane,Mathf.Min(reflectionDistance,captureSettings.reflectionRenderDistance)));
+                cam.ResetProjectionMatrix();
+            }
 		    cam.backgroundColor = clearFlagColor;
 		    
 		    //turn hdr off
@@ -590,7 +659,7 @@ namespace Suimono.Core
 		    // Setup oblique projection matrix so that near plane is our reflection
 		    // plane. This way we clip everything below/above it for free.
 		    clipPlane = Set_CameraSpacePlane(cam, pos, normal, 1f);
-		    projection = copyCam.projectionMatrix;
+		    projection = captureSettings != null && captureSettings.isActiveAndEnabled ? cam.projectionMatrix : copyCam.projectionMatrix;
 		    projection = Set_CalculateObliqueMatrix (clipPlane);
 		    cam.projectionMatrix = projection;
 

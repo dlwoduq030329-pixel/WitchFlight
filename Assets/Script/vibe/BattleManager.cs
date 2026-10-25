@@ -95,6 +95,8 @@ public class BattleManager : MonoBehaviour
             Debug.LogWarning("MapBoundaryTable needs finite xmin < xmax and zmin < zmax. Boundary return is disabled.", this);
         if (mapBoundaryTable != null && mapBoundaryTable.altitudeLimitEnabled && !mapBoundaryTable.HasValidAltitudeLimit)
             Debug.LogWarning("MapBoundaryTable needs a finite altitudeFadeStartY < ymax. Altitude death is disabled.", this);
+        if (mapBoundaryTable != null && mapBoundaryTable.lowerLimitEnabled && !mapBoundaryTable.HasValidLowerLimit)
+            Debug.LogWarning("MapBoundaryTable needs a finite ymin below altitudeFadeStartY. Lower boundary floor is disabled.", this);
         if (instance == null)
             instance = this;
         else
@@ -111,6 +113,14 @@ public class BattleManager : MonoBehaviour
             transform.position.y, (mapBoundaryTable.zmin + mapBoundaryTable.zmax) * 0.5f),
             new Vector3(mapBoundaryTable.xmax - mapBoundaryTable.xmin, 0f,
                 mapBoundaryTable.zmax - mapBoundaryTable.zmin));
+        if (mapBoundaryTable.lowerLimitEnabled && mapBoundaryTable.HasValidLowerLimit)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireCube(new Vector3((mapBoundaryTable.xmin + mapBoundaryTable.xmax) * 0.5f,
+                mapBoundaryTable.ymin, (mapBoundaryTable.zmin + mapBoundaryTable.zmax) * 0.5f),
+                new Vector3(mapBoundaryTable.xmax - mapBoundaryTable.xmin, 0f,
+                    mapBoundaryTable.zmax - mapBoundaryTable.zmin));
+        }
     }
 
     // UnityEvent/Button API. It requests the sequence, never bypasses the readiness barrier.

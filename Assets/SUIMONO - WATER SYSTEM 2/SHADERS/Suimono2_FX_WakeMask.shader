@@ -18,7 +18,8 @@ SubShader { Tags { "RenderPipeline"="UniversalPipeline" "Queue"="Transparent" }
  struct A {float3 p:POSITION;float2 uv:TEXCOORD0;half4 color:COLOR;};
  struct V {float4 p:SV_POSITION;float2 uv:TEXCOORD0;half4 color:COLOR;};
  V Vert(A a) {V o;o.p=TransformObjectToHClip(a.p);o.uv=a.uv*_MainTex_ST.xy+_MainTex_ST.zw;o.color=a.color;return o;}
- half4 Frag(V i):SV_Target { return tex2D(_MainTex,i.uv)*_Color*i.color; }
+ // Additive masks need premultiplied RGB for particle lifetime/flight-height alpha to fade.
+ half4 Frag(V i):SV_Target { half4 col=tex2D(_MainTex,i.uv)*_Color*i.color;col.rgb*=col.a;return col; }
  ENDHLSL
  }}
 SubShader {

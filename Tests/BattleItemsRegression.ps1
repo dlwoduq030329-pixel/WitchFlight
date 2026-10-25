@@ -166,7 +166,7 @@ if (!(Method $pickup 'CheckPickup').Contains('sample.objectId == playerObject.Id
     !(Method $pickup 'CheckPickup').Contains('maxSweep * maxSweep') -or
     !(Method $pickup 'CheckPickup').Contains('HasPickupSight(contact, point)')) {throw 'Missing respawn, teleport, or wall pickup protection'}
 if (!(Method $pickup 'HasPickupSight').Contains('QueryTriggerInteraction.Ignore')) {throw 'Pickup sight must ignore trigger volumes'}
-foreach ($prefabName in 'Booster','HP_Item','MP_Item') {
+foreach ($prefabName in 'SpeedBooster','HP_Item','MP_Item') {
     $path="Assets/Item/$prefabName.prefab"
     $yaml=Get-Content $path -Raw
     $ids=@([regex]::Matches($yaml,'(?m)^--- !u!\d+ &(\d+)') | ForEach-Object {$_.Groups[1].Value})

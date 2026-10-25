@@ -455,6 +455,37 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     {
         if (!SimulatesMovement || LoadoutVersion <= 0)
             return;
+        EnforceMapFloor();
+        try { SimulateMovementTick(); }
+        finally { EnforceMapFloor(); }
+    }
+
+    private void EnforceMapFloor()
+    {
+        BattleManager battle = BattleManager.Instance;
+        if (battle == null || !battle.IsGameplayActive || !IsAlive || battle.MapBoundary == null) return;
+        Vector3 position = transform.position;
+        Vector3 constrained = battle.MapBoundary.ClampToLowerLimit(position);
+        if (constrained.y <= position.y) return;
+
+        // Enforce on host and predicted owner, including portal/bot/return paths.
+        // Only height changes: no U-turn, speed-stage reset or collision damage.
+        bool controllerWasEnabled = characterController != null && characterController.enabled;
+        if (controllerWasEnabled) characterController.enabled = false;
+        transform.position = constrained;
+        if (controllerWasEnabled) characterController.enabled = true;
+        if (KnockbackVelocity.y < 0f)
+            KnockbackVelocity = new Vector3(KnockbackVelocity.x, 0f, KnockbackVelocity.z);
+    }
+
+    private Vector3 ConstrainMapMovement(Vector3 movement)
+    {
+        MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
+        return table != null ? table.ConstrainMovement(transform.position, movement) : movement;
+    }
+
+    private void SimulateMovementTick()
+    {
         using var simulationSample = flightMarker.Auto();
 
         HeadLookAngles = Vector2.zero;
@@ -1705,7 +1736,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (KnockbackVelocity.sqrMagnitude <= 0.001f)
             return;
 
-        Vector3 delta = KnockbackVelocity * Runner.DeltaTime;
+        Vector3 delta = ConstrainMapMovement(KnockbackVelocity * Runner.DeltaTime);
         if (characterController != null)
             characterController.Move(delta);
         else
@@ -2155,7 +2186,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void GoForward()
     {
-        Vector3 movement = transform.forward * Speed * Runner.DeltaTime;
+        Vector3 movement = ConstrainMapMovement(transform.forward * Speed * Runner.DeltaTime);
         if (characterController != null)
             characterController.Move(movement);
         else
