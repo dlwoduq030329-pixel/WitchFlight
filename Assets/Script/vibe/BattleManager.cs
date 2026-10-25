@@ -228,12 +228,13 @@ public class BattleManager : MonoBehaviour
             if (secondary != null) { spawn = secondary; spawnPosition = spawn.position; }
             else spawnPosition += spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * teamSlot;
         }
-        NetworkObject playerObject = runner.Spawn(prefab, spawnPosition, spawn.rotation, playerRef);
+        NetworkObject playerObject = runner.Spawn(prefab, spawnPosition, spawn.rotation,
+            playerData.IsMatchBot ? PlayerRef.None : playerRef);
         if (playerObject == null)
             return;
 
         spawnedPlayers[playerRef] = playerObject;
-        runner.SetPlayerObject(playerRef, playerObject);
+        if (!playerData.IsMatchBot) runner.SetPlayerObject(playerRef, playerObject);
         Player player = playerObject.GetComponent<Player>();
         if (player != null)
             player.InitPlayer(playerData, isRespawn);
@@ -243,6 +244,8 @@ public class BattleManager : MonoBehaviour
     {
         if (runner == null || !runner.IsRunning)
             return false;
+        if (playerDatas.TryGetValue(playerRef, out var bot) && bot != null && bot.IsMatchBot &&
+            bot.Object != null && bot.Object.IsValid) return true;
         foreach (PlayerRef active in runner.ActivePlayers)
             if (active == playerRef)
                 return true;
@@ -263,8 +266,11 @@ public class BattleManager : MonoBehaviour
             return;
         }
         RegisterFlag(flag);
+        BattleMapTour tour = FindFirstObjectByType<BattleMapTour>();
         flag.PrepareMatch(position, matchDurationSeconds, ExpectedPlayerCount, introDurationSeconds,
-            magicChangeDurationSeconds, maxMagicChangesPerRound);
+            magicChangeDurationSeconds, maxMagicChangesPerRound,
+            tour != null && tour.ShouldPlay(IsTraining) ? tour.MoveSeconds : 0f,
+            tour != null ? tour.FadeSeconds : 0.6f);
     }
 
     public void BeginMagicChange()
@@ -277,6 +283,9 @@ public class BattleManager : MonoBehaviour
                 data.AwardPerkRound(RoundNumber);
                 data.BeginRoundMagicChange(RoundNumber);
             }
+        // Snapshot every participant first: bots must not counter the new intermission choices.
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null && data.IsMatchBot) data.ChooseBotCounters(true);
     }
 
     public void ResetPlayersForNextRound()
@@ -297,8 +306,8 @@ public class BattleManager : MonoBehaviour
         error = "마법 교체 시간이 아닙니다.";
         if (runner == null || !runner.IsServer || !HasValidFlag || !battleFlag.CanChangeMagic(round) ||
             data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner ||
-            !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.Object.InputAuthority) ||
-            !playerDatas.TryGetValue(data.Object.InputAuthority, out PlayerData registered) || registered != data ||
+            !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.ParticipantRef) ||
+            !playerDatas.TryGetValue(data.ParticipantRef, out PlayerData registered) || registered != data ||
             data.MagicChangeRound != round) return false;
         if (!BattleRoundRules.IsAllowedLoadout(data.MagicChangeBase1, data.MagicChangeBase2,
             first, second, battleFlag.AllowedMagicChanges))

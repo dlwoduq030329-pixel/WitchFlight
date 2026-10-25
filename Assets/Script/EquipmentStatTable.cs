@@ -85,7 +85,7 @@ public sealed class EquipmentStatTable : ScriptableObject
     public HatStatEntry[] hats = new HatStatEntry[3];
 
     [Header("Brooms (3)")]
-    [Tooltip("Slow(선회·가속·부스트 효율), Standard(균형), Speed(최고 속도)의 능력치를 편집합니다.")]
+    [Tooltip("Slow(체력·부스트 효율), Standard(최고 선회력·편한 가감속), Speed(최고 속도)의 능력치를 편집합니다.")]
     public BroomStatEntry[] brooms = new BroomStatEntry[3];
 
     public HatStatEntry GetHatStats(HatType selectedHat)

@@ -22,7 +22,7 @@ public partial class PlayerData : NetworkBehaviour
     public void SetRoomMatchMode(BattleMatchMode mode)
     {
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority || !IsRoomOwner) return;
-        RoomMatchMode = mode == BattleMatchMode.OneVsOne ? BattleMatchMode.OneVsOne : BattleMatchMode.TwoVsTwo;
+        RoomMatchMode = System.Enum.IsDefined(typeof(BattleMatchMode), mode) ? mode : BattleMatchMode.TwoVsTwo;
     }
 
     public void RequestWaitingTeam(int team)
@@ -40,7 +40,7 @@ public partial class PlayerData : NetworkBehaviour
     public bool HasPresentedLobbyOpponent(PlayerData opponent)
     {
         return opponent != null && opponent.Object != null && opponent.Object.IsValid &&
-            lobbyPreviews.TryGetValue(opponent.Object.InputAuthority, out var preview) && preview.data == opponent &&
+            lobbyPreviews.TryGetValue(opponent.ParticipantRef, out var preview) && preview.data == opponent &&
             preview.profile == opponent.playerprofile && preview.ownProfile == playerprofile &&
             preview.team == opponent.teamIndex && preview.ownTeam == teamIndex;
     }
@@ -49,7 +49,7 @@ public partial class PlayerData : NetworkBehaviour
     {
         if (Object == null || !Object.IsValid || !Object.HasInputAuthority ||
             opponent == null || opponent.Object == null || !opponent.Object.IsValid) return;
-        RPC_ConfirmLobbyProfilePreview(opponent.Object.InputAuthority, opponent.playerprofile, playerprofile);
+        RPC_ConfirmLobbyProfilePreview(opponent.ParticipantRef, opponent.playerprofile, playerprofile);
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -125,7 +125,7 @@ public partial class PlayerData : NetworkBehaviour
     {
         perkPlayers.Add(this);
         if (Object.HasStateAuthority)
-            IsRoomOwner = Runner.IsServer && Object.InputAuthority == Runner.LocalPlayer;
+            IsRoomOwner = Runner.IsServer && ParticipantRef == Runner.LocalPlayer;
         if (Object.HasInputAuthority)
         {
             Local = this;
@@ -138,7 +138,7 @@ public partial class PlayerData : NetworkBehaviour
         base.Spawned();
 
         // 호스트에서만 팀 배정과 PlayerData Dictionary 관리를 수행한다.
-        if (Object.HasStateAuthority)
+        if (Object.HasStateAuthority && !IsMatchBot)
         {
             NetworkGameManager.Instance?.AssignTeamIndex(this);
             NetworkGameManager.Instance?.RegisterPlayerData(this);
@@ -173,7 +173,7 @@ public partial class PlayerData : NetworkBehaviour
 
     private string NormalizePlayerName(string value)
     {
-        string name = string.IsNullOrWhiteSpace(value) ? $"Player {Object.InputAuthority.PlayerId}" : value.Trim();
+        string name = string.IsNullOrWhiteSpace(value) ? $"Player {ParticipantRef.PlayerId}" : value.Trim();
         // Keep the network string bounded and avoid cutting a UTF-16 surrogate pair.
         if (name.Length > 32)
             name = name.Substring(0, char.IsHighSurrogate(name[31]) ? 31 : 32);

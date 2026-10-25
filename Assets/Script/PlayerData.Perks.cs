@@ -11,7 +11,7 @@ public partial class PlayerData
     public static PlayerData FindPerkData(NetworkRunner runner, PlayerRef player)
     {
         foreach (var data in perkPlayers)
-            if (data != null && data.Object != null && data.Object.IsValid && data.Runner == runner && data.Object.InputAuthority == player) return data;
+            if (data != null && data.Object != null && data.Object.IsValid && data.Runner == runner && data.ParticipantRef == player) return data;
         return null;
     }
     [Networked] public bool PerksInitialized { get; private set; }
@@ -59,7 +59,7 @@ public partial class PlayerData
     private void RefreshCommonCandidates()
     {
         // Stable offers for this choice. Reopening UI and swapping weapons cannot reroll them.
-        int seed = Object.InputAuthority.PlayerId + PerkChoicesUsed * 3;
+        int seed = ParticipantRef.PlayerId + PerkChoicesUsed * 3;
         LeftCommonCandidate = PerkRules.CommonCandidate(CommonPerksMask, seed);
         RightCommonCandidate = PerkRules.CommonCandidate(CommonPerksMask, seed + 5, LeftCommonCandidate);
     }
@@ -94,7 +94,7 @@ public partial class PlayerData
             }
             if (valid) {
                 PerkChoicesUsed++; PerkRevision++; RefreshCommonCandidates();
-                Player.FindInRunner(Runner,Object.InputAuthority)?.RefreshPerkVitals(false);
+                Player.FindInRunner(Runner,ParticipantRef)?.RefreshPerkVitals(false);
             }
         }
         RPC_PerkSelectionResult(valid,candidate,PerkRevision);
@@ -110,7 +110,7 @@ public partial class PlayerData
         perkLedger.Advance(Runner.DeltaTime);
         // Weight only passive time, not action XP. Fractional progress survives pickup/drop,
         // so low rates never round to zero and switching carrier cannot bypass the penalty.
-        bool carryingFlag = BattleFlag.Instance != null && BattleFlag.Instance.IsCarriedBy(Runner, Object.InputAuthority);
+        bool carryingFlag = BattleFlag.Instance != null && BattleFlag.Instance.IsCarriedBy(Runner, ParticipantRef);
         passiveXpTime += Runner.DeltaTime * (carryingFlag ? Mathf.Clamp01(PerkTable.flagCarrierPassiveXpMultiplier) : 1f);
         float interval = Mathf.Max(.1f,PerkTable.passiveInterval);
         while (passiveXpTime + .00001f >= interval) {
@@ -136,7 +136,7 @@ public partial class PlayerData
     public void AwardPerkDamage(Player victim, float damage, float lifeMaxHp)
     {
         if (!CanAwardPerkXp() || victim == null || victim.IsTestBot || victim.TeamIndex == teamIndex ||
-            victim.Runner != Runner || victim.Object.InputAuthority == Object.InputAuthority) return;
+            victim.Runner != Runner || victim.ParticipantRef == ParticipantRef) return;
         perkLedger ??= new PerkXpLedger();
         ActionXp(perkLedger.Damage(victim.Object.Id.Raw, damage, lifeMaxHp,
             PerkTable.damageFraction,PerkTable.damageQuotasPerLife,PerkTable.damageXp));

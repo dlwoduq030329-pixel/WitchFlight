@@ -34,7 +34,7 @@ public partial class Player
         {
             if (IsTestBot || Object == null || !Object.IsValid) return null;
             if (perkOwner == null || perkOwner.Object == null || !perkOwner.Object.IsValid || perkOwner.Runner != Runner)
-                perkOwner = PlayerData.FindPerkData(Runner, Object.InputAuthority);
+                perkOwner = PlayerData.FindPerkData(Runner, ParticipantRef);
             return perkOwner != null && perkOwner.PerksInitialized ? perkOwner : null;
         }
     }
@@ -177,7 +177,7 @@ public partial class Player
         }
         if (IsAlive && s.perkFirst?.id == PerkId.FireBurn && s.perkFirst.seconds > 0f)
         {
-            PlayerRef attacker = source != null ? source.Object.InputAuthority : s.perkAttacker;
+            PlayerRef attacker = source != null ? source.ParticipantRef : s.perkAttacker;
             Burn burn = perkBurns.Find(x => x.attacker == attacker);
             if (burn == null) { burn = new Burn {attacker=attacker}; perkBurns.Add(burn); }
             burn.remaining = s.perkFirst.seconds; burn.damagePerSecond = Mathf.Max(0f,s.perkFirst.amount) / burn.remaining;

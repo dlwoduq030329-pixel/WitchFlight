@@ -3,7 +3,7 @@ using Fusion;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission }
+public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission, MapTour }
 
 // One existing network flag owns the replicated match clock, carrier and result.
 public class BattleFlag : NetworkBehaviour, IAfterRender
@@ -25,10 +25,15 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     [Networked] public bool HasEnded { get; private set; }
     [Networked] private bool HasStarted { get; set; }
     [Networked] private NetworkId CarrierObjectId { get; set; }
+    [Networked] private PlayerRef DroppedBy { get; set; }
+    [Networked] private TickTimer DroppedPickupTimer { get; set; }
     [Networked] private Vector3 WorldPosition { get; set; }
     [Networked] public bool IsDescending { get; private set; }
     [Networked] private TickTimer MatchTimer { get; set; }
     [Networked] public BattleStartPhase Phase { get; private set; }
+    [Networked] public float TourMoveSeconds { get; private set; }
+    [Networked] public float TourFadeSeconds { get; private set; }
+    public float TourDuration => TourMoveSeconds > 0f ? 3f * (TourMoveSeconds + 2f * TourFadeSeconds) + TourFadeSeconds : 0f;
     [Networked] public int ExpectedPlayerCount { get; private set; }
     [Networked] private bool IsPrepared { get; set; }
     [Networked] private TickTimer PhaseTimer { get; set; }
@@ -50,6 +55,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     private readonly HashSet<PlayerRef> readyPlayers = new();
     private bool startRequested;
     private float introSeconds;
+    private bool mapTourStarted;
     private float matchSeconds;
     private float initialFlagHeight;
     private float fallStopHeight;
@@ -100,7 +106,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     }
 
     public void PrepareMatch(Vector3 position, float durationSeconds, int requiredPlayers, float presentationSeconds,
-        float changeSeconds = 40f, int changeLimit = 2)
+        float changeSeconds = 40f, int changeLimit = 2, float tourMoveSeconds = 0f, float tourFadeSeconds = 0.6f)
     {
         if (!Object.HasStateAuthority || IsPrepared)
             return;
@@ -111,6 +117,9 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         ExpectedPlayerCount = Mathf.Max(1, requiredPlayers);
         matchSeconds = Mathf.Max(1f, durationSeconds);
         introSeconds = Mathf.Max(0.1f, presentationSeconds);
+        TourMoveSeconds = Mathf.Max(0f, tourMoveSeconds);
+        TourFadeSeconds = Mathf.Max(0.05f, tourFadeSeconds);
+        mapTourStarted = false;
         roundFlagPosition = position;
         magicChangeSeconds = Mathf.Max(1f, changeSeconds);
         AllowedMagicChanges = Mathf.Clamp(changeLimit, 1, 2);
@@ -131,7 +140,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     {
         if (!Object.HasStateAuthority || !IsPrepared || Phase != BattleStartPhase.WaitingForPlayers)
             return;
-        if (!Runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) ||
+        if (!BattleParticipants.TryGetPlayerObject(Runner, playerRef, out NetworkObject playerObject) ||
             playerObject == null || !playerObject.IsValid || playerObject.InputAuthority != playerRef)
             return;
         Player player = playerObject.GetComponent<Player>();
@@ -150,18 +159,19 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority)
             return;
         readyPlayers.Remove(playerRef);
-        if (Phase == BattleStartPhase.Intro || Phase == BattleStartPhase.Countdown)
+        if (Phase == BattleStartPhase.Intro || Phase == BattleStartPhase.MapTour || Phase == BattleStartPhase.Countdown)
             ResetPreparation();
     }
 
     private bool AreAllPlayersReady()
     {
         int count = 0;
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
+        foreach (PlayerRef playerRef in BattleParticipants.Refs(Runner))
         {
             count++;
-            if (!readyPlayers.Contains(playerRef) ||
-                !Runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) ||
+            PlayerData participant = PlayerData.FindPerkData(Runner, playerRef);
+            if ((participant != null && participant.IsMatchBot ? false : !readyPlayers.Contains(playerRef)) ||
+                !BattleParticipants.TryGetPlayerObject(Runner, playerRef, out NetworkObject playerObject) ||
                 playerObject == null || !playerObject.IsValid)
                 return false;
         }
@@ -192,10 +202,22 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             if (!startRequested)
                 return;
             bool training = manager != null && manager.IsTraining;
-            Phase = training ? BattleStartPhase.Countdown : BattleStartPhase.Intro;
-            PhaseTimer = TickTimer.CreateFromSeconds(Runner, training ? 3f : introSeconds);
+            bool playTour = RoundNumber == 1 && !mapTourStarted && TourDuration > 0f;
+            Phase = training
+                ? (playTour ? BattleStartPhase.MapTour : BattleStartPhase.Countdown)
+                : BattleStartPhase.Intro;
+            PhaseTimer = TickTimer.CreateFromSeconds(Runner,
+                training ? (playTour ? TourDuration : 3f) : introSeconds);
+            if (Phase == BattleStartPhase.MapTour) mapTourStarted = true;
         }
         else if (Phase == BattleStartPhase.Intro && PhaseTimer.Expired(Runner))
+        {
+            bool playTour = RoundNumber == 1 && !mapTourStarted && TourDuration > 0f;
+            Phase = playTour ? BattleStartPhase.MapTour : BattleStartPhase.Countdown;
+            PhaseTimer = TickTimer.CreateFromSeconds(Runner, playTour ? TourDuration : 3f);
+            if (playTour) mapTourStarted = true;
+        }
+        else if (Phase == BattleStartPhase.MapTour && PhaseTimer.Expired(Runner))
         {
             Phase = BattleStartPhase.Countdown;
             PhaseTimer = TickTimer.CreateFromSeconds(Runner, 3f);
@@ -212,6 +234,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             return;
         Carrier = PlayerRef.None;
         LastCarrier = PlayerRef.None;
+        DroppedBy = PlayerRef.None;
+        DroppedPickupTimer = TickTimer.None;
         LastCarrierTeam = 0;
         WinningTeam = 0;
         CarrierObjectId = default;
@@ -299,6 +323,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         WorldPosition = roundFlagPosition;
         transform.position = roundFlagPosition;
         LastCarrier = Carrier = PlayerRef.None;
+        DroppedBy = PlayerRef.None;
+        DroppedPickupTimer = TickTimer.None;
         LastCarrierTeam = 0;
         CarrierObjectId = default;
         IsDescending = IsOvertime = HasStarted = false;
@@ -362,6 +388,9 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     {
         if (!Object.HasStateAuthority || HasEnded || Carrier != playerRef || playerRef == PlayerRef.None)
             return;
+        DroppedBy = playerRef;
+        DroppedPickupTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f,
+            FlightCombatTable.Default != null ? FlightCombatTable.Default.droppedFlagOwnerDelay : 1.2f));
         WorldPosition = position;
         Carrier = PlayerRef.None;
         CarrierObjectId = default;
@@ -403,9 +432,9 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     {
         Player candidate = null;
         float nearestDistance = float.PositiveInfinity;
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
+        foreach (PlayerRef playerRef in BattleParticipants.Refs(Runner))
         {
-            if (!Runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) || playerObject == null)
+            if (!BattleParticipants.TryGetPlayerObject(Runner, playerRef, out NetworkObject playerObject) || playerObject == null)
                 continue;
             Player player = playerObject.GetComponent<Player>();
             if (player == null || !player.IsAlive)
@@ -420,6 +449,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             previousPositions[playerRef] = new PositionSample { ObjectId = playerObject.Id, Center = center };
             if (Carrier != PlayerRef.None)
                 continue;
+            if (playerRef == DroppedBy && !DroppedPickupTimer.ExpiredOrNotRunning(Runner)) continue;
 
             // Sweep the capsule between ticks so a fast player cannot skip through the flag.
             // Expanding the flag into a segment gives the same translational capsule distance.
@@ -436,7 +466,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
 
         if (candidate == null)
             return;
-        Carrier = candidate.Object.InputAuthority;
+        Carrier = candidate.ParticipantRef;
         NetworkGameManager.Instance?.GetPlayerData(Carrier)?.AwardPerkFlag(RoundNumber);
         IsDescending = false;
         LastCarrier = Carrier;
@@ -643,7 +673,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             position = transform.position;
             return true;
         }
-        if (Carrier == observer.Object.InputAuthority) return false;
+        if (Carrier == observer.ParticipantRef) return false;
         Player carrier = GetCarrierPlayer();
         if (carrier == null || carrier == observer || !carrier.IsAlive) return false;
         position = carrier.LockAimPoint;

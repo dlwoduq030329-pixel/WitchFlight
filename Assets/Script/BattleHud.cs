@@ -8,6 +8,103 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed partial class BattleHud : MonoBehaviour
 {
+    [Header("Active parry window (actual block timer)")]
+    [SerializeField] private bool showParryWindow = true;
+    [Tooltip("선택 사항: 원형 스프라이트 Image. Filled/Radial360으로 설정됩니다. 비우면 조준점 주변에 자동 생성합니다. 직접 할당한 UI의 위치/크기는 유지합니다.")]
+    [SerializeField] private Image parryWindowFill;
+    [SerializeField, Min(12f)] private float parryWindowSize = 88f;
+    [SerializeField, Min(.5f)] private float parryWindowWidth = 3f;
+    [SerializeField] private Vector2 parryWindowOffset;
+    [SerializeField] private Color parryWindowColor = new Color(.35f, .95f, 1f, .95f);
+    [SerializeField] private Color parrySuccessColor = new Color(1f, .9f, .35f, 1f);
+    [SerializeField, Min(.01f)] private float parrySuccessFlashSeconds = .12f;
+    private CombatFeedbackGraphic generatedParryWindow, parrySuccessRing;
+    private Player parryWindowOwner;
+    private int parryWindowSuccessSequence;
+    private float parryWindowFlashUntil;
+
+    private void UpdateParryWindow()
+    {
+        Player pilot = Player.LocalPlayer;
+        bool valid = showParryWindow && !MenuOpen && pilot != null && pilot.Object != null &&
+            pilot.Object.IsValid && pilot.IsAlive && !pilot.IsReturningToMap &&
+            BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        if (!valid) { HideParryWindow(); parryWindowOwner = null; return; }
+        if (parryWindowOwner != pilot)
+        {
+            parryWindowOwner = pilot;
+            parryWindowSuccessSequence = pilot.ParrySequence;
+            parryWindowFlashUntil = 0f;
+        }
+        if (parryWindowSuccessSequence != pilot.ParrySequence)
+        {
+            parryWindowSuccessSequence = pilot.ParrySequence;
+            parryWindowFlashUntil = Time.unscaledTime + parrySuccessFlashSeconds;
+        }
+        float fraction = Mathf.Clamp01(pilot.ParryRemainingSeconds / Mathf.Max(.01f, pilot.ParryWindowSeconds));
+        bool active = pilot.IsParrying && fraction > 0f;
+        bool flash = Time.unscaledTime < parryWindowFlashUntil;
+        if (active && parryWindowFill == null && generatedParryWindow == null)
+            generatedParryWindow = CreateFeedbackRing("Active parry window", parryWindowColor, parryWindowSize, null)
+                .GetComponent<CombatFeedbackGraphic>();
+        if (parryWindowFill != null)
+        {
+            parryWindowFill.type = Image.Type.Filled;
+            parryWindowFill.fillMethod = Image.FillMethod.Radial360;
+            parryWindowFill.fillOrigin = (int)Image.Origin360.Top;
+            parryWindowFill.fillClockwise = true;
+            parryWindowFill.fillAmount = fraction;
+            parryWindowFill.raycastTarget = false;
+            parryWindowFill.color = flash ? parrySuccessColor : parryWindowColor;
+            // Never disable a shared panel/controller assigned by mistake.
+            parryWindowFill.enabled = active;
+        }
+        if (generatedParryWindow != null)
+        {
+            Visible(generatedParryWindow.gameObject, active && parryWindowFill == null);
+            generatedParryWindow.RingFill = fraction;
+            generatedParryWindow.RingWidth = parryWindowWidth;
+            generatedParryWindow.color = flash ? parrySuccessColor : parryWindowColor;
+            generatedParryWindow.rectTransform.sizeDelta = Vector2.one * parryWindowSize;
+            generatedParryWindow.SetVerticesDirty();
+            PlaceParryRing(generatedParryWindow.rectTransform);
+        }
+        // Success is a separate expanding ring: it never falsely refills the active timer.
+        if (flash && parrySuccessRing == null)
+            parrySuccessRing = CreateFeedbackRing("Parry success flash", parrySuccessColor, parryWindowSize, null)
+                .GetComponent<CombatFeedbackGraphic>();
+        if (parrySuccessRing != null)
+        {
+            Visible(parrySuccessRing.gameObject, flash);
+            float fade = Mathf.Clamp01((parryWindowFlashUntil - Time.unscaledTime) / Mathf.Max(.01f, parrySuccessFlashSeconds));
+            Color tint = parrySuccessColor; tint.a *= fade;
+            parrySuccessRing.color = tint;
+            parrySuccessRing.rectTransform.sizeDelta = Vector2.one * parryWindowSize * Mathf.Lerp(1.25f, 1f, fade);
+            PlaceParryRing(parrySuccessRing.rectTransform);
+        }
+    }
+
+    private void PlaceParryRing(RectTransform ring)
+    {
+        if (parryWindowFill != null)
+        {
+            Canvas canvas = parryWindowFill.canvas;
+            Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            PlaceScreen(ring, RectTransformUtility.WorldToScreenPoint(camera,
+                parryWindowFill.rectTransform.TransformPoint(parryWindowFill.rectTransform.rect.center)));
+            return;
+        }
+        Camera main = worldCamera != null ? worldCamera : Camera.main;
+        PlaceScreen(ring, (main != null ? main.pixelRect.center : new Vector2(Screen.width, Screen.height) * .5f) + parryWindowOffset);
+    }
+
+    private void HideParryWindow()
+    {
+        if (parryWindowFill != null) parryWindowFill.enabled = false;
+        if (generatedParryWindow != null) Visible(generatedParryWindow.gameObject, false);
+        if (parrySuccessRing != null) Visible(parrySuccessRing.gameObject, false);
+        parryWindowFlashUntil = 0f;
+    }
     [Header("UI style")]
     [Tooltip("DungGeunMo SDF: 자동 생성되는 경고/록온/부활 텍스트에 사용합니다.")]
     [SerializeField] private TMP_FontAsset feedbackFont;
@@ -33,6 +130,7 @@ public sealed partial class BattleHud : MonoBehaviour
     [Tooltip("지정하면 Hp Text는 현재 값만, 이 항목은 /최대 값을 표시합니다.")]
     [SerializeField] private TMP_Text maxHpText;
     [SerializeField] private Slider apSlider;
+    public RectTransform ManaBarRect => apSlider != null ? apSlider.transform as RectTransform : apFill != null ? apFill.rectTransform : null;
     [SerializeField] private Image apFill;
     [SerializeField] private TMP_Text apText;
     [SerializeField] private TextMeshProUGUI manaPercentText;
@@ -176,6 +274,10 @@ public sealed partial class BattleHud : MonoBehaviour
     [SerializeField, Min(0.1f)] private float damageDuration = 0.9f;
     [SerializeField] private float damageRise = 1.5f;
     [Header("Confirmed hit marker (attacker only)")]
+    [Tooltip("Hit Marker (Overwatch)의 bl_HitMarker. 비우면 현재 씬에서 같은 이름의 오브젝트를 자동으로 찾습니다. default=Marker, letal=Marker (letal).")]
+    [SerializeField] private Lovatto.Crosshair.bl_HitMarker animatedHitMarker;
+    private Lovatto.Crosshair.bl_MarkerRig playingHitRig;
+    private bool playingLethalMarker;
     [Tooltip("선택 사항: 네 방향 전체 모양을 가진 독립 UI Image. 지정하면 이 Image를 표시/페이드합니다. Dot 자체를 넣지 마세요. 비우면 얇은 마름모 4개를 생성합니다.")]
     [SerializeField] private Image hitMarkerImage;
     [Tooltip("중심이 될 Dot의 RectTransform. 비우면 Desired Aim Marker, 그것도 없으면 카메라 화면 중앙입니다.")]
@@ -242,6 +344,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void StartManaFeedback(Player player)
     {
+        BattlePerkUI.PrioritizeManaFeedback();
         BattleAudio.Play(BattleSound.InsufficientMana, local: true);
         ResetManaFeedback();
         activeManaFeedbackRoot = manaFeedbackRoot != null ? manaFeedbackRoot :
@@ -263,6 +366,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void LateUpdate()
     {
+        UpdateParryWindow();
         if (!manaFeedbackActive) return;
         float age = Time.unscaledTime - manaFeedbackStarted;
         if (age >= manaFeedbackDuration || MenuOpen || manaFeedbackPlayer == null ||
@@ -444,7 +548,7 @@ public sealed partial class BattleHud : MonoBehaviour
         BattleFlag flag = BattleFlag.Instance;
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null) SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
-            valid && flag.Carrier == owner.Object.InputAuthority ? "YOU HAVE THE FLAG" : $"FLAG: {flag.Carrier}");
+            valid && flag.Carrier == owner.ParticipantRef ? "YOU HAVE THE FLAG" : $"FLAG: {flag.Carrier}");
         Visible(resultPanel, battle.IsBattleEnded);
         Visible(resultText != null ? resultText.gameObject : null, battle.IsBattleEnded);
         if (resultText != null) SetText(resultText, battle.WinningTeam > 0 ? $"TEAM {battle.WinningTeam} WINS" : "DRAW - NO FLAG HOLDER");
@@ -1129,7 +1233,11 @@ public sealed partial class BattleHud : MonoBehaviour
         displayedFlagDistance = -1;
     }
 
-    public void ToggleMenu() => SetMenuOpen(!MenuOpen);
+    public void ToggleMenu()
+    {
+        if (battleSettings != null && battleSettings.activeSelf) { CloseSettings(); return; }
+        SetMenuOpen(!MenuOpen);
+    }
 
     private void SetAimColors(bool aligned)
     {
@@ -1157,7 +1265,8 @@ public sealed partial class BattleHud : MonoBehaviour
     private void SetMenuOpen(bool open)
     {
         BattleManager battle = BattleManager.Instance;
-        if (open && menuPanel == null && battle != null && battle.IsTraining) EnsureTrainingMenu();
+        if (open && menuPanel == null && battle != null) EnsureTrainingMenu();
+        if (!open) CloseSettings();
         MenuOpen = open && menuPanel != null && battle != null &&
             (battle.IsGameplayActive || battle.IsBattleEnded);
         Visible(menuPanel, MenuOpen);
@@ -1166,17 +1275,51 @@ public sealed partial class BattleHud : MonoBehaviour
         Cursor.visible = !flight;
     }
 
-    public static void ShowHitMarker(Player attacker)
+    public static void ShowHitMarker(Player attacker, bool lethal = false)
     {
         if (instance == null || !instance.isActiveAndEnabled || attacker == null ||
             attacker.Object == null || !attacker.Object.IsValid || !attacker.Object.HasInputAuthority ||
             attacker != Player.LocalPlayer || !attacker.IsAlive || MenuOpen ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
-        instance.EnsureHitMarker();
         BattleAudio.Play(BattleSound.HitConfirmed, local: true);
+        if (instance.PlayAnimatedHitMarker(lethal)) return;
+        instance.EnsureHitMarker();
         instance.hitMarkerStarted = Time.unscaledTime;
         // Every confirmed hit restores full visibility, even during the previous fade.
         instance.UpdateHitMarker(true);
+    }
+
+    private bool PlayAnimatedHitMarker(bool lethal)
+    {
+        if (animatedHitMarker == null)
+            foreach (var marker in FindObjectsByType<Lovatto.Crosshair.bl_HitMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (marker.gameObject.scene == gameObject.scene && marker.name == "Hit Marker (Overwatch)")
+                { animatedHitMarker = marker; break; }
+        if (animatedHitMarker == null || animatedHitMarker.markers == null) return false;
+        if (!lethal && playingLethalMarker && AnimatedHitIsPlaying()) return true;
+        string key = lethal ? "letal" : "default";
+        Lovatto.Crosshair.bl_MarkerRig selected = null;
+        foreach (var rig in animatedHitMarker.markers)
+            if (rig != null && rig.Name == key) { selected = rig; break; }
+        if (selected == null || selected.animator == null || selected.content == null) return false;
+        ClearHitMarker();
+        animatedHitMarker.gameObject.SetActive(true);
+        selected.animator.enabled = true;
+        selected.animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+        animatedHitMarker.OnHit(key);
+        // Even prefabs configured to crossfade must restart at frame zero on each accepted hit.
+        selected.animator.Play(selected.AnimationName, 0, 0f);
+        selected.animator.Update(0f);
+        playingHitRig = selected;
+        playingLethalMarker = lethal;
+        return true;
+    }
+
+    private bool AnimatedHitIsPlaying()
+    {
+        if (playingHitRig == null || playingHitRig.content == null || !playingHitRig.content.activeInHierarchy ||
+            playingHitRig.animator == null || !playingHitRig.animator.isActiveAndEnabled) return false;
+        return playingHitRig.animator.GetCurrentAnimatorStateInfo(0).normalizedTime < 1f;
     }
 
     private void EnsureHitMarker()
@@ -1225,6 +1368,11 @@ public sealed partial class BattleHud : MonoBehaviour
     private void UpdateHitMarker(bool show)
     {
         if (!show) { ClearHitMarker(); return; }
+        if (playingHitRig != null)
+        {
+            if (!AnimatedHitIsPlaying()) ClearHitMarker();
+            return; // The authored Animator owns opacity, scale and position.
+        }
         if (activeHitMarker == null) return;
         float alpha = HitMarkerAlpha(Time.unscaledTime - hitMarkerStarted, hitMarkerHoldSeconds, hitMarkerFadeSeconds);
         if (alpha <= 0f) { ClearHitMarker(); return; }
@@ -1253,6 +1401,9 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void ClearHitMarker()
     {
+        if (animatedHitMarker != null) animatedHitMarker.SetActiveChild(false);
+        playingHitRig = null;
+        playingLethalMarker = false;
         hitMarkerStarted = float.NegativeInfinity;
         if (activeHitMarker != null)
         {
@@ -1402,6 +1553,8 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void OnDisable()
     {
+        HideParryWindow();
+        parryWindowOwner = null;
         ResetManaFeedback();
         BindOwner(null);
         Canvas.willRenderCanvases -= BindFlightAim;

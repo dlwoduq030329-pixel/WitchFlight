@@ -210,7 +210,7 @@ public sealed class BattleEmoteUI : MonoBehaviour
         var view = mine ? active.localDisplay : active.opponentDisplay;
         view.icon.sprite = active.Icon(entry);
         view.icon.enabled = true;
-        var data = PlayerData.FindPerkData(sender.Runner, sender.Object.InputAuthority);
+        var data = PlayerData.FindPerkData(sender.Runner, sender.ParticipantRef);
         if (view.senderName != null)
         {
             string name = data != null ? data.playerName.ToString() : mine ? "나" : "상대";

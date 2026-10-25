@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 
 [DefaultExecutionOrder(-100)]
-public class CameraFollow : MonoBehaviour
+public partial class CameraFollow : MonoBehaviour
 {
     [Tooltip("기본 시점으로 전환하는 반응성입니다. 비행 중 위치는 표시된 캐릭터를 지연 없이 따라갑니다.")]
     [SerializeField, Min(0.01f)] private float followSpeed = 20f;
@@ -20,9 +20,9 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private bool enableTopSpeedKick = true;
     [Tooltip("전진 단계를 올릴 때마다 추가로 뒤로 빠지는 거리입니다. 유지/감속 중에는 반복하지 않습니다.")]
     [InspectorName("Stage Up Kick Distance")]
-    [SerializeField, Min(0f)] private float topSpeedKickDistance = 0.45f;
+    [SerializeField, Min(0f)] private float topSpeedKickDistance = 0.7f;
     [Tooltip("3단계에서 실제 Shift 부스트를 시작할 때의 추가 거리입니다. 단계 상승과 겹치면 이것만 적용합니다.")]
-    [SerializeField, Min(0f)] private float boostKickDistance = 0.8f;
+    [SerializeField, Min(0f)] private float boostKickDistance = 2.4f;
     [InspectorName("Kick Out Seconds")]
     [SerializeField, Min(0.01f)] private float topSpeedKickOutSeconds = 0.12f;
     [InspectorName("Kick Return Seconds")]
@@ -139,10 +139,13 @@ public class CameraFollow : MonoBehaviour
         ResetTopSpeedKick();
         RenderPipelineManager.beginCameraRendering += BeginSpeedShakeRendering;
         RenderPipelineManager.endCameraRendering += EndSpeedShakeRendering;
+        EnableOcclusionFade();
     }
 
     private void OnDisable()
     {
+        ClearDeathObservation();
+        DisableOcclusionFade();
         RenderPipelineManager.beginCameraRendering -= BeginSpeedShakeRendering;
         RenderPipelineManager.endCameraRendering -= EndSpeedShakeRendering;
         ResetSpeedShake();
@@ -156,6 +159,8 @@ public class CameraFollow : MonoBehaviour
 
     public void SetTarget(GameObject targetObject)
     {
+        ClearDeathObservation();
+        ClearOcclusionFade();
         ResetSpeedShake();
         ResetTopSpeedKick();
         mouseOrbitYaw = 0f;
@@ -220,6 +225,7 @@ public class CameraFollow : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (UpdateDeathObservation()) return;
         if (target == null)
             return;
         // Face framing needs animated bones. Networked flight is updated exclusively
@@ -371,6 +377,8 @@ public class CameraFollow : MonoBehaviour
 
     private void UpdateCamera(bool forceSnap)
     {
+        // Fusion's render callback must not overwrite the separate falling-body view.
+        if (deathObserving) return;
         SynchronizePortalExit();
         bool returning = targetPlayer != null && targetPlayer.Object != null && targetPlayer.Object.IsValid &&
             targetPlayer.IsAlive && targetPlayer.IsReturningToMap &&

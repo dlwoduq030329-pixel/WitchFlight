@@ -11,6 +11,8 @@ public sealed class PlayerBroomAnimation
     [SerializeField, Min(0.05f)] private float quickActionSeconds = 0.25f;
     [SerializeField, Min(0.01f)] private float parryStartSeconds = 0.08f;
     [SerializeField, Min(0.01f)] private float parryEndSeconds = 0.12f;
+    [Tooltip("접수된 패링마다 같은 손을 몸 쪽으로 당기는 동작/위로 드는 동작을 교대로 재생합니다.")]
+    [SerializeField] private bool alternateParryAnimations = true;
     [SerializeField, Min(0.05f)] private float speedTransitionSeconds = 0.35f;
     [Tooltip("3단계 선택 후 실제 최고속도의 이 비율에 도달하면 고속 자세로 전환합니다.")]
     [SerializeField, Range(.1f, 1f)] private float fastPoseEnterSpeedRatio = .72f;
@@ -22,6 +24,9 @@ public sealed class PlayerBroomAnimation
     private Animator animator;
     private BroomAnimationStateMachine machine;
     private int[] hashes;
+    private int[] alternateHashes;
+    private bool[] alternateAvailable;
+    private float[] alternateLengths;
     private float[] lengths;
     private bool[] available;
     private bool hasSpeedParameter;
@@ -53,9 +58,10 @@ public sealed class PlayerBroomAnimation
         if (!available[index]) return; // Do not synthesize missing states/clips.
         float duration = Duration(machine.Motion);
         if (hasSpeedParameter)
-            animator.SetFloat(speedHash, lengths[index] / Mathf.Max(0.01f, duration));
+            animator.SetFloat(speedHash, ClipLength(index) / Mathf.Max(0.01f, duration));
         // Apply only to the Ingame base layer; the existing Face layer is untouched.
-        animator.CrossFadeInFixedTime(hashes[index], Mathf.Min(blendSeconds, duration * 0.35f), 0, 0f);
+        int stateHash = UseAlternate(index) ? alternateHashes[index] : hashes[index];
+        animator.CrossFadeInFixedTime(stateHash, Mathf.Min(blendSeconds, duration * 0.35f), 0, 0f);
     }
 
     private void Initialize(Animator target, string hitState, string deathState)
@@ -69,6 +75,8 @@ public sealed class PlayerBroomAnimation
                 hasSpeedParameter = true;
         int count = Enum.GetValues(typeof(BroomMotion)).Length;
         hashes = new int[count]; lengths = new float[count]; available = new bool[count];
+        alternateHashes = new int[count]; alternateAvailable = new bool[count];
+        alternateLengths = new float[count];
         AnimationClip[] clips = controller.animationClips;
         for (int i = 0; i < count; i++)
         {
@@ -85,6 +93,21 @@ public sealed class PlayerBroomAnimation
             lengths[i] = 0.1f;
             foreach (AnimationClip clip in clips)
                 if (clip != null && clip.name == name) { lengths[i] = Mathf.Max(0.01f, clip.length); break; }
+            if (motion == BroomMotion.ParryStart || motion == BroomMotion.ParryLoop || motion == BroomMotion.ParryEnd)
+            {
+                alternateHashes[i] = Animator.StringToHash("Ingame." + name + "_Raised");
+                alternateAvailable[i] = animator.HasState(0, alternateHashes[i]);
+                if (!alternateAvailable[i])
+                {
+                    alternateHashes[i] = Animator.StringToHash(name + "_Raised");
+                    alternateAvailable[i] = animator.HasState(0, alternateHashes[i]);
+                }
+                string raisedClip = name.Replace("_Block1_", "_Attack1_");
+                alternateLengths[i] = lengths[i];
+                foreach (AnimationClip clip in clips)
+                    if (clip != null && clip.name == raisedClip)
+                    { alternateLengths[i] = Mathf.Max(0.01f, clip.length); break; }
+            }
         }
         // Root motion must never fight Fusion's predicted CharacterController.
         animator.applyRootMotion = false;
@@ -92,11 +115,16 @@ public sealed class PlayerBroomAnimation
         playedRevision = -1;
     }
 
+    private bool UseAlternate(int index) => alternateParryAnimations && machine != null &&
+        machine.AlternateParry && alternateAvailable[index];
+
+    private float ClipLength(int index) => UseAlternate(index) ? alternateLengths[index] : lengths[index];
+
     private float Duration(BroomMotion motion)
     {
         int index = (int)motion;
         if (!available[index]) return 0.01f;
-        float length = lengths[index];
+        float length = ClipLength(index);
         if (!hasSpeedParameter) return length;
         float cap = motion switch
         {

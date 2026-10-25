@@ -18,6 +18,7 @@ public sealed class EyeTexturePresetTable : ScriptableObject
     [Tooltip("Read-only compatibility entries for old saved keys, not selectable button indices.")]
     [SerializeField] private Preset[] legacyPresets;
     private static EyeTexturePresetTable defaultTable;
+    public int Count => presets != null ? presets.Length : 0;
     public static EyeTexturePresetTable Default
     {
         get

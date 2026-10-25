@@ -6,10 +6,11 @@ $stubs=@'
 using System;
 using System.Collections.Generic;
 namespace UnityEngine {
- public class MonoBehaviour {}
+ public class MonoBehaviour {public bool isActiveAndEnabled=true;}
  public class DisallowMultipleComponent:Attribute {}
  public class RequireComponent:Attribute {public RequireComponent(Type t){}}
  public class SerializeField:Attribute {}
+ public class HeaderAttribute:Attribute {public HeaderAttribute(string s){}}
  public class TooltipAttribute:Attribute {public TooltipAttribute(string s){}}
  public class MinAttribute:Attribute {public MinAttribute(float v){}}
  public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);public static int Max(int a,int b)=>Math.Max(a,b);}
@@ -20,6 +21,7 @@ namespace Fusion {
  public struct TickTimer {
   public bool IsRunning;public float End;public static TickTimer None=>default;
   public bool Expired(Runner r)=>IsRunning&&r.Time>=End;
+  public float? RemainingTime(Runner r)=>IsRunning?Math.Max(0,End-r.Time):null;
   public static TickTimer CreateFromSeconds(Runner r,float t)=>new TickTimer{End=r.Time+t,IsRunning=true};
  }
 }
@@ -32,6 +34,8 @@ public class Player {
  public static List<Player> ActiveCombatants=new();
  public Obj Object=new();public Runner Runner=new();
  public bool IsAlive=true,IsTestBot,Visible=true;
+ public Player AimTarget;public float AimProgress;public bool CanAim=true;
+ public bool UpdateTestBotAim(MagicType magic,Player target,float progress){AimTarget=CanAim?target:null;AimProgress=progress;return CanAim&&target!=null;}
  public int Team,HitSequence,Shots;public float MaxHp=200,Hp=200;public MagicType LastShot;
  public Vector3 LockAimPoint;
  public bool IsTargetableBy(Player p)=>p!=this&&Team!=p.Team&&IsAlive;
@@ -50,20 +54,33 @@ public static class Tests {
  static void Set(MagicTestBot b,string key,object value)=>typeof(MagicTestBot).GetField(key,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(b,value);
  public static int Run(){
   var bot=new MagicTestBot();var self=new Player{IsTestBot=true,Team=99};var enemy=new Player{Team=1,Runner=self.Runner};
+  Check(bot.ResolveMagicDamage(45f)==45f,"default preserves table damage");
+  Set(bot,"magicDamageMultiplier",.5f);Check(bot.ResolveMagicDamage(40f)==20f,"bot table damage multiplier");
+  Set(bot,"overrideMagicDamage",true);Set(bot,"magicDamage",12f);
+  Check(bot.ResolveMagicDamage(40f)==6f,"override uses own damage then multiplier");
+  Set(bot,"magicDamageMultiplier",0f);Check(bot.ResolveMagicDamage(40f)==0f,"zero disables direct damage");
+  Set(bot,"magicDamageMultiplier",1f);Set(bot,"magicDamage",-1f);
+  Check(bot.ResolveMagicDamage(40f)==0f,"negative override cannot heal target");
+  Set(bot,"overrideMagicDamage",false);
   enemy.LockAimPoint=new UnityEngine.Vector3{z=20};
   Player.ActiveCombatants=new(){self,enemy};
   bot.Simulate(self);self.Runner.Time=10;bot.Simulate(self);Check(self.Shots==0,"passive never attacks");
   Set(bot,"attacks",true);self.Runner.Time=0;bot.Simulate(self);
+  Check(self.AimTarget==enemy&&self.AimProgress==0,"bot publishes target immediately before charge starts");
+  self.Runner.Time=1;bot.Simulate(self);Check(self.AimTarget==enemy&&Math.Abs(self.AimProgress-.5f)<.001f,"target and charge visible during preparation");
   self.Runner.Time=1.99f;bot.Simulate(self);Check(self.Shots==0,"first shot waits two seconds");
   self.Runner.Time=2;bot.Simulate(self);Check(self.Shots==1,"first shot at two seconds");
+  Check(self.AimTarget==null,"release clears targeting state");
   self.Runner.Time=3.99f;bot.Simulate(self);Check(self.Shots==1,"no early second shot");
   self.Runner.Time=4;bot.Simulate(self);Check(self.Shots==2,"second shot at four seconds");
   enemy.LockAimPoint=new UnityEngine.Vector3{z=100};self.Runner.Time=5;bot.Simulate(self);
   self.Runner.Time=20;bot.Simulate(self);Check(self.Shots==2,"outside distance stops fire");
+  Check(self.AimTarget==null,"leaving range clears threat camera target");
   enemy.LockAimPoint=new UnityEngine.Vector3{z=20};bot.Simulate(self);
   self.Runner.Time=21;bot.Simulate(self);Check(self.Shots==2,"reenter waits full interval");
   self.Runner.Time=22;bot.Simulate(self);Check(self.Shots==3,"reenter fires after interval");
   enemy.Visible=false;self.Runner.Time=24;bot.Simulate(self);Check(self.Shots==3,"wall blocks bot");
+  Check(self.AimTarget==null,"wall clears targeting state");
   enemy.Visible=true;enemy.IsTestBot=true;bot.Simulate(self);self.Runner.Time=30;bot.Simulate(self);Check(self.Shots==3,"does not attack other dummies");
   enemy.IsTestBot=false;enemy.Team=99;bot.Simulate(self);Check(self.Shots==3,"does not attack same team");
   enemy.Team=1;enemy.Runner=new Fusion.Runner();bot.Simulate(self);Check(self.Shots==3,"does not attack another runner");
@@ -73,6 +90,7 @@ public static class Tests {
   self.Object.HasStateAuthority=false;self.Runner.Time=40;bot.Simulate(self);Check(self.Shots==4,"only state authority shoots");
   self.Object.HasStateAuthority=true;self.IsAlive=false;bot.Simulate(self);Check(self.Shots==4,"dead bot cannot shoot");
   self.IsAlive=true;Set(bot,"attacks",false);self.Hp=20;self.HitSequence++;bot.Simulate(self);
+  Check(self.AimTarget==null,"passive bots publish no aiming threat");
   self.Runner.Time=44.99f;bot.Simulate(self);Check(self.Hp==20,"health reset waits configured delay");
   self.HitSequence++;bot.Simulate(self);self.Runner.Time=45;bot.Simulate(self);Check(self.Hp==20,"new damage extends reset delay");
   self.Runner.Time=50;bot.Simulate(self);Check(self.Hp==200,"dummy health resets after last hit");

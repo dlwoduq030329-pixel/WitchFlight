@@ -14,12 +14,13 @@ public sealed partial class RoomMatchSettingsUI
     private bool allowTeamA, allowTeamB;
     private string teamOptionsKey;
     private linkuserinfo waitingRoomInfo;
+    private readonly System.Collections.Generic.Dictionary<Fusion.PlayerRef, TMP_Dropdown> otherTeamDropdowns = new();
 
     private void LateUpdate()
     {
         PlayerData local = PlayerData.Local;
         bool show = manager != null && manager.IsWaitingInCodeRoom &&
-            manager.CurrentMatchMode == BattleMatchMode.TwoVsTwo && local != null &&
+            BattleMatchRules.IsTeamMode(manager.CurrentMatchMode) && local != null &&
             local.Object != null && local.Object.IsValid && local.Object.HasInputAuthority &&
             local.Runner == manager.Runner && local.IsLoadoutInitialized;
         RectTransform anchor = teamDropdownAnchor;
@@ -32,10 +33,11 @@ public sealed partial class RoomMatchSettingsUI
                     if (info.CodeWaitingRoomPanel != null && info.CodeWaitingRoomPanel.activeInHierarchy)
                     { waitingRoomInfo = info; break; }
             }
-            Image profile = waitingRoomInfo != null ? waitingRoomInfo.GetCodeWaitingRoomProfile(local.Object.InputAuthority) : null;
+            Image profile = waitingRoomInfo != null ? waitingRoomInfo.GetCodeWaitingRoomProfile(local.ParticipantRef) : null;
             if (profile != null) anchor = profile.rectTransform;
         }
         show &= anchor != null && anchor.gameObject.activeInHierarchy;
+        RefreshOtherTeamDropdowns(show, local);
         if (show) EnsureTeamDropdown(anchor);
         if (teamDropdown == null) return;
         if (!show)
@@ -81,7 +83,7 @@ public sealed partial class RoomMatchSettingsUI
     public void SelectTeam(int value)
     {
         PlayerData local = PlayerData.Local;
-        if (manager != null && manager.IsWaitingInCodeRoom && manager.CurrentMatchMode == BattleMatchMode.TwoVsTwo &&
+        if (manager != null && manager.IsWaitingInCodeRoom && BattleMatchRules.IsTeamMode(manager.CurrentMatchMode) &&
             local != null && local.Runner == manager.Runner && (value == 0 ? allowTeamA : value == 1 && allowTeamB))
             local.RequestWaitingTeam(value + 1);
         // Never predict a team change; show the replicated host decision on the next refresh.
@@ -125,13 +127,56 @@ public sealed partial class RoomMatchSettingsUI
 
     private void OnDisable()
     {
+        foreach (var dropdown in otherTeamDropdowns.Values)
+            if (dropdown != null) dropdown.gameObject.SetActive(false);
         if (teamDropdown != null && teamDropdown.gameObject.activeSelf)
             teamDropdown.gameObject.SetActive(false);
     }
 
     private void ReleaseTeamDropdown()
     {
+        foreach (var dropdown in otherTeamDropdowns.Values)
+            if (dropdown != null) Destroy(dropdown.gameObject);
+        otherTeamDropdowns.Clear();
         if (boundTeamDropdown != null) boundTeamDropdown.onValueChanged.RemoveListener(SelectTeam);
         if (generatedTeamDropdown && teamDropdown != null) Destroy(teamDropdown.gameObject);
+    }
+
+    private void RefreshOtherTeamDropdowns(bool show, PlayerData local)
+    {
+        // Every occupied card shows its replicated team; only its owner can edit it.
+        foreach (var pair in otherTeamDropdowns)
+        {
+            PlayerData data = show ? PlayerData.FindPerkData(manager.Runner, pair.Key) : null;
+            if (pair.Value != null) pair.Value.gameObject.SetActive(data != null && data != local);
+        }
+        if (!show || waitingRoomInfo == null) return;
+        foreach (Fusion.PlayerRef participant in manager.Runner.ActivePlayers)
+        {
+            PlayerData data = PlayerData.FindPerkData(manager.Runner, participant);
+            if (data == null || data == local) continue;
+            Image profile = waitingRoomInfo.GetCodeWaitingRoomProfile(participant);
+            if (profile == null || !profile.gameObject.activeInHierarchy) continue;
+            if (!otherTeamDropdowns.TryGetValue(participant, out var dropdown) || dropdown == null)
+            {
+                var root = TMP_DefaultControls.CreateDropdown(new TMP_DefaultControls.Resources());
+                root.name = "ParticipantTeamDropdown";
+                dropdown = root.GetComponent<TMP_Dropdown>();
+                dropdown.ClearOptions();
+                dropdown.AddOptions(new System.Collections.Generic.List<string> { "A팀", "B팀" });
+                dropdown.interactable = false;
+                foreach (TMP_Text text in root.GetComponentsInChildren<TMP_Text>(true))
+                { if (uiFont != null) text.font = uiFont; text.fontSize = 20; text.color = new Color(.03f,.13f,.18f); }
+                otherTeamDropdowns[participant] = dropdown;
+            }
+            var rect = dropdown.GetComponent<RectTransform>();
+            if (rect.parent != profile.transform) rect.SetParent(profile.transform, false);
+            rect.anchorMin = rect.anchorMax = new Vector2(.5f, 0);
+            rect.pivot = new Vector2(.5f, 1);
+            rect.anchoredPosition = teamDropdownOffset;
+            rect.sizeDelta = new Vector2(220, 32);
+            dropdown.SetValueWithoutNotify(data.teamIndex == 1 ? 0 : 1);
+            dropdown.gameObject.SetActive(true);
+        }
     }
 }

@@ -7,6 +7,7 @@ using UnityEngine.Events;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
+using DG.Tweening;
 
 // Local-only presentation. Never instantiate a Player prefab or change its layers.
 [DefaultExecutionOrder(50)]
@@ -63,10 +64,59 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     private bool reportedSnapshotFailure;
     private int displayedCountdown = -1;
     private bool displayedTeamMode;
+    private readonly List<IntroTween> introTweens = new();
+    private sealed class IntroTween
+    {
+        public DOTweenAnimation animation;
+        public bool autoPlay, autoKill;
+    }
 
     private void Awake()
     {
+        // Capture before SetUIPhase activates VSUI and runs its DOTweenAnimation.Awake.
+        PrepareIntroTweens();
         SetUIPhase(BattleStartPhase.WaitingForPlayers);
+    }
+
+    private void PrepareIntroTweens()
+    {
+        if (introPanel == null) return;
+        foreach (var animation in introPanel.GetComponentsInChildren<DOTweenAnimation>(true))
+        {
+            if (introTweens.Exists(entry => entry.animation == animation)) continue;
+            introTweens.Add(new IntroTween { animation = animation, autoPlay = animation.autoPlay, autoKill = animation.autoKill });
+            // Waiting includes portrait baking/network readiness. It must not consume the VS animation.
+            animation.autoPlay = false;
+            animation.autoKill = false;
+            if (animation.tween != null && animation.tween.IsActive()) animation.tween.SetAutoKill(false).Pause();
+        }
+    }
+
+    private void RestartIntroTweens()
+    {
+        PrepareIntroTweens();
+        foreach (var entry in introTweens)
+        {
+            var animation = entry.animation;
+            if (animation == null || !animation.isActiveAndEnabled || !animation.isActive || !animation.isValid) continue;
+            animation.CreateTween(false, false);
+            if (animation.tween != null && animation.tween.IsActive())
+            {
+                animation.tween.SetAutoKill(false);
+                animation.tween.Rewind();
+            }
+        }
+        // Rewind ALL targets before any OnPlay/OnUpdate can trigger the authored secondary effects.
+        foreach (var entry in introTweens)
+            if (entry.autoPlay && entry.animation != null && entry.animation.isActiveAndEnabled && entry.animation.isActive &&
+                entry.animation.tween != null && entry.animation.tween.IsActive()) entry.animation.tween.Restart();
+    }
+
+    private void PauseIntroTweens()
+    {
+        foreach (var entry in introTweens)
+            if (entry.animation != null && entry.animation.tween != null && entry.animation.tween.IsActive())
+                entry.animation.tween.Pause();
     }
 
     private void OnEnable()
@@ -90,9 +140,15 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             hasDisplayedPhase = true;
             SetUIPhase(phase);
             if (leavingIntro)
+            {
+                PauseIntroTweens();
                 onIntroEnded.Invoke();
+            }
             if (phase == BattleStartPhase.Intro)
+            {
+                RestartIntroTweens();
                 onIntroStarted.Invoke();
+            }
             if (phase != BattleStartPhase.WaitingForPlayers && phase != BattleStartPhase.Intro)
                 ReleasePortraits();
         }
@@ -145,8 +201,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         if (phase == BattleStartPhase.WaitingForPlayers && localSnapshot.IsReady &&
             (solo || opponentSnapshot.IsReady) &&
             (introUserInfo == null || (introUserInfo.isActiveAndEnabled &&
-             introUserInfo.HasUserInfoFor(local.Object.InputAuthority,
-                 solo ? default : opponent.Object.InputAuthority, !solo))))
+             introUserInfo.HasUserInfoFor(local.ParticipantRef,
+                 solo ? default : opponent.ParticipantRef, !solo))))
             local.ReportBattleSceneReady();
     }
 
@@ -162,9 +218,9 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
         NetworkRunner runner = flag.Runner;
         int readyPlayers = 0;
-        foreach (PlayerRef playerRef in runner.ActivePlayers)
+        foreach (PlayerRef playerRef in BattleParticipants.Refs(runner))
         {
-            if (!runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) ||
+            if (!BattleParticipants.TryGetPlayerObject(runner, playerRef, out NetworkObject playerObject) ||
                 playerObject == null || !playerObject.IsValid)
                 return false;
             Player player = playerObject.GetComponent<Player>();
@@ -179,9 +235,9 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         if (battle.ExpectedPlayerCount <= 1)
             return true;
 
-        foreach (PlayerRef playerRef in runner.ActivePlayers)
+        foreach (PlayerRef playerRef in BattleParticipants.Refs(runner))
         {
-            if (!runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject))
+            if (!BattleParticipants.TryGetPlayerObject(runner, playerRef, out NetworkObject playerObject))
                 continue;
             Player candidate = playerObject.GetComponent<Player>();
             if (candidate != local && candidate.TeamIndex > 0 && candidate.TeamIndex != local.TeamIndex)
@@ -512,6 +568,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void OnDisable()
     {
+        PauseIntroTweens();
         RenderPipelineManager.endCameraRendering -= OnCameraRendered;
         Camera.onPostRender -= OnBuiltinCameraRendered;
         ReleasePortraits();
@@ -521,6 +578,13 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void OnDestroy()
     {
+        foreach (var entry in introTweens)
+            if (entry.animation != null)
+            {
+                entry.animation.autoPlay = entry.autoPlay;
+                entry.animation.autoKill = entry.autoKill;
+                if (entry.animation.tween != null && entry.animation.tween.IsActive()) entry.animation.tween.SetAutoKill(entry.autoKill);
+            }
         ReleasePortraits();
     }
 }

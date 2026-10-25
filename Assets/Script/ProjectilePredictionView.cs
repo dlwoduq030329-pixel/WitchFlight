@@ -41,6 +41,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             pending.Count >= 32 || HasPending(player, entry.magic)) return;
         var view = Create(entry, player.MagicCastPosition, player.transform.forward);
         view.owner = player;
+        RearThreatCamera.ExcludeLocalEffect(view.gameObject, player);
         view.target = target;
         view.summonTarget = summon;
         view.runner = player.Runner;

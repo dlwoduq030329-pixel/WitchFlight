@@ -24,11 +24,12 @@ public static class Mathf {
 public struct Vector3 {
  public float x,y,z;public Vector3(float z){x=y=0;this.z=z;}
  public float sqrMagnitude=>x*x+y*y+z*z;
+ public float magnitude=>(float)Math.Sqrt(sqrMagnitude);
  public static Vector3 operator-(Vector3 a,Vector3 b)=>new Vector3(a.z-b.z);
  public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;
 }
 public class Transform {public Vector3 position;public Vector3 forward=new(1);}
-public class Player {public Transform transform=new();public float CurrentSpeed,ForwardCruiseSpeedRatio;public int CurrentSpeedStage=3,PortalExitSequence;public bool IsBoosting;}
+public class Player {public Transform transform=new();public float CurrentSpeed,ForwardCruiseSpeedRatio;public int CurrentSpeedStage=3,PortalExitSequence;public bool IsBoosting,CobraActive;}
 public static class Time {public static float time,deltaTime=.02f,timeScale=1;}
 public class AudioSource {public int Stops;public void Stop(){Stops++;}}
 public class Probe {

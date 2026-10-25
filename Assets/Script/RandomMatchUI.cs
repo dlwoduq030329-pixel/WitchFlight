@@ -114,7 +114,7 @@ public sealed class RandomMatchUI : MonoBehaviour
         if (data == null || manager.Runner == null || !manager.Runner.IsRunning ||
             data.Object == null || !data.Object.IsValid || data.Runner != manager.Runner) return false;
         foreach (PlayerRef player in manager.Runner.ActivePlayers)
-            if (player == data.Object.InputAuthority) return true;
+            if (player == data.ParticipantRef) return true;
         return false;
     }
 

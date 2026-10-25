@@ -9,7 +9,7 @@ public enum BattleSound
     ManaPotion, BoosterPickup, Updraft, InsufficientMana, PerkAvailable, PerkSelected,
     Emote, KillNotice, FlagPickup, FlagDrop, MatchIntro, Countdown, RoundStart,
     RoundWin, RoundLose, MatchVictory, MatchDefeat, Binding, Slow, HitStun, Burn,
-    WallCrash, UIClick, UIConfirm, UICancel
+    WallCrash, UIClick, UIConfirm, UICancel, BodyRam, Cobra, HurtVoice, WaterEnter, WaterExit
 }
 
 public enum MagicSound { LockComplete, Cast, ProjectileLoop, Impact, ChannelLoop, ChannelEnd, FollowUp, AreaWarning, SummonAttack, EffectLoop }
@@ -17,6 +17,7 @@ public enum MagicSound { LockComplete, Cast, ProjectileLoop, Impact, ChannelLoop
 [Serializable]
 public sealed class BattleSoundCue
 {
+    public GameAudioCategory category = GameAudioCategory.SFX;
     public AudioClip clip;
     [Range(0f, 1f)] public float volume = 1f;
     [Range(.25f, 3f)] public float pitch = 1f;
@@ -70,7 +71,14 @@ public sealed class BattleAudioTable : ScriptableObject
     [Range(8, 128)] public int maxVoices = 48;
     [Header("Local flight speed sounds")]
     public AudioClip flightWindClip;
-    [Range(0f, 1f)] public float flightWindVolume = .18f;
+    [Range(0f, 1f)] public float flightWindVolume = .3f;
+    [Range(.25f, 3f)] public float flightWindMinPitch = .7f;
+    [Range(.25f, 3f)] public float flightWindMaxPitch = 1.5f;
+    [Header("Water skimming (local pilot, speed and surface proximity)")]
+    public AudioClip waterSkimClip;
+    [Range(0f, 1f)] public float waterSkimVolume = .7f;
+    [Range(.25f, 3f)] public float waterSkimMinPitch = .75f;
+    [Range(.25f, 3f)] public float waterSkimMaxPitch = 1.45f;
     [Tooltip("비워두면 비행 바람을 짧게 부풀렸다 줄이는 소리로 사용합니다.")]
     public AudioClip flightPassClip;
     [Range(0f, 1f)] public float flightPassVolume = .3f;

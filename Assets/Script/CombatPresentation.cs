@@ -55,11 +55,22 @@ public sealed class CombatPresentation : MonoBehaviour
     private int lastDeath;
     private int lastParry;
     [Header("Parry directional VFX")]
-    [Tooltip("직접 만든 반구 VFX. 볼록한 방향을 +Z로 제작하세요. 패링 성공 시 투사체가 날아온 쪽을 향합니다. 비우면 생성하지 않습니다.")]
+    [Tooltip("직접 만든 반구 VFX. 볼록한 방향은 +Z. 패링 중 옅게 유지되고, 성공 시 투사체가 날아온 쪽을 향합니다. 비우면 선으로 반구를 생성합니다.")]
     [SerializeField] private GameObject parryShieldVfxPrefab;
     [SerializeField, Min(0.05f)] private float parryShieldDuration = 0.35f;
+    [Tooltip("Shield_03 머티리얼의 원래 불투명도에 곱합니다. 낮을수록 더 비쳐 보입니다.")]
+    [SerializeField, Range(0f, 1f)] private float parryShieldOpacity = .75f;
     [Tooltip("몸 중심(LockAimPoint)에서 투사체가 날아온 방향으로 띄울 거리입니다.")]
     [SerializeField, Min(0f)] private float parryShieldForwardOffset;
+    [Header("Active parry shield")]
+    [SerializeField] private bool showActiveParryShield = true;
+    [SerializeField, Range(0f, 1f)] private float parryActiveOpacityMultiplier = .4f;
+    [SerializeField, Min(.01f)] private float parryEndDissolveSeconds = .12f;
+    [SerializeField, Min(.1f)] private float parryRimRadius = 2.2f;
+    [SerializeField, Min(.005f)] private float parryRimWidth = .035f;
+    [SerializeField] private Color parryRimColor = new Color(.35f, .95f, 1f, .9f);
+    private CombatMagicVisual activeParryShield;
+    private int activeParryStartSequence;
     private CombatMagicVisual channelVisual;
     private GameObject lockCompleteVfx;
     private Material lockCompleteMaterial;
@@ -70,6 +81,7 @@ public sealed class CombatPresentation : MonoBehaviour
     private float hitFlashUntil;
     private bool wasFlashing;
     private float deathStarted = -1f;
+    private bool fallingDeath;
     private bool visibilityInitialized, lastSmokeHidden, lastFadeHidden;
 
     public static bool MenuOpen => BattleHud.MenuOpen;
@@ -81,6 +93,8 @@ public sealed class CombatPresentation : MonoBehaviour
         owner = GetComponent<Player>();
         if (owner != null && GetComponent<CombatAudioFeedback>() == null)
             gameObject.AddComponent<CombatAudioFeedback>();
+        if (owner != null && GetComponent<FlightSpellPresentation>() == null)
+            gameObject.AddComponent<FlightSpellPresentation>();
         enemyOutline = GetComponent<Outline>();
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
         {
@@ -181,14 +195,41 @@ public sealed class CombatPresentation : MonoBehaviour
             lastDeath = owner.DeathSequence;
             StartDeathFade();
         }
+        UpdateActiveParryShield();
         if (lastParry != owner.ParrySequence)
         {
             lastParry = owner.ParrySequence;
-            CombatMagicVisual.Shield(owner, parryShieldVfxPrefab, parryShieldDuration, owner.ParryFacingDirection, parryShieldForwardOffset);
+            if (activeParryShield != null) activeParryShield.ParrySuccess(owner.ParryFacingDirection);
+            else CombatMagicVisual.Shield(owner, parryShieldVfxPrefab, parryShieldDuration, owner.ParryFacingDirection, parryShieldForwardOffset, parryShieldOpacity);
         }
         UpdateChannelVisual();
         UpdateMaterials();
         UpdateSmokeVisibility();
+    }
+
+    private void UpdateActiveParryShield()
+    {
+        bool show = showActiveParryShield && owner.IsAlive && owner.IsParrying && !owner.IsReturningToMap &&
+            !owner.IsHiddenBySmokeFor(Player.LocalPlayer) && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        if (!show)
+        {
+            if (activeParryShield != null) activeParryShield.EndParry();
+            activeParryShield = null;
+            return;
+        }
+        if (activeParryShield == null)
+        {
+            activeParryShield = CombatMagicVisual.Shield(owner, parryShieldVfxPrefab, parryEndDissolveSeconds,
+                owner.transform.forward, parryShieldForwardOffset, parryShieldOpacity * parryActiveOpacityMultiplier,
+                true, parryRimRadius, parryRimWidth, parryRimColor);
+            activeParryStartSequence = owner.ParryStartSequence - 1;
+        }
+        if (activeParryStartSequence != owner.ParryStartSequence)
+        {
+            activeParryStartSequence = owner.ParryStartSequence;
+            if (activeParryShield != null) activeParryShield.RefreshParry();
+            CombatTransientEffect.PlayPulse(owner.MagicCastAnchor.position, parryRimColor, .25f, .08f, owner);
+        }
     }
 
     private bool CanShowEnemyOutline()
@@ -198,7 +239,7 @@ public sealed class CombatPresentation : MonoBehaviour
         return owner != null && owner.Object != null && owner.Object.IsValid && owner.IsAlive &&
             local != null && local.Object != null && local.Object.IsValid && local.IsAlive &&
             owner != local && !owner.Object.HasInputAuthority && owner.Runner == local.Runner &&
-            owner.TeamIndex > 0 && local.TeamIndex > 0 && owner.TeamIndex != local.TeamIndex &&
+            owner.TeamIndex > 0 && local.TeamIndex > 0 &&
             !owner.IsHiddenBySmokeFor(local);
     }
 
@@ -206,6 +247,9 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         if (enemyOutline == null) return;
         bool visible = CanShowEnemyOutline();
+        if (visible)
+            enemyOutline.OutlineColor = owner.TeamIndex == Player.LocalPlayer.TeamIndex
+                ? new Color(.1f, .4f, 1f, 1f) : new Color(1f, .08f, .12f, 1f);
         // QuickOutline changes materials on enable/disable; do that only on actual state changes.
         if (enemyOutline.enabled != visible) enemyOutline.enabled = visible;
     }
@@ -213,7 +257,7 @@ public sealed class CombatPresentation : MonoBehaviour
     private void UpdateSmokeVisibility()
     {
         bool hidden = owner.IsHiddenBySmokeFor(Player.LocalPlayer);
-        bool faded = deathStarted >= 0f && Time.unscaledTime - deathStarted >= deathFadeSeconds;
+        bool faded = fallingDeath || (deathStarted >= 0f && Time.unscaledTime - deathStarted >= deathFadeSeconds);
         if (visibilityInitialized && hidden == lastSmokeHidden && faded == lastFadeHidden) return;
         visibilityInitialized = true;
         lastSmokeHidden = hidden;
@@ -229,6 +273,8 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void OnDisable()
     {
+        if (activeParryShield != null) Destroy(activeParryShield.gameObject);
+        activeParryShield = null;
         ClearLockCompleteVfx();
         ClearStatusEffectVfx();
         if (enemyOutline != null && enemyOutline.enabled) enemyOutline.enabled = false;
@@ -244,6 +290,13 @@ public sealed class CombatPresentation : MonoBehaviour
     private void StartDeathFade()
     {
         deathStarted = Time.unscaledTime;
+        FlightCombatTable table = FlightCombatTable.Default;
+        fallingDeath = table != null && table.fallingDeath;
+        if (fallingDeath)
+        {
+            FallingDefeatVisual.Spawn(owner, table);
+            return;
+        }
         foreach (Visual visual in visuals)
         {
             if (visual.renderer == null || visual.fading != null)
@@ -257,7 +310,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void UpdateMaterials()
     {
-        bool dying = deathStarted >= 0f;
+        bool dying = deathStarted >= 0f && !fallingDeath;
         float opacity = dying ? 1f - Mathf.Clamp01((Time.unscaledTime - deathStarted) / deathFadeSeconds) : 1f;
         float flash = Mathf.Clamp01((hitFlashUntil - Time.unscaledTime) / hitFlashSeconds);
         if (!dying && flash <= 0f && !wasFlashing)
@@ -319,6 +372,7 @@ public sealed class CombatPresentation : MonoBehaviour
                     view.instance.transform.localPosition = view.localOffset;
                     view.instance.transform.localRotation = Quaternion.Euler(view.localEulerAngles);
                     view.instance.transform.localScale *= Mathf.Max(0.01f, view.scale);
+                    RearThreatCamera.ExcludeLocalEffect(view.instance, owner);
                 }
             }
             if (view.instance == null) continue;
@@ -371,6 +425,7 @@ public sealed class CombatPresentation : MonoBehaviour
             renderer.receiveShadows = false;
         }
         lockCompleteVfx.name = "Lock-on complete (wand)";
+        RearThreatCamera.ExcludeLocalEffect(lockCompleteVfx, owner);
         lockCompleteMagic = magic;
         lockCompleteExpiresAt = Time.time + Mathf.Max(0.05f, stats.vfxLifetime);
         // RPCs can arrive before the lock snapshot. Do not gate this event on IsFullyLocked.
@@ -441,21 +496,23 @@ public sealed class CombatPresentation : MonoBehaviour
         if (stats.projectileSpeed > 0f || stats.IsChanneled || stats.effect == MagicEffectKind.Healing ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon) return;
         if (stats.beamVfxPrefab == null && stats.beamMaterial == null)
-            CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic));
+            CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic), owner);
         else
         {
             CombatMagicVisual beam = CombatMagicVisual.Beam(magic, stats.beamVfxPrefab, stats.beamMaterial);
+            RearThreatCamera.ExcludeLocalEffect(beam.gameObject, owner);
             beam.SetEndpoints(origin, end);
             Destroy(beam.gameObject, 0.2f);
         }
-        ShowImpact(end, magic);
+        ShowImpact(end, magic, owner);
     }
 
     private void ShowCastVfx(MagicStatEntry stats, Vector3 origin)
     {
         GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation);
+        RearThreatCamera.ExcludeLocalEffect(view, owner);
         if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));
-        else SpawnPulse(origin, MagicColor(stats.magic), stats.effect == MagicEffectKind.Healing ? 2f : 0.7f, 0.25f);
+        else SpawnPulse(origin, MagicColor(stats.magic), stats.effect == MagicEffectKind.Healing ? 2f : 0.7f, 0.25f, owner);
     }
 
     private void UpdateChannelVisual()
@@ -473,6 +530,7 @@ public sealed class CombatPresentation : MonoBehaviour
                 MagicStatEntry stats = OwnerStats(current);
                 ShowCastVfx(stats, owner.MagicCastPosition);
                 channelVisual = CombatMagicVisual.Beam(current, stats.beamVfxPrefab, stats.beamMaterial);
+                RearThreatCamera.ExcludeLocalEffect(channelVisual.gameObject, owner);
             }
         }
         if (channelVisual == null) return;
@@ -492,18 +550,19 @@ public sealed class CombatPresentation : MonoBehaviour
         channelVisual.SetEndpoints(owner.MagicCastPosition, end);
     }
 
-    public static void ShowImpact(Vector3 position, MagicType magic)
+    public static void ShowImpact(Vector3 position, MagicType magic, Player owner = null)
     {
         BattleAudio.PlayMagic(magic, MagicSound.Impact, position);
         MagicStatEntry stats = Stats(magic);
         GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity);
+        RearThreatCamera.ExcludeLocalEffect(view, owner);
         if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));
-        else SpawnPulse(position, MagicColor(magic), stats.radius > 0f ? stats.radius * 2f : 1.25f, 0.3f);
+        else SpawnPulse(position, MagicColor(magic), stats.radius > 0f ? stats.radius * 2f : 1.25f, 0.3f, owner);
     }
 
-    private static void SpawnPulse(Vector3 position, Color color, float diameter, float duration)
+    private static void SpawnPulse(Vector3 position, Color color, float diameter, float duration, Player owner = null)
     {
-        CombatTransientEffect.PlayPulse(position, color, diameter, duration);
+        CombatTransientEffect.PlayPulse(position, color, diameter, duration, owner);
     }
 
     public static Material CreateEffectMaterial(Color color)

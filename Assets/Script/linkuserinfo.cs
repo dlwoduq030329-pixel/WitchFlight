@@ -181,7 +181,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
         // Preserve legacy slots, but also make their first slot explicitly the host's.
         if (owner != null)
         {
-            PlayerRef ownerRef = owner.Object.InputAuthority;
+            PlayerRef ownerRef = owner.ParticipantRef;
             if (waitingParticipants.Remove(ownerRef)) waitingParticipants.Insert(0, ownerRef);
         }
         if (waiting) EnsureAuthoredWaitingSlots();
@@ -275,9 +275,9 @@ public sealed partial class linkuserinfo : MonoBehaviour
     // The portrait presentation can wait for the SAME participants' replicated labels/loadouts.
     public bool HasUserInfoFor(PlayerRef local, PlayerRef opponent, bool requireOpponent)
     {
-        return IsReady(localPlayerData) && localPlayerData.Object.InputAuthority == local &&
+        return IsReady(localPlayerData) && localPlayerData.ParticipantRef == local &&
                (!requireOpponent || (IsReady(opponentPlayerData) &&
-                opponentPlayerData.Object.InputAuthority == opponent));
+                opponentPlayerData.ParticipantRef == opponent));
     }
 
     private bool IsOpponentProfileVisible()
@@ -348,12 +348,12 @@ public sealed partial class linkuserinfo : MonoBehaviour
         {
             // The manager's dictionary is host-only. Search replicated objects on BOTH peers.
             PlayerData[] candidates = FindObjectsByType<PlayerData>(FindObjectsSortMode.None);
-            foreach (PlayerRef playerRef in runner.ActivePlayers)
+            foreach (PlayerRef playerRef in BattleParticipants.Refs(runner))
             {
                 waitingParticipants.Add(playerRef);
                 foreach (PlayerData data in candidates)
                 {
-                    if (!IsReady(data) || data.Runner != runner || data.Object.InputAuthority != playerRef)
+                    if (!IsReady(data) || data.Runner != runner || data.ParticipantRef != playerRef)
                         continue;
                     players.Add(data);
                     if (playerRef == runner.LocalPlayer)
@@ -364,7 +364,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
 
             // Host/client enumeration order is not a UI ordering contract.
             waitingParticipants.Sort((a, b) => a.RawEncoded.CompareTo(b.RawEncoded));
-            players.Sort((a, b) => a.Object.InputAuthority.RawEncoded.CompareTo(b.Object.InputAuthority.RawEncoded));
+            players.Sort((a, b) => a.ParticipantRef.RawEncoded.CompareTo(b.ParticipantRef.RawEncoded));
             if (localPlayerData != null)
             {
                 foreach (PlayerData data in players)
@@ -413,7 +413,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
     public PlayerData GetPlayerData(PlayerRef playerRef)
     {
         foreach (PlayerData data in players)
-            if (IsReady(data) && data.Object.InputAuthority == playerRef)
+            if (IsReady(data) && data.ParticipantRef == playerRef)
                 return data;
         return null;
     }

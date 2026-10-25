@@ -19,6 +19,10 @@ public struct MagicStatEntry
     public string displayName;
     [TextArea] public string description;
     public Sprite icon;
+    [Header("Lock-on charging circle (behind caster, +Z normal)")]
+    public GameObject lockChargeCirclePrefab;
+    [Min(.1f)] public float lockChargeCircleSize;
+    public Vector3 lockChargeCircleOffset;
     public MagicEffectKind effect;
 
     [Header("Description UI only (Slider values 0..1; does not change combat stats)")]
@@ -236,7 +240,7 @@ public sealed class MagicStatTable : ScriptableObject
     [SerializeField, Min(0.01f)] public float iceImpactShardScale = 0.3f;
     [Header("Parry (right click; nullifies, never reflects)")]
     [Min(0f)] public float parryApCost = 16f;
-    [Min(0.01f)] public float parryWindowSeconds = 0.3f;
+    [Min(0.01f)] public float parryWindowSeconds = 0.4f;
     [Min(0f)] public float parryCooldownSeconds = 0.3f;
     public Sprite parryIcon;
     public MagicStatEntry fallback = new MagicStatEntry { magic = MagicType.None };
@@ -260,57 +264,57 @@ public sealed class MagicStatTable : ScriptableObject
         switch (magic)
         {
             case MagicType.Fire:
-                e.effect = MagicEffectKind.DirectDamage; e.damage = 45; e.apCost = 60;
-                e.range = 220; e.cooldownSeconds = 3.75f; e.lockChargeSeconds = 0.8f;
+                e.effect = MagicEffectKind.DirectDamage; e.damage = 45; e.apCost = 45;
+                e.range = 130f; e.cooldownSeconds = 3.75f; e.lockChargeSeconds = 0.8f;
                 e.projectileSpeed = 75; e.projectileTurnSpeed = 220; e.projectileLifetime = 5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "높은 피해의 유도 마법. 길게 록온한 뒤 버튼을 놓아 발사합니다."; break;
             case MagicType.Ice:
-                e.effect = MagicEffectKind.SlowDamage; e.damage = 25; e.apCost = 40;
-                e.range = 190; e.cooldownSeconds = 2.7f; e.lockChargeSeconds = 0.35f;
+                e.effect = MagicEffectKind.SlowDamage; e.damage = 25; e.apCost = 30;
+                e.range = 90f; e.cooldownSeconds = 2.7f; e.lockChargeSeconds = 0.35f;
                 e.projectileSpeed = 85; e.projectileTurnSpeed = 320;
                 e.movementMultiplier = 0.4f; e.effectDuration = 2.5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "빠르게 록온하여 발사합니다. 적중한 적의 이동 속도를 낮춥니다."; break;
             case MagicType.Vision:
-                e.effect = MagicEffectKind.DirectDamage; e.damage = 25; e.apCost = 40;
-                e.range = 260; e.cooldownSeconds = 2f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
+                e.effect = MagicEffectKind.DirectDamage; e.damage = 25; e.apCost = 30;
+                e.range = 150f; e.cooldownSeconds = 2f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "긴 사거리의 즉발 광선을 발사합니다. 연속 명중으로 적을 압박합니다."; break;
             case MagicType.Thunder:
-                e.effect = MagicEffectKind.DelayedArea; e.damage = 100; e.apCost = 80;
-                e.range = 300; e.cooldownSeconds = 7; e.radius = 12;
+                e.effect = MagicEffectKind.DelayedArea; e.damage = 100; e.apCost = 65;
+                e.range = 300f; e.cooldownSeconds = 7; e.radius = 12;
                 e.strikeDelay = 1.5f; e.areaAimDistance = 50; e.areaAimScrollSpeed = 10;
                 e.thunderVfxReferenceRadius = 1f; e.thunderBurstExpandSeconds = .12f; e.thunderBurstStartScale = .08f;
                 e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "누르는 동안 공중의 범위를 조준하고 휠로 거리를 조절합니다. 놓으면 확정된 위치에 잠시 뒤 낙뢰가 떨어집니다."; break;
             case MagicType.Mine:
-                e.effect = MagicEffectKind.PursuitSummon; e.damage = 18; e.apCost = 50;
+                e.effect = MagicEffectKind.PursuitSummon; e.damage = 18; e.apCost = 40;
                 e.cooldownSeconds = 7.5f; e.projectileSpeed = 45; e.placementDistance = 2;
                 e.activationDelay = 0.5f; e.effectDuration = 15; e.projectileRadius = 0.2f;
-                e.range = 100; e.lockChargeSeconds = 0.65f; e.summonMoveSpeed = 28;
-                e.summonAttackRange = 55; e.summonFollowDistance = 18; e.summonAttackInterval = 2;
+                e.range = 100f; e.lockChargeSeconds = 0.65f; e.summonMoveSpeed = 28;
+                e.summonAttackRange = 50f; e.summonFollowDistance = 18; e.summonAttackInterval = 2;
                 e.summonMaxCount = 4;
                 e.summonHitRadius = 0.65f; e.summonChannelHealth = 50;
                 e.description = "적을 추적하며 록온 유도탄을 발사하는 사역마를 소환합니다. 여러 개를 유지할 수 있으며 벽 너머로 공격하지 않습니다."; break;
             case MagicType.Dark:
                 e.effect = MagicEffectKind.LifeSteal; e.damage = 70; e.healthCost = 30; e.healOnHit = 40;
-                e.range = 180; e.cooldownSeconds = 2f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
+                e.range = 130f; e.cooldownSeconds = 2f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "체력 30을 소모하는 즉발 공격. 적에게 피해를 입히면 체력 40을 회복합니다."; break;
             case MagicType.Healing:
-                e.effect = MagicEffectKind.Healing; e.healing = 40; e.apCost = 20; e.cooldownSeconds = 18;
+                e.effect = MagicEffectKind.Healing; e.range = 200f; e.healing = 40; e.apCost = 20; e.cooldownSeconds = 18;
                 e.description = "전방의 아군을 즉시 지정해 체력 40을 회복합니다. 지정한 아군이 없으면 자신을 회복합니다."; break;
             case MagicType.Binding:
                 e.effect = MagicEffectKind.Binding; e.apCost = 50; e.cooldownSeconds = 18;
-                e.range = 190; e.effectDuration = 3; e.lockChargeSeconds = 0.6f;
+                e.range = 142.5f; e.effectDuration = 3; e.lockChargeSeconds = 0.6f;
                 e.projectileSpeed = 75; e.projectileTurnSpeed = 300;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "록온 후 유도 마법을 발사합니다. 피해 없이 3초 동안 적의 이동을 막습니다."; break;
             case MagicType.Curse:
-                e.effect = MagicEffectKind.GuidedChannel; e.range = 35; e.damagePerSecond = 10;
+                e.effect = MagicEffectKind.GuidedChannel; e.range = 50f; e.damagePerSecond = 10;
                 e.apPerSecond = 0.5f; e.cooldownSeconds = 0.375f;
                 e.description = "누르는 동안 가까운 적을 자동 추적합니다. 벽이나 화면 밖으로 벗어나면 끊어집니다."; break;
             case MagicType.Razier:
-                e.effect = MagicEffectKind.BeamChannel; e.range = 100; e.damagePerSecond = 20;
+                e.effect = MagicEffectKind.BeamChannel; e.range = 100f; e.damagePerSecond = 20;
                 e.apPerSecond = 1; e.cooldownSeconds = 0.375f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "누르는 동안 정면에 직선 광선을 유지하며 마나를 소모합니다."; break;
             case MagicType.Flare:

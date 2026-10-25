@@ -32,8 +32,8 @@ public sealed class hpfollow : MonoBehaviour
     [SerializeField] private bool showEnemyHalo = true;
     [Tooltip("비우면 부드러운 원형 후광을 생성합니다.")]
     [SerializeField] private Sprite enemyHaloSprite;
-    [SerializeField] private Color enemyHaloColor = new Color(1f, 0.08f, 0.12f, 0.6f);
-    [SerializeField] private Color allyHaloColor = new Color(0.1f, 0.4f, 1f, 0.6f);
+    [SerializeField] private Color enemyHaloColor = new Color(1f, 0.08f, 0.12f, 0.95f);
+    [SerializeField] private Color allyHaloColor = new Color(0.1f, 0.4f, 1f, 0.95f);
     [SerializeField] private Vector2 enemyHaloSize = new Vector2(3.2f, 3.2f);
     [Tooltip("기존 후광 크기에 곱하는 배율. 기본값은 기존 크기의 1.5배입니다.")]
     [SerializeField, Min(0.01f)] private float haloSizeMultiplier = 1.5f;
@@ -279,7 +279,7 @@ public sealed class hpfollow : MonoBehaviour
         }
         if (Time.unscaledTime < nextNicknameRefresh) return;
         nextNicknameRefresh = Time.unscaledTime + .25f;
-        PlayerData data = PlayerData.FindPerkData(owner.Runner, owner.Object.InputAuthority);
+        PlayerData data = PlayerData.FindPerkData(owner.Runner, owner.ParticipantRef);
         string value = data != null && data.Object != null && data.Object.IsValid && data.IsLoadoutInitialized
             ? data.playerName.ToString() : owner.IsTestBot ? "훈련 봇" : "플레이어";
         if (nicknameText.text != value) nicknameText.text = value;

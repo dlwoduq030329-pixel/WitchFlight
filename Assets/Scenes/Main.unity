@@ -632,7 +632,6 @@ MonoBehaviour:
   teamDropdown: {fileID: 0}
   teamDropdownAnchor: {fileID: 0}
   teamDropdownOffset: {x: 0, y: -8}
-  settingsRoot: {fileID: 0}
   modeDropdown: {fileID: 0}
   statusText: {fileID: 0}
   uiFont: {fileID: 11400000, guid: ad82f58d7f40a25448fe68d46ecb6f2c, type: 2}
@@ -2657,6 +2656,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d20a4312cd3279c429601b7803bc2713, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  initializationTimeout: 20
+  loginTimeout: 20
+  OnLoginStatusChanged:
+    m_PersistentCalls:
+      m_Calls: []
   OnInitializeSuccess:
     m_PersistentCalls:
       m_Calls: []
@@ -5225,6 +5229,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2255223514966231357, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[2].m_Target
+      value: 
+      objectReference: {fileID: 3239447485272475423}
+    - target: {fileID: 2255223514966231357, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[3].m_Target
       value: 
       objectReference: {fileID: 3239447485272475423}
     - target: {fileID: 2261596157574585454, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
@@ -18449,7 +18457,7 @@ AudioSource:
   m_GameObject: {fileID: 3239447485272475422}
   m_Enabled: 1
   serializedVersion: 4
-  OutputAudioMixerGroup: {fileID: 0}
+  OutputAudioMixerGroup: {fileID: 24300001, guid: 03c9cbd9716843afa374d194799c9932, type: 2}
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 1c03db3c5ce3737489258fed37e0eac1, type: 3}
   m_PlayOnAwake: 1
@@ -21977,7 +21985,7 @@ AudioSource:
   m_GameObject: {fileID: 1421508834890273259}
   m_Enabled: 1
   serializedVersion: 4
-  OutputAudioMixerGroup: {fileID: 0}
+  OutputAudioMixerGroup: {fileID: 24300001, guid: 03c9cbd9716843afa374d194799c9932, type: 2}
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: bc1feb4ca1cd56048a4a5e0017df61ef, type: 3}
   m_PlayOnAwake: 1

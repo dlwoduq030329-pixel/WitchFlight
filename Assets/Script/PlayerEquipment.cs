@@ -22,6 +22,8 @@ public class PlayerEquipment : MonoBehaviour
     private bool weaponVisible = true;
     private bool followsDataConfig;
     private bool hasLocalLoadout;
+    public GameObject CurrentBroomObject => broomPrefabs != null && currentBroomIndex > 0 &&
+        currentBroomIndex < broomPrefabs.Length ? broomPrefabs[currentBroomIndex] : null;
 
     private void OnEnable()
     {

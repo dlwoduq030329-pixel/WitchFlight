@@ -60,7 +60,7 @@ public sealed partial class MagicProjectile
         foreach (var shot in active)
             if (shot != null && shot.Runner == owner.Runner && shot.Object != null && shot.Object.IsValid &&
                 shot.Object.HasStateAuthority && shot.ConstructKind == MagicConstructKind.Summon &&
-                shot.Shooter == owner.Object.InputAuthority && shot.Object != newest) owned.Add(shot);
+                shot.Shooter == owner.ParticipantRef && shot.Object != newest) owned.Add(shot);
         owned.Sort((a,b) => a.constructSpawnTick != b.constructSpawnTick
             ? a.constructSpawnTick.CompareTo(b.constructSpawnTick) : a.Object.Id.Raw.CompareTo(b.Object.Id.Raw));
         for (int i=0; i < owned.Count + 1 - Mathf.Clamp(limit,1,16); i++) owner.Runner.Despawn(owned[i].Object);

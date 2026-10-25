@@ -68,6 +68,8 @@ public class FlightProbe {
  void ProcessAuthoritativeCombat(NetworkInputData d,NetworkButtons b){CombatCalls++;}
  void ProcessPredictedProjectileInput(NetworkInputData d,NetworkButtons b){}
  bool ShouldShowInsufficientMana(NetworkButtons buttons)=>false;
+ // Cobra state machine is exercised independently in FlightCombatRegression.
+ bool TryStartCobra()=>false; bool TickCobra()=>false;
  void GoForward(){Position+=Speed*Runner.DeltaTime;} void ApplyKnockback(){KnockbackCalls++;}
  public void Step(int bits=0,bool suppressed=false,bool hasInput=true){
   IsBoosting=false;

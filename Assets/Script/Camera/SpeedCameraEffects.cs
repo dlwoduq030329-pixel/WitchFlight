@@ -28,10 +28,10 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [SerializeField, Min(0.01f)] private float transitionSpeed = 5f;
     [Header("Stage-based field of view (added to the camera's base FOV)")]
     [Tooltip("전진 단계별 FOV 증가 상한입니다. Flight Sensation을 켜면 실제 이동속도에 따라 증가하며, 정지/후진은 기본 FOV로 돌아갑니다.")]
-    [SerializeField, Range(0f, 30f)] private float stage1FieldOfViewIncrease = 3f;
-    [SerializeField, Range(0f, 30f)] private float stage2FieldOfViewIncrease = 6f;
+    [SerializeField, Range(0f, 30f)] private float stage1FieldOfViewIncrease = 10f;
+    [SerializeField, Range(0f, 30f)] private float stage2FieldOfViewIncrease = 18f;
     [InspectorName("Stage 3 Field Of View Increase")]
-    [SerializeField, Range(0f, 30f)] private float extraFieldOfView = 10f;
+    [SerializeField, Range(0f, 30f)] private float extraFieldOfView = 30f;
     [SerializeField, Min(0.01f)] private float fieldOfViewTransitionSpeed = 5f;
     [Header("Player directional motion blur (separate from background)")]
     [SerializeField] private PlayerDirectionalBlurSettings playerMotionBlur = new();
@@ -60,6 +60,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [Header("Peripheral wind lines")]
     [Tooltip("직접 만든 Canvas의 SpeedWindLines를 연결합니다. 비워두면 바람 UI를 생성하지 않습니다.")]
     [SerializeField] private SpeedWindLines windLines;
+    public Canvas WindCanvas => windLines != null ? windLines.canvas : null;
     [SerializeField] private bool showWindLines = true;
     [SerializeField, Range(0f, 1f)] private float windOpacity = 0.3f;
     [SerializeField, Range(8, 96)] private int windLineCount = 36;
@@ -209,7 +210,8 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
         UpdatePlayerMotionVectors(player);
         UpdateInnerRadius(player.CurrentSpeedStage, player.IsBoosting);
-        int displayStage = boundaryView ? 0 : player.CurrentSpeedStage;
+        // Cobra selects stage zero immediately, but its actual speed decays over the full arc.
+        int displayStage = boundaryView ? 0 : player.CobraActive ? 3 : player.CurrentSpeedStage;
         UpdateFieldOfView(displayStage, false, flightSensation.FieldOfViewScale(displayStage),
             flightSensation.ExtraFieldOfView);
 

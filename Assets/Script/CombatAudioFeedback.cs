@@ -28,7 +28,7 @@ public sealed class CombatAudioFeedback : MonoBehaviour
             for (int i = 0; i < statuses.Length; i++) statuses[i] = owner.HasStatusEffect(statusTypes[i]);
             initialized = true;
         }
-        if (hit != owner.HitSequence) { hit = owner.HitSequence; Sound(BattleSound.DamageReceived); }
+        if (hit != owner.HitSequence) { hit = owner.HitSequence; Sound(BattleSound.DamageReceived); Sound(BattleSound.HurtVoice); }
         if (death != owner.DeathSequence) { death = owner.DeathSequence; Sound(BattleSound.Death); }
         if (parryStart != owner.ParryStartSequence) { parryStart = owner.ParryStartSequence; Sound(BattleSound.ParryStart); }
         if (parry != owner.ParrySequence) { parry = owner.ParrySequence; Sound(BattleSound.ParrySuccess); }

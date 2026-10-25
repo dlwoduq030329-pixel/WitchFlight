@@ -109,7 +109,7 @@ foreach ($pair in @(@('hpGridBar','2027782590','902100009900001'),@('hpText','20
     if ($prefab -notmatch ('(?m)^--- !u!114 &' + $pair[2] + '\b')) { throw "Missing prefab component: $($pair[0])" }
 }
 'Prediction authority/lifecycle, font, respawn deadline, HP/MP prefab and scene contracts passed.'
-$hitRpc = [regex]::Match($player, '(?s)\[Rpc\(RpcSources.StateAuthority, RpcTargets.InputAuthority, Channel = RpcChannel.Reliable\)\]\s+private void RPC_ConfirmedMagicHit\(\).*?BattleHud.ShowHitMarker\(this\);')
+$hitRpc = [regex]::Match($player, '(?s)\[Rpc\(RpcSources.StateAuthority, RpcTargets.InputAuthority, Channel = RpcChannel.Reliable\)\]\s+private void RPC_ConfirmedMagicHit\(bool lethal\).*?BattleHud.ShowHitMarker\(this, lethal\);')
 if (!$hitRpc.Success) { throw 'Confirmed hit must go from authority to attacker only' }
 foreach ($token in '[SerializeField] private Image hitMarkerImage;', '[SerializeField] private RectTransform hitMarkerCenter;',
     'Graphic next = hitMarkerImage;', 'if (next == null)', 'generatedHitMarker.HitMarker = true;',
