@@ -34,12 +34,16 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Tooltip("이전 IsWithinLockAim 호출과의 호환용 값. 새 마법의 정면 180도 록온 판정에는 사용하지 않습니다.")]
     [SerializeField, Range(0f, 45f)] private float lockAimOffset = 3f;
     [SerializeField, Min(1f)] private float maxLockDistance = 250f;
+    [Tooltip("캐릭터 로컬 Y축 기준 록온 높이입니다. 뒤집히거나 기울어져도 몸과 함께 회전합니다.")]
     [SerializeField, Min(0f)] private float lockAimHeight = 0.8f;
     [SerializeField] private LayerMask lockObstructionMask = ~0;
 
     [Header("Combat")]
-    [Tooltip("마법이 출발하는 위치입니다. ChPrefab 아래 MagicCastRoot의 Position을 조절하세요. 비우면 기존 LockAimPoint를 사용하며, 발사 방향은 기존 조준/록온 규칙을 유지합니다. 네트워크 판정 일치를 위해 애니메이션 본이 아닌 Player 바로 아래에 둡니다.")]
+    [Tooltip("마법 발사 위치와 록온 완료 VFX의 기준점입니다. ChPrefab에 이미 연결된 MAGICROOT를 사용합니다. 비우면 발사는 LockAimPoint, 부착 VFX는 Player Transform을 사용합니다. 발사 방향은 기존 조준/록온 규칙을 유지합니다.")]
     [SerializeField] private Transform magicCastRoot;
+    [Tooltip("실제 체력 회복 후 몸의 Healing 상태 VFX를 표시하는 시간. 회복 마법과 HP 포션에 공통 적용됩니다.")]
+    [SerializeField, Min(0.05f)] private float healingFeedbackSeconds = 1.5f;
+    [Networked] private TickTimer HealingFeedbackTimer { get; set; }
     [SerializeField] private MagicStatTable magicStatTable;
     [SerializeField] private NetworkPrefabRef magicProjectilePrefab;
     [SerializeField, Min(0.01f)] private float parryWindowSeconds = 0.3f;
@@ -101,6 +105,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     // so even a remote observer which misses the short timer can see the gesture.
     [Networked] public int ParryStartSequence { get; private set; }
     [Networked] public int ParrySequence { get; private set; }
+    [Networked] public Vector3 ParryFacingDirection { get; private set; }
     [Networked] public int DeathSequence { get; private set; }
 
     [SerializeField] private PlayerEquipment equipment;
@@ -168,6 +173,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             StatusEffectType.Binding => TimerIsActive(BindingTimer),
             StatusEffectType.Slow => TimerIsActive(SlowTimer),
             StatusEffectType.HitStun => TimerIsActive(HitStunTimer),
+            StatusEffectType.Burn => HasBurnStatus,
+            StatusEffectType.Healing => TimerIsActive(HealingFeedbackTimer),
             _ => false
         };
     }
@@ -233,8 +240,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         BattleFlag.Instance.Runner == Runner && BattleFlag.Instance.ContainsSmoke(LockAimPoint);
     public bool HasActiveMine => Object != null && MagicProjectile.HasMineOwnedBy(Object.InputAuthority, Runner);
     public float MaxLockDistance => maxLockDistance;
-    public Vector3 LockAimPoint => transform.position + Vector3.up * lockAimHeight;
+    // Keep the shared aiming point attached to the body during inverted flight.
+    public Vector3 LockAimPoint => transform.TransformPoint(Vector3.up * lockAimHeight);
     public Vector3 MagicCastPosition => magicCastRoot != null ? magicCastRoot.position : LockAimPoint;
+    // Reuse the authored MAGICROOT reference for attached presentation; no second Inspector binding.
+    public Transform MagicCastAnchor => magicCastRoot != null ? magicCastRoot : transform;
 
     public bool IsAimAligned(Vector3 desiredDirection)
     {
@@ -320,6 +330,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         HitStunTimer = TickTimer.None;
         SlowTimer = TickTimer.None;
         BindingTimer = TickTimer.None;
+        HealingFeedbackTimer = TickTimer.None;
         ChannelMagic = MagicType.None;
         ChannelTargetId = default;
         channelDamageTime = 0f;
@@ -789,6 +800,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         // Never replay attacks, spawning, damage, RPCs or another player's state
         // while predicting/re-simulating this owner's movement.
+        if (!data.suppressCombat && Object.HasInputAuthority && Runner.IsForward &&
+            ShouldShowInsufficientMana(buttons))
+            BattleHud.ShowInsufficientMana(this);
         if (data.suppressCombat) CancelCombatForPerks();
         else if (Object.HasStateAuthority) ProcessAuthoritativeCombat(data, buttons);
         else if (Object.HasInputAuthority) ProcessPredictedProjectileInput(data, buttons);
@@ -813,6 +827,34 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         previousButtons = buttons;
     }
 
+    private bool ShouldShowInsufficientMana(NetworkButtons buttons)
+    {
+        if (!IsAlive || IsHitStunned || IsReturningToMap || pendingMagic != MagicType.None)
+            return false;
+        bool pressed = buttons.WasPressed(previousButtons, PlayerInputButton.Lock);
+        bool parryPressed = buttons.WasPressed(previousButtons, PlayerInputButton.Parry);
+        if (parryPressed || (pressed && CurrentMagicSlot == 3))
+        {
+            float cost = magicStatTable != null ? magicStatTable.parryApCost : 16f;
+            if (!TimerIsActive(ParryCooldown) && NowAp < Mathf.Max(0f, cost)) return true;
+        }
+        if (CurrentMagicSlot == 3) return false;
+        MagicStatEntry stats = SelectedMagicStats;
+        int index = (int)stats.magic;
+        if (index <= 0 || index >= MagicCooldowns.Length || TimerIsActive(MagicCooldowns[index]))
+            return false;
+        // A failed lock-on/area aim never reaches TryConsumeAp, so also check the initial press.
+        bool released = !buttons.IsSet(PlayerInputButton.Lock) && previousButtons.IsSet(PlayerInputButton.Lock);
+        bool confirming = released && (stats.requiresTarget && IsFullyLocked || areaAimArmed);
+        if (!pressed && !confirming) return false;
+        if (stats.IsChanneled)
+        {
+            float perSecond = stats.ChannelManaPerSecond(MaxAp);
+            return perSecond > 0f && Mathf.Min(Runner.DeltaTime, NowAp / perSecond) <= .000001f;
+        }
+        return NowAp < Mathf.Max(0f, stats.apCost);
+    }
+
     private void ProcessAuthoritativeCombat(NetworkInputData data, NetworkButtons buttons)
     {
         castInputTick = Runner.Tick.Raw;
@@ -834,6 +876,14 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
         areaAimArmed = false;
+
+        if (stats.TargetsAllies)
+        {
+            StopChannel();
+            UpdateHealingTarget(data.lockTarget);
+            if (pressed) TryCastSelectedMagic();
+            return;
+        }
 
         if (stats.IsChanneled)
         {
@@ -872,6 +922,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (IsHitStunned || CurrentMagicSlot == 3 || stats.IsChanneled ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
         { ClearLockTargetInternal(); return; }
+        if (stats.TargetsAllies)
+        {
+            castAimDirection = data.magicAimDirection;
+            UpdateHealingTarget(data.lockTarget);
+            return; // Predict target feedback only; healing/MP remain authoritative.
+        }
         if (stats.requiresTarget)
         {
             if (held || released) SetInputLockTarget(data.lockTarget);
@@ -976,6 +1032,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         float cost = boostApCostPerSecond * Runner.DeltaTime * (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind)));
         if (!TryConsumeMovementAp(cost))
         {
+            // Boost is predicted locally. Never replay UI feedback during rollback.
+            if (Object.HasInputAuthority && Runner.IsForward) BattleHud.ShowInsufficientMana(this);
             // Exhaust the remaining fraction and avoid rapid on/off boosting as AP regenerates.
             TryConsumeMovementAp(NowAp);
             boostNeedsRelease = true;
@@ -987,7 +1045,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         IsBoosting = true;
         if (cost > 0f && NowAp <= 0f)
+        {
+            if (Object.HasInputAuthority && Runner.IsForward) BattleHud.ShowInsufficientMana(this);
             boostNeedsRelease = true;
+        }
     }
 
     private void TryStartParry()
@@ -1014,14 +1075,18 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
 
+        bool wasFullyLocked = IsFullyLocked;
         float chargeSeconds = Mathf.Max(0.01f, stats.lockChargeSeconds);
         LockProgress = Mathf.Clamp01(LockProgress + Runner.DeltaTime / chargeSeconds);
         IsFullyLocked = LockProgress >= 1f;
+        // This method also runs in owner prediction. Only the host broadcasts completion.
+        if (!wasFullyLocked && IsFullyLocked && Object.HasStateAuthority)
+            RPC_PresentLockComplete(stats.magic);
     }
 
     private void SetInputLockTarget(NetworkId targetId)
     {
-        if (!CanAcquireMagicTarget() || !SelectedMagicStats.requiresTarget ||
+        if (!CanAcquireMagicTarget() || !SelectedMagicStats.UsesLockIndicator ||
             !TryGetMagicTarget(targetId, out _, out _, out _))
         {
             ClearLockTargetInternal();
@@ -1032,6 +1097,20 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             ClearLockTargetInternal();
             LockTargetId = targetId;
         }
+    }
+
+    private void UpdateHealingTarget(NetworkId targetId)
+    {
+        SetInputLockTarget(targetId);
+        bool valid = CanAcquireMagicTarget() && TryGetMagicTarget(LockTargetId, out Player ally, out _, out _) && ally != null;
+        LockProgress = valid ? 1f : 0f;
+        IsFullyLocked = valid;
+    }
+
+    public bool IsHealingAlly(Player target)
+    {
+        return target != null && target != this && target.Object != null && target.Object.IsValid &&
+            target.Runner == Runner && target.IsAlive && TeamIndex > 0 && target.TeamIndex == TeamIndex;
     }
 
     private void TryCastSelectedMagic()
@@ -1061,7 +1140,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         Player target = null;
         MagicProjectile summon = null;
-        if (stats.requiresTarget)
+        if (stats.TargetsAllies)
+        {
+            // An invalid/missing ally falls back to self; enemy IDs can never receive healing.
+            if (!TryGetMagicTarget(LockTargetId, out target, out _, out _)) target = null;
+        }
+        else if (stats.requiresTarget)
         {
             if (!TryGetMagicTarget(LockTargetId, out target, out summon, out _))
                 return;
@@ -1071,7 +1155,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
 
         if (stats.IsChanneled || (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
-        if (stats.effect == MagicEffectKind.Healing && NowHp >= MaxHp && !CanCleanse(stats)) return;
+        if (stats.TargetsAllies)
+        {
+            Player recipient = target != null ? target : this;
+            if (recipient.NowHp >= recipient.MaxHp && !recipient.CanCleanse(stats)) return;
+        }
         if (stats.effect == MagicEffectKind.Smoke &&
             (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
              BattleFlag.Instance == null || !BattleFlag.Instance.CanCreateSmoke(Runner))) return;
@@ -1090,7 +1178,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         CastSequence++;
         stats.perkCast = CastSequence;
         stats.perkAttacker = Object.InputAuthority;
-        if (stats.castSeconds > 0f && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke &&
+        if (stats.castSeconds > 0f && !stats.TargetsAllies && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke &&
             stats.effect != MagicEffectKind.DelayedArea && stats.effect != MagicEffectKind.PursuitSummon)
         {
             pendingMagic = selectedMagic;
@@ -1134,7 +1222,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (NowAp < Mathf.Max(0f, stats.apCost) || (stats.healthCost > 0f && NowHp <= stats.healthCost))
             return false;
         if (stats.projectileSpeed > 0f && !magicProjectilePrefab.IsValid) return false;
-        if (stats.effect == MagicEffectKind.Healing && NowHp >= MaxHp && !CanCleanse(stats)) return false;
+        // Full self HP must not prevent targeting an injured ally.
         if (stats.effect == MagicEffectKind.Smoke &&
             (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
              BattleFlag.Instance == null || !BattleFlag.Instance.CanCreateSmoke(Runner))) return false;
@@ -1210,13 +1298,15 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else if (stats.effect == MagicEffectKind.Smoke)
         {
             // Persistent replicated area survives the caster's death/despawn.
-            BattleFlag.Instance?.CreateSmoke(this, stats);
+            if (BattleFlag.Instance != null && BattleFlag.Instance.CreateSmoke(this, stats))
+                RPC_PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, 0f);
         }
         else if (stats.effect == MagicEffectKind.Healing)
         {
-            ApplyPerkCleanse(stats);
-            RestoreHealth(stats.healing);
-            RPC_PresentCast(stats.magic, LockAimPoint, LockAimPoint, 0f);
+            Player recipient = IsHealingAlly(target) ? target : this;
+            recipient.ApplyPerkCleanse(stats);
+            recipient.RestoreHealth(stats.healing);
+            RPC_PresentCast(stats.magic, recipient.LockAimPoint, recipient.LockAimPoint, 0f);
         }
         else LaunchMagic(stats, target, summon);
     }
@@ -1258,7 +1348,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 if (enemy != null && enemy.IsEnemyOf(this) &&
                     (enemy.LockAimPoint - end).sqrMagnitude <= stats.radius * stats.radius &&
                     MagicProjectile.HasBlastSight(end, enemy))
-                    enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(enemy.LockAimPoint, end)), Object.InputAuthority, Object.Id);
+                    enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(enemy.LockAimPoint, end)), Object.InputAuthority, Object.Id, enemy.LockAimPoint - end);
             }
         }
         else if (summonHit != null)
@@ -1269,7 +1359,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else if (victim != null && victim.IsEnemyOf(this))
         {
             int hit = victim.HitSequence;
-            victim.ReceiveMagicHit(stats, Object.InputAuthority, Object.Id);
+            victim.ReceiveMagicHit(stats, Object.InputAuthority, Object.Id, direction);
             if (victim.HitSequence == hit) ResetVisionMiss(stats);
         }
         else ResetVisionMiss(stats);
@@ -1335,7 +1425,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     public void RestoreHealth(float amount)
     {
         if (!Object.HasStateAuthority || !IsAlive || amount <= 0f) return;
+        float before = NowHp;
         NowHp = Mathf.Min(MaxHp, NowHp + amount);
+        if (NowHp > before)
+            HealingFeedbackTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.05f, healingFeedbackSeconds));
         SyncHealthToPlayerData();
     }
 
@@ -1361,7 +1454,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         float perSecond = stats.ChannelManaPerSecond(MaxAp);
         float paidTime = perSecond > 0f ? Mathf.Min(Runner.DeltaTime, NowAp / perSecond) : Runner.DeltaTime;
-        if (paidTime <= 0.000001f) { StopChannel(); channelNeedsRelease = true; return; }
+        if (paidTime <= 0.000001f) { NotifyManaFailure(); StopChannel(); channelNeedsRelease = true; return; }
         if (!TryConsumeAp(perSecond * paidTime)) { StopChannel(); channelNeedsRelease = true; return; }
         if (!IsChanneling)
         {
@@ -1398,7 +1491,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 tick.hitStunSeconds = 0f; // A beam must not stun-lock every damage tick.
                 tick.knockbackForce = 0f;
                 int parries = target.ParrySequence;
-                target.ReceiveMagicHit(tick, Object.InputAuthority, Object.Id);
+                target.ReceiveMagicHit(tick, Object.InputAuthority, Object.Id, target.LockAimPoint - MagicCastPosition);
                 if (target.ParrySequence != parries)
                 {
                     StopChannel();
@@ -1408,7 +1501,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             }
             channelDamageTime = 0f;
         }
-        if (exhausted) { StopChannel(); channelNeedsRelease = true; }
+        if (exhausted) { NotifyManaFailure(); StopChannel(); channelNeedsRelease = true; }
     }
 
     private void StopChannel()
@@ -1427,14 +1520,14 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     }
 
     // Called only by authoritative projectiles/rays; Ice's status cannot pass through a parry.
-    public void ReceiveMagicHit(MagicStatEntry stats, PlayerRef attacker, NetworkId attackerId = default)
+    public void ReceiveMagicHit(MagicStatEntry stats, PlayerRef attacker, NetworkId attackerId = default, Vector3 incomingDirection = default)
     {
         if (Object == null || !Object.HasStateAuthority || !IsAlive ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
         // Binding also counts as an incoming magic hit, despite its zero damage.
         if (IsParrying)
         {
-            ParrySequence++;
+            RegisterParry(incomingDirection, attacker, attackerId);
             return;
         }
         Player perkSource = null;
@@ -1462,6 +1555,15 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             ApplySlow(stats.movementMultiplier, stats.effectDuration);
         if (stats.effect == MagicEffectKind.LifeSteal && stats.healOnHit > 0f)
             FindPlayer(attacker)?.RestoreHealth(stats.healOnHit);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_PresentLockComplete(MagicType magic)
+    {
+        presentation ??= GetComponent<CombatPresentation>();
+        // None is the ordered cancellation event, including release and changing targets.
+        if (magic == MagicType.None) presentation?.ClearLockCompleteVfx();
+        else presentation?.ShowLockComplete(magic);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -1503,7 +1605,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (canBeParried && attacker != PlayerRef.None && IsParrying)
         {
-            ParrySequence++; // Successful block: no reflected damage.
+            RegisterParry(Vector3.zero, attacker, attackerId);
             return;
         }
 
@@ -1612,6 +1714,22 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         );
     }
 
+    private void RegisterParry(Vector3 incomingDirection, PlayerRef attacker, NetworkId attackerId)
+    {
+        // A confirmed block lets the next input restart parry immediately; missed attempts retain their cooldown.
+        ParryCooldown = TickTimer.None;
+        // Reverse the actual travel vector, not the shooter's current location (homing shots can curve).
+        Vector3 facing = -incomingDirection.normalized;
+        if (!IsFiniteDirection(facing) || facing.sqrMagnitude < .0001f)
+        {
+            Player source = Runner.TryFindObject(attackerId, out NetworkObject obj) && obj != null
+                ? obj.GetComponent<Player>() : FindPlayer(attacker);
+            facing = source != null ? (source.LockAimPoint - LockAimPoint).normalized : transform.forward;
+        }
+        ParryFacingDirection = IsFiniteDirection(facing) && facing.sqrMagnitude > .0001f ? facing.normalized : transform.forward;
+        ParrySequence++;
+    }
+
     private Player FindPlayer(PlayerRef playerRef)
     {
         return FindInRunner(Runner, playerRef);
@@ -1707,6 +1825,18 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         data.SetBattleAp(MaxAp, NowAp, ApRecoveryPerSecond);
     }
 
+    private void NotifyManaFailure()
+    {
+        if (Object != null && Object.HasStateAuthority && Object.InputAuthority != PlayerRef.None)
+            RPC_InsufficientMana();
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority, Channel = RpcChannel.Reliable)]
+    private void RPC_InsufficientMana()
+    {
+        BattleHud.ShowInsufficientMana(this);
+    }
+
     public bool TryConsumeAp(float amount)
     {
         if (!Object.HasStateAuthority)
@@ -1714,7 +1844,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         amount = Mathf.Max(0f, amount);
         if (NowAp < amount)
+        {
+            NotifyManaFailure();
             return false;
+        }
 
         NowAp -= amount;
         SyncApToPlayerData();
@@ -1807,7 +1940,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void RPC_SetLockTarget(NetworkId targetId, Vector3 desiredDirection)
     {
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            !CanAcquireMagicTarget() || !SelectedMagicStats.requiresTarget || !IsFiniteDirection(desiredDirection))
+            !CanAcquireMagicTarget() || !SelectedMagicStats.UsesLockIndicator || !IsFiniteDirection(desiredDirection))
         {
             ClearLockTargetInternal();
             return;
@@ -1826,9 +1959,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (!LockTargetId.Equals(targetId))
         {
+            ClearLockTargetInternal();
             LockTargetId = targetId;
-            LockProgress = 0f;
-            IsFullyLocked = false;
         }
     }
 
@@ -1856,8 +1988,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private bool IsValidLockTarget(Player target)
     {
-        if (target == null || !target.IsTargetableBy(this) ||
-            Vector3.Dot(transform.forward, target.LockAimPoint - LockAimPoint) < 0f)
+        Vector3 forward = SelectedMagicStats.TargetsAllies && IsFiniteDirection(castAimDirection) && castAimDirection.sqrMagnitude > .0001f
+            ? castAimDirection : transform.forward;
+        if (target == null || !(SelectedMagicStats.TargetsAllies ? IsHealingAlly(target) : target.IsTargetableBy(this)) ||
+            Vector3.Dot(forward, target.LockAimPoint - LockAimPoint) < 0f)
             return false;
 
         float range = SelectedMagicStats.range > 0f
@@ -1911,9 +2045,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void ClearLockTargetInternal()
     {
+        bool wasFullyLocked = IsFullyLocked;
         LockTargetId = default;
         LockProgress = 0f;
         IsFullyLocked = false;
+        if (wasFullyLocked && Object != null && Object.IsValid && Object.HasStateAuthority)
+            RPC_PresentLockComplete(MagicType.None);
     }
 
     public void InterruptLock()

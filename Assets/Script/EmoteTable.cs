@@ -11,6 +11,12 @@ public sealed class EmoteEntry
     public int id;
     public string displayName;
     public Sprite icon;
+    [Tooltip("개별 프리팹이 필요한 경우에만 지정합니다. 비우면 테이블의 공용 Display Prefab을 사용합니다.")]
+    public GameObject displayPrefab;
+    [Tooltip("Animator 상태 이름(예: Happy 또는 Base Layer.Happy), 또는 Animation 컴포넌트에 등록된 클립 이름. 비우면 기본 애니메이션입니다.")]
+    public string animationName;
+    [Min(0f), Tooltip("0이면 선택한 애니메이션 길이로 자동 종료합니다. 여러 상태/지연/루프를 조합한 프리팹은 전체 재생 시간을 직접 지정하세요.")]
+    public float prefabDisplaySeconds;
     [Tooltip("Icon이 비어 있을 때 사용하는 기본 얼굴입니다.")]
     public DefaultEmoteFace fallbackFace;
 }
@@ -18,6 +24,9 @@ public sealed class EmoteEntry
 [CreateAssetMenu(fileName = "EmoteTable", menuName = "WitchFlight/UI/Emote Table")]
 public sealed class EmoteTable : ScriptableObject
 {
+    [Tooltip("모든 감정표현이 함께 사용하는 UI 프리팹(RectTransform). 각 항목의 Animation Name으로 재생 상태를 선택합니다.")]
+    [SerializeField] private GameObject defaultDisplayPrefab;
+    public GameObject DefaultDisplayPrefab => defaultDisplayPrefab;
     [SerializeField] private EmoteEntry[] entries =
     {
         new EmoteEntry { id = 1, displayName = "안녕!", fallbackFace = DefaultEmoteFace.Hello },

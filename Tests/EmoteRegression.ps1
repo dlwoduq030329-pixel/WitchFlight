@@ -15,7 +15,7 @@ namespace UnityEngine {
  [AttributeUsage(AttributeTargets.Field)] public class MinAttribute:Attribute {public MinAttribute(float n){}}
  [AttributeUsage(AttributeTargets.Field)] public class TooltipAttribute:Attribute {public TooltipAttribute(string s){}}
  [AttributeUsage(AttributeTargets.Class)] public class CreateAssetMenuAttribute:Attribute {public string fileName,menuName;}
- public class ScriptableObject {} public class Sprite {}
+ public class ScriptableObject {} public class Sprite {} public class GameObject {}
  public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);}
  public static class Resources {public static object Value;public static T Load<T>(string s) where T:class=>Value as T;}
  public static class Debug {public static void LogWarning(string s,object o){}}
@@ -128,7 +128,7 @@ public static class EmoteChecks {
  }
 }
 '@
-Add-Type -TypeDefinition $source
+Add-Type -TypeDefinition ("#pragma warning disable 0649`n" + $source)
 Write-Output ("Emote behaviour checks passed: " + [EmoteChecks]::Run())
 
 function Require([bool]$ok,[string]$name) { if (!$ok) { throw $name } }

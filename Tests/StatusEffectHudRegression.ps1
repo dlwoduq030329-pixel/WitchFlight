@@ -38,6 +38,8 @@ public class Player {
  public static Player LocalPlayer;
  public NetworkObject Object=new();public NetworkRunner Runner=new();public bool IsAlive=true;
  public TickTimer BindingTimer,SlowTimer,HitStunTimer;
+ public TickTimer HealingFeedbackTimer;
+ public bool HasBurnStatus;
 '@
 $source += (Method $player 'HasStatusEffect') + "`n" + (Method $player 'TimerIsActive')
 $source += "`n} public class Hud {public Player owner; public Transform transform=new();`n" + $binding
@@ -51,6 +53,12 @@ public static class Tests {
  public static int Run(){
   Check((int)StatusEffectType.None==0&&(int)StatusEffectType.Binding==1&&(int)StatusEffectType.Slow==2&&(int)StatusEffectType.HitStun==3,"stable serialized IDs");
   var me=new Player();Player.LocalPlayer=me;
+  Check((int)StatusEffectType.Burn==4,"Burn appends without shifting saved status IDs");
+  me.HasBurnStatus=true;Check(me.HasStatusEffect(StatusEffectType.Burn),"replicated burn flag is visible to status UI");
+  me.HasBurnStatus=false;Check(!me.HasStatusEffect(StatusEffectType.Burn),"burn ends when authoritative flag clears");
+  Check((int)StatusEffectType.Healing==5,"recovery status preserves old enum IDs");
+  me.HealingFeedbackTimer=new(2);Check(me.HasStatusEffect(StatusEffectType.Healing),"actual recovery timer enables shared UI/world status");
+  me.Runner.tick=2;Check(!me.HasStatusEffect(StatusEffectType.Healing),"recovery status automatically expires");me.Runner.tick=0;
   var bound=new GameObject();var slow=new GameObject();var stun=new GameObject();var unused=new GameObject();
   var hud=new Hud{owner=me,statusEffectViews=new[]{
    new Hud.StatusEffectUIBinding{status=StatusEffectType.Binding,uiObject=bound},

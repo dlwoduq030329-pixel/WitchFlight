@@ -13,7 +13,8 @@ $methods = @('TryCastSelectedMagic','TryStartParry','ReceiveMagicHit','TakeDamag
     'RestoreHealth','TryConsumeAp','UpdateChannel','StopChannel','RegenerateAp','TimerIsActive',
     'SetInputLockTarget','UpdateLockCharge','TryGetValidLockTarget','IsValidLockTarget','ClearLockTargetInternal',
     'ProcessAuthoritativeCombat','ProcessPredictedProjectileInput','UpdatePendingCast','NotifyDamageDirection','NotifyConfirmedMagicHit',
-    'CanAcquireMagicTarget','GetDisplayedLockTarget','RPC_SetLockTarget') | ForEach-Object { Method $_ }
+    'CanAcquireMagicTarget','GetDisplayedLockTarget','RPC_SetLockTarget','IsHealingAlly','UpdateHealingTarget','RegisterParry',
+    'ShouldShowInsufficientMana','NotifyManaFailure') | ForEach-Object { Method $_ }
 $area = Get-Content (Join-Path $repo 'Assets/Script/Player.AreaMagic.cs') -Raw
 foreach ($name in 'ProcessAreaAim','CanCreateSpecialMagic') {
     $methods += [regex]::Match($area, '(?ms)^    private (?:void|bool) '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}').Value.Replace('private ','public ')
@@ -27,6 +28,7 @@ namespace UnityEngine {
  public class GameObject:Object {}
  public class AnimationClip:Object {}
  public class Sprite:Object {}
+ public class Material:Object {}
  public class ScriptableObject:Object {}
  public static class Resources {public static T Load<T>(string path) where T:class=>null;}
  public class SerializeField:Attribute {}
@@ -46,6 +48,7 @@ namespace UnityEngine {
   public float x,y,z; public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
   public static Vector3 zero=>default; public static Vector3 forward=>new Vector3(0,0,1);
   public float sqrMagnitude=>x*x+y*y+z*z;
+  public Vector3 normalized {get {float m=(float)Math.Sqrt(sqrMagnitude);return m>.00001f?new(x/m,y/m,z/m):zero;}}
   public static float SqrMagnitude(Vector3 a)=>a.sqrMagnitude;
   public static Vector3 operator+(Vector3 a,Vector3 b)=>new Vector3(a.x+b.x,a.y+b.y,a.z+b.z);
   public static Vector3 operator-(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
@@ -118,6 +121,7 @@ namespace CombatChecks { using UnityEngine;
 public class Player {
  public bool areaAimArmed,hasConfirmedAreaPoint;public Vector3 confirmedAreaPoint;
  public int ParryStartSequence;
+ public int ManaWarnings; void RPC_InsufficientMana(){ManaWarnings++;}
  public bool ValidateAreaPoint(Vector3 p,MagicStatEntry s,out Vector3 point){point=p;return Visible;}
  public bool CanAimAreaMagic()=>IsAlive&&!IsHitStunned&&!IsReturningToMap&&pendingMagic==MagicType.None&&
   !TimerIsActive(MagicCooldowns[(int)GetSelectedMagic()])&&NowAp>=SelectedMagicStats.apCost;
@@ -125,8 +129,9 @@ public class Player {
  public MagicStatEntry pendingPerkStats,channelPerkStats;
  public float beamContact,beamLastContact,lifeStartMaxHp;public NetworkId beamVictim;
  public bool IsBound=>TimerIsActive(BindingTimer);
- public bool CanCleanse(MagicStatEntry s)=>false;
- public void ApplyPerkCleanse(MagicStatEntry s){}
+ public bool NeedsCleanse;public int Cleanses;
+ public bool CanCleanse(MagicStatEntry s)=>NeedsCleanse;
+ public void ApplyPerkCleanse(MagicStatEntry s){if(NeedsCleanse){NeedsCleanse=false;Cleanses++;}}
  public float StatusPerkDuration(float duration)=>duration;
  public void StartPerkFlare(MagicStatEntry s)=>MagicProjectile.BreakHomingFor(this);
  public void TrackPerkBeam(Player p,float t,MagicStatEntry s){}
@@ -139,6 +144,7 @@ public class Player {
  public MagicType Selected=MagicType.Vision,pendingMagic,LastCastMagic,ChannelMagic;
  public NetworkId LockTargetId,pendingTargetId,ChannelTargetId;
  public TickTimer castTimer,ParryTimer,ParryCooldown,BindingTimer;
+ public TickTimer HealingFeedbackTimer;public float healingFeedbackSeconds=1.5f;
  public TickTimer nextHitMarkerFeedback;
  public int castInputTick,pendingInputTick;
  public Vector3 castAimDirection,pendingAimDirection;
@@ -151,6 +157,7 @@ public class Player {
  public float LockProgress,Speed,channelDamageTime,LastReceivedDamage;
  public PlayerRef LastAttacker;
  public Vector3 KnockbackVelocity,ChannelEnd;
+ public Vector3 ParryFacingDirection;
  public Vector3 LockAimPoint=>transform.position;
  public Vector3 MagicCastPosition=>transform.position+CastOffset;
  public Vector3 CastOffset,LastTraceOrigin,LastCastOrigin,LastLaunchDirection;
@@ -175,6 +182,8 @@ public class Player {
  public int Predictions;
  public void TryPredictProjectile(MagicStatEntry s){Predictions++;}
  public void RPC_PresentCast(MagicType m,Vector3 a,Vector3 b,float v){LastCastOrigin=a;}
+ public int LockReadyEvents,LockClearEvents;public MagicType LastReadyMagic;
+ public void RPC_PresentLockComplete(MagicType m){if(m==MagicType.None)LockClearEvents++;else {LockReadyEvents++;LastReadyMagic=m;}}
  public int DamageDirectionEvents;public Vector3 DamageDirectionPosition;
  public int HitMarkerEvents;
  public void RPC_ConfirmedMagicHit(){HitMarkerEvents++;}
@@ -203,6 +212,12 @@ public static class Tests {
  static void Tick(Player p){p.Runner.Time+=p.Runner.DeltaTime;}
  public static int Run(){
   var table=new MagicStatTable();Check(table.magics.Length==12,"twelve spells including utility counters");
+  var secondary=new UnityEngine.GameObject();var common=new UnityEngine.GameObject();var ice=new UnityEngine.GameObject();
+  table.projectileSatelliteVfxPrefab=common;table.iceImpactShardVfxPrefab=ice;
+  var visualEntry=table.GetStats(MagicType.Ice);
+  Check(table.GetSecondaryProjectileVfx(visualEntry)==common&&table.GetSecondaryProjectileVfx(visualEntry,true)==ice,"legacy secondary assignments remain fallback by effect type");
+  visualEntry.secondaryProjectileVfxPrefab=secondary;
+  Check(table.GetSecondaryProjectileVfx(visualEntry)==secondary&&table.GetSecondaryProjectileVfx(visualEntry,true)==secondary,"per-spell secondary overrides ordinary satellites and ice shards");
   float[] balancedDamage={45,25,25,100,0,0,70,0,18,0,0,0};
   float[] balancedDps={0,0,0,0,0,0,0,10,0,20,0,0};
   for(int i=0;i<balancedDamage.Length;i++) {
@@ -221,6 +236,34 @@ public static class Tests {
   Check(Near(table.GetStats(MagicType.Ice).movementMultiplier,.4f)&&Near(table.GetStats(MagicType.Ice).effectDuration,2.5f),"ice leaves forty percent movement speed for 2.5 seconds");
   Check(Near(table.GetStats(MagicType.Thunder).range,300)&&Near(table.GetStats(MagicType.Thunder).strikeDelay,1.5f),"thunder range buff retains delayed strike mechanic");
   Check(Near(table.parryCooldownSeconds,.3f),"parry has a separate 0.3 second cooldown");
+  var manaPress=new NetworkButtons{Bits=1};
+  foreach(var magic in new[]{MagicType.Fire,MagicType.Thunder,MagicType.Healing,MagicType.Smoke}) {
+   var low=Caster(magic);low.NowAp=low.SelectedMagicStats.apCost-1;
+   Check(low.ShouldShowInsufficientMana(manaPress),"MP warning on initial press for "+magic);
+   low.previousButtons=manaPress;
+   Check(!low.ShouldShowInsufficientMana(manaPress),"holding cannot continuously restart MP warning for "+magic);
+  }
+  var warning=Caster(MagicType.Fire);warning.NowAp=0;
+  warning.MagicCooldowns.Set((int)MagicType.Fire,TickTimer.CreateFromSeconds(warning.Runner,1));
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"cooldown rejection does not flash MP bar");
+  warning.MagicCooldowns.Set((int)MagicType.Fire,default);warning.IsHitStunned=true;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"hit stun rejection does not flash MP bar");
+  warning.IsHitStunned=false;warning.NowAp=warning.SelectedMagicStats.apCost;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"exactly sufficient MP does not flash");
+  warning.NowAp=0;warning.previousButtons=manaPress;warning.IsFullyLocked=true;
+  Check(warning.ShouldShowInsufficientMana(default),"MP drained during completed lock warns on release");
+  warning.IsFullyLocked=false;
+  Check(!warning.ShouldShowInsufficientMana(default),"release after rejected lock cannot duplicate warning");
+  warning=Caster(MagicType.Razier);warning.NowAp=0;
+  Check(warning.ShouldShowInsufficientMana(manaPress),"empty channel MP warns on press");
+  warning.NowAp=.01f;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"channel accepts a payable partial tick");
+  warning=Caster(MagicType.Dark);warning.NowAp=0;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"health-cost spell does not require MP");
+  Check(warning.ShouldShowInsufficientMana(new NetworkButtons{Bits=2}),"parry MP rejection also warns");
+  Check(!warning.TryConsumeAp(1)&&warning.ManaWarnings==1,"all authoritative MP spending failures notify owner");
+  warning.Object.HasStateAuthority=false;warning.TryConsumeAp(1);
+  Check(warning.ManaWarnings==1,"replica cannot broadcast MP failures");
   var parrying=Caster(MagicType.Fire);parrying.TryStartParry();
   Check(Near(parrying.ParryCooldown.End,.3f)&&Near(parrying.NowAp,84),"parry starts cooldown and spends MP once");
   parrying.Runner.Time=.299f;parrying.TryStartParry();
@@ -229,6 +272,23 @@ public static class Tests {
   Check(Near(parrying.NowAp,68)&&Near(parrying.ParryCooldown.End,.6f),"parry can repeat exactly at cooldown expiry");
   parrying=Caster(MagicType.Fire);parrying.magicStatTable=null;parrying.TryStartParry();
   Check(Near(parrying.ParryCooldown.End,.3f),"missing table still uses 0.3 second parry fallback");
+  parrying=Caster(MagicType.Fire);parrying.TryStartParry();parrying.Runner.Time=.1f;
+  parrying.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.None);
+  Check(!parrying.ParryCooldown.IsRunning&&parrying.IsParrying&&parrying.ParrySequence==1,"successful zero-damage block resets cooldown without ending protection");
+  parrying.TryStartParry();
+  Check(parrying.ParryStartSequence==2&&Near(parrying.NowAp,68)&&Near(parrying.ParryCooldown.End,.4f),"success permits immediate repeat with normal MP cost and fresh cooldown");
+  parrying.TryStartParry();
+  Check(parrying.ParryStartSequence==2&&Near(parrying.NowAp,68),"repeat without another success is still on cooldown");
+  parrying.TakeDamage(20,PlayerRef.One);
+  Check(!parrying.ParryCooldown.IsRunning&&parrying.ParrySequence==2,"direct damage block also resets cooldown");
+  parrying.TryStartParry();
+  Check(parrying.ParryStartSequence==3&&Near(parrying.NowAp,52),"consecutive successful parries allow consecutive repeats");
+  parrying.Object.HasStateAuthority=false;
+  parrying.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One);
+  parrying.TakeDamage(20,PlayerRef.One);
+  Check(parrying.ParryCooldown.IsRunning&&parrying.ParrySequence==2,"replica hits cannot reset authoritative cooldown");
+  parrying.Object.HasStateAuthority=true;parrying.TakeDamage(20,PlayerRef.One,canBeParried:false);
+  Check(parrying.ParryCooldown.IsRunning&&parrying.ParrySequence==2,"unparryable damage does not grant cooldown reset");
   Check((int)MagicType.Flare==11&&(int)MagicType.Smoke==12,"new IDs append without changing saved old IDs");
   var utility=Caster(MagicType.Flare);
   utility.Input(true);
@@ -328,14 +388,55 @@ public static class Tests {
   victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(!victim.IsAlive&&d.NowHp==110,"killing hit still heals");
   d=Caster(MagicType.Healing);d.NowHp=190;d.Input(true);Check(d.NowHp==200&&d.NowAp==80,"Healing caps at max on press");
   d=Caster(MagicType.Healing);d.Input(true);Check(d.NowAp==100&&d.CastSequence==0,"full HP healing does not consume resources");
+  Check(!d.HealingFeedbackTimer.IsRunning,"zero actual healing cannot start recovery VFX");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;
+  Check(d.CanAcquireMagicTarget(),"full-health caster may target injured allies");
+  d.Input(false,false,victim.Object.Id);
+  Check(d.IsFullyLocked&&d.LockProgress==1&&d.GetDisplayedLockTarget()==victim,"ally locks instantly without holding or charging");
+  d.Input(true,false,victim.Object.Id);
+  Check(victim.NowHp==140&&d.NowHp==200&&d.NowAp==80,"heal goes to ally while cost belongs to caster");
+  Check(victim.HealingFeedbackTimer.IsRunning&&!d.HealingFeedbackTimer.IsRunning,"healing status VFX belongs to recipient only");
+  Check(d.LastCastOrigin.z==victim.LockAimPoint.z,"cast effect is centered on healed ally");
+  d.Input(true,false,victim.Object.Id);Check(victim.NowHp==140,"holding heal cannot repeat casts");
+  d.Input(false,false,victim.Object.Id);Check(!d.IsFullyLocked,"cooldown clears ally lock");
+  foreach(string invalid in new[]{"enemy","behind","far","wall","dead","despawn","runner","self"}) {
+   d=Caster(MagicType.Healing);d.NowHp=100;victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;
+   if(invalid=="enemy")victim.TeamIndex=2;if(invalid=="behind")victim.transform.position=new(0,0,-10);
+   if(invalid=="far")victim.transform.position=new(0,0,300);if(invalid=="wall")victim.Visible=false;
+   if(invalid=="dead")victim.IsAlive=false;if(invalid=="despawn")victim.Object.IsValid=false;
+   if(invalid=="runner")victim.Runner=new();if(invalid=="self")d.Runner.Objects[2]=d.Object;
+   d.Input(true,false,victim.Object.Id);
+   Check(d.NowHp==140&&victim.NowHp==100,"invalid ally falls back to self: "+invalid);
+  }
+  d=Caster(MagicType.Healing);d.NowHp=100;victim=Enemy(d);victim.TeamIndex=d.TeamIndex;
+  d.Input(true,false,victim.Object.Id);Check(d.NowAp==100&&d.NowHp==100,"full-health locked ally does not silently redirect heal or spend mana");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NeedsCleanse=true;
+  d.Input(true,false,victim.Object.Id);Check(victim.Cleanses==1&&d.Cleanses==0&&d.NowAp==80,"cleanse applies to target, including full-health ally");
+  Check(!victim.HealingFeedbackTimer.IsRunning,"cleanse alone does not falsely report HP recovery");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;d.NowAp=0;
+  d.Input(true,false,victim.Object.Id);Check(!d.IsFullyLocked&&victim.NowHp==100,"no mana means no ally lock or healing");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;d.Object.HasStateAuthority=false;
+  d.ProcessPredictedProjectileInput(new(){lockTarget=victim.Object.Id},new(){Bits=1});
+  Check(d.IsFullyLocked&&victim.NowHp==100&&d.NowAp==100&&d.Predictions==0,"prediction only shows instant ally lock and never heals");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;victim.transform.position=new(10,0,0);
+  d.ProcessAuthoritativeCombat(new(){lockTarget=victim.Object.Id,magicAimDirection=new(1,0,0)},new(){Bits=1});
+  Check(victim.NowHp==140,"healing front hemisphere follows supplied camera aim");
   d=Caster(MagicType.Binding);victim=Enemy(d);victim.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.One);
   Check(victim.NowHp==200&&Near(victim.BindingTimer.End,3)&&victim.Speed==0,"Binding roots three seconds without damage");
   victim.BindingTimer=default;victim.TryStartParry();victim.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.None);
   Check(!victim.BindingTimer.IsRunning&&victim.ParrySequence==1,"bot Binding with no PlayerRef still parried");
+  victim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,d.Object.Id,new Vector3(5,0,0));
+  Check(Near(victim.ParryFacingDirection.x,-1)&&Near(victim.ParryFacingDirection.z,0)&&victim.NowHp==200,"shield faces actual incoming projectile, not shooter position");
+  victim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,d.Object.Id,new Vector3(0,-3,0));
+  Check(Near(victim.ParryFacingDirection.y,1),"shield can face overhead projectiles");
+  victim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,d.Object.Id);
+  Check(Near(victim.ParryFacingDirection.z,-1),"legacy hits fall back to source position");
   d=Caster(MagicType.Fire);victim=Enemy(d);d.Input(true,false,victim.Object.Id);
   Check(d.LockProgress>0&&d.Launches==0,"lock charges on hold, not fires");d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"early release no shot");
   for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}Check(d.IsFullyLocked,"full charge");
+  Check(d.LockReadyEvents==1&&d.LastReadyMagic==MagicType.Fire,"completed lock broadcasts correct spell once while held");
   d.Input(false,false,victim.Object.Id);Check(d.Launches==1&&d.LockProgress==0,"release fires and clears lock");
+  Check(d.LockClearEvents==1,"release cancels attached lock-complete VFX");
   Check(!d.CanAcquireMagicTarget(),"casting immediately disables target eligibility during cooldown");
   d.Input(true,false,victim.Object.Id);Check(d.LockProgress==0&&d.LockTargetId.Id==0&&!d.IsFullyLocked,"holding during cooldown cannot accumulate charge");
   d.RPC_SetLockTarget(victim.Object.Id,Vector3.forward);Check(d.LockTargetId.Id==0,"legacy RPC cannot bypass cooldown");
@@ -353,6 +454,7 @@ public static class Tests {
   d.NowAp=100; // Isolate cooldown/lock behavior from the newly doubled cast cost.
   for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}d.Input(false,false,victim.Object.Id);
   Check(d.Launches==2,"normal full lock and release work after cooldown");
+  Check(d.LockReadyEvents==2,"a fresh completed lock plays the effect again");
   d.Selected=MagicType.Ice;Check(d.CanAcquireMagicTarget(),"another ready spell remains selectable while Fire cools down");
   d.Selected=MagicType.Fire;Check(!d.CanAcquireMagicTarget(),"switching back does not reset per-magic cooldown");
   d.CurrentMagicSlot=3;Check(!d.CanAcquireMagicTarget(),"parry slot cannot acquire spell targets");
@@ -365,6 +467,8 @@ public static class Tests {
   Check(d.Predictions==0,"owner prediction cannot release a cooled-down lock spell");
   d.Runner.Time=1;d.ProcessPredictedProjectileInput(lockInput,heldButtons);
   Check(d.LockProgress>0&&d.LockTargetId.Equals(victim.Object.Id),"prediction reacquires after expiry");
+  for(int i=0;i<80;i++)d.ProcessPredictedProjectileInput(lockInput,heldButtons);
+  Check(d.IsFullyLocked&&d.LockReadyEvents==0,"predicted full lock never sends authority presentation RPCs");
   d.Object.IsValid=false;Check(!d.CanAcquireMagicTarget(),"despawned player cannot acquire targets");
   foreach(var magic in new[]{MagicType.Fire,MagicType.Ice,MagicType.Binding}) {
    d=Caster(magic);victim=Enemy(d);float cost=d.SelectedMagicStats.apCost;
@@ -381,6 +485,7 @@ public static class Tests {
    Check(d.GetDisplayedLockTarget()==null,"resource loss immediately hides completed lock for "+magic);
    d.Input(true,false,victim.Object.Id);
    Check(d.LockProgress==0&&!d.IsFullyLocked&&d.LockTargetId.Id==0,"resource loss cancels completed lock for "+magic);
+   Check(d.LockReadyEvents==1&&d.LockClearEvents==1,"resource loss cancels ready VFX exactly once for "+magic);
    d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"unaffordable release cannot cast "+magic);
    d.NowAp=cost;d.Input(true,false,victim.Object.Id);
    Check(d.LockProgress>0&&d.LockProgress<.1f&&!d.IsFullyLocked,"restored MP starts a fresh charge for "+magic);

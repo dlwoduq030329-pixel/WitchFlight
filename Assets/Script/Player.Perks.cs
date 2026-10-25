@@ -9,6 +9,7 @@ public partial class Player
     [Networked] private float PerkBaseRecovery { get; set; }
     [Networked] private TickTimer CleanseProtection { get; set; }
     [Networked] private float CleanseDurationMultiplier { get; set; }
+    [Networked] private bool HasBurnStatus { get; set; }
     private PlayerData perkOwner;
     private float lifeStartMaxHp, perkClock, nextManaRemnant;
     private MagicStatEntry pendingPerkStats, channelPerkStats, flarePerkStats;
@@ -40,6 +41,8 @@ public partial class Player
     private float CommonAmount(PerkId id) => PerkOwner != null && PerkOwner.HasCommonPerk(id) ? Perks.Amount(id) : 0f;
     private void InitializePerkVitals(PlayerData data)
     {
+        perkBurns.Clear();
+        HasBurnStatus = false;
         perkOwner = data;
         PerkBaseMaxHp = MaxHp; PerkBaseMaxAp = MaxAp; PerkBaseRecovery = ApRecoveryPerSecond;
         RefreshPerkVitals(true);
@@ -94,6 +97,7 @@ public partial class Player
             TakeDamage(burn.damagePerSecond * dt, burn.attacker, MagicType.Fire, false, 0f, 0f);
             if (burn.remaining <= .00001f) perkBurns.RemoveAt(i);
         }
+        HasBurnStatus = perkBurns.Count > 0;
         if (flarePulseAt >= 0f && perkClock >= flarePulseAt && IsAlive)
         {
             flarePulsesRemaining--;
@@ -178,6 +182,7 @@ public partial class Player
             if (burn == null) { burn = new Burn {attacker=attacker}; perkBurns.Add(burn); }
             burn.remaining = s.perkFirst.seconds; burn.damagePerSecond = Mathf.Max(0f,s.perkFirst.amount) / burn.remaining;
             burn.interval = Mathf.Max(.05f,Perks.burnTickSeconds); burn.nextTick = perkClock + Mathf.Min(burn.interval,burn.remaining);
+            HasBurnStatus = true;
         }
     }
     private void ResetVisionMiss(MagicStatEntry stats)

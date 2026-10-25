@@ -46,6 +46,7 @@ $source += @'
 public partial class Player {
  public NetworkObject Object=new();public NetworkRunner Runner=new();
  public bool IsAlive=true,IsTestBot,IsReturningToMap;
+ public TickTimer HealingFeedbackTimer;public float healingFeedbackSeconds=1.5f;
  public float NowHp=50,MaxHp=100,NowAp=20,MaxAp=100;public int HealthNotifications, ManaNotifications;
  private void SyncHealthToPlayerData(){HealthNotifications++;}
  private void SyncApToPlayerData(){ManaNotifications++;}
@@ -71,6 +72,7 @@ public static class Tests {
   Check(!p.HasItemSpeedBoost&&p.GetItemSpeedMultiplier()==1,"no implicit boost before pickup");
   Check(p.TryApplyBattleItem(BattleItemType.HealthPotion,40,1.3f,5)&&p.NowHp==90,"potion heals configured amount");
   Check(p.HealthNotifications==1,"potion uses existing HP notification path");
+  Check(p.HealingFeedbackTimer.IsRunning&&Near(p.HealingFeedbackTimer.End,p.Runner.Time+1.5f),"HP potion starts shared body recovery VFX timer");
   Check(p.TryApplyBattleItem(BattleItemType.HealthPotion,40,1.3f,5)&&p.NowHp==100,"heal clamps to maximum");
   Check(!p.TryApplyBattleItem(BattleItemType.HealthPotion,40,1.3f,5)&&p.HealthNotifications==2,"full HP does not waste potion");
   Check(p.TryApplyBattleItem(BattleItemType.ManaPotion,40,1.3f,5,40)&&p.NowAp==60,"MP potion restores configured MP");

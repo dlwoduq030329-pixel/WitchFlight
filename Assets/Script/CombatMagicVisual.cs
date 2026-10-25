@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Pure local VFX. Persistent beams are reused throughout a channel, not spawned every tick.
@@ -10,8 +11,19 @@ public sealed class CombatMagicVisual : MonoBehaviour
     private Player follow;
     private float expires;
     private float duration;
+    private Vector3 shieldFacing;
+    private float shieldOffset;
+    private static readonly int DissolveAmountId = Shader.PropertyToID("_DissolveAmount");
+    private readonly List<ShieldDissolveTarget> shieldDissolveTargets = new List<ShieldDissolveTarget>();
 
-    public static CombatMagicVisual Beam(MagicType magic, GameObject prefab)
+    private struct ShieldDissolveTarget
+    {
+        public Renderer renderer;
+        public int materialIndex;
+        public MaterialPropertyBlock properties;
+    }
+
+    public static CombatMagicVisual Beam(MagicType magic, GameObject prefab, Material material = null)
     {
         var root = new GameObject(magic + " beam VFX");
         var effect = root.AddComponent<CombatMagicVisual>();
@@ -25,13 +37,22 @@ public sealed class CombatMagicVisual : MonoBehaviour
         else
         {
             effect.line = root.AddComponent<LineRenderer>();
-            effect.ownedMaterial = CombatPresentation.CreateEffectMaterial(CombatPresentation.MagicColor(magic));
-            effect.line.sharedMaterial = effect.ownedMaterial;
+            if (material == null)
+            {
+                effect.ownedMaterial = CombatPresentation.CreateEffectMaterial(CombatPresentation.MagicColor(magic));
+                effect.line.sharedMaterial = effect.ownedMaterial;
+            }
             effect.line.startWidth = 0.13f;
             effect.line.endWidth = 0.08f;
             effect.line.numCapVertices = 4;
         }
-        if (effect.line != null) { effect.line.useWorldSpace = true; effect.line.positionCount = 2; }
+        if (effect.line != null)
+        {
+            // Authored assets are only referenced here, never recolored or destroyed.
+            if (material != null) effect.line.sharedMaterial = material;
+            effect.line.useWorldSpace = true;
+            effect.line.positionCount = 2;
+        }
         return effect;
     }
 
@@ -47,34 +68,78 @@ public sealed class CombatMagicVisual : MonoBehaviour
         }
     }
 
-    public static void Shield(Player player, GameObject prefab, float seconds)
+    public static void Shield(Player player, GameObject prefab, float seconds, Vector3 facing, float forwardOffset = 0f)
     {
-        var root = new GameObject("Successful parry shield");
+        if (prefab == null || player == null || player.Object == null || !player.Object.IsValid || !player.IsAlive ||
+            player.IsHiddenBySmokeFor(Player.LocalPlayer)) return;
+        var root = new GameObject("Directional parry VFX");
         var effect = root.AddComponent<CombatMagicVisual>();
         effect.follow = player;
         effect.duration = Mathf.Max(0.05f, seconds);
         effect.expires = Time.unscaledTime + effect.duration;
-        root.transform.position = player.LockAimPoint;
-        GameObject view = CombatPresentation.InstantiateVfx(prefab, player.LockAimPoint, Quaternion.identity, root.transform);
+        effect.shieldFacing = facing.sqrMagnitude > .0001f ? facing.normalized : player.transform.forward;
+        effect.shieldOffset = Mathf.Max(0f, forwardOffset);
+        Vector3 up = Mathf.Abs(Vector3.Dot(effect.shieldFacing, Vector3.up)) > .99f ? Vector3.forward : Vector3.up;
+        Quaternion rotation = Quaternion.LookRotation(effect.shieldFacing, up);
+        Vector3 position = player.LockAimPoint + effect.shieldFacing * effect.shieldOffset;
+        root.transform.SetPositionAndRotation(position, rotation);
+        GameObject view = CombatPresentation.InstantiateVfx(prefab, position, rotation, root.transform);
         if (view == null)
         {
-            view = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Collider collider = view.GetComponent<Collider>();
-            collider.enabled = false;
-            Destroy(collider);
-            view.transform.SetParent(root.transform, false);
-            view.transform.localScale = Vector3.one * 2.5f;
-            effect.ownedMaterial = CombatPresentation.CreateEffectMaterial(new Color(0.2f, 0.85f, 1f, 0.25f));
-            view.GetComponent<Renderer>().sharedMaterial = effect.ownedMaterial;
+            Destroy(root);
+        }
+        else
+        {
+            effect.InitializeShieldDissolve(view);
+        }
+    }
+
+    private void InitializeShieldDissolve(GameObject view)
+    {
+        foreach (Renderer renderer in view.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] materials = renderer.sharedMaterials;
+            for (int i = 0; i < materials.Length; i++)
+            {
+                Material material = materials[i];
+                if (material == null ||
+                    (material.name != "Shield_03" && material.name != "Shield_03 (Instance)") ||
+                    !material.HasProperty(DissolveAmountId)) continue;
+                shieldDissolveTargets.Add(new ShieldDissolveTarget
+                {
+                    renderer = renderer,
+                    materialIndex = i,
+                    properties = new MaterialPropertyBlock()
+                });
+            }
+        }
+        UpdateShieldDissolve(0f);
+    }
+
+    private void UpdateShieldDissolve(float amount)
+    {
+        // Per-renderer, per-slot overrides keep simultaneous parries and the shared asset independent.
+        foreach (ShieldDissolveTarget target in shieldDissolveTargets)
+        {
+            if (target.renderer == null) continue;
+            target.renderer.GetPropertyBlock(target.properties, target.materialIndex);
+            if (target.properties.isEmpty) target.renderer.GetPropertyBlock(target.properties);
+            target.properties.SetFloat(DissolveAmountId, amount);
+            target.renderer.SetPropertyBlock(target.properties, target.materialIndex);
         }
     }
 
     private void LateUpdate()
     {
         if (expires <= 0f) return;
-        if (follow == null || follow.Object == null || !follow.Object.IsValid || Time.unscaledTime >= expires)
+        if (follow == null || follow.Object == null || !follow.Object.IsValid || !follow.IsAlive ||
+            follow.IsHiddenBySmokeFor(Player.LocalPlayer) || BattleManager.Instance == null ||
+            !BattleManager.Instance.IsGameplayActive)
         { Destroy(gameObject); return; }
-        transform.position = follow.LockAimPoint;
+        UpdateShieldDissolve(Mathf.Clamp01(1f - (expires - Time.unscaledTime) / duration));
+        if (Time.unscaledTime >= expires) { Destroy(gameObject); return; }
+        // Follow translation, but retain the world direction of the blocked attack during this flash.
+        transform.position = follow.LockAimPoint + shieldFacing * shieldOffset;
         if (ownedMaterial != null)
         {
             Color color = ownedMaterial.color;

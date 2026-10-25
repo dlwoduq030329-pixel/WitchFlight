@@ -6,6 +6,9 @@ public sealed class MagicAreaVisual : MonoBehaviour
     private Material material;
     private LineRenderer countdown;
     private Vector3 authoredScale = Vector3.one;
+    private bool burst;
+    private float burstStarted, burstLifetime, burstExpandSeconds, burstStartScale, burstTargetScale;
+    private Color burstColor;
 
     public static MagicAreaVisual Create(GameObject prefab, string label)
     {
@@ -50,28 +53,72 @@ public sealed class MagicAreaVisual : MonoBehaviour
         }
     }
 
-    public static void Lightning(Vector3 point, MagicStatEntry stats)
+    public static void ThunderFlash(Vector3 point, float radius, MagicStatEntry stats)
     {
-        Vector3 top = point + Vector3.up * Mathf.Max(15f,stats.radius*2f);
-        if (stats.beamVfxPrefab != null)
+        CreateBurst(point, radius, stats.thunderFlashVfxPrefab, stats.thunderVfxReferenceRadius,
+            1f, .01f, .14f, new Color(1f,.92f,.6f,.3f));
+    }
+
+    public static void ThunderBurst(Vector3 point, MagicStatEntry stats)
+    {
+        float expand = stats.thunderBurstExpandSeconds > 0f ? stats.thunderBurstExpandSeconds : .12f;
+        float start = stats.thunderBurstStartScale > 0f ? stats.thunderBurstStartScale : .08f;
+        CreateBurst(point, stats.radius, stats.thunderBurstVfxPrefab != null ? stats.thunderBurstVfxPrefab : stats.impactVfxPrefab,
+            stats.thunderVfxReferenceRadius, start, expand, Mathf.Max(expand + .05f, stats.vfxLifetime), new Color(.7f,.85f,1f,.5f));
+    }
+
+    private static void CreateBurst(Vector3 point, float radius, GameObject prefab, float referenceRadius,
+        float start, float expand, float lifetime, Color color)
+    {
+        var root = new GameObject("Thunder area flash / burst");
+        // Start particle systems only after the initial small scale has been applied.
+        root.SetActive(false);
+        root.transform.position = point;
+        var visual = root.AddComponent<MagicAreaVisual>();
+        visual.burst = true;
+        visual.burstStarted = Time.time;
+        visual.burstLifetime = lifetime;
+        visual.burstExpandSeconds = expand;
+        visual.burstStartScale = Mathf.Clamp01(start);
+        var custom = CombatPresentation.InstantiateVfx(prefab, point, Quaternion.identity, root.transform);
+        visual.burstTargetScale = Mathf.Max(.1f, radius) / (custom != null && referenceRadius > 0f ? referenceRadius : 1f);
+        if (custom == null)
         {
-            var beam = CombatMagicVisual.Beam(MagicType.Thunder,stats.beamVfxPrefab);
-            beam.SetEndpoints(top,point);
-            Destroy(beam.gameObject,Mathf.Max(.1f,stats.vfxLifetime));
-            return;
+            var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            var collider = sphere.GetComponent<Collider>(); collider.enabled = false; Destroy(collider);
+            sphere.transform.SetParent(root.transform, false);
+            sphere.transform.localScale = Vector3.one * 2f; // Unity sphere radius .5 -> authored radius 1.
+            visual.material = CombatPresentation.CreateEffectMaterial(color);
+            var renderer = sphere.GetComponent<Renderer>();
+            renderer.sharedMaterial = visual.material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
         }
-        var root = new GameObject("Thunder strike");
-        Material material = CombatPresentation.CreateEffectMaterial(new Color(.8f,.9f,1f,1f));
-        var line = root.AddComponent<LineRenderer>();
-        line.sharedMaterial=material; line.useWorldSpace=true; line.positionCount=9;
-        line.startWidth=.6f; line.endWidth=.18f;
-        for (int i=0;i<9;i++)
+        visual.burstColor = color;
+        root.transform.localScale = Vector3.one * visual.burstTargetScale * visual.burstStartScale;
+        root.SetActive(true);
+    }
+
+    public static float BurstScale(float elapsed, float expandSeconds, float startScale)
+    {
+        float t = Mathf.Clamp01(elapsed / Mathf.Max(.01f, expandSeconds));
+        return Mathf.Lerp(Mathf.Clamp01(startScale), 1f, 1f - (1f-t)*(1f-t)*(1f-t));
+    }
+
+    private void Update()
+    {
+        if (!burst) return;
+        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        { Destroy(gameObject); return; }
+        float age = Time.time - burstStarted;
+        if (age >= burstLifetime) { Destroy(gameObject); return; }
+        transform.localScale = Vector3.one * burstTargetScale * BurstScale(age, burstExpandSeconds, burstStartScale);
+        if (material != null)
         {
-            Vector3 p = Vector3.Lerp(top,point,i/8f);
-            if (i>0 && i<8) p += new Vector3((i%2==0?1f:-1f)*1.1f,0,Mathf.Sin(i*2f)*.8f);
-            line.SetPosition(i,p);
+            Color color = burstColor;
+            color.a *= 1f - Mathf.Clamp01((age-burstExpandSeconds) / Mathf.Max(.01f,burstLifetime-burstExpandSeconds));
+            material.color = color;
         }
-        root.AddComponent<CombatTransientEffect>().Initialize(.35f,Vector3.one,Vector3.one,new[]{material});
     }
 
     private void OnDestroy() { if (material != null) Destroy(material); }

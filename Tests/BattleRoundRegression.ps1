@@ -32,7 +32,7 @@ public struct Vector2 {public float x,y;public Vector2(float a,float b){x=a;y=b;
 public class Transform {public Vector3 position;public Vector3 TransformPoint(Vector3 p)=>p;}
 public static class Mathf {
  public static int Max(int a,int b)=>Math.Max(a,b);public static float Max(float a,float b)=>Math.Max(a,b);
- public static int Clamp(int a,int b,int c)=>Math.Clamp(a,b,c);public static float Clamp01(float a)=>Math.Clamp(a,0,1);
+ public static int Clamp(int a,int b,int c)=>Math.Clamp(a,b,c);public static float Clamp(float a,float b,float c)=>Math.Clamp(a,b,c);public static float Clamp01(float a)=>Math.Clamp(a,0,1);
  public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);public static float Pow(float a,float b)=>(float)Math.Pow(a,b);
 }
 public class Player {public bool IsAlive=true,DiedFromAltitude;public Transform transform=new();}
@@ -144,12 +144,18 @@ public static class Tests {
   Check(start.x==.75f&&start.y==1&&peak.x==1.2f&&peak.y==1,"kill card pops to peak while opaque");
   Check(mid.x<peak.x&&mid.x>end.x&&Math.Abs(mid.y-.5f)<.01f,"kill card shrinks and fades simultaneously");
   Check(end.y==0&&Math.Abs(end.x-.6f)<.01f,"kill card ends small and transparent");
+  var held=KillAnimation.EvaluateNoticeAnimation(1,2,.12f,.75f,.75f,1.2f,.6f);
+  var fading=KillAnimation.EvaluateNoticeAnimation(1.625f,2,.12f,.75f,.75f,1.2f,.6f);
+  var gone=KillAnimation.EvaluateNoticeAnimation(2,2,.12f,.75f,.75f,1.2f,.6f);
+  Check(held.y==1&&held.x==1.2f,"two-second notice holds after its entrance");
+  Check(Math.Abs(fading.y-.5f)<.01f,"notice fades during final portion of its own lifetime");
+  Check(gone.y==0,"notice finishes at two seconds total");
   return count;
  }
 }}
 '@
 Add-Type -TypeDefinition ($stubs + $canChange + ($flagMethods -join "`n") + $managerStub +
-    (Method $manager 'TryChangeRoundMagic') + $tests + (Method $kill 'EvaluateAnimation') + $run +
+    (Method $manager 'TryChangeRoundMagic') + $tests + (Method $kill 'EvaluateAnimation') + (Method $kill 'EvaluateNoticeAnimation') + $run +
     "`nnamespace RoundChecks {`n$enums`n$rules`n}")
 "Round state, loadout authority and kill animation checks passed: $([RoundChecks.Tests]::Run())"
 
@@ -192,8 +198,8 @@ if ($death.IndexOf('pending.PlayerRef == deadPlayer') -gt $death.IndexOf('Announ
 foreach ($field in 'killPanel','killerNameText','victimNameText','killerProfileImage','victimProfileImage') {
     if ($kill -notmatch ('\[SerializeField\] private \w+ ' + $field + ';')) { throw "Missing custom kill UI field $field" }
 }
-if ($kill -notmatch 'pending.Count >= 8' -or $kill -notmatch 'Time.unscaledTime' -or
-    $kill -notmatch 'profileTable.GetSprite\(id\)') { throw 'Kill queue, unscaled animation or shared profile lookup missing' }
+if ($kill -notmatch 'notices.Count >= Mathf.Max\(1, maxVisibleNotices\)' -or $kill -notmatch 'Time.unscaledTime' -or
+    $kill -notmatch 'Vector3.down' -or $kill -notmatch 'profileTable.GetSprite\(id\)') { throw 'Kill stacking, unscaled animation or shared profile lookup missing' }
 $reset = Method $manager 'ResetPlayersForNextRound'
 if ($reset -notmatch 'pendingRespawns.Clear\(\)' -or $reset -notmatch 'runner.Despawn\(old\)' -or
     $reset -notmatch 'SpawnBattlePlayers\(playerPrefab\)') { throw 'Round reset must discard old players and respawn from current loadout' }

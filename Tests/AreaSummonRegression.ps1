@@ -83,7 +83,7 @@ public class Player {
  public bool CanAimAreaMagic()=>CanAim&&Mana>=80;
  public bool ValidateAreaPoint(Vector3 point,MagicStatEntry stats,out Vector3 valid){valid=point;return ValidPoint;}
  public void TryCastSelectedMagic(){if(CanCreateSpecialMagic(SelectedMagicStats)){Casts++;Mana-=80;}}
- public void ReceiveMagicHit(MagicStatEntry s,int shooter,NetworkId id){Hits++;}
+ public void ReceiveMagicHit(MagicStatEntry s,int shooter,NetworkId id,Vector3 incomingDirection=default){Hits++;}
 '@
 $code+=(Method $area 'ProcessAreaAim')+(Method $area 'CanCreateSpecialMagic')
 $code+='} public class AreaPointProbe { public Vector3 MagicCastPosition; public bool Wall; public Vector3 TraceMagic(MagicStatEntry s,Vector3 origin,Vector3 direction,out Player victim){victim=null;return origin+direction*(Wall?1:s.range);}'

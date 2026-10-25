@@ -30,13 +30,13 @@ MonoBehaviour:
   projectileMergeEndDistance: 3
   iceImpactFollowUpEnabled: 1
   iceImpactShardVfxPrefab: {fileID: 0}
-  iceImpactLaunchInterval: 0.07
-  iceImpactShardSpeed: 110
+  iceImpactLaunchInterval: 0.05
+  iceImpactShardSpeed: 150
   iceImpactRingRadius: 0.85
   iceImpactCurve: 2
   iceImpactShardScale: 0.3
-  parryApCost: 50
-  parryWindowSeconds: 0.3
+  parryApCost: 25
+  parryWindowSeconds: 0.4
   parryCooldownSeconds: 0.5
   parryIcon: {fileID: 0}
   fallback:
@@ -81,7 +81,12 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
-    summonMaxCount: 0
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0.01
+    summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
     summonFollowDistance: 0
@@ -100,14 +105,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0
     autoAimHalfAngle: 1
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 0}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 0
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   magics:
   - magic: 1
     displayName: "\uD654\uC5FC \uB9C8\uBC95"
@@ -152,6 +162,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -171,14 +186,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 957608868799003219, guid: 6465705fbc74a4be68db73b600de1d69, type: 3}
+    projectileVfxPrefab: {fileID: 7264231152250865867, guid: 522f45e53118f4065b908957dca8a3c5, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 4393094804759860378, guid: 8f75bed6922144577a641f1c563dad13, type: 3}
+    impactVfxPrefab: {fileID: 4442764683140637388, guid: 176b851961a2c4c1aa41e1f2b94ad8c3, type: 3}
     castVfxPrefab: {fileID: 0}
-    projectileVfxPrefab: {fileID: 0}
-    impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 2
     displayName: "\uC5BC\uC74C \uB9C8\uBC95"
     description: "\uB0C9\uAE30\uC758 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
@@ -222,6 +242,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 0
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -241,14 +266,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 693997840501523213, guid: 189567ef8ece44c53939759ccc5ffba9, type: 3}
+    projectileVfxPrefab: {fileID: 5629732935647548498, guid: 14deeb287dfc7462ab53ef27f3d7825f, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 8632757308903663787, guid: df64927f9ebe647caba7177d68ddab30, type: 3}
+    impactVfxPrefab: {fileID: 947545303444770331, guid: 8f3e2b192910a4b1b95dfbd1961aa2b5, type: 3}
     castVfxPrefab: {fileID: 0}
-    projectileVfxPrefab: {fileID: 0}
-    impactVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 3
     displayName: "\uBE44\uC804 \uB9C8\uBC95"
     description: "\uBE60\uB978 \uB9C8\uB825 \uB369\uC5B4\uB9AC\uB97C \uC3E9\uB2C8\uB2E4.
@@ -292,6 +322,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -311,14 +346,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 0}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 4
     displayName: "\uCC9C\uB465 \uB9C8\uBC95"
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uACF5\uC911 \uBC94\uC704\uB97C
@@ -363,6 +403,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 10
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 1
+    thunderBurstExpandSeconds: 0.12
+    thunderBurstStartScale: 0.08
     summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -382,14 +427,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 6732471934192075735, guid: b88910d9f3be14d0c9a8ce48380745e7, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 79618294438701557, guid: 808b7af01f0a646fe8fb8090cb63e0f3, type: 3}
     castVfxPrefab: {fileID: 0}
-    projectileVfxPrefab: {fileID: 0}
-    impactVfxPrefab: {fileID: 0}
-    beamVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 6732471934192075735, guid: b88910d9f3be14d0c9a8ce48380745e7, type: 3}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 5
     displayName: "\uD68C\uBCF5 \uB9C8\uBC95"
     description: "\uCCB4\uB825 40\uC744 \uC989\uC2DC \uD68C\uBCF5\uD569\uB2C8\uB2E4.
@@ -432,6 +482,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0.01
     summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -451,14 +506,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 8836563021997122651, guid: f7e5c2f77090c461f9f5f5801edfad93, type: 3}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 7
     displayName: "\uC554\uD751 \uB9C8\uBC95"
     description: "\uCCB4\uB825 30\uC744 \uC18C\uBAA8\uD558\uB294 \uC989\uBC1C \uACF5\uACA9.
@@ -502,6 +562,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 0
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -521,14 +586,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 0}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 6
     displayName: "\uC18D\uBC15 \uB9C8\uBC95"
     description: "\uB85D\uC628 \uD6C4 \uC720\uB3C4 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.\n
@@ -572,6 +642,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -591,14 +666,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
-    projectileVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 6825076322887241133, guid: 0c3d332ff62024554bd5fbf4551c641f, type: 3}
+    projectileVfxPrefab: {fileID: 4614578252079391558, guid: ce3f0c41117794c8fbf61a809c638885, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 8
     displayName: "\uC800\uC8FC \uB9C8\uBC95"
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uAC00\uAE4C\uC6B4 \uC801\uC744
@@ -642,6 +722,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 0
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -661,14 +746,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 0}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 9
     displayName: "\uC18C\uD658 \uB9C8\uBC95"
     description: "\uC801\uC744 \uCD94\uC801\uD558\uBA70 \uB85D\uC628 \uC720\uB3C4\uD0C4\uC744
@@ -713,6 +803,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 4
     summonMoveSpeed: 28
     summonAttackRange: 55
@@ -732,14 +827,19 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 0}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 10
     displayName: "\uAD11\uC120 \uB9C8\uBC95"
     description: "\uB204\uB974\uB294 \uB3D9\uC548 \uC815\uBA74\uC5D0 \uC9C1\uC120
@@ -782,6 +882,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 0
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -801,20 +906,24 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 0}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.5
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
   - magic: 11
     displayName: "\uD50C\uB808\uC5B4"
     description: "\uB4F1 \uB4A4\uB85C \uD50C\uB808\uC5B4\uB97C \uBC29\uCD9C\uD574
       \uC774\uBBF8 \uC790\uC2E0\uC744 \uCD94\uC801 \uC911\uC778 \uC720\uB3C4\uD0C4\uC758
-      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \n\uBB34\uC801\uC774\uB098 \uD68C\uD53C
-      \uC774\uB3D9\uC740 \uBD80\uC5EC\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."
+      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \n"
     icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
     effect: 9
     displayDamage: 0
@@ -853,6 +962,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 0
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -872,12 +986,15 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 424030550594249438, guid: d9f5dfa19612de74899da47f19ec39f2, type: 3}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 3
-    utilityVfxPrefab: {fileID: 0}
+    utilityVfxPrefab: {fileID: 358637981425055526, guid: 8eb503696b886e04faff8fc0f480d473, type: 3}
     flareVfxBackOffset: 0.7
     flareVfxSpeed: 14
     flareVfxScale: 1.8
@@ -925,6 +1042,11 @@ MonoBehaviour:
     areaAimScrollSpeed: 0
     areaPreviewVfxPrefab: {fileID: 0}
     areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
     summonMaxCount: 0
     summonMoveSpeed: 0
     summonAttackRange: 0
@@ -944,11 +1066,16 @@ MonoBehaviour:
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
-    castVfxPrefab: {fileID: 0}
+    lockOnCompleteVfxPrefab: {fileID: 6825076322887241133, guid: 0c3d332ff62024554bd5fbf4551c641f, type: 3}
     projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
     impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
     vfxLifetime: 1.2
     utilityVfxPrefab: {fileID: 0}
     flareVfxBackOffset: 0
     flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0

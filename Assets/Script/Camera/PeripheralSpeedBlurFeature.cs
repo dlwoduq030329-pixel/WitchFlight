@@ -24,7 +24,7 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
         Camera camera = renderingData.cameraData.camera;
-        if (material == null || camera.cameraType != CameraType.Game ||
+        if (!GameGraphicsSettings.PostProcessing || material == null || camera.cameraType != CameraType.Game ||
             renderingData.cameraData.renderType != CameraRenderType.Base ||
             !camera.TryGetComponent(out SpeedCameraEffects effects) || !effects.isActiveAndEnabled || !effects.HasCustomBlur)
             return;

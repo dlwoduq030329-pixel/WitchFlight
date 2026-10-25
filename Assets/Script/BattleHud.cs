@@ -38,6 +38,20 @@ public sealed partial class BattleHud : MonoBehaviour
     [SerializeField] private TextMeshProUGUI manaPercentText;
     [Tooltip("UI에 % 기호가 따로 있다면 끄세요.")]
     [SerializeField] private bool manaPercentIncludeSymbol = true;
+    [Header("MP consumption trail")]
+    [Tooltip("노란 잔상 Slider. 비우면 현재 Ap Slider의 Fill을 복제해 바로 뒤에 자동 생성합니다.")]
+    [SerializeField] private Slider apTrailSlider;
+    [SerializeField] private Color apTrailColor = new Color(1f, 0.82f, 0.1f, 1f);
+    [SerializeField, Min(0f)] private float apTrailDelay = 0.2f;
+    [SerializeField, Min(0.01f)] private float apTrailCatchupSeconds = 0.4f;
+    [Header("Insufficient MP feedback")]
+    [Tooltip("흔들 MP UI 루트. 비우면 Ap Slider, Ap Fill 순서로 사용합니다.")]
+    [SerializeField] private RectTransform manaFeedbackRoot;
+    [Tooltip("빨강/흰색으로 점멸할 UI. 비우면 MP UI 루트 아래의 Graphic을 사용합니다.")]
+    [SerializeField] private Graphic[] manaFeedbackGraphics = Array.Empty<Graphic>();
+    [SerializeField, Min(0.05f)] private float manaFeedbackDuration = 1f;
+    [SerializeField, Min(0f)] private float manaFeedbackShakePixels = 8f;
+    [SerializeField, Min(0.1f)] private float manaFeedbackFlashFrequency = 6f;
     [SerializeField] private TMP_Text teamText;
     [SerializeField] private TMP_Text speedStageText;
     [SerializeField] private TMP_Text speedText;
@@ -57,7 +71,7 @@ public sealed partial class BattleHud : MonoBehaviour
     [Tooltip("후진 -3단계에서만 켤 Image입니다.")]
     [SerializeField] private Image reverseSpeed3Image;
     [Header("Status effect UI (local player only)")]
-    [Tooltip("상태이상 종류와 표시할 UI 오브젝트를 연결하세요. 해당 상태 동안만 켜지며 여러 상태를 동시에 표시할 수 있습니다. 컨트롤러 자신이나 그 부모는 넣지 마세요.")]
+    [Tooltip("피격 당사자의 화면에만 표시할 상태이상 UI입니다. 상태 동안만 켜지며 Animation/Animator는 오브젝트 활성화 시 재생되게 만드세요. 외형 VFX는 ChPrefab의 CombatPresentation > Status Effect Vfx Views에 별도로 할당합니다. 컨트롤러 자신이나 그 부모는 넣지 마세요.")]
     [SerializeField] private StatusEffectUIBinding[] statusEffectViews = { new StatusEffectUIBinding() };
     [Header("Match")]
     [Tooltip("내 진영의 라운드 승리 횟수만 표시합니다. 팀 번호와 무관하게 로컬 플레이어 기준입니다.")]
@@ -207,7 +221,155 @@ public sealed partial class BattleHud : MonoBehaviour
     private int nextDamageSlot;
     private Image tintedDesiredImage, tintedForwardImage;
     private Color originalDesiredColor, originalForwardColor;
+    private RectTransform activeManaFeedbackRoot;
+    private Graphic[] activeManaFeedbackGraphics;
+    private Color[] originalManaFeedbackColors;
+    private Vector2 originalManaFeedbackPosition;
+    private float manaFeedbackStarted;
+    private Player manaFeedbackPlayer;
+    private bool manaFeedbackActive;
+    private bool manaTrailInitialized, manaTrailCatchingUp;
+    private float manaTrailFraction, manaTrailHoldUntil, manaTrailSpeed, manaTrailMaxAp;
     public static bool MenuOpen { get; private set; }
+
+    public static void ShowInsufficientMana(Player player)
+    {
+        if (instance == null || !instance.isActiveAndEnabled || player == null || player != Player.LocalPlayer ||
+            MenuOpen || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
+        instance.StartManaFeedback(player);
+    }
+
+    private void StartManaFeedback(Player player)
+    {
+        ResetManaFeedback();
+        activeManaFeedbackRoot = manaFeedbackRoot != null ? manaFeedbackRoot :
+            apSlider != null ? apSlider.transform as RectTransform :
+            apFill != null ? apFill.rectTransform : null;
+        if (activeManaFeedbackRoot != null)
+            originalManaFeedbackPosition = activeManaFeedbackRoot.anchoredPosition;
+        activeManaFeedbackGraphics = manaFeedbackGraphics != null && manaFeedbackGraphics.Length > 0
+            ? manaFeedbackGraphics : activeManaFeedbackRoot != null
+                ? activeManaFeedbackRoot.GetComponentsInChildren<Graphic>(true) : Array.Empty<Graphic>();
+        originalManaFeedbackColors = new Color[activeManaFeedbackGraphics.Length];
+        for (int i = 0; i < activeManaFeedbackGraphics.Length; i++)
+            if (activeManaFeedbackGraphics[i] != null)
+                originalManaFeedbackColors[i] = activeManaFeedbackGraphics[i].color;
+        manaFeedbackPlayer = player;
+        manaFeedbackStarted = Time.unscaledTime;
+        manaFeedbackActive = true;
+    }
+
+    private void LateUpdate()
+    {
+        if (!manaFeedbackActive) return;
+        float age = Time.unscaledTime - manaFeedbackStarted;
+        if (age >= manaFeedbackDuration || MenuOpen || manaFeedbackPlayer == null ||
+            manaFeedbackPlayer != Player.LocalPlayer || manaFeedbackPlayer.Object == null ||
+            !manaFeedbackPlayer.Object.IsValid || !manaFeedbackPlayer.IsAlive ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        { ResetManaFeedback(); return; }
+        Color tint = Mathf.FloorToInt(age * manaFeedbackFlashFrequency * 2f) % 2 == 0 ? Color.red : Color.white;
+        for (int i = 0; i < activeManaFeedbackGraphics.Length; i++)
+        {
+            Graphic graphic = activeManaFeedbackGraphics[i];
+            if (graphic == null) continue;
+            tint.a = originalManaFeedbackColors[i].a;
+            graphic.color = tint;
+        }
+        if (activeManaFeedbackRoot != null)
+        {
+            float strength = manaFeedbackShakePixels * (1f - Mathf.Clamp01(age / manaFeedbackDuration));
+            activeManaFeedbackRoot.anchoredPosition = originalManaFeedbackPosition +
+                new Vector2(Mathf.Sin(age * 113f), Mathf.Sin(age * 157f) * .5f) * strength;
+        }
+    }
+
+    private void ResetManaFeedback()
+    {
+        if (!manaFeedbackActive) return;
+        if (activeManaFeedbackRoot != null) activeManaFeedbackRoot.anchoredPosition = originalManaFeedbackPosition;
+        for (int i = 0; i < activeManaFeedbackGraphics.Length; i++)
+            if (activeManaFeedbackGraphics[i] != null) activeManaFeedbackGraphics[i].color = originalManaFeedbackColors[i];
+        manaFeedbackActive = false;
+        manaFeedbackPlayer = null;
+    }
+
+    private void EnsureManaTrail()
+    {
+        if (apTrailSlider != null || apSlider == null || apSlider.fillRect == null) return;
+        RectTransform source = apSlider.fillRect;
+        // Copy the authored fill sprite/material/radial settings at its actual rendering depth.
+        // Being inside the MP bar also makes the yellow trail follow its shake animation.
+        GameObject copy = Instantiate(source.gameObject, source.parent, false);
+        copy.name = "MP Consumption Trail (yellow)";
+        copy.transform.SetSiblingIndex(source.GetSiblingIndex());
+        foreach (Graphic graphic in copy.GetComponentsInChildren<Graphic>(true))
+            graphic.raycastTarget = false;
+        apTrailSlider = copy.GetComponent<Slider>();
+        if (apTrailSlider == null) apTrailSlider = copy.AddComponent<Slider>();
+        apTrailSlider.transition = Selectable.Transition.None;
+        apTrailSlider.interactable = false;
+        apTrailSlider.navigation = new Navigation { mode = Navigation.Mode.None };
+        apTrailSlider.onValueChanged = new Slider.SliderEvent();
+        apTrailSlider.handleRect = null;
+        apTrailSlider.targetGraphic = null;
+        apTrailSlider.minValue = 0f;
+        apTrailSlider.maxValue = 1f;
+        apTrailSlider.wholeNumbers = false;
+        apTrailSlider.direction = apSlider.direction;
+        apTrailSlider.fillRect = copy.transform as RectTransform;
+        Image fill = copy.GetComponent<Image>();
+        if (fill != null) fill.color = apTrailColor;
+        copy.SetActive(true);
+    }
+
+    private void BindManaTrail(bool valid, float fraction)
+    {
+        if (valid) EnsureManaTrail();
+        if (apTrailSlider == null || apTrailSlider == apSlider) return;
+        if (!valid || !owner.IsAlive)
+        {
+            manaTrailInitialized = false;
+            SetBar(apTrailSlider, null, fraction);
+            return;
+        }
+        if (!manaTrailInitialized || !Mathf.Approximately(manaTrailMaxAp, owner.MaxAp))
+        {
+            manaTrailInitialized = true;
+            manaTrailMaxAp = owner.MaxAp;
+            manaTrailFraction = fraction;
+            manaTrailCatchingUp = false;
+            if (apTrailSlider.fillRect != null && apTrailSlider.fillRect.TryGetComponent(out Image fill))
+                fill.color = apTrailColor;
+        }
+        manaTrailFraction = AdvanceManaTrail(manaTrailFraction, fraction, Time.unscaledTime,
+            Time.unscaledDeltaTime, apTrailDelay, apTrailCatchupSeconds,
+            ref manaTrailCatchingUp, ref manaTrailHoldUntil, ref manaTrailSpeed);
+        SetBar(apTrailSlider, null, manaTrailFraction);
+    }
+
+    private static float AdvanceManaTrail(float trail, float current, float now, float deltaTime,
+        float delay, float catchupSeconds, ref bool catchingUp, ref float holdUntil, ref float speed)
+    {
+        current = Mathf.Clamp01(current);
+        if (current >= trail)
+        {
+            catchingUp = false;
+            return current; // Recovery never leaves the yellow bar below the real MP level.
+        }
+        if (!catchingUp)
+        {
+            catchingUp = true;
+            holdUntil = now + Mathf.Max(0f, delay);
+            speed = 0f;
+        }
+        // Continuous spending extends the target, never the hold deadline.
+        speed = Mathf.Max(speed, (trail - current) / Mathf.Max(0.01f, catchupSeconds));
+        if (now < holdUntil) return trail;
+        float result = Mathf.MoveTowards(trail, current, speed * Mathf.Max(0f, deltaTime));
+        if (result <= current) catchingUp = false;
+        return result;
+    }
 
     private void Awake()
     {
@@ -336,7 +498,9 @@ public sealed partial class BattleHud : MonoBehaviour
             SetText(playerNameText, data != null && data.Object != null && data.Object.IsValid &&
                 data.IsLoadoutInitialized ? data.playerName.ToString() : string.Empty);
         }
-        SetBar(apSlider, apFill, valid ? owner.NowAp / Mathf.Max(1f, owner.MaxAp) : 0f);
+        float manaFraction = valid ? Mathf.Clamp01(owner.NowAp / Mathf.Max(1f, owner.MaxAp)) : 0f;
+        SetBar(apSlider, apFill, manaFraction);
+        BindManaTrail(valid, manaFraction);
         if (apText != null) SetText(apText, valid ? $"{owner.NowAp:0} / {owner.MaxAp:0}" : "");
         if (manaPercentText != null)
         {
@@ -403,6 +567,7 @@ public sealed partial class BattleHud : MonoBehaviour
     private void BindOwner(Player next)
     {
         if (owner == next) return;
+        manaTrailInitialized = false;
         ClearHitMarker();
         if (hpGridBar != null) hpGridBar.ResetBinding();
         if (damageIndicator != null) damageIndicator.ClearAllIndicators();
@@ -436,12 +601,13 @@ public sealed partial class BattleHud : MonoBehaviour
     {
         Visible(reticle, show && desiredAimMarker == null);
         Vector3 lockPoint = default;
-        bool locked = show && owner.SelectedMagicStats.requiresTarget && owner.TryGetDisplayedLockPoint(out lockPoint);
+        bool locked = show && owner.SelectedMagicStats.UsesLockIndicator && owner.TryGetDisplayedLockPoint(out lockPoint);
         // Lock feedback remains visible through smoke; body/health concealment is handled separately.
         if (show && (lockMarker == null || lockChargeMarker == null)) EnsureLockFeedback();
         bool completed = locked && owner.IsFullyLocked;
         bool charging = locked && !completed;
-        if (completed && lockMarker != null) completed = Place(lockMarker, lockPoint);
+        if (completed && lockMarker != null) completed = owner.SelectedMagicStats.TargetsAllies
+            ? PlaceAllyLockMarker(lockMarker, lockPoint) : Place(lockMarker, lockPoint);
         if (charging && lockChargeMarker != null)
         {
             charging = Place(lockChargeMarker, lockPoint);
@@ -548,7 +714,7 @@ public sealed partial class BattleHud : MonoBehaviour
         bool custom = warningSpriteA != null || warningSpriteB != null;
         Graphic warning = EnsureThreatIndicator(custom);
         bool cue = enableParryTimingCue && owner.CanStartParryNow && !owner.IsParrying &&
-            !Input.GetMouseButton(1) && timed &&
+            !ControlSettings.Held(ControlAction.Parry) && timed &&
             IsParryCueTiming(impactSeconds, owner.ParryWindowSeconds, parryCueSafetyMargin);
         UpdateParryCue(warning, cue);
         // Hold a readable symbol in the timing window rather than hiding it mid-blink.
@@ -1125,6 +1291,17 @@ public sealed partial class BattleHud : MonoBehaviour
         return PlaceScreen(rect, worldCamera.WorldToScreenPoint(position));
     }
 
+    private bool PlaceAllyLockMarker(RectTransform rect, Vector3 position)
+    {
+        if (worldCamera == null) return false;
+        Vector3 viewport = worldCamera.WorldToViewportPoint(position);
+        if (viewport.z <= 0f) return false;
+        // A 180-degree selection cone is wider than camera FOV; keep its target visible at the edge.
+        viewport.x = Mathf.Clamp(viewport.x, .04f, .96f);
+        viewport.y = Mathf.Clamp(viewport.y, .04f, .96f);
+        return PlaceScreen(rect, worldCamera.ViewportToScreenPoint(viewport));
+    }
+
     private bool PlaceStableAim(RectTransform rect, Vector3 position)
     {
         // Render-only camera shake must not make the aiming circle jitter.
@@ -1191,6 +1368,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void OnDisable()
     {
+        ResetManaFeedback();
         BindOwner(null);
         Canvas.willRenderCanvases -= BindFlightAim;
         if (resumeButton != null) resumeButton.onClick.RemoveListener(Resume);

@@ -70494,9 +70494,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '100
-
-'
+  m_text: 50
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: b0ff0b2baaf8f0c4eb68cd68b7163d8a, type: 2}
   m_sharedMaterial: {fileID: -1268448741817053876, guid: b0ff0b2baaf8f0c4eb68cd68b7163d8a, type: 2}
@@ -78754,6 +78752,7 @@ GameObject:
   - component: {fileID: 6936629237472429967}
   - component: {fileID: 5591059424549799799}
   - component: {fileID: 8648322758145305930}
+  - component: {fileID: 8724910352026102501}
   m_Layer: 5
   m_Name: ControlTab
   m_TagString: Untagged
@@ -90906,7 +90905,7 @@ MonoBehaviour:
   m_MinValue: 0
   m_MaxValue: 1
   m_WholeNumbers: 0
-  m_Value: 1
+  m_Value: 0.5
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -94185,6 +94184,7 @@ GameObject:
   - component: {fileID: 2742409165223411975}
   - component: {fileID: 8995110453260463682}
   - component: {fileID: 4671887303964685092}
+  - component: {fileID: 8724910352026102502}
   m_Layer: 5
   m_Name: GraphicTab
   m_TagString: Untagged
@@ -119240,3 +119240,63 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 1587235897564120300, guid: c7d309edf7f573841b06409873c8369c, type: 3}
   m_PrefabInstance: {fileID: 8583216595192167100}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &8724910352026102501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6576965282806091889}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 113e3fe1b3054de894df18a7b2b2164c, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  sensitivitySlider: {fileID: 7984099165404991781}
+  sensitivityText: {fileID: 3679716684103995732}
+  bindings:
+  - action: 0
+    button: {fileID: 3961705251362519886}
+    keyText: {fileID: 3400080677623482232}
+  - action: 1
+    button: {fileID: 5427862519944638363}
+    keyText: {fileID: 342954551297726839}
+  - action: 2
+    button: {fileID: 5821903071664881599}
+    keyText: {fileID: 1767174144923629386}
+  - action: 3
+    button: {fileID: 6467485313471794081}
+    keyText: {fileID: 2604241564966676974}
+  - action: 4
+    button: {fileID: 1416168338513216062}
+    keyText: {fileID: 8264981431097359398}
+  - action: 5
+    button: {fileID: 93757634535567739}
+    keyText: {fileID: 5142177511609164825}
+  - action: 6
+    button: {fileID: 6437739034940106127}
+    keyText: {fileID: 8593382891284876001}
+  - action: 7
+    button: {fileID: 4574577462821386025}
+    keyText: {fileID: 898542506780584440}
+  - action: 8
+    button: {fileID: 9169573673209809800}
+    keyText: {fileID: 6373403464733145585}
+--- !u!114 &8724910352026102502
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7904113543707953902}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c78a9a5580e499dac92e58b6d176be2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  displayModeDropdown: {fileID: 6577879848049184300}
+  qualityDropdown: {fileID: 8238929203512883190}
+  postProcessingDropdown: {fileID: 7902843497226505461}
+  performanceSlider: {fileID: 1276234805838932903}
+  performanceText: {fileID: 85722370368108471}
+  targetFps: 60

@@ -54,7 +54,7 @@ public class GameObject {public bool activeSelf;}
 public class RectTransform {public GameObject gameObject=new();public Vector2 sizeDelta;}
 public class Image {public GameObject gameObject=new();public float fillAmount;}
 public class Text {public GameObject gameObject=new();public string text="RELEASE TO FIRE";public bool enabled=true;}
-public struct MagicStatEntry {public bool requiresTarget;}
+public struct MagicStatEntry {public bool requiresTarget,TargetsAllies;public bool UsesLockIndicator=>requiresTarget||TargetsAllies;}
 public class Player {
  public static Player LocalPlayer; public NetworkObject Object=new(); public object Runner;
  public bool IsAlive=true,IsStealthed,Hidden; public int TeamIndex;public Vector3 LockAimPoint;
@@ -86,6 +86,7 @@ public class LockHud {
  private static void Visible(GameObject view,bool show){if(view!=null)view.activeSelf=show;}
  private static void SetText(Text view,string text){view.text=text;}
  private bool Place(RectTransform view,Vector3 point)=>CanPlace;
+ private bool PlaceAllyLockMarker(RectTransform view,Vector3 point)=>CanPlace;
  private void EnsureLockFeedback(){lockMarker??=new();lockChargeMarker??=new();}
  private void UpdateThreatWarning(bool show){}
 '@
@@ -133,7 +134,7 @@ public static class Tests {
   var hp=new HealthView{owner=enemy};Check(hp.CanShowToLocalPlayer(),"enemy bar visible only on observer client");
   hp.owner=me;Check(!hp.CanShowToLocalPlayer(),"never own HP over own body");hp.owner=enemy;
   enemy.Object.HasInputAuthority=true;Check(!hp.CanShowToLocalPlayer(),"never owner-authority bar");enemy.Object.HasInputAuthority=false;
-  enemy.TeamIndex=1;Check(!hp.CanShowToLocalPlayer(),"teammates have no red halo or enemy bar");enemy.TeamIndex=2;
+  enemy.TeamIndex=1;Check(hp.CanShowToLocalPlayer(),"teammates also show HP and team-colored halo");enemy.TeamIndex=2;
   enemy.Hidden=true;Check(!hp.CanShowToLocalPlayer(),"smoke hides enemy bar and halo");enemy.Hidden=false;
   Check(hp.CanShowToLocalPlayer(),"leaving smoke restores enemy visibility");
   enemy.IsAlive=false;Check(!hp.CanShowToLocalPlayer(),"dead enemy hidden");enemy.IsAlive=true;

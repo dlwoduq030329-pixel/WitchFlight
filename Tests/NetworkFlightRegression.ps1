@@ -31,7 +31,8 @@ public struct NetworkButtons {
 }
 public struct NetworkInputData {public NetworkButtons buttons;public bool suppressActions,suppressCombat;}
 public enum PerkId {BrakingRune,FirstWind,WindTurning,Tailwind}
-public class RunnerState {public float DeltaTime=1f/64f;public float Time;}
+public class RunnerState {public float DeltaTime=1f/64f;public float Time;public bool IsForward=true;}
+public static class BattleHud {public static int ManaWarnings;public static void ShowInsufficientMana(FlightProbe p){ManaWarnings++;}}
 public enum PlayerRef {None,One,Two}
 public enum BattleStartPhase {Waiting,Playing,Intermission,Ended}
 public class Obj {public bool IsValid=true,HasStateAuthority,HasInputAuthority=true;public PlayerRef InputAuthority=PlayerRef.One;}
@@ -66,6 +67,7 @@ public class FlightProbe {
  void ClearLockTargetInternal(){LockClears++;} void PlayerTurn(NetworkInputData d,NetworkButtons b){TurnCalls++;}
  void ProcessAuthoritativeCombat(NetworkInputData d,NetworkButtons b){CombatCalls++;}
  void ProcessPredictedProjectileInput(NetworkInputData d,NetworkButtons b){}
+ bool ShouldShowInsufficientMana(NetworkButtons buttons)=>false;
  void GoForward(){Position+=Speed*Runner.DeltaTime;} void ApplyKnockback(){KnockbackCalls++;}
  public void Step(int bits=0,bool suppressed=false,bool hasInput=true){
   IsBoosting=false;
@@ -95,8 +97,11 @@ public static class Tests {
   p.Step(w|boost,true);Check(p.SpeedStage==1&&!p.IsBoosting&&p.CombatCalls==0,"menu suppresses actions without freezing flight");
   p=new FlightProbe();p.Step(boost);Check(p.IsBoosting&&p.SpeedStage==1&&Near(p.NowAp,99.6875f),"boost predicted mana and initial stage");
   p.Step();Check(!p.IsBoosting&&Near(p.NowAp,99.84375f),"release regenerates mana");
+  int manaWarnings=BattleHud.ManaWarnings;
   p=new FlightProbe{NowAp=.1f};p.Step(boost);Check(!p.IsBoosting&&p.boostNeedsRelease,"insufficient mana latches release requirement");
+  Check(BattleHud.ManaWarnings==manaWarnings+1,"failed boost produces MP warning");
   for(int i=0;i<12;i++)p.Step(boost);Check(!p.IsBoosting&&p.NowAp>0,"no boost flicker while held and regenerating");
+  Check(BattleHud.ManaWarnings==manaWarnings+1,"held exhausted boost does not restart MP warning every tick");
   p.Step();p.Step(boost);Check(p.IsBoosting,"boost resumes after explicit release");
   p=new FlightProbe{IsHitStunned=true,Speed=20,SpeedStage=3};p.Step(boost);Check(!p.IsBoosting&&p.TurnCalls==0&&p.Speed<20&&p.KnockbackCalls==1,"hit stun brakes and preserves knockback path");
   p=new FlightProbe{boostApCostPerSecond=0,NowAp=0};p.Step(boost);Check(p.IsBoosting&&!p.boostNeedsRelease,"zero cost boost works with empty mana");

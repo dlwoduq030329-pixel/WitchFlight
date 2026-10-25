@@ -20,7 +20,7 @@ public class enemyLockOn : MonoBehaviour
     // Called from OnInput, including latched clicks that happened between network ticks.
     private bool wasHeld;
     private MagicType sampledMagic;
-    public NetworkId GetInputTarget() => GetInputTarget(Input.GetMouseButton(0));
+    public NetworkId GetInputTarget() => GetInputTarget(ControlSettings.Held(ControlAction.LockOn));
 
     public NetworkId GetInputTarget(bool held)
     {
@@ -39,6 +39,18 @@ public class enemyLockOn : MonoBehaviour
             sampledMagic = owner.GetSelectedMagic();
             currentTarget = null;
             wasHeld = false;
+            nextRefreshTime = 0f;
+        }
+        if (owner.SelectedMagicStats.TargetsAllies)
+        {
+            // Healing continuously previews an instant ally lock, even before clicking.
+            // Refresh on press so a quick click cannot heal a stale selection.
+            if (held || currentTarget == null || !IsVisible(currentTarget) || Time.unscaledTime >= nextRefreshTime)
+            {
+                nextRefreshTime = Time.unscaledTime + targetRefreshInterval;
+                currentTarget = FindClosestVisibleEnemy();
+            }
+            return currentTarget != null ? currentTarget.Id : default;
         }
         if (!wasHeld && held) currentTarget = FindClosestVisibleEnemy();
         if (currentTarget != null && !IsVisible(currentTarget)) currentTarget = null;
@@ -63,13 +75,16 @@ public class enemyLockOn : MonoBehaviour
             if (candidate == null || candidate.Runner != owner.Runner || !IsVisible(candidate.Object))
                 continue;
             Vector3 point = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
-            float score = new Vector2(point.x - 0.5f, point.y - 0.5f).sqrMagnitude;
+            float score = owner.SelectedMagicStats.TargetsAllies
+                ? Vector3.Angle(targetCamera.transform.forward, candidate.LockAimPoint - targetCamera.transform.position)
+                : new Vector2(point.x - 0.5f, point.y - 0.5f).sqrMagnitude;
             if (score < bestScore)
             {
                 bestScore = score;
                 best = candidate.Object;
             }
         }
+        if (owner.SelectedMagicStats.TargetsAllies) return best;
         foreach (var candidate in MagicProjectile.ActiveProjectiles)
         {
             if (candidate == null || !candidate.IsSummonEnemyOf(owner) || !IsVisible(candidate.Object)) continue;
@@ -108,6 +123,16 @@ public class enemyLockOn : MonoBehaviour
     {
         if (targetCamera == null)
             targetCamera = Camera.main;
+        if (targetCamera != null && candidate != null && candidate.IsValid && owner.SelectedMagicStats.TargetsAllies)
+        {
+            Player ally = candidate.GetComponent<Player>();
+            if (!owner.IsHealingAlly(ally)) return false;
+            float allyRange = owner.SelectedMagicStats.range > 0f
+                ? Mathf.Min(maxTargetDistance, owner.SelectedMagicStats.range) : maxTargetDistance;
+            return (ally.LockAimPoint-owner.LockAimPoint).sqrMagnitude <= allyRange*allyRange &&
+                Vector3.Dot(targetCamera.transform.forward, ally.LockAimPoint-targetCamera.transform.position) > 0f &&
+                HasLineOfSight(targetCamera.transform.position, ally);
+        }
         if (targetCamera == null || candidate == null || !candidate.IsValid ||
             !owner.TryGetMagicTarget(candidate.Id, out Player player, out _, out Vector3 targetPoint))
             return false;
