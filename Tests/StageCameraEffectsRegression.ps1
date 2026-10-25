@@ -134,6 +134,9 @@ $checks = @'
    f.UpdateFieldOfView(1,true);Check(Near(f.viewCamera.fieldOfView,63),"stage 1 adds three degrees");
    f.UpdateFieldOfView(2,true);Check(Near(f.viewCamera.fieldOfView,66),"stage 2 adds six degrees");
    f.UpdateFieldOfView(3,true);Check(Near(f.viewCamera.fieldOfView,70),"stage 3 adds ten degrees");
+   f.UpdateFieldOfView(3,true,.5f,4f);Check(Near(f.viewCamera.fieldOfView,69),"actual speed scales base expansion, boost adds separately");
+   f.UpdateFieldOfView(3,true,0f);Check(Near(f.viewCamera.fieldOfView,60),"selected stage at rest does not expand FOV");
+   f.UpdateFieldOfView(3,true);
    f.UpdateFieldOfView(1);Check(f.viewCamera.fieldOfView<70&&f.viewCamera.fieldOfView>63,"downshift FOV narrows smoothly");
    f.UpdateFieldOfView(0,true);Check(Near(f.viewCamera.fieldOfView,60)&&f.fieldOfViewIncrease==0,"menu/death reset clears FOV tail");
    var slowFrames=new FovProbe();var fastFrames=new FovProbe();Time.unscaledDeltaTime=1f/30;for(int i=0;i<30;i++)slowFrames.UpdateFieldOfView(3);
@@ -149,8 +152,8 @@ Add-Type -TypeDefinition ($stubs + ($followMethods -join "`n") + $fovProbe + $ch
 
 $steering = [regex]::Match($follow,'(?ms)^    public bool TryGetSteeringInput\(.*?^    \}').Value
 if ($steering -match 'Kick|Shake|currentLocalOffset') { throw 'Camera effects must not alter mouse steering' }
-if ($follow -notmatch 'currentLocalOffset \+ Vector3.back \* kickDistance' -or $follow -match 'currentLocalOffset.z\s*[-+]=') { throw 'Dolly must not accumulate into base offset' }
-if ($effects -notmatch 'UpdateFieldOfView\(boundaryView \? 0 : player.CurrentSpeedStage\)') { throw 'FOV must follow selected stage, not absolute velocity' }
+if ($follow -notmatch 'currentLocalOffset \+ Vector3.back \* \(kickDistance \+ flightDistance\)' -or $follow -match 'currentLocalOffset.z\s*[-+]=') { throw 'Dolly must not accumulate into base offset' }
+if ($effects -notmatch 'int displayStage = boundaryView \? 0 : player.CurrentSpeedStage' -or $effects -notmatch 'flightSensation.FieldOfViewScale\(displayStage\)') { throw 'FOV must combine forward stage and actual travel, with boundary reset' }
 if ((Method $effects 'ApplyWeight') -match 'fieldOfView') { throw 'Blur/wind intensity must not overwrite stage FOV' }
 $scene = Get-Content Assets/Scenes/Battle.unity -Raw
 # Inspector values are user-editable: verify wiring, not old hard-coded FOV defaults.

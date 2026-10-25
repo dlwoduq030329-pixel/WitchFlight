@@ -12,6 +12,9 @@ public sealed class PlayerBroomAnimation
     [SerializeField, Min(0.01f)] private float parryStartSeconds = 0.08f;
     [SerializeField, Min(0.01f)] private float parryEndSeconds = 0.12f;
     [SerializeField, Min(0.05f)] private float speedTransitionSeconds = 0.35f;
+    [Tooltip("3단계 선택 후 실제 최고속도의 이 비율에 도달하면 고속 자세로 전환합니다.")]
+    [SerializeField, Range(.1f, 1f)] private float fastPoseEnterSpeedRatio = .72f;
+    [SerializeField, Range(0f, .9f)] private float fastPoseExitSpeedRatio = .55f;
     [Tooltip("두 손으로 빗자루를 잡는 모션 동안 손의 마법 지팡이를 숨깁니다. 장착 데이터는 바꾸지 않습니다.")]
     [SerializeField] private bool hideStaffWhenDisarmed = true;
 
@@ -24,6 +27,14 @@ public sealed class PlayerBroomAnimation
     private bool hasSpeedParameter;
     private int speedHash, playedRevision = -1;
     private RuntimeAnimatorController controller;
+    private bool fastPose;
+    public bool UseFastPose(int stage, float speedRatio)
+    {
+        float enter = Mathf.Clamp(fastPoseEnterSpeedRatio, .1f, 1f);
+        float exit = Mathf.Clamp(fastPoseExitSpeedRatio, 0f, enter);
+        fastPose = Mathf.Abs(stage) >= 3 && speedRatio >= (fastPose ? exit : enter);
+        return fastPose;
+    }
     public bool StaffVisible => !enabled || !hideStaffWhenDisarmed || machine == null ||
         available == null || !available[(int)machine.Motion] || !machine.UsesBothHands;
     public float RecoverySeconds => Mathf.Max(0.05f, quickActionSeconds);
@@ -100,6 +111,7 @@ public sealed class PlayerBroomAnimation
 
     public void Reset()
     {
+        fastPose = false;
         if (animator != null && hasSpeedParameter) animator.SetFloat(speedHash, 1f);
         machine = null;
         playedRevision = -1;

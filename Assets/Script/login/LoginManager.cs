@@ -14,6 +14,14 @@ public class LoginManager : MonoBehaviour
     public bool IsLoggedIn { get; private set; }
     public bool IsLoggingIn { get; private set; }
     private int loginAttempt;
+    private int initializationAttempt;
+    private float initializationDeadline, loginDeadline;
+    private readonly System.Collections.Concurrent.ConcurrentQueue<System.Action> completions = new();
+    [Header("Request timeouts (real seconds)")]
+    [SerializeField, Min(5f)] private float initializationTimeout = 20f;
+    [SerializeField, Min(5f)] private float loginTimeout = 20f;
+    public string LoginStatus { get; private set; } = string.Empty;
+    public UnityEvent<string> OnLoginStatusChanged = new UnityEvent<string>();
 
     [Header("Events")]
     public UnityEvent OnInitializeSuccess;
@@ -46,6 +54,29 @@ public class LoginManager : MonoBehaviour
     private void Start()
     {
         InitializeBackend();
+    }
+
+    private void Update()
+    {
+        // Keep SDK completions and all UI events on Unity's main thread.
+        while (completions.TryDequeue(out var complete))
+        {
+            try { complete(); }
+            catch (System.Exception exception) { Debug.LogException(exception); }
+        }
+        if (IsInitializing && Time.realtimeSinceStartup >= initializationDeadline)
+        {
+            initializationAttempt++;
+            CompleteBackendInitialization(false, "서버 초기화가 지연되고 있습니다. 연결 상태를 확인한 뒤 다시 눌러주세요.");
+        }
+        if (IsLoggingIn && Time.realtimeSinceStartup >= loginDeadline)
+            FailLogin(loginAttempt, "로그인 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.");
+    }
+
+    private void SetLoginStatus(string message)
+    {
+        LoginStatus = message;
+        OnLoginStatusChanged?.Invoke(message);
     }
 
     public void Register()
@@ -81,14 +112,16 @@ public class LoginManager : MonoBehaviour
         initializationCompleted += completed;
         IsInitialized = false;
         IsInitializing = true;
+        int attempt = ++initializationAttempt;
+        initializationDeadline = Time.realtimeSinceStartup + Mathf.Max(5f, initializationTimeout);
         try
         {
-            Backend.InitializeAsync(callback =>
+            Backend.InitializeAsync(callback => completions.Enqueue(() =>
             {
-                if (this == null) return;
+                if (this == null || attempt != initializationAttempt) return;
                 bool success = callback.IsSuccess() && Backend.IsInitialized;
                 CompleteBackendInitialization(success, success ? string.Empty : callback.GetMessage());
-            });
+            }));
         }
         catch (System.Exception exception)
         {
@@ -130,12 +163,6 @@ public class LoginManager : MonoBehaviour
         if (IsLoggingIn) return;
         // After a profile-read failure, the existing Login button retries the data flow.
         if (IsLoggedIn) { OnLoginSuccess?.Invoke(); return; }
-        if (!IsInitialized)
-        {
-            Debug.LogError("BACKND가 아직 초기화되지 않았습니다.");
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(id) ||
             string.IsNullOrWhiteSpace(password))
         {
@@ -148,36 +175,49 @@ public class LoginManager : MonoBehaviour
 
         IsLoggingIn = true;
         int attempt = ++loginAttempt;
-        OnLoginStarted?.Invoke();
-        Backend.BMember.CustomLogin(
-            id,
-            password,
-            callback =>
+        loginDeadline = float.PositiveInfinity; // Initialization has its own deadline.
+        try
+        {
+            OnLoginStarted?.Invoke();
+            SetLoginStatus("서버 연결 중...");
+            EnsureBackendInitialized((success, error) =>
             {
                 if (attempt != loginAttempt || this == null) return;
+                if (!success) { FailLogin(attempt, error); return; }
+                SubmitLogin(attempt, id, password);
+            });
+        }
+        catch (System.Exception exception) { FailLogin(attempt, exception.Message); }
+    }
+
+    private void SubmitLogin(int attempt, string id, string password)
+    {
+        try
+        {
+            loginDeadline = Time.realtimeSinceStartup + Mathf.Max(5f, loginTimeout);
+            SetLoginStatus("로그인 중...");
+            Backend.BMember.CustomLogin(id, password, callback => completions.Enqueue(() =>
+            {
+                if (this == null || attempt != loginAttempt || !IsLoggingIn) return;
+                if (!callback.IsSuccess()) { FailLogin(attempt, callback.GetMessage()); return; }
                 IsLoggingIn = false;
-                if (callback.IsSuccess())
-                {
-                    IsLoggedIn = true;
+                IsLoggedIn = true;
+                SetLoginStatus(string.Empty);
+                Debug.Log("로그인 성공");
+                // Profile loading and lobby readiness still belong to LoginFlowController.
+                OnLoginSuccess?.Invoke();
+            }));
+        }
+        catch (System.Exception exception) { FailLogin(attempt, exception.Message); }
+    }
 
-                    Debug.Log("로그인 성공");
-
-                    // LoginFlowController checks registration, opens the lobby UI,
-                    // then applies the saved customization. Authentication alone is not lobby readiness.
-                    OnLoginSuccess?.Invoke();
-                }
-                else
-                {
-                    Debug.LogError(
-                        $"로그인 실패 : {callback.GetMessage()}"
-                    );
-
-                    OnLoginFailed?.Invoke(
-                        callback.GetMessage()
-                    );
-                }
-            }
-        );
+    private void FailLogin(int attempt, string message)
+    {
+        if (attempt != loginAttempt) return;
+        loginAttempt++; // A late callback cannot reopen the lobby after failure/logout.
+        IsLoggingIn = false;
+        SetLoginStatus(message);
+        OnLoginFailed?.Invoke(message);
     }
 
 
@@ -234,6 +274,7 @@ public class LoginManager : MonoBehaviour
     {
         loginAttempt++;
         IsLoggingIn = false;
+        SetLoginStatus(string.Empty);
         Backend.BMember.Logout();
 
         IsLoggedIn = false;
