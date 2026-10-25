@@ -47,7 +47,7 @@ public struct BroomStatEntry
     public float lockOnTurnSpeed;
 
     [Min(0.01f)]
-    [Tooltip("W/S 단계 변경 후 목표 속도에 도달하는 속도입니다.")]
+    [Tooltip("속도 단계 상승 및 부스트 시 목표 속도까지 증가하는 가속도(m/s²)입니다. 최고 속도와 별개로 설정합니다.")]
     public float speedStageTransitionSpeed;
 
     [Min(0.01f)]
@@ -55,11 +55,11 @@ public struct BroomStatEntry
     public float brakeSpeed;
 
     [Min(1f)]
-    [Tooltip("Shift 부스트 중 목표 속도에 적용할 배율입니다.")]
+    [Tooltip("부스트 키를 누르는 동안 목표 속도에 적용할 배율입니다. 빗자루 간 최고 속도 차이를 유지하려면 같은 배율을 사용하세요.")]
     public float boostMultiplier;
 
     [Min(0f)]
-    [Tooltip("Shift를 누르는 동안 초당 소모할 AP입니다. 부스트 중 자연 AP 회복은 중단됩니다. 0이면 무료입니다.")]
+    [Tooltip("부스트 키를 누르는 동안 초당 소모할 MP(AP)입니다. 낮을수록 오래 부스트할 수 있으며 부스트 중 자연 회복은 중단됩니다. 0이면 무료입니다.")]
     public float boostApCostPerSecond;
 
     // Legacy serialized values: retained for asset compatibility, unused by held boost.
@@ -85,7 +85,7 @@ public sealed class EquipmentStatTable : ScriptableObject
     public HatStatEntry[] hats = new HatStatEntry[3];
 
     [Header("Brooms (3)")]
-    [Tooltip("Slow, Standard, Speed 세 빗자루의 HP/이동/선회 능력치를 편집합니다.")]
+    [Tooltip("Slow(선회·가속·부스트 효율), Standard(균형), Speed(최고 속도)의 능력치를 편집합니다.")]
     public BroomStatEntry[] brooms = new BroomStatEntry[3];
 
     public HatStatEntry GetHatStats(HatType selectedHat)

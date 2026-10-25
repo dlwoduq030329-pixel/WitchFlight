@@ -143,7 +143,8 @@ public sealed partial class BattleHud : MonoBehaviour
     [SerializeField] private bool enableParryTimingCue = true;
     [Tooltip("충돌 예상 시간이 패링 시간에서 이 여유(초)를 뺀 값 안으로 들어오면 표시합니다. 보조 신호이며 성공을 보장하지 않습니다.")]
     [SerializeField, Min(0f)] private float parryCueSafetyMargin = 0.08f;
-    [SerializeField] private Color parryCueColor = new Color(0.24f, 0.84f, 0.8f, 1f);
+    [Tooltip("패링 가능한 순간 느낌표·테두리·링에 표시할 색상입니다.")]
+    [SerializeField] private Color parryCueColor = new Color(1f, 0.85f, 0.1f, 1f);
     [SerializeField, Range(1f, 2f)] private float parryCueRingScale = 1.35f;
     [SerializeField, Range(1f, 1.6f)] private float parryCuePunchScale = 1.2f;
     [SerializeField, Min(0.05f)] private float parryCuePunchSeconds = 0.18f;
@@ -241,6 +242,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void StartManaFeedback(Player player)
     {
+        BattleAudio.Play(BattleSound.InsufficientMana, local: true);
         ResetManaFeedback();
         activeManaFeedbackRoot = manaFeedbackRoot != null ? manaFeedbackRoot :
             apSlider != null ? apSlider.transform as RectTransform :
@@ -567,6 +569,9 @@ public sealed partial class BattleHud : MonoBehaviour
     private void BindOwner(Player next)
     {
         if (owner == next) return;
+        soundedParryThreats.Clear();
+        incomingThreat = null;
+        HideThreatIndicator();
         manaTrailInitialized = false;
         ClearHitMarker();
         if (hpGridBar != null) hpGridBar.ResetBinding();
@@ -682,6 +687,13 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void UpdateThreatWarning(bool show)
     {
+        UpdatePrimaryThreatWarning(show);
+        UpdateAdditionalThreatWarnings(show);
+        if (show) PlaceThreatIndicator();
+    }
+
+    private void UpdatePrimaryThreatWarning(bool show)
+    {
         Visible(incomingMagicWarning != null ? incomingMagicWarning.gameObject : null, false);
         if (!show)
         {
@@ -694,14 +706,14 @@ public sealed partial class BattleHud : MonoBehaviour
         {
             nextThreatCheck = Time.unscaledTime + 0.05f;
             MagicProjectile.TryGetIncomingThreat(owner, warningDistance, out _, out incomingThreat,
-                warningLeadSeconds, offscreenThreatFilter);
+                warningLeadSeconds, offscreenThreatFilter, incomingThreats);
         }
         if (!HasIncomingThreat() || !IsOffscreenThreat(incomingThreat))
         {
             // The camera may have turned since the last 20 Hz candidate search.
             if (HasIncomingThreat()) nextThreatCheck = 0f;
             threatStrength = warningPhase = 0f;
-            HideThreatIndicator();
+            HidePrimaryThreatIndicator();
             return;
         }
         float distance = Vector3.Distance(owner.LockAimPoint, incomingThreat.transform.position);
@@ -723,7 +735,7 @@ public sealed partial class BattleHud : MonoBehaviour
         Visible(generatedWarning != null ? generatedWarning.gameObject : null, !custom);
         if (custom)
             incomingMagicIndicator.sprite = SelectWarningSprite(warningSpriteA, warningSpriteB, firstFrame);
-        Color tint = warningIconColor;
+        Color tint = cue ? ParryWarningFlash(parryCueColor, Time.unscaledTime - parryCueStarted) : warningIconColor;
         // A/B remain readable while alternating. A single sprite / fallback pulses.
         tint.a *= cue || (custom && warningSpriteA != null && warningSpriteB != null) ? 1f : firstFrame ? 1f : 0.15f;
         warning.color = tint;
@@ -743,11 +755,17 @@ public sealed partial class BattleHud : MonoBehaviour
             warningFrame.rectTransform.sizeDelta = Vector2.one * warningIconSize * 1.05f * punch;
         }
         if (cue) parryCueRing.sizeDelta = Vector2.one * warningIconSize * parryCueRingScale * punch;
-        PlaceThreatIndicator();
     }
 
     private static Sprite SelectWarningSprite(Sprite a, Sprite b, bool firstFrame)
         => a != null && b != null ? (firstFrame ? a : b) : a != null ? a : b;
+
+    private static Color ParryWarningFlash(Color color, float elapsed)
+    {
+        // Start fully bright, then pulse without making the actionable warning disappear.
+        color.a *= Mathf.Lerp(.55f, 1f, .5f + .5f * Mathf.Cos(Mathf.Max(0f, elapsed) * Mathf.PI * 16f));
+        return color;
+    }
 
     private static bool IsParryCueTiming(float seconds, float window, float margin)
     {
@@ -762,6 +780,7 @@ public sealed partial class BattleHud : MonoBehaviour
         if (show)
         {
             if (!parryCueActive || parryCueThreat != incomingThreat) parryCueStarted = Time.unscaledTime;
+            PlayParryReadySound(incomingThreat);
             if (parryCueRing == null)
             {
                 parryCueRing = CreateFeedbackRing("Parry timing ring", parryCueColor, warningIconSize * parryCueRingScale, null);
@@ -812,6 +831,12 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void HideThreatIndicator()
     {
+        HidePrimaryThreatIndicator();
+        HideAdditionalThreatWarnings();
+    }
+
+    private void HidePrimaryThreatIndicator()
+    {
         Visible(incomingMagicIndicator != null ? incomingMagicIndicator.gameObject : null, false);
         Visible(generatedWarning != null ? generatedWarning.gameObject : null, false);
         Visible(warningGlow != null ? warningGlow.gameObject : null, false);
@@ -854,12 +879,19 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void PlaceThreatIndicator()
     {
-        if (!HasIncomingThreat() || worldCamera == null) { HideThreatIndicator(); return; }
+        occupiedThreatPoints.Clear();
+        PlacePrimaryThreatIndicator();
+        PlaceAdditionalThreatIndicators();
+    }
+
+    private void PlacePrimaryThreatIndicator()
+    {
+        if (!HasIncomingThreat() || worldCamera == null) { HidePrimaryThreatIndicator(); return; }
         // Recheck after camera rendering too: no one-frame on-screen warning after a turn.
         if (!IsOffscreenThreat(incomingThreat))
         {
             nextThreatCheck = 0f;
-            HideThreatIndicator();
+            HidePrimaryThreatIndicator();
             return;
         }
         Graphic warning = warningSpriteA != null || warningSpriteB != null ? incomingMagicIndicator : generatedWarning;
@@ -871,6 +903,7 @@ public sealed partial class BattleHud : MonoBehaviour
         float padding = Mathf.Max(warningEdgePadding, warningIconSize * warningGlowScale * 0.5f + 8f);
         Vector2 point = GetThreatScreenPoint(relative, worldCamera.pixelRect, padding);
         bool placed = PlaceScreen(warning.rectTransform, point);
+        if (placed) occupiedThreatPoints.Add(point);
         Visible(warning.gameObject, placed);
         if (warningGlow != null)
             Visible(warningGlow.gameObject, placed && PlaceScreen(warningGlow.rectTransform, point));
@@ -1140,6 +1173,7 @@ public sealed partial class BattleHud : MonoBehaviour
             attacker != Player.LocalPlayer || !attacker.IsAlive || MenuOpen ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
         instance.EnsureHitMarker();
+        BattleAudio.Play(BattleSound.HitConfirmed, local: true);
         instance.hitMarkerStarted = Time.unscaledTime;
         // Every confirmed hit restores full visibility, even during the previous fade.
         instance.UpdateHitMarker(true);

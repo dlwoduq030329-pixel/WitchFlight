@@ -520,6 +520,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             RegenerateAp();
             return;
         }
+        BattleUpdraft.TickPlayer(this);
         if (!GetInput(out NetworkInputData data))
         {
             if (Object.HasStateAuthority) StopChannel();
@@ -1428,7 +1429,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         float before = NowHp;
         NowHp = Mathf.Min(MaxHp, NowHp + amount);
         if (NowHp > before)
+        {
             HealingFeedbackTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.05f, healingFeedbackSeconds));
+            RPC_PlayBattleSound(BattleSound.HealingReceived);
+        }
         SyncHealthToPlayerData();
     }
 
@@ -2186,6 +2190,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
 
         WallDamageTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, wallDamageCooldown));
+        RPC_PlayBattleSound(BattleSound.WallCrash);
         TakeDamage(wallDamage, PlayerRef.None);
     }
 

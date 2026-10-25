@@ -79,6 +79,8 @@ public sealed class CombatPresentation : MonoBehaviour
         // Unity native objects cannot be created from MonoBehaviour field initializers.
         block = new MaterialPropertyBlock();
         owner = GetComponent<Player>();
+        if (owner != null && GetComponent<CombatAudioFeedback>() == null)
+            gameObject.AddComponent<CombatAudioFeedback>();
         enemyOutline = GetComponent<Outline>();
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
         {
@@ -350,6 +352,8 @@ public sealed class CombatPresentation : MonoBehaviour
             return;
         MagicStatEntry stats = OwnerStats(magic);
         if (!stats.requiresTarget) return;
+        if (owner.Object.HasInputAuthority)
+            BattleAudio.PlayMagic(magic, MagicSound.LockComplete, owner.MagicCastPosition, local: true);
         Transform anchor = owner.MagicCastAnchor;
         lockCompleteVfx = InstantiateVfx(stats.lockOnCompleteVfxPrefab, anchor.position, anchor.rotation, anchor);
         if (lockCompleteVfx == null)
@@ -421,6 +425,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     public void ShowCast(MagicType magic, Vector3 origin, Vector3 end)
     {
+        BattleAudio.PlayMagic(magic, MagicSound.Cast, origin, transform);
         ClearLockCompleteVfx();
         MagicStatEntry stats = OwnerStats(magic);
         // Utility effects have their own fallback; the optional cast effect is additive.
@@ -489,6 +494,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     public static void ShowImpact(Vector3 position, MagicType magic)
     {
+        BattleAudio.PlayMagic(magic, MagicSound.Impact, position);
         MagicStatEntry stats = Stats(magic);
         GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity);
         if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));

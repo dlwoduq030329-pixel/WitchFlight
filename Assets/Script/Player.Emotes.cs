@@ -30,5 +30,6 @@ public partial class Player
     private void RPC_PresentEmote(int emoteId)
     {
         BattleEmoteUI.Present(this, emoteId);
+        BattleAudio.Play(BattleSound.Emote, LockAimPoint, transform, Object.HasInputAuthority);
     }
 }

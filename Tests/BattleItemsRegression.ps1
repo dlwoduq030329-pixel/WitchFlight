@@ -14,6 +14,7 @@ $source = @'
 using System;
 using System.Collections.Generic;
 namespace ItemChecks {
+public enum BattleSound {HealthPotion,ManaPotion,BoosterPickup,HealingReceived}
 public static class Mathf {
  public static float Max(float a,float b)=>Math.Max(a,b);
  public static float Min(float a,float b)=>Math.Min(a,b);
@@ -44,6 +45,7 @@ $source += [regex]::Match($pickup, 'public enum BattleItemType[^\r\n]+').Value
 $source += "`n" + (($items.Substring($items.IndexOf('public partial class Player'))) -replace '\[Networked\]\s*','' -replace '\bprivate\b','public')
 $source += @'
 public partial class Player {
+ public int AudioEvents;private void RPC_PlayBattleSound(BattleSound sound){AudioEvents++;}
  public NetworkObject Object=new();public NetworkRunner Runner=new();
  public bool IsAlive=true,IsTestBot,IsReturningToMap;
  public TickTimer HealingFeedbackTimer;public float healingFeedbackSeconds=1.5f;

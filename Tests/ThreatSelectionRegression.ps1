@@ -14,7 +14,7 @@ public class Transform {public Vector3 position,forward;}
 public class NetworkObject {public bool IsValid=true;}
 public class Player {public NetworkObject Object=new();public object Runner=new();public Vector3 LockAimPoint;public int TeamIndex=1;}
 public class MagicProjectile {
- public static HashSet<MagicProjectile> active=new();public NetworkObject Object=new();public object Runner;public Transform transform=new();public bool Finished,IsMine,Settled,InView,Timed=true;public int ShooterTeam=2;public float Seconds;
+ public static HashSet<MagicProjectile> active=new();public NetworkObject Object=new();public object Runner;public Transform transform=new();public bool Finished,IsMine,IsConstruct,Settled,InView,Timed=true;public int ShooterTeam=2;public float Seconds;
  public static HashSet<float> blockedPositions=new();public static int SightChecks;
  public bool TryGetImpactTime(Player observer,out float seconds){seconds=Seconds;return Timed;}
  public static bool HasBlastSight(Vector3 position,Player observer){SightChecks++;return !blockedPositions.Contains(position.x);}
@@ -38,6 +38,17 @@ public static class Tests {
   rear.Finished=false;rear.transform.forward=new(1,0,0);Check(!MagicProjectile.TryGetIncomingThreat(observer,90,out _,out _,1.5f,offscreen),"departing shot stays excluded");
   rear.transform.forward=new(-1,0,0);rear.transform.position=new(120,0,0);rear.Seconds=1;Check(MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,offscreen)&&selected==rear,"early ETA warning outside distance still works");
   rear.Seconds=2;Check(!MagicProjectile.TryGetIncomingThreat(observer,90,out _,out _,1.5f,offscreen),"distant non-imminent threat still excluded");
+  MagicProjectile.active.Clear();var warnings=new List<MagicProjectile>();
+  var one=Shot(observer,15,.3f,false);var two=Shot(observer,20,.1f,false);var three=Shot(observer,30,.8f,false);
+  Check(MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,offscreen,warnings)&&selected==two,"earliest collision still owns primary cue");
+  Check(warnings.Count==3&&warnings.Contains(one)&&warnings.Contains(two)&&warnings.Contains(three),"one warning candidate per incoming projectile, including slower shots");
+  one.Finished=true;three.InView=true;
+  MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,offscreen,warnings);
+  Check(warnings.Count==1&&warnings[0]==two,"refresh removes finished and now-visible shots without stale entries");
+  two.IsConstruct=true;MagicProjectile.TryGetIncomingThreat(observer,90,out _,out _,1.5f,offscreen,warnings);
+  Check(warnings.Count==0,"constructs are not incoming projectile warnings");
+  warnings.Add(two);MagicProjectile.TryGetIncomingThreat(null,90,out _,out _,1.5f,offscreen,warnings);
+  Check(warnings.Count==0,"missing observer clears all previous candidates");
   return n;
  }
 }}

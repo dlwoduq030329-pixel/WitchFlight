@@ -203,6 +203,7 @@ public sealed class BattlePerkUI : MonoBehaviour
     {
         if (accepted)
         {
+            BattleAudio.Play(BattleSound.PerkSelected, local: true);
             // A successful choice acknowledges this notification, even if choices remain.
             benefitDismissedAtChoices = Ready(local) ? local.PerkChoicesEarned : benefitObservedChoices;
             Show(benefitAnimation,false);
@@ -257,6 +258,8 @@ public sealed class BattlePerkUI : MonoBehaviour
         {
             // Match reset; hide/show transitions and loadout changes do not re-arm the notification.
             if (local.PerkChoicesEarned < benefitObservedChoices) benefitDismissedAtChoices = -1;
+            if (local.PerkChoicesEarned > benefitObservedChoices)
+                BattleAudio.Play(BattleSound.PerkAvailable, local: true);
             benefitObservedChoices = local.PerkChoicesEarned;
         }
         // XP rolls over on level-up. Only a newly earned choice re-arms a dismissed notification.

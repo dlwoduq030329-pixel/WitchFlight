@@ -344,6 +344,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     private void RPC_AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile)
     {
         BattleKillFeed.Instance?.ShowKill(killerName, killerProfile, victimName, victimProfile);
+        BattleAudio.Play(BattleSound.KillNotice, local: true);
     }
 
     private void ClearRoundSmoke()
