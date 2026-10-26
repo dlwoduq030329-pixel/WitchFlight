@@ -9,6 +9,10 @@ public partial class PlayerData
     [Networked] public float BattleDamageTaken { get; private set; }
     [Networked] public int BattleKills { get; private set; }
     [Networked] public int BattleDeaths { get; private set; }
+    [Networked] public float BattleFlagSeconds { get; private set; }
+    [Networked] public float BattleBoostSeconds { get; private set; }
+    [Networked] public float BattleUnderwaterSeconds { get; private set; }
+    [Networked] public int BattleWallCrashes { get; private set; }
     [Networked] public int BattleStatsRevision { get; private set; }
     private NetworkId lastRecordedDeathObject;
 
@@ -20,8 +24,32 @@ public partial class PlayerData
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
         BattleDamageDealt = BattleDamageTaken = 0f;
         BattleKills = BattleDeaths = 0;
+        BattleFlagSeconds = BattleBoostSeconds = BattleUnderwaterSeconds = 0f;
+        BattleWallCrashes = 0;
         lastRecordedDeathObject = default;
         BattleStatsRevision++;
+    }
+
+    private Suimono.Core.SuimonoModule statsWater;
+    private float nextWaterLookup;
+    private void TickBattleActivity()
+    {
+        if (!CanRecordBattleStats) return;
+        Player player = Player.FindInRunner(Runner, ParticipantRef);
+        if (player == null || !player.IsAlive) return;
+        float dt = Runner.DeltaTime;
+        if (BattleFlag.Instance != null && BattleFlag.Instance.IsCarriedBy(Runner, ParticipantRef)) BattleFlagSeconds += dt;
+        if (player.IsBoosting) BattleBoostSeconds += dt;
+        if (statsWater == null && Time.unscaledTime >= nextWaterLookup)
+        { statsWater = FindFirstObjectByType<Suimono.Core.SuimonoModule>(); nextWaterLookup = Time.unscaledTime + 2f; }
+        if (statsWater != null && statsWater.isActiveAndEnabled &&
+            statsWater.TryGetSurfaceHeight(player.transform.position, out float y) && player.transform.position.y < y)
+            BattleUnderwaterSeconds += dt;
+    }
+
+    public void RecordWallCrash()
+    {
+        if (CanRecordBattleStats) { BattleWallCrashes++; BattleStatsRevision++; }
     }
 
     // Called AFTER parry and HP clamping. Environment damage counts as received only;

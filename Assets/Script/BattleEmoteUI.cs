@@ -45,7 +45,7 @@ public sealed class BattleEmoteUI : MonoBehaviour
     [SerializeField, Min(1)] private int leftEmoteId = 4;
 
     [Header("Hold T / move mouse / release T to send")]
-    [SerializeField] private KeyCode holdKey = KeyCode.T;
+    private KeyCode holdKey => ControlSettings.GetKey(ControlAction.Emote);
     [SerializeField, Min(.1f)] private float mouseSensitivity = 22f;
     [SerializeField, Min(1f)] private float selectionRadius = 140f;
     [SerializeField, Min(0f)] private float cancelDeadZone = 28f;

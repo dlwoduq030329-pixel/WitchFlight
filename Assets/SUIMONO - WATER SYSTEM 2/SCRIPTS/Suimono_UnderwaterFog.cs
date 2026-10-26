@@ -47,6 +47,12 @@ namespace Suimono.Core
 		private Suimono.Core.SuimonoModuleLib moduleLibrary;
 		public bool UrpTransitionActive => trans1Time < 1.1f || trans2Time < 1.1f;
         public Vector4 UrpTransition => new Vector4(trans1Time, trans2Time, dropOff.x, dropOff.y);
+        public void ClearWaterTransition()
+        {
+            doTransition = cancelTransition = false;
+            trans1Time = trans2Time = 1.1f;
+            dropOff = Vector2.zero;
+        }
         #if UNITY_EDITOR
         public void SetUrpTestTransition(Vector4 value) { trans1Time=value.x; trans2Time=value.y; dropOff=new Vector2(value.z,value.w); }
         #endif

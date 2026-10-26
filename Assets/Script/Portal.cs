@@ -30,6 +30,22 @@ public sealed class Portal : MonoBehaviour
 
     private NetworkRunner cooldownRunner;
     private TickTimer cooldownTimer;
+    private static readonly System.Collections.Generic.HashSet<Portal> activePortals = new();
+    public static System.Collections.Generic.IEnumerable<Portal> ActivePortals => activePortals;
+    private void OnEnable() => activePortals.Add(this);
+    private void OnDisable() => activePortals.Remove(this);
+
+    public bool TryGetBotRoute(NetworkRunner runner, out Vector3 entry, out Vector3 exit, out Quaternion rotation)
+    {
+        entry = exit = default; rotation = Quaternion.identity;
+        if (!isActiveAndEnabled || destination == null || runner == null) return false;
+        var trigger = GetComponent<BoxCollider>();
+        if (trigger == null || !trigger.enabled ||
+            cooldownRunner == runner && !cooldownTimer.ExpiredOrNotRunning(runner)) return false;
+        entry = transform.TransformPoint(trigger.center);
+        GetExitPose(out exit, out rotation);
+        return true;
+    }
 
     private void Reset() => ConfigureTrigger();
 

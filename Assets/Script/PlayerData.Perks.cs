@@ -105,6 +105,7 @@ public partial class PlayerData
 
     public override void FixedUpdateNetwork()
     {
+        TickBattleActivity();
         if (!CanAwardPerkXp()) return;
         perkLedger ??= new PerkXpLedger();
         perkLedger.Advance(Runner.DeltaTime);

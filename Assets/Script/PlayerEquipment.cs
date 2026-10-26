@@ -25,6 +25,16 @@ public class PlayerEquipment : MonoBehaviour
     public GameObject CurrentBroomObject => broomPrefabs != null && currentBroomIndex > 0 &&
         currentBroomIndex < broomPrefabs.Length ? broomPrefabs[currentBroomIndex] : null;
 
+    public bool IsFlightEquipment(Transform part)
+    {
+        if (part == null) return false;
+        if (magicStaffPrefabs != null) foreach (var item in magicStaffPrefabs)
+            if (item != null && part.IsChildOf(item.transform)) return true;
+        if (broomPrefabs != null) foreach (var item in broomPrefabs)
+            if (item != null && part.IsChildOf(item.transform)) return true;
+        return false;
+    }
+
     private void OnEnable()
     {
         if (!followsDataConfig) return;

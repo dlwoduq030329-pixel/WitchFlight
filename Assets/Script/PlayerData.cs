@@ -14,6 +14,8 @@ public partial class PlayerData : NetworkBehaviour
     [Networked] public int MagicChangeRound { get; private set; }
     [Networked] public MagicType MagicChangeBase1 { get; private set; }
     [Networked] public MagicType MagicChangeBase2 { get; private set; }
+    [Networked] public MagicType InitialMagic1 { get; private set; }
+    [Networked] public MagicType InitialMagic2 { get; private set; }
     public event System.Action<int, int, bool, string> RoundMagicChangeResult;
     // Lobby presentation acknowledgements are host-local; PlayerData is still the RPC owner.
     private readonly Dictionary<PlayerRef, (PlayerData data, int profile, int ownProfile, int team, int ownTeam)> lobbyPreviews = new();
@@ -78,6 +80,8 @@ public partial class PlayerData : NetworkBehaviour
 
     // Profile image ID only. Image selection/rendering and backend storage are separate.
     [Networked] public int playerprofile { get; private set; } = 0;
+    [Networked] public int CatBodyIndex { get; private set; } = 1;
+    [Networked] public int CatEyeIndex { get; private set; } = 1;
     // Compatibility: both names read the SAME replicated profile index (default 0).
     // Use SetPlayerProfile to change it; do not introduce a second networked copy.
     public int profileimage => playerprofile;
@@ -129,10 +133,13 @@ public partial class PlayerData : NetworkBehaviour
         if (Object.HasInputAuthority)
         {
             Local = this;
+            int catBody = 1, catEyes = 1;
+            if (DatabaseManager.Instance != null && DatabaseManager.Instance.TryGetCatAppearance(out int body, out int eyes))
+            { catBody = body; catEyes = eyes; }
             // Only the local owner's loaded DataConfig supplies this player's name.
             RPC_SetLoadout(DataConfig.GetPlayerConfig(),
                 (MagicType)DataConfig.magic1Index, (MagicType)DataConfig.magic2Index,
-                DataConfig.playerprofile, NormalizePlayerName(DataConfig.playerName));
+                DataConfig.playerprofile, NormalizePlayerName(DataConfig.playerName), catBody, catEyes);
         }
 
         base.Spawned();
@@ -147,7 +154,7 @@ public partial class PlayerData : NetworkBehaviour
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     private void RPC_SetLoadout(PlayerConfig selectedConfig,
-        MagicType selectedMagic1, MagicType selectedMagic2, int selectedProfile, string selectedName)
+        MagicType selectedMagic1, MagicType selectedMagic2, int selectedProfile, string selectedName, int catBody, int catEyes)
     {
         // Initial account snapshot only. Mid-match changes use the validated round RPC below.
         if (IsLoadoutInitialized) return;
@@ -156,6 +163,8 @@ public partial class PlayerData : NetworkBehaviour
         broom = NormalizeBroom((BroomType)selectedConfig.broomIndex);
         magic1 = NormalizeMagic(selectedMagic1, MagicType.Fire);
         magic2 = NormalizeMagic(selectedMagic2, MagicType.Ice);
+        InitialMagic1 = magic1;
+        InitialMagic2 = magic2;
         hairStylePreset = selectedConfig.hairStylePreset;
         bangsLength = selectedConfig.bangsLength;
         bangsDirection = selectedConfig.bangsDirection;
@@ -166,6 +175,8 @@ public partial class PlayerData : NetworkBehaviour
         eyeColor = selectedConfig.eyeColor;
         wandIndex = selectedConfig.wandIndex;
         playerprofile = Mathf.Max(0, selectedProfile);
+        CatBodyIndex = Mathf.Clamp(catBody, 1, 7);
+        CatEyeIndex = Mathf.Clamp(catEyes, 1, 3);
         playerName = NormalizePlayerName(selectedName);
         IsLoadoutInitialized = true;
         NetworkGameManager.Instance?.NotifyPlayerDataInitialized(this);
@@ -231,19 +242,19 @@ public partial class PlayerData : NetworkBehaviour
         MagicChangeRound = round;
     }
 
-    public bool RequestRoundMagicChange(int round, MagicType first, MagicType second, int requestId)
+    public bool RequestRoundMagicChange(int round, MagicType first, MagicType second, int requestId, bool resetInitial = false)
     {
         if (Object == null || !Object.IsValid || !Object.HasInputAuthority || !IsLoadoutInitialized) return false;
-        RPC_ChangeRoundMagic(round, first, second, requestId);
+        RPC_ChangeRoundMagic(round, first, second, requestId, resetInitial);
         return true;
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    private void RPC_ChangeRoundMagic(int round, MagicType first, MagicType second, int requestId)
+    private void RPC_ChangeRoundMagic(int round, MagicType first, MagicType second, int requestId, bool resetInitial)
     {
         string error = "전투 정보를 불러오지 못했습니다.";
         bool accepted = BattleManager.Instance != null &&
-            BattleManager.Instance.TryChangeRoundMagic(this, round, first, second, out error);
+            BattleManager.Instance.TryChangeRoundMagic(this, round, first, second, out error, resetInitial);
         RPC_RoundMagicChangeResult(requestId, round, accepted, error);
     }
 

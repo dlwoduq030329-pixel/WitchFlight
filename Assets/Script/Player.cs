@@ -73,6 +73,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private TickTimer ParryTimer { get; set; }
     [Networked] private TickTimer ParryCooldown { get; set; }
     [Networked] private TickTimer WallDamageTimer { get; set; }
+    [Networked] private TickTimer WallContactTimer { get; set; }
+    [Networked] private Vector3 LastFlightVelocity { get; set; }
     [Networked] public bool IsBoosting { get; private set; }
     [Networked] public bool IsReturningToMap { get; private set; }
     [Networked] public bool DiedFromAltitude { get; private set; }
@@ -337,6 +339,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ParryTimer = TickTimer.None;
         ParryCooldown = TickTimer.None;
         WallDamageTimer = TickTimer.None;
+        WallContactTimer = TickTimer.None;
+        LastFlightVelocity = Vector3.zero;
         RamCooldown = CobraTimer = CobraCooldown = TickTimer.None;
         CobraActive = false;
         IsBoosting = false;
@@ -344,6 +348,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         IsReturningToMap = false;
         DiedFromAltitude = false;
         RespawnTimer = TickTimer.None;
+        SpawnProtectionPending = true;
+        SpawnProtectionTimer = TickTimer.None;
         RespawnAnimationTimer = isRespawn
             ? TickTimer.CreateFromSeconds(Runner, broomAnimation.RecoverySeconds) : TickTimer.None;
         nextHitMarkerFeedback = TickTimer.None;
@@ -439,6 +445,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         publishedHp = publishedMaxHp = float.NaN;
         NotifyHealthChanged(); // OnChangedRender does not initialize the spawn snapshot.
         if (GetComponent<hpfollow>() == null) gameObject.AddComponent<hpfollow>();
+        if (GetComponent<CatBattleCompanion>() == null) gameObject.AddComponent<CatBattleCompanion>();
         // Network characters must never follow this client's global lobby settings.
         appearance ??= GetComponent<PlayerAppearance>();
         appearance?.UnbindFromDataConfig();
@@ -522,6 +529,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
         {
+            // Countdown itself protects the starting players. Do not carry an extra
+            // respawn protection timer into gameplay; real mid-round respawns still get it.
+            if (Object.HasStateAuthority && IsCountdownProtected)
+            {
+                SpawnProtectionPending = false;
+                SpawnProtectionTimer = TickTimer.None;
+            }
             CobraActive = false;
             if (Object.HasStateAuthority) ResetItemBoost();
             areaAimArmed = false;
@@ -547,6 +561,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
 
         ResetControllerAfterRender();
+        if (Object.HasStateAuthority && SpawnProtectionPending)
+        {
+            SpawnProtectionPending = false;
+            float seconds = FlightCombatTable.Default != null ? FlightCombatTable.Default.spawnProtectionSeconds : 2.5f;
+            SpawnProtectionTimer = seconds > 0f ? TickTimer.CreateFromSeconds(Runner, seconds) : TickTimer.None;
+        }
         TickPerkEffects();
         if (!IsAlive) return;
         if (testBot != null)
@@ -846,9 +866,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (buttons.WasPressed(previousButtons, PlayerInputButton.Accelerate))
             SpeedStage = Mathf.Min(SpeedStage + 1, 3);
 
+        if (buttons.WasPressed(previousButtons, PlayerInputButton.QuickBrake) && TryStartCobra())
+        { TickCobra(); previousButtons = buttons; return; }
+
         if (buttons.WasPressed(previousButtons, PlayerInputButton.Decelerate))
         {
-            if (TryStartCobra()) { TickCobra(); previousButtons = buttons; return; }
             SpeedStage = Mathf.Max(SpeedStage - 1, -3);
         }
 
@@ -956,7 +978,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (stats.IsChanneled)
         {
             ClearLockTargetInternal();
-            if (held && !channelNeedsRelease) UpdateChannel(stats, data.lockTarget, data.aimDirection);
+            if (held && !channelNeedsRelease) UpdateChannel(stats, data.lockTarget,
+                IsMatchBot ? data.magicAimDirection : data.aimDirection);
             else StopChannel();
             return;
         }
@@ -1521,7 +1544,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 Vector3.Angle(aimDirection, end - LockAimPoint) > stats.autoAimHalfAngle)
             { StopChannel(); return; }
         }
-        else end = TraceMagicTargets(stats, MagicCastPosition, transform.forward, out target, out summon);
+        else end = TraceMagicTargets(stats, MagicCastPosition,
+            IsMatchBot && IsFiniteDirection(aimDirection) && aimDirection.sqrMagnitude > .001f
+                ? aimDirection.normalized : transform.forward, out target, out summon);
 
         float perSecond = stats.ChannelManaPerSecond(MaxAp);
         float paidTime = perSecond > 0f ? Mathf.Min(Runner.DeltaTime, NowAp / perSecond) : Runner.DeltaTime;
@@ -1595,6 +1620,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     {
         if (Object == null || !Object.HasStateAuthority || !IsAlive ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
+        if (IsSpawnProtected) return;
         // Binding also counts as an incoming magic hit, despite its zero damage.
         if (IsParrying)
         {
@@ -1673,6 +1699,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!Object.HasStateAuthority || !IsAlive || damage <= 0f ||
             (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive))
             return;
+        if (IsSpawnProtected) return;
 
         if (canBeParried && attacker != PlayerRef.None && IsParrying)
         {
@@ -1742,6 +1769,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!enemy || (!lethal && source.TimerIsActive(source.nextHitMarkerFeedback))) return;
         // Coalesce same-tick AOE / very fast beam hits. No per-frame polling or broadcasts.
         source.nextHitMarkerFeedback = TickTimer.CreateFromSeconds(Runner, 0.05f);
+        source.RecordCatAttack(lethal);
         source.RPC_ConfirmedMagicHit(lethal);
     }
 
@@ -2257,6 +2285,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else
             transform.position += movement;
         TryRam(start, transform.position, velocity);
+        LastFlightVelocity = (transform.position - start) / Mathf.Max(.001f, Runner.DeltaTime);
     }
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
@@ -2269,6 +2298,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (Mathf.Abs(hit.normal.y) > 0.5f || Vector3.Dot(hit.moveDirection, hit.normal) >= -0.01f ||
             hit.collider.GetComponentInParent<Player>() != null || hit.collider.GetComponentInParent<MagicProjectile>() != null)
             return;
+
+        bool continuingContact = TimerIsActive(WallContactTimer);
+        WallContactTimer = TickTimer.CreateFromSeconds(Runner, .25f);
+        var flightTable = FlightCombatTable.Default;
+        float impactSpeed = Vector3.Dot(LastFlightVelocity, -hit.normal);
+        bool freshImpact = !continuingContact && impactSpeed >=
+            (flightTable != null ? flightTable.minimumWallImpactSpeed : 3f);
 
         // Stage, not absolute speed: slower brooms, flag carriers and slowed players
         // follow the same rule. Boosting a lower stage does not make it a crash.
@@ -2283,12 +2319,14 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             KnockbackVelocity = Vector3.ProjectOnPlane(KnockbackVelocity, hit.normal);
 
         // Health remains host-authoritative. Multiple contacts in one Move cannot apply repeated damage.
-        if (!Object.HasStateAuthority || TimerIsActive(WallDamageTimer))
+        if (!Object.HasStateAuthority || !freshImpact || TimerIsActive(WallDamageTimer) || IsSpawnProtected)
             return;
 
-        WallDamageTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, wallDamageCooldown));
+        WallDamageTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(wallDamageCooldown,
+            flightTable != null ? flightTable.wallCrashGraceSeconds : 3f));
         if (FlightCombatTable.Default != null && FlightCombatTable.Default.dropFlagOnWallCrash) DropCarriedFlag();
         RPC_PlayBattleSound(BattleSound.WallCrash);
+        PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordWallCrash();
         TakeDamage(wallDamage, PlayerRef.None);
     }
 

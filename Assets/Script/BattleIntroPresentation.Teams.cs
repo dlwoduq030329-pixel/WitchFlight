@@ -32,6 +32,33 @@ public sealed partial class BattleIntroPresentation
     private readonly PortraitSnapshot[] teamSnapshots = new PortraitSnapshot[2];
     private readonly List<PlayerData> teamRoster = new();
     private readonly Player[] teamPlayers = new Player[4];
+    private readonly List<ProfileMotion> teamProfileMotions = new();
+    private sealed class ProfileMotion
+    {
+        public RectTransform source, copy;
+        public Vector2 sourcePosition, copyPosition;
+    }
+
+    private void PrepareTeamProfileMotion()
+    {
+        if (introPanel == null || teamProfileMotions.Count > 0) return;
+        foreach (string name in new[] { "PlayerProfile", "EnemyProfile" })
+        {
+            var source = FindVSChild(introPanel.transform, name) as RectTransform;
+            var copy = FindVSChild(introPanel.transform, name + " (1)") as RectTransform;
+            if (source == null || copy == null) continue;
+            teamProfileMotions.Add(new ProfileMotion { source = source, copy = copy,
+                sourcePosition = source.anchoredPosition, copyPosition = copy.anchoredPosition });
+        }
+    }
+
+    private void UpdateTeamProfileMotion()
+    {
+        if (!IsTeamBattle) return;
+        foreach (var motion in teamProfileMotions)
+            if (motion.source != null && motion.copy != null && motion.copy.gameObject.activeInHierarchy)
+                motion.copy.anchoredPosition = motion.copyPosition + motion.source.anchoredPosition - motion.sourcePosition;
+    }
     private bool IsTeamBattle => BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2;
 
     private void PrepareTeamPresentation(BattleStartPhase phase)
@@ -152,12 +179,19 @@ public sealed partial class BattleIntroPresentation
             firstVisual.localPosition = Vector3.left * teamCharacterSpacing * .5f;
             secondVisual.localPosition = Vector3.right * teamCharacterSpacing * .5f;
             snapshot.OwnedMeshes.AddRange(companion.OwnedMeshes);
+            snapshot.AnimatedCat |= companion.AnimatedCat;
             companion.OwnedMeshes.Clear(); // Ownership follows the reparented visual, never double-dispose baked meshes.
             ReleaseSnapshot(ref companion);
 
             Renderer[] renderers = snapshot.Stage.GetComponentsInChildren<Renderer>();
-            Bounds bounds = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+            Bounds bounds = new Bounds();
+            bool hasBounds = false;
+            foreach (var renderer in renderers)
+            {
+                if (renderer.GetComponentInParent<CatAvatar>() != null) continue;
+                if (!hasBounds) { bounds = renderer.bounds; hasBounds = true; }
+                else bounds.Encapsulate(renderer.bounds);
+            }
             float aspect = display != null && display.rectTransform.rect.height > 0f
                 ? Mathf.Clamp(display.rectTransform.rect.width / display.rectTransform.rect.height, .25f, 4f) : 1f;
             Camera camera = snapshot.Camera;
@@ -175,6 +209,11 @@ public sealed partial class BattleIntroPresentation
             float distance = bounds.extents.z + Mathf.Max(1f, headDistance);
             camera.transform.SetPositionAndRotation(bounds.center + Vector3.forward * distance, Quaternion.LookRotation(Vector3.back, Vector3.up));
             camera.farClipPlane = distance + bounds.extents.z + 5f;
+            // Put both companions outside the pair, not between the two witches.
+            foreach (var catFloat in firstVisual.GetComponentsInChildren<CatIntroFloat>())
+                catFloat.PlaceBeside(camera, renderers, 1, CatCompanionTable.Default.vsCharacterGap);
+            foreach (var catFloat in secondVisual.GetComponentsInChildren<CatIntroFloat>())
+                catFloat.PlaceBeside(camera, renderers, -1, CatCompanionTable.Default.vsCharacterGap);
             Light light = snapshot.Stage.GetComponentInChildren<Light>();
             if (light != null)
             {

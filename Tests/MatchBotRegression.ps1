@@ -11,7 +11,9 @@ using System.Collections.Generic;
 namespace UnityEngine {
  public class ScriptableObject {public static T CreateInstance<T>() where T:new()=>new T();}
  public class CreateAssetMenuAttribute:System.Attribute {public string menuName;}
+ public class HeaderAttribute:System.Attribute {public HeaderAttribute(string s){}}
  public class MinAttribute:System.Attribute {public MinAttribute(float n){}}
+ public class RangeAttribute:System.Attribute {public RangeAttribute(float a,float b){}}
  public class TooltipAttribute:System.Attribute {public TooltipAttribute(string s){}}
  public struct Color {}
  public static class Resources {public static T Load<T>(string path) where T:class=>null;}

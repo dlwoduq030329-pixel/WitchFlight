@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 // The host owns the phase clock. Each client samples the same tour locally.
 [DefaultExecutionOrder(1000)]
@@ -29,6 +30,8 @@ public sealed class BattleMapTour : MonoBehaviour
     private Color savedFadeColor;
     private bool savedFadeEnabled;
     private bool fadeCached;
+    private readonly Dictionary<Canvas, bool> hiddenHudCanvases = new Dictionary<Canvas, bool>();
+    private readonly Dictionary<Graphic, bool> hiddenHudGraphics = new Dictionary<Graphic, bool>();
 
     public float MoveSeconds => Mathf.Max(0.1f, moveSeconds);
     public float FadeSeconds => Mathf.Max(0.05f, fadeSeconds);
@@ -50,6 +53,7 @@ public sealed class BattleMapTour : MonoBehaviour
             flag.Phase == BattleStartPhase.MapTour && IsConfigured;
         if (!active) { StopTour(); return; }
         if (!running && !BeginTour()) return;
+        HideHud();
 
         SampleTimeline(flag.TourDuration - flag.PhaseRemainingSeconds,
             flag.TourMoveSeconds, flag.TourFadeSeconds, out int shot, out float travel, out float black);
@@ -145,10 +149,44 @@ public sealed class BattleMapTour : MonoBehaviour
         }
     }
 
+    private void HideHud()
+    {
+        // Hide rendering, not GameObjects: HUD/game-flow scripts must keep receiving phase updates.
+        // Re-scan while touring to catch HUD canvases created lazily by the local player.
+        foreach (var canvas in FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (canvas.gameObject.scene != gameObject.scene) continue;
+            if (fadeImage != null && fadeImage.transform.IsChildOf(canvas.transform))
+            {
+                // A user-assigned fade may share a canvas with the HUD. Keep only its image visible.
+                foreach (var graphic in canvas.GetComponentsInChildren<Graphic>(true))
+                {
+                    if (graphic == fadeImage) continue;
+                    if (!hiddenHudGraphics.ContainsKey(graphic)) hiddenHudGraphics.Add(graphic, graphic.enabled);
+                    graphic.enabled = false;
+                }
+                continue;
+            }
+            if (!hiddenHudCanvases.ContainsKey(canvas)) hiddenHudCanvases.Add(canvas, canvas.enabled);
+            canvas.enabled = false;
+        }
+    }
+
+    private void RestoreHud()
+    {
+        foreach (var entry in hiddenHudCanvases)
+            if (entry.Key != null) entry.Key.enabled = entry.Value;
+        foreach (var entry in hiddenHudGraphics)
+            if (entry.Key != null) entry.Key.enabled = entry.Value;
+        hiddenHudCanvases.Clear();
+        hiddenHudGraphics.Clear();
+    }
+
     private void StopTour()
     {
         if (!running) return;
         RestoreCamera();
+        RestoreHud();
         if (fadeImage != null && fadeCached)
         {
             fadeImage.color = savedFadeColor;
@@ -158,7 +196,7 @@ public sealed class BattleMapTour : MonoBehaviour
     }
 
     private void OnDisable() => StopTour();
-    private void OnDestroy() { if (generatedFade != null) Destroy(generatedFade); }
+    private void OnDestroy() { StopTour(); if (generatedFade != null) Destroy(generatedFade); }
 
     private void OnDrawGizmosSelected()
     {

@@ -86,10 +86,11 @@ public static class GraphicsChecks {
   Check(((UniversalRenderPipelineAsset)QualitySettings.renderPipeline).renderScale==.8f,"saved quality applied without opening settings");
   Shutdown();var meter=new FramePerformanceMeter();bool published=false;
   for(int i=0;i<61;i++)published|=meter.Sample(1f/60);Check(published&&Math.Abs(meter.Fps-60)<.01,"sample reports measured 60 FPS");
-  Check(FramePerformanceMeter.State(meter.Fps,60)==0,"60 FPS is comfortable");
-  Check(FramePerformanceMeter.State(45,60)==1&&FramePerformanceMeter.State(30,60)==2,"moderate and high load labels");
-  Check(FramePerformanceMeter.State(30,30)==0,"intentional 30 FPS cap is not falsely overloaded");
-  Check(FramePerformanceMeter.Load(120,60)<FramePerformanceMeter.Load(60,60)&&FramePerformanceMeter.Load(60,60)<FramePerformanceMeter.Load(30,60),"load grows as observed FPS falls");
+  Check(FramePerformanceMeter.State(200)==2&&FramePerformanceMeter.State(200.1f)==1,"200 FPS boundary");
+  Check(FramePerformanceMeter.State(500)==1&&FramePerformanceMeter.State(500.1f)==0,"500 FPS boundary");
+  Check(FramePerformanceMeter.State(60)==2,"fixed thresholds also apply to capped FPS");
+  Check(FramePerformanceMeter.Comfort(100)<FramePerformanceMeter.Comfort(300)&&FramePerformanceMeter.Comfort(300)<FramePerformanceMeter.Comfort(600),"comfort increases with FPS");
+  Check(FramePerformanceMeter.Comfort(0)==0&&FramePerformanceMeter.Comfort(10000)==1,"slider is bounded");
   meter.Reset();Check(meter.Fps==0&&!meter.Sample(float.NaN)&&!meter.Sample(0),"reset and invalid samples are safe");
   meter.Sample(1.5f);Check(meter.Fps<1,"real long stalls count as high load");
   return count;

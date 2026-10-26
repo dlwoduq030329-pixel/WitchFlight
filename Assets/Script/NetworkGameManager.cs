@@ -130,6 +130,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * ControlSettings.SensitivityMultiplier;
         LatchButton(PlayerInputButton.Accelerate, ControlSettings.Down(ControlAction.Accelerate));
         LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
+        LatchButton(PlayerInputButton.QuickBrake, ControlSettings.Down(ControlAction.QuickBrake));
         if (BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
         else LatchButton(PlayerInputButton.Parry, ControlSettings.Down(ControlAction.Parry));
         LatchButton(PlayerInputButton.Boost, ControlSettings.Down(ControlAction.Boost));
@@ -1048,6 +1049,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         data.buttons.Set(PlayerInputButton.Accelerate, ControlSettings.Held(ControlAction.Accelerate));
         data.buttons.Set(PlayerInputButton.Decelerate, Input.GetKey(KeyCode.S));
+        data.buttons.Set(PlayerInputButton.QuickBrake, ControlSettings.Held(ControlAction.QuickBrake));
         data.buttons.Set(PlayerInputButton.TurnLeft, ControlSettings.Held(ControlAction.TurnLeft));
         data.buttons.Set(PlayerInputButton.TurnRight, ControlSettings.Held(ControlAction.TurnRight));
         data.buttons.Set(PlayerInputButton.Lock, ControlSettings.Held(ControlAction.LockOn));
@@ -1058,7 +1060,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         data.buttons.Set(PlayerInputButton.MagicSlot3, Input.GetKey(KeyCode.Alpha3));
         data.buttons.Set(PlayerInputButton.Menu, Input.GetKey(KeyCode.Escape));
 
-        for (int i = 0; i <= (int)PlayerInputButton.Menu; i++)
+        for (int i = 0; i <= (int)PlayerInputButton.QuickBrake; i++)
         {
             if (latchedButtons.IsSet(i))
                 data.buttons.Set(i, true);

@@ -301,7 +301,7 @@ public class BattleManager : MonoBehaviour
         SpawnBattlePlayers(playerPrefab);
     }
 
-    public bool TryChangeRoundMagic(PlayerData data, int round, MagicType first, MagicType second, out string error)
+    public bool TryChangeRoundMagic(PlayerData data, int round, MagicType first, MagicType second, out string error, bool resetInitial = false)
     {
         error = "마법 교체 시간이 아닙니다.";
         if (runner == null || !runner.IsServer || !HasValidFlag || !battleFlag.CanChangeMagic(round) ||
@@ -309,7 +309,9 @@ public class BattleManager : MonoBehaviour
             !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.ParticipantRef) ||
             !playerDatas.TryGetValue(data.ParticipantRef, out PlayerData registered) || registered != data ||
             data.MagicChangeRound != round) return false;
-        if (!BattleRoundRules.IsAllowedLoadout(data.MagicChangeBase1, data.MagicChangeBase2,
+        // Reset is an explicit restore of the account snapshot, never arbitrary client values.
+        if (resetInitial) { first = data.InitialMagic1; second = data.InitialMagic2; }
+        if (!resetInitial && !BattleRoundRules.IsAllowedLoadout(data.MagicChangeBase1, data.MagicChangeBase2,
             first, second, battleFlag.AllowedMagicChanges))
         {
             error = $"유효한 마법을 선택해주세요. 변경 가능한 슬롯은 최대 {battleFlag.AllowedMagicChanges}개입니다.";

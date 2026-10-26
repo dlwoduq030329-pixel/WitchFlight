@@ -19,10 +19,12 @@ namespace TourChecks {
  }
  public class Clock {public float time;}
  public struct TickTimer {
+  public static TickTimer None => default;
   public float end;public bool Expired(Clock c)=>c.time>=end;
   public static TickTimer CreateFromSeconds(Clock c,float t)=>new(){end=c.time+t};
  }
  public class BattleManager {public static BattleManager Instance=new();public bool AutoStartWhenReady,IsTraining;public void startGame(){}}
+ public static class CatTutorialDirector {public static bool TrainingGuideRequired=false;}
  public class Probe {
   public int RoundNumber=1; public bool mapTourStarted; public float TourMoveSeconds=3,TourFadeSeconds=.6f,introSeconds=5,matchSeconds=160;
   public BattleStartPhase Phase=BattleStartPhase.Intro;public TickTimer PhaseTimer=new(){end=5};
@@ -31,7 +33,7 @@ namespace TourChecks {
   void ResetPreparation(){Phase=BattleStartPhase.WaitingForPlayers;resets++;}
   void BeginMatch(int p,float t){Phase=BattleStartPhase.Playing;starts++;}
 '@
-$stub += $duration + (Method $tour 'SampleTimeline') + (Method $flag 'TickPreparation')
+$stub += $duration + (Method $tour 'SampleTimeline') + (Method $flag 'TickPreparation') + (Method $flag 'BeginTrainingGuideOrCountdown')
 $stub += '}' + $enum
 $stub += @'
  public static class Tests {

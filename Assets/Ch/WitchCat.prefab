@@ -558,6 +558,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6615834191942857231}
   - component: {fileID: 5215626868017412333}
+  - component: {fileID: 729230149256710001}
   m_Layer: 0
   m_Name: WitchCat
   m_TagString: Untagged
@@ -2080,3 +2081,29 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1318273018617304543}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &729230149256710001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2466759643076185548}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 808937d8a4924773aaaa53ab55033e9e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  bodyRenderer: {fileID: 301491498212127910}
+  eyeRenderer: {fileID: 6585875147092309593}
+  bodyMaterials:
+  - {fileID: 2100000, guid: 94f6c7f88af03324ebed4631b5b290a1, type: 2}
+  - {fileID: 2100000, guid: 0a3234a6c7238a84b839bb1d9ab71661, type: 2}
+  - {fileID: 2100000, guid: 3c27eac99d990ec4481217d24224fa4f, type: 2}
+  - {fileID: 2100000, guid: 6cf74b96815914449a2ff8dc03b25776, type: 2}
+  - {fileID: 2100000, guid: 851d6bd2c7ab3dd458de3e9a4457d154, type: 2}
+  - {fileID: 2100000, guid: a9e091ebae45d4846a9d70b3620cc2ed, type: 2}
+  - {fileID: 2100000, guid: 52c9bc89c272e2b4dac931515c665717, type: 2}
+  eyeMaterials:
+  - {fileID: 2100000, guid: 553103e38620f5340a91040e004767ef, type: 2}
+  - {fileID: 2100000, guid: 08339faa3f7ea8743b2635563b3991c9, type: 2}
+  - {fileID: 2100000, guid: 2a2bd73343780bd448afb3f6d449e71a, type: 2}

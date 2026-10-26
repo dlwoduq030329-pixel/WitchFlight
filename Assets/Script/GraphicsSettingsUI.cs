@@ -10,8 +10,6 @@ public sealed class GraphicsSettingsUI : MonoBehaviour
     [SerializeField] private TMP_Dropdown postProcessingDropdown;
     [SerializeField] private Slider performanceSlider;
     [SerializeField] private TMP_Text performanceText;
-    [Tooltip("기기 부하 표시에 사용하는 목표 FPS. 실제 CPU/GPU 사용률이 아닌 현재 화면 프레임 기준입니다.")]
-    [SerializeField, Min(1f)] private float targetFps = 60f;
     private readonly FramePerformanceMeter performance = new();
     private Image performanceFill;
     private float warmupUntil;
@@ -67,19 +65,12 @@ public sealed class GraphicsSettingsUI : MonoBehaviour
     {
         if (!Application.isFocused || Time.unscaledTime < warmupUntil) return;
         if (!performance.Sample(Time.unscaledDeltaTime)) return;
-        float target = Mathf.Max(1f, targetFps);
-        if (Application.targetFrameRate > 0) target = Mathf.Min(target, Application.targetFrameRate);
-        if (QualitySettings.vSyncCount > 0)
-        {
-            float refresh = (float)Screen.currentResolution.refreshRateRatio.value;
-            if (refresh > 0f) target = Mathf.Min(target, refresh / QualitySettings.vSyncCount);
-        }
-        int state = FramePerformanceMeter.State(performance.Fps, target);
-        if (performanceSlider != null) performanceSlider.SetValueWithoutNotify(FramePerformanceMeter.Load(performance.Fps, target));
-        if (performanceText != null) performanceText.text = (state == 0 ? "쾌적" : state == 1 ? "보통" : "부하 높음") +
+        int state = FramePerformanceMeter.State(performance.Fps);
+        if (performanceSlider != null) performanceSlider.SetValueWithoutNotify(FramePerformanceMeter.Comfort(performance.Fps));
+        if (performanceText != null) performanceText.text = (state == 0 ? "매우 쾌적" : state == 1 ? "쾌적" : "쾌적하지 않음") +
             " · " + Mathf.RoundToInt(performance.Fps) + " FPS";
-        if (performanceFill != null) performanceFill.color = state == 0 ? new Color(.2f,.85f,.65f) :
-            state == 1 ? new Color(1f,.75f,.2f) : new Color(1f,.3f,.3f);
+        if (performanceFill != null) performanceFill.color = state == 0 ? new Color(.2f,.9f,.2f) :
+            state == 1 ? new Color(1f,.85f,0f) : new Color(1f,.2f,.2f);
     }
 }
 
@@ -100,6 +91,9 @@ public sealed class FramePerformanceMeter
         elapsed = 0f; frames = 0;
         return true;
     }
-    public static int State(float fps, float target) => fps >= target * .9f ? 0 : fps >= target * .6f ? 1 : 2;
-    public static float Load(float fps, float target) => Mathf.Clamp01((target / Mathf.Max(1f, fps) - .75f) / 1.25f);
+    public static int State(float fps) => fps > 500f ? 0 : fps > 200f ? 1 : 2;
+    // Higher FPS fills more of the bar; reserve the final third for the green category.
+    public static float Comfort(float fps) => fps <= 200f ? Mathf.Clamp01(fps / 200f) / 3f :
+        fps <= 500f ? 1f / 3f + (fps - 200f) / 900f :
+        2f / 3f + Mathf.Clamp01((fps - 500f) / 500f) / 3f;
 }

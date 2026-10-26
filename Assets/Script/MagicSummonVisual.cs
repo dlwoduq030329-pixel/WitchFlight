@@ -11,16 +11,19 @@ public sealed class MagicSummonVisual : MonoBehaviour
     private SummonAnimationPlayer animationPlayer;
     private bool moving, retiring;
     private int attackSequence;
+    private CatSummonPresentation catPresentation;
 
-    public static MagicSummonVisual Create(MagicStatEntry stats, Transform parent, int attackSequence)
+    public static MagicSummonVisual Create(MagicStatEntry stats, Transform parent, int attackSequence, MagicProjectile source = null)
     {
         var root = new GameObject("Pursuing familiar visual");
         root.transform.SetParent(parent,false);
         var visual = root.AddComponent<MagicSummonVisual>();
         visual.material = CombatPresentation.CreateEffectMaterial(new Color(1f,.65f,.15f,.9f));
-        var authored = CombatPresentation.InstantiateVfx(stats.summonVfxPrefab,parent.position,parent.rotation,root.transform);
+        visual.catPresentation = CatSummonPresentation.Create(source, root.transform, attackSequence);
+        var authored = visual.catPresentation != null ? visual.catPresentation.gameObject :
+            CombatPresentation.InstantiateVfx(stats.summonVfxPrefab,parent.position,parent.rotation,root.transform);
         visual.attackSequence = attackSequence;
-        if (authored != null)
+        if (authored != null && visual.catPresentation == null)
         {
             var animator = authored.GetComponentInChildren<Animator>(true);
             visual.animationPlayer = new SummonAnimationPlayer(animator, stats, attackSequence);
@@ -51,7 +54,7 @@ public sealed class MagicSummonVisual : MonoBehaviour
 
     public void SetLock(Player victim,float charge) { target=victim; progress=charge; }
 
-    public void SetMotion(bool isMoving, int sequence) { moving = isMoving; attackSequence = sequence; }
+    public void SetMotion(bool isMoving, int sequence) { moving = isMoving; attackSequence = sequence; catPresentation?.SetAttack(sequence); }
 
     public void Retire()
     {

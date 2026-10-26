@@ -159,6 +159,7 @@ public partial class CameraFollow : MonoBehaviour
 
     public void SetTarget(GameObject targetObject)
     {
+        bool newLife = target != targetObject || deathObserving;
         ClearDeathObservation();
         ClearOcclusionFade();
         ResetSpeedShake();
@@ -175,7 +176,16 @@ public partial class CameraFollow : MonoBehaviour
         head = FindHead(targetObject);
         targetRenderers = targetObject != null ? targetObject.GetComponentsInChildren<Renderer>(true) : null;
         if (target != null)
+        {
             UpdateCamera(true);
+            if (newLife && targetPlayer != null)
+            {
+                foreach (var water in FindObjectsByType<Suimono.Core.SuimonoModule>(FindObjectsSortMode.None))
+                    if (water.setCamera == transform) water.ResetCameraWaterAfterRespawn();
+                var waterFog = GetComponent<Suimono.Core.Suimono_UnderwaterFog>();
+                if (waterFog != null) waterFog.ClearWaterTransition();
+            }
+        }
     }
 
     public void setAim(bool value)

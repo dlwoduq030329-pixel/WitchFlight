@@ -14,7 +14,8 @@ public enum PlayerInputButton
     MagicSlot1,
     MagicSlot2,
     MagicSlot3,
-    Menu
+    Menu,
+    QuickBrake
 }
 
 public struct NetworkInputData : INetworkInput

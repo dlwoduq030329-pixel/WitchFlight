@@ -52,6 +52,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         public RenderTexture Texture;
         public readonly List<Mesh> OwnedMeshes = new List<Mesh>();
         public int RenderedFrame = -1;
+        public bool AnimatedCat;
         public bool IsReady => Texture != null && Texture.IsCreated() &&
                                RenderedFrame >= 0 && Time.frameCount > RenderedFrame;
     }
@@ -73,6 +74,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void Awake()
     {
+        PrepareTeamProfileMotion();
         // Capture before SetUIPhase activates VSUI and runs its DOTweenAnimation.Awake.
         PrepareIntroTweens();
         SetUIPhase(BattleStartPhase.WaitingForPlayers);
@@ -165,6 +167,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         }
 
         FreezeCompletedSnapshot(localSnapshot);
+        UpdateTeamProfileMotion();
         FreezeCompletedSnapshot(opponentSnapshot);
         foreach (PortraitSnapshot snapshot in teamSnapshots) FreezeCompletedSnapshot(snapshot);
         if (battle == null || (phase != BattleStartPhase.WaitingForPlayers && phase != BattleStartPhase.Intro) ||
@@ -295,7 +298,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
         foreach (Renderer source in player.GetComponentsInChildren<Renderer>())
         {
-            if (!source.enabled || !source.gameObject.activeInHierarchy || source.GetComponentInParent<Canvas>() != null)
+            if (!source.enabled || !source.gameObject.activeInHierarchy || source.GetComponentInParent<Canvas>() != null ||
+                source.GetComponentInParent<CatAvatar>() != null)
                 continue;
             Mesh mesh;
             if (source is SkinnedMeshRenderer skin && skin.sharedMesh != null)
@@ -349,6 +353,20 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         Vector3 headPosition = FindHeadPosition(player, visualBounds);
         Vector3 target = stagePosition + headPosition - sourceRoot.position + sourceRoot.rotation * headOffset;
         Vector3 forward = Quaternion.AngleAxis(portraitYaw, sourceRoot.up) * sourceRoot.forward;
+        var catTable = CatCompanionTable.Default;
+        var catData = PlayerData.FindPerkData(player.Runner, player.ParticipantRef);
+        if (catTable != null && catData != null)
+        {
+            var cat = CatAvatar.Create(visualRoot, catData.CatBodyIndex, catData.CatEyeIndex, true);
+            if (cat != null)
+            {
+                Vector3 catPosition = sourceRoot.InverseTransformPoint(headPosition) + catTable.vsCatOffset;
+                cat.transform.localPosition = catPosition;
+                cat.SetLayer(PortraitLayer);
+                cat.gameObject.AddComponent<CatIntroFloat>().Initialize(catPosition, slot * 1.7f);
+                snapshot.AnimatedCat = true;
+            }
+        }
 
         snapshot.Texture = new RenderTexture(Mathf.Clamp(portraitResolution, 128, 2048),
             Mathf.Clamp(portraitResolution, 128, 2048), 24, RenderTextureFormat.ARGB32)
@@ -376,8 +394,13 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         camera.cullingMask = 1 << PortraitLayer;
         camera.orthographic = true;
         camera.orthographicSize = Mathf.Max(0.05f, portraitHalfHeight);
+        if (snapshot.AnimatedCat) camera.orthographicSize = Mathf.Max(camera.orthographicSize, catTable.vsMinimumHalfHeight);
         camera.nearClipPlane = 0.01f;
         camera.farClipPlane = Mathf.Max(5f, headDistance + 3f);
+        // Keep the companion outside the witch silhouette and frame the entire plane/cat.
+        foreach (var catFloat in visualRoot.GetComponentsInChildren<CatIntroFloat>())
+            catFloat.PlaceBeside(camera, visualRoot.GetComponentsInChildren<Renderer>(), slot % 2 == 0 ? -1 : 1,
+                catTable.vsCharacterGap);
         camera.allowHDR = false;
         camera.allowMSAA = false;
         camera.useOcclusionCulling = false;
@@ -449,7 +472,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private static void FreezeCompletedSnapshot(PortraitSnapshot snapshot)
     {
-        if (snapshot != null && snapshot.IsReady && snapshot.Camera != null)
+        if (snapshot != null && snapshot.IsReady && snapshot.Camera != null && !snapshot.AnimatedCat)
             snapshot.Camera.enabled = false;
     }
 
@@ -464,7 +487,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         // Allow optional start buttons while waiting; lock flight input again for the countdown.
         if (phase != BattleStartPhase.Ended)
         {
-            bool showCursor = waiting || phase == BattleStartPhase.Intermission ||
+            bool showCursor = waiting || phase == BattleStartPhase.TrainingTutorial || phase == BattleStartPhase.Intermission ||
                 (phase == BattleStartPhase.Playing && CombatPresentation.MenuOpen);
             Cursor.lockState = showCursor ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = showCursor;

@@ -33,12 +33,11 @@ public sealed partial class RoomMatchSettingsUI
                     if (info.CodeWaitingRoomPanel != null && info.CodeWaitingRoomPanel.activeInHierarchy)
                     { waitingRoomInfo = info; break; }
             }
-            Image profile = waitingRoomInfo != null ? waitingRoomInfo.GetCodeWaitingRoomProfile(local.ParticipantRef) : null;
-            if (profile != null) anchor = profile.rectTransform;
+            if (waitingRoomInfo != null) anchor = waitingRoomInfo.GetCodeWaitingRoomCard(local.ParticipantRef);
         }
         show &= anchor != null && anchor.gameObject.activeInHierarchy;
-        RefreshOtherTeamDropdowns(show, local);
         if (show) EnsureTeamDropdown(anchor);
+        RefreshOtherTeamDropdowns(show, local);
         if (teamDropdown == null) return;
         if (!show)
         {
@@ -95,6 +94,8 @@ public sealed partial class RoomMatchSettingsUI
     {
         if (teamDropdown == null)
         {
+            if (uiFont == null && waitingRoomInfo != null)
+                uiFont = waitingRoomInfo.CodeWaitingRoomPanel.GetComponentInChildren<TMP_Text>(true)?.font;
             var root = TMP_DefaultControls.CreateDropdown(new TMP_DefaultControls.Resources());
             root.name = "MyTeamDropdown";
             teamDropdown = root.GetComponent<TMP_Dropdown>();
@@ -108,11 +109,7 @@ public sealed partial class RoomMatchSettingsUI
         }
         if (generatedTeamDropdown)
         {
-            RectTransform rect = teamDropdown.GetComponent<RectTransform>();
-            if (rect.parent != anchor) { teamDropdown.Hide(); rect.SetParent(anchor, false); }
-            rect.anchorMin = rect.anchorMax = new Vector2(.5f, 0);
-            rect.pivot = new Vector2(.5f, 1);
-            rect.anchoredPosition = teamDropdownOffset; rect.sizeDelta = new Vector2(220, 32);
+            PlaceTeamDropdown(teamDropdown, anchor);
         }
         if (boundTeamDropdown != teamDropdown)
         {
@@ -155,8 +152,8 @@ public sealed partial class RoomMatchSettingsUI
         {
             PlayerData data = PlayerData.FindPerkData(manager.Runner, participant);
             if (data == null || data == local) continue;
-            Image profile = waitingRoomInfo.GetCodeWaitingRoomProfile(participant);
-            if (profile == null || !profile.gameObject.activeInHierarchy) continue;
+            RectTransform card = waitingRoomInfo.GetCodeWaitingRoomCard(participant);
+            if (card == null || !card.gameObject.activeInHierarchy) continue;
             if (!otherTeamDropdowns.TryGetValue(participant, out var dropdown) || dropdown == null)
             {
                 var root = TMP_DefaultControls.CreateDropdown(new TMP_DefaultControls.Resources());
@@ -169,14 +166,22 @@ public sealed partial class RoomMatchSettingsUI
                 { if (uiFont != null) text.font = uiFont; text.fontSize = 20; text.color = new Color(.03f,.13f,.18f); }
                 otherTeamDropdowns[participant] = dropdown;
             }
-            var rect = dropdown.GetComponent<RectTransform>();
-            if (rect.parent != profile.transform) rect.SetParent(profile.transform, false);
-            rect.anchorMin = rect.anchorMax = new Vector2(.5f, 0);
-            rect.pivot = new Vector2(.5f, 1);
-            rect.anchoredPosition = teamDropdownOffset;
-            rect.sizeDelta = new Vector2(220, 32);
+            PlaceTeamDropdown(dropdown, card);
             dropdown.SetValueWithoutNotify(data.teamIndex == 1 ? 0 : 1);
             dropdown.gameObject.SetActive(true);
         }
+    }
+
+    private void PlaceTeamDropdown(TMP_Dropdown dropdown, RectTransform card)
+    {
+        // Sibling of the cards: a portrait/card Mask must never clip the selection bar.
+        Transform parent = waitingRoomInfo != null ? waitingRoomInfo.CodeWaitingRoomPanel.transform : card.parent;
+        var rect = dropdown.GetComponent<RectTransform>();
+        if (rect.parent != parent) rect.SetParent(parent, false);
+        rect.pivot = new Vector2(.5f, 1);
+        rect.sizeDelta = new Vector2(220, 34);
+        rect.position = card.TransformPoint(new Vector3(card.rect.center.x, card.rect.yMin, 0));
+        rect.anchoredPosition += teamDropdownOffset;
+        rect.SetAsLastSibling();
     }
 }

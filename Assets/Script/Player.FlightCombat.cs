@@ -3,6 +3,16 @@ using UnityEngine;
 
 public partial class Player
 {
+    [Networked] private TickTimer SpawnProtectionTimer { get; set; }
+    [Networked] private bool SpawnProtectionPending { get; set; }
+    public bool IsSpawnProtected => Object != null && Object.IsValid && IsAlive &&
+        (IsCountdownProtected || SpawnProtectionPending || TimerIsActive(SpawnProtectionTimer));
+    public bool IsCountdownProtected => BattleManager.Instance != null &&
+        BattleManager.Instance.Phase == BattleStartPhase.Countdown;
+    public float SpawnShieldVisibility => IsCountdownProtected
+        ? Mathf.Clamp01(BattleManager.Instance.PhaseRemainingSeconds / 3f)
+        : SpawnProtectionPending ? 1f : Mathf.Clamp01((SpawnProtectionTimer.RemainingTime(Runner) ?? 0f) /
+            Mathf.Max(.01f, FlightCombatTable.Default != null ? FlightCombatTable.Default.spawnProtectionSeconds : 2.5f));
     [Networked] private TickTimer RamCooldown { get; set; }
     [Networked] public bool CobraActive { get; private set; }
     [Networked] private TickTimer CobraTimer { get; set; }
@@ -43,8 +53,8 @@ public partial class Player
             RamCooldown = other.RamCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f, table.ramCooldown));
             bool counter = counterSpeed >= table.minimumRamSpeed;
             // Capture both outcomes before either pilot can die. Contacts never parry.
-            other.DropCarriedFlag();
-            if (counter) DropCarriedFlag();
+            if (!other.IsSpawnProtected) other.DropCarriedFlag();
+            if (counter && !IsSpawnProtected) DropCarriedFlag();
             other.TakeDamage(table.ramDamage, ParticipantRef, MagicType.None, false,
                 table.ramKnockback, table.ramStun, Object.Id);
             if (counter) TakeDamage(table.ramDamage, other.ParticipantRef, MagicType.None, false,
