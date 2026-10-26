@@ -10,6 +10,7 @@ public sealed class FlightSpellPresentation : MonoBehaviour
     private MagicType shownMagic;
     private int portal;
     private bool initialized;
+    private ParticleSystem[] circleParticles;
 
     private void Awake() => owner = GetComponent<Player>();
     private void LateUpdate()
@@ -32,12 +33,20 @@ public sealed class FlightSpellPresentation : MonoBehaviour
         if (!charging) { if (circle != null) circle.SetActive(false); return; }
         MagicStatEntry stats = owner.SelectedMagicStats;
         if (circle == null || shownMagic != stats.magic) BuildCircle(stats);
+        bool restart = !circle.activeSelf;
         circle.SetActive(true);
         Vector3 offset = stats.lockChargeCircleOffset == Vector3.zero ? new Vector3(0f, .8f, -.7f) : stats.lockChargeCircleOffset;
         circle.transform.SetPositionAndRotation(owner.transform.TransformPoint(offset), owner.transform.rotation *
             Quaternion.AngleAxis(Time.time * (12f + (int)stats.magic * 2f), Vector3.forward));
         float size = stats.lockChargeCircleSize > 0f ? stats.lockChargeCircleSize : 1.8f;
         circle.transform.localScale = circleBaseScale * size * Mathf.Lerp(.65f, 1f, owner.LockProgress);
+        if (restart && circleParticles != null)
+            foreach (var particles in circleParticles)
+            {
+                // Restart once per lock attempt, after positioning the emitter.
+                particles.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+                particles.Play(false);
+            }
     }
 
     private void BuildCircle(MagicStatEntry stats)
@@ -45,7 +54,14 @@ public sealed class FlightSpellPresentation : MonoBehaviour
         ClearCircle();
         shownMagic = stats.magic;
         circle = CombatPresentation.InstantiateVfx(stats.lockChargeCirclePrefab, transform.position, transform.rotation);
-        if (circle != null) { circleBaseScale = circle.transform.localScale; RearThreatCamera.ExcludeLocalEffect(circle, owner); return; }
+        if (circle != null)
+        {
+            circleBaseScale = circle.transform.localScale;
+            circleParticles = circle.GetComponentsInChildren<ParticleSystem>(true);
+            circle.SetActive(false);
+            RearThreatCamera.ExcludeLocalEffect(circle, owner);
+            return;
+        }
         circleBaseScale = Vector3.one;
         circle = new GameObject(stats.magic + " charging circle");
         circleMaterial = CombatPresentation.CreateEffectMaterial(CombatPresentation.MagicColor(stats.magic));
@@ -80,6 +96,7 @@ public sealed class FlightSpellPresentation : MonoBehaviour
         if (circle != null) Destroy(circle);
         if (circleMaterial != null) Destroy(circleMaterial);
         circle = null; circleMaterial = null;
+        circleParticles = null;
     }
     private void OnDisable() { ClearCircle(); initialized = false; }
 }
