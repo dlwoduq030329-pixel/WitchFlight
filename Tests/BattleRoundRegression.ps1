@@ -47,6 +47,8 @@ public class BattleFlag {
  public bool IsPrepared,HasEnded,HasStarted,IsDescending,IsOvertime,startRequested;
  public bool AllReady=true;public int PickupTeam;
  public float initialFlagHeight,introSeconds,matchSeconds,magicChangeSeconds;
+ public float TourMoveSeconds,TourFadeSeconds;
+ public PlayerRef DroppedBy;public TickTimer DroppedPickupTimer;
  public Vector3 WorldPosition,roundFlagPosition,carryOffset;
  public int ExpectedPlayerCount,RoundNumber,AllowedMagicChanges,Team1Wins,Team2Wins,LastRoundWinner,LastCarrierTeam,WinningTeam,CarrierObjectId;
  public const int WinsRequired=2;
@@ -61,6 +63,7 @@ public class BattleFlag {
 '@
 $flagMethods = @('PrepareMatch','RequestStart','ResetPreparation','TickPreparation','BeginMatch','FixedUpdateNetwork',
     'FinishRound','PrepareNextRound','EndSeriesByForfeit','EndSeries','ClearRoundSmoke') | ForEach-Object { Method $flag $_ }
+$flagMethods += [regex]::Match($flag,'    public float TourDuration =>[^;]+;').Value
 $managerStub = @'
 }
 public class BattleManager {

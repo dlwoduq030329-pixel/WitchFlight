@@ -13,7 +13,7 @@ using TMPro;
 using UnityEngine.Serialization;
 
 [RequireComponent(typeof(RandomMatchUI))]
-public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
+public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     private static NetworkGameManager instance;
     public static NetworkGameManager Instance => instance;
@@ -151,7 +151,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (instance == null)
         {
             instance = this;
-            if (roomMatchMode != BattleMatchMode.OneVsOne) roomMatchMode = BattleMatchMode.TwoVsTwo;
+            if (!Enum.IsDefined(typeof(BattleMatchMode), roomMatchMode)) roomMatchMode = BattleMatchMode.TwoVsTwo;
             if (GetComponent<RoomMatchSettingsUI>() == null) gameObject.AddComponent<RoomMatchSettingsUI>();
             DontDestroyOnLoad(gameObject);
         }
@@ -271,11 +271,11 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     internal bool IsTrainingScene(Scene scene) => IsTraining && scene.buildIndex == battleSceneIndex;
 
-    // Dropdown value 0 = 1v1, 1 = 2v2. Only the host can change a connected code room.
+    // Dropdown: 0 = 1v1, 1 = 2v2, 2 = 1v1 BOT, 3 = 2v2 BOT. Host only in a connected room.
     public bool TrySetRoomMatchMode(int dropdownValue)
     {
-        if (dropdownValue != 0 && dropdownValue != 1) return false;
-        BattleMatchMode selected = dropdownValue == 0 ? BattleMatchMode.OneVsOne : BattleMatchMode.TwoVsTwo;
+        if (dropdownValue < 0 || dropdownValue > 3) return false;
+        BattleMatchMode selected = BattleMatchRules.FromDropdown(dropdownValue);
         if (IsMatching && (!IsWaitingInCodeRoom || !IsRoomHost)) return false;
         if (ConnectedPlayerCount > BattleMatchRules.PlayerCount(selected))
         {
@@ -311,11 +311,11 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // Host-authoritative team changes. PlayerData's owner-only RPC supplies the requester.
     public bool TrySetWaitingTeam(PlayerData data, int team)
     {
-        if (!IsRoomHost || !IsWaitingInCodeRoom || CurrentMatchMode != BattleMatchMode.TwoVsTwo ||
+        if (!IsRoomHost || !IsWaitingInCodeRoom || !BattleMatchRules.IsTeamMode(CurrentMatchMode) ||
             (team != 1 && team != 2) || data == null || data.Object == null || !data.Object.IsValid ||
             !data.Object.HasStateAuthority || data.Runner != _runner || !data.IsLoadoutInitialized)
             return false;
-        PlayerRef player = data.Object.InputAuthority;
+        PlayerRef player = data.ParticipantRef;
         if (GetPlayerData(player) != data || !assignedTeamIndexes.ContainsKey(player)) return false;
         bool connected = false;
         foreach (PlayerRef participant in _runner.ActivePlayers)
@@ -359,7 +359,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         // Check actual connected users even if invoked directly, not through the UI.
         int connectedPlayers = 0;
         foreach (PlayerRef player in _runner.ActivePlayers) connectedPlayers++;
-        if (connectedPlayers < RequiredPlayerCount)
+        if (!IsBotMatch && connectedPlayers < RequiredPlayerCount)
         {
             SetMatchStatus($"게임 시작 실패: 인원이 부족합니다. ({connectedPlayers}/{RequiredPlayerCount})");
             return;
@@ -673,6 +673,8 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                     ? "매칭 완료! 팀 프로필 표시 및 1초 대기 중..."
                     : "매칭 완료! 참가자 데이터 준비 및 1초 대기 중...")
                 : $"랜덤 상대 대기 중 ({count}/{RequiredPlayerCount})");
+        else if (IsBotMatch)
+            SetMatchStatus(CanStartRoomGame ? $"봇전 준비 완료 · 시작 시 빈 자리 {RequiredPlayerCount - count}개를 봇이 채웁니다." : $"봇전 참가자 준비 중 ({count}/{RequiredPlayerCount})");
         else if (count < RequiredPlayerCount)
             SetMatchStatus($"참가자 대기 중 ({count}/{RequiredPlayerCount})");
         else if (!_runner.IsServer)
@@ -744,7 +746,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (_runner == null || !_runner.IsServer || data == null || data.Runner != _runner || data.teamIndex != 0)
             return;
 
-        PlayerRef player = data.Object.InputAuthority;
+        PlayerRef player = data.ParticipantRef;
         if (!assignedTeamIndexes.TryGetValue(player, out int teamIndex))
         {
             // 복구 경로: 기존 PlayerData가 이미 존재하는 경우에도 일관된 값을 만든다.
@@ -775,7 +777,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             data.Object == null || data.Runner != _runner)
             return;
 
-        PlayerRef player = data.Object.InputAuthority;
+        PlayerRef player = data.ParticipantRef;
         playerDatas[player] = data;
     }
 
@@ -797,7 +799,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             return;
 
         PlayerRef player =
-            data.Object.InputAuthority;
+            data.ParticipantRef;
 
         if (playerDatas.TryGetValue(player, out PlayerData registered) && registered == data)
         {
@@ -858,6 +860,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
         if (IsRandomMatch && !AreRandomStartRequirementsMet()) return;
+        if (IsBotMatch && !FillBotSeats()) return;
         isGameStarting = true;
         if (!IsTraining)
         {
@@ -898,6 +901,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         IsBattleSceneLoaded = sceneIndex == battleSceneIndex;
         if (sceneIndex != battleSceneIndex)
             return;
+        
         isGameStarting = true;
         SetMatchStatus(IsTraining ? "훈련장" : "매칭 완료");
 
@@ -959,7 +963,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             if (data.teamIndex == 1) teamA++; else teamB++;
         }
         if (IsTraining) return count == 1 && teamA == 1 && playerDatas.ContainsKey(_runner.LocalPlayer);
-        return count == RequiredPlayerCount && teamA == RequiredPlayerCount / 2 && teamB == RequiredPlayerCount / 2;
+        return IsBotMatch ? count > 0 && count <= RequiredPlayerCount && teamA <= RequiredPlayerCount / 2 && teamB <= RequiredPlayerCount / 2 : count == RequiredPlayerCount && teamA == RequiredPlayerCount / 2 && teamB == RequiredPlayerCount / 2;
     }
     // 다른 스크립트에서 특정 플레이어의 PlayerData가 필요할 때 호출
     public PlayerData GetPlayerData(

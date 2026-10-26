@@ -9,16 +9,20 @@ public sealed class FlightVisualBob : MonoBehaviour
 {
     [Tooltip("서로 겹치지 않는 외형 루트들입니다. Player 루트 자체는 지정하지 않습니다.")]
     [SerializeField] private Transform[] visualRoots;
-    [Tooltip("최대 상하 흔들림 거리(m). 0이면 흔들림을 끕니다.")]
-    [SerializeField, Min(0f)] private float amplitude = 0.08f;
+    [Tooltip("이동 중 상하 흔들림 거리(m). 정지 시 진폭은 Idle Amplitude로 별도 조절합니다.")]
+    [SerializeField, Min(0f)] private float amplitude = 0.18f;
+    [Tooltip("정지 중 위아래 활공 진폭(m). 외형에만 적용되며 카메라·조준·네트워크 루트는 움직이지 않습니다.")]
+    [SerializeField, Min(0f)] private float idleAmplitude = .18f;
+    [Tooltip("정지 중 초당 반복 횟수. 0.25는 약 4초에 한 번 오르내립니다.")]
+    [SerializeField, Min(0f)] private float idleFrequency = .25f;
     [Tooltip("초당 반복 횟수입니다. 0.6이면 한 주기가 약 1.7초입니다.")]
-    [SerializeField, Min(0f)] private float frequency = 0.6f;
+    [SerializeField, Min(0f)] private float frequency = 0.4f;
     [Tooltip("이 속도 이상에서 최대 진폭을 사용합니다. 후진에도 적용합니다.")]
     [SerializeField, Min(0.01f)] private float fullAmplitudeSpeed = 10f;
     [Tooltip("흔들림이 나타나고 사라지는 반응성입니다.")]
     [SerializeField, Min(0.01f)] private float blendSpeed = 4f;
     [Tooltip("고속에서는 상하 출렁임을 줄여 안정적인 활공 자세를 유지합니다.")]
-    [SerializeField, Range(0f, 1f)] private float highSpeedBobMultiplier = .35f;
+    [SerializeField, Range(0f, 1f)] private float highSpeedBobMultiplier = .8f;
 
     [Header("Turn banking")]
     [Tooltip("선회 시 최대 기울기(도). 0이면 기울임을 끕니다.")]
@@ -51,6 +55,7 @@ public sealed class FlightVisualBob : MonoBehaviour
     private Player owner;
     private float phase;
     private float blend;
+    private float movementBlend;
     private float bankAngle;
     private Quaternion previousRotation;
     private bool hasPreviousRotation;
@@ -99,25 +104,24 @@ public sealed class FlightVisualBob : MonoBehaviour
             !owner.IsAlive || battle == null || !battle.IsGameplayActive)
         {
             blend = 0f;
+            movementBlend = 0f;
             phase = 0f;
             bankAngle = 0f;
             hasPreviousRotation = false;
             return;
         }
 
-        float targetBlend = Mathf.Clamp01(Mathf.Abs(owner.CurrentSpeed) / Mathf.Max(0.01f, fullAmplitudeSpeed));
+        float targetMotion = Mathf.Clamp01(Mathf.Abs(owner.CurrentSpeed) / Mathf.Max(0.01f, fullAmplitudeSpeed));
         float smoothing = 1f - Mathf.Exp(-Mathf.Max(0.01f, blendSpeed) * Time.deltaTime);
-        blend = Mathf.Lerp(blend, targetBlend, smoothing);
-        if (targetBlend == 0f && blend < 0.001f)
-        {
-            blend = 0f;
-            phase = 0f;
-        }
-        phase = Mathf.Repeat(phase + Time.deltaTime * frequency * Mathf.PI * 2f, Mathf.PI * 2f);
+        blend = Mathf.Lerp(blend, 1f, smoothing);
+        movementBlend = Mathf.Lerp(movementBlend, targetMotion, smoothing);
+        float bobFrequency = Mathf.Lerp(idleFrequency, frequency, movementBlend);
+        float bobAmplitude = Mathf.Lerp(idleAmplitude, amplitude, movementBlend);
+        phase = Mathf.Repeat(phase + Time.deltaTime * bobFrequency * Mathf.PI * 2f, Mathf.PI * 2f);
         float glideMultiplier = Mathf.Lerp(1f, highSpeedBobMultiplier,
             Mathf.SmoothStep(0f, 1f, owner.ForwardCruiseSpeedRatio));
-        Vector3 worldOffset = frequency > 0f
-            ? Vector3.up * (Mathf.Sin(phase) * amplitude * blend * glideMultiplier) : Vector3.zero;
+        Vector3 worldOffset = bobFrequency > 0f
+            ? Vector3.up * (Mathf.Sin(phase) * bobAmplitude * blend * glideMultiplier) : Vector3.zero;
 
         // Sample the rendered network root, not local keyboard input: opponents bank
         // too, without adding a second network movement/rotation system.
@@ -187,6 +191,7 @@ public sealed class FlightVisualBob : MonoBehaviour
     {
         RestorePose();
         blend = 0f;
+        movementBlend = 0f;
         phase = 0f;
         bankAngle = 0f;
         hasPreviousRotation = false;

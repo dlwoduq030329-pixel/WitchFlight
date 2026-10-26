@@ -29,6 +29,8 @@ namespace WallChecks {
   public Collider collider=new();public Vector3 normal=new(0,0,-1),moveDirection=new(0,0,1);
  }
  public class MagicProjectile {}
+ public class FlightCombatTable {public static FlightCombatTable Default=new();public bool dropFlagOnWallCrash=true;}
+ public enum BattleSound {WallCrash}
  public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;}
  public class Runner {public float Time;}
  public enum PlayerRef {None}
@@ -45,6 +47,9 @@ namespace WallChecks {
   public float wallDamageSpeedThreshold=30,wallDamage=20,wallDamageCooldown=.5f;
   public Vector3 KnockbackVelocity;public TickTimer WallDamageTimer;
   public void TakeDamage(float damage,PlayerRef attacker){Hp-=damage;DamageCalls++;}
+  public int FlagDrops,CrashSounds;
+  void DropCarriedFlag(){FlagDrops++;}
+  void RPC_PlayBattleSound(BattleSound s){CrashSounds++;}
 '@
 $source += (Method 'OnControllerColliderHit') + (Method 'TimerIsActive')
 $source += @'
@@ -67,6 +72,7 @@ $source += @'
     p.OnControllerColliderHit(wall);
     Check(p.SpeedStage==0&&p.Speed==0&&!p.IsBoosting&&p.boostNeedsRelease,"max stage stops independently of broom/slow/flag absolute speed: "+stage+", "+speed);
     Check(p.Hp==80&&p.DamageCalls==1&&p.WallDamageTimer.IsRunning,"max stage damages exactly once: "+stage+", "+speed);
+    Check(p.FlagDrops==1&&p.CrashSounds==1,"high speed crash drops flag and sounds once");
     Check(p.KnockbackVelocity.z==0&&p.KnockbackVelocity.x==2,"remove only knockback into wall");
     p.OnControllerColliderHit(wall);p.Runner.Time=10;p.OnControllerColliderHit(wall);
     Check(p.Hp==80&&p.DamageCalls==1,"continued contact at stopped stage cannot repeatedly damage");
@@ -75,12 +81,17 @@ $source += @'
    host.OnControllerColliderHit(wall);owner.OnControllerColliderHit(wall);
    Check(host.SpeedStage==owner.SpeedStage&&host.Speed==owner.Speed&&host.boostNeedsRelease==owner.boostNeedsRelease,"owner prediction and host stop identically");
    Check(host.DamageCalls==1&&owner.DamageCalls==0,"only authority applies damage");
+   Check(host.FlagDrops==1&&owner.FlagDrops==0,"predicting owner never drops authoritative flag");
    host.SpeedStage=3;host.Speed=30;host.OnControllerColliderHit(wall);
    Check(host.SpeedStage==0&&host.Speed==0&&host.DamageCalls==1,"cooldown suppresses damage but still stops new high-stage impact");
    host.Runner.Time=1;host.SpeedStage=3;host.Speed=30;host.OnControllerColliderHit(wall);
    Check(host.DamageCalls==2,"new high-stage crash can damage after cooldown");
    var configured=new Player{wallDamage=7,wallDamageCooldown=2};configured.OnControllerColliderHit(wall);
    Check(configured.Hp==93&&Near(configured.WallDamageTimer.End,2),"existing configurable damage/cooldown retained");
+   FlightCombatTable.Default.dropFlagOnWallCrash=false;
+   var noDrop=new Player();noDrop.OnControllerColliderHit(wall);
+   Check(noDrop.FlagDrops==0&&noDrop.DamageCalls==1,"flag-drop setting does not disable wall damage");
+   FlightCombatTable.Default.dropFlagOnWallCrash=true;
    Action<Player,ControllerColliderHit>[] ignored={
     (p,h)=>p.SimulatesMovement=false,(p,h)=>p.IsAlive=false,(p,h)=>p.IsReturningToMap=true,
     (p,h)=>p.Object=null,(p,h)=>p.Object.IsValid=false,(p,h)=>h.collider=null,

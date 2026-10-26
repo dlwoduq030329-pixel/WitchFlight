@@ -64,7 +64,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         PredictionInputTick = predictionInputTick;
         TravelledDistance = 0f;
         Magic = entry.magic;
-        Shooter = shooter.Object.InputAuthority;
+        Shooter = shooter.ParticipantRef;
         ShooterId = shooter.Object.Id;
         ShooterTeam = shooter.TeamIndex;
         TargetId = target != null ? target.Object.Id : summonTargetId;
@@ -538,7 +538,12 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         }
         // Reliable RPCs on this object arrive in order: a confirmed Ice follow-up owns its final impact.
         // Walls/parries/disabled follow-ups/missing casters retain the immediate impact fallback.
-        if (magic != MagicType.Ice || !iceFollowUpStarted) CombatPresentation.ShowImpact(position, magic);
+        if (magic != MagicType.Ice || !iceFollowUpStarted)
+        {
+            Player caster = Runner.TryFindObject(ShooterId, out NetworkObject shooter) && shooter != null
+                ? shooter.GetComponent<Player>() : null;
+            CombatPresentation.ShowImpact(position, magic, caster);
+        }
     }
 
     public override void Render()

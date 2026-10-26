@@ -75,6 +75,7 @@ namespace Suimono.Core
 		 
 		public bool isUnderwater = false;
         private bool cameraIsSubmerged;
+        public bool CameraIsSubmerged => cameraIsSubmerged;
         private SuimonoObject cameraWaterSurface;
 		static bool doWaterTransition = false;
 

@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.Audio;
 using Fusion;
 namespace UnityEngine {
+ public class HeaderAttribute:Attribute {public HeaderAttribute(string a){}}
  public class RangeAttribute:Attribute {public RangeAttribute(float a,float b){}}
  public class MinAttribute:Attribute {public MinAttribute(float a){}}
  public class TooltipAttribute:Attribute {public TooltipAttribute(string a){}}
@@ -101,7 +102,7 @@ public static class AudioChecks {
 Add-Type -TypeDefinition $source
 "Audio behavior checks passed: $([AudioChecks]::Run())"
 $asset = Get-Content Assets/Resources/BattleAudioTable.asset -Raw
-if (([regex]::Matches($asset,'(?m)^    sound: ').Count) -ne 38) { throw 'Common sound catalog incomplete' }
+if (([regex]::Matches($asset,'(?m)^    sound: ').Count) -ne 43) { throw 'Common sound catalog incomplete' }
 $ids = [regex]::Matches($asset,'(?m)^    magic: (\d+)') | ForEach-Object { [int]$_.Groups[1].Value }
 if (($ids -join ',') -ne '1,2,3,4,5,6,7,8,9,10,11,12') { throw 'Magic sound IDs do not match gameplay IDs' }
-"Audio asset catalog: 38 common events and 12 unique magic IDs verified."
+"Audio asset catalog: 43 common events and 12 unique magic IDs verified."

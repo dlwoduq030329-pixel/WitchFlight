@@ -93,7 +93,7 @@ public partial class Player
             origin += delta.normalized * Mathf.Max(0f,delta.magnitude-Mathf.Max(.25f,s.projectileRadius+.05f));
         }
         // Initialize in onBeforeSpawned, so all observers receive the mode in the initial snapshot.
-        NetworkObject spawned = Runner.Spawn(magicProjectilePrefab, origin, Quaternion.identity, Object.InputAuthority,
+        NetworkObject spawned = Runner.Spawn(magicProjectilePrefab, origin, Quaternion.identity, ParticipantRef,
             onBeforeSpawned: (runner, obj) => obj.GetComponent<MagicProjectile>().InitializeConstruct(this, s, magicProjectilePrefab));
         if (spawned != null)
         {

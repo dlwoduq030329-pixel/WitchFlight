@@ -22,6 +22,7 @@ public sealed class BroomAnimationStateMachine
     private float elapsed, attackPulse;
     public BroomMotion Motion { get; private set; }
     public int Revision { get; private set; }
+    public bool AlternateParry { get; private set; }
     public bool UsesBothHands => Motion == BroomMotion.Disarm || Motion == BroomMotion.DisarmedIdle ||
         Motion == BroomMotion.ToFast || Motion == BroomMotion.FastIdle || Motion == BroomMotion.FromFast ||
         Motion == BroomMotion.TakeStick || Motion == BroomMotion.Takeoff;
@@ -87,6 +88,8 @@ public sealed class BroomAnimationStateMachine
         if (newParry)
         {
             attackPulse = 0f;
+            // Replicated accepted-use sequence keeps every observer on the same A/B beat.
+            AlternateParry = (input.ParryStartSequence & 1) == 0;
             Enter(BroomMotion.ParryStart);
         }
         else if (hit && !input.Parrying && !IsParry(Motion))

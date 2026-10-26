@@ -3,6 +3,7 @@
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $ui = Get-Content (Join-Path $repo 'Assets/Script/BattlePerkUI.cs') -Raw
+$ui += "`n" + (Get-Content (Join-Path $repo 'Assets/Script/BattlePerkUI.LevelUp.cs') -Raw)
 function Block([string]$signature) {
     $m = [regex]::Match($ui, '(?ms)^    ' + [regex]::Escape($signature) + '.*?^    \}')
     if (!$m.Success) { throw "Missing method: $signature" }; $m.Value
@@ -51,6 +52,8 @@ public class PlayerData {
 $source += [regex]::Match($ui, '(?ms)\[Serializable\]\r?\npublic sealed class PerkCardView.*?^\}').Value
 $source += [regex]::Replace((Get-Content (Join-Path $repo 'Assets/Script/PerkRules.cs') -Raw), '(?m)^using .*;\r?\n', '')
 $source += @'
+public enum BattleSound { PerkAvailable, PerkSelected }
+public static class BattleAudio {public static void Play(BattleSound sound,bool local=false) {}}
 public class SelectionProbe {
  public PlayerData local=new();public bool requestPending;public string selectionKey;
  public int benefitDismissedAtChoices=-1,benefitObservedChoices=-1,awaitedRevision=-1;public float feedbackAt;
@@ -61,7 +64,7 @@ public class SelectionProbe {
  public static PerkCardView Card()=>new(){icon=new Image(),title=new TMP_Text(),description=new TMP_Text(),hint=new TMP_Text()};
 '@
 $methods = @()
-foreach ($s in 'private void UpdateBenefitAvailability(', 'private void OnResult(', 'private void UpdateCandidates(', 'private void Fill(', 'private Sprite Icon(') { $methods += Block $s }
+foreach ($s in 'private void UpdateBenefitAvailability(', 'private void OnResult(', 'private void UpdateCandidates(', 'private void Fill(', 'private Sprite Icon(', 'private bool CanOfferPerk(') { $methods += Block $s }
 foreach ($s in 'private bool Ready(', 'private static void Text(', 'private static void SetIcon(', 'private static void Show(', 'private void OnApplicationFocus(') { $methods += Line $s }
 $methods += [regex]::Match($ui, '(?ms)^    private bool Allowed =>.*?;').Value
 $methods += [regex]::Match($ui, '(?ms)^    public static string Description\(.*?;').Value
@@ -72,11 +75,15 @@ public static class SelectionChecks {
  static void Check(bool ok,string message){if(!ok)throw new Exception(message);count++;}
  public static int Run(){
   var p=new SelectionProbe();p.UpdateBenefitAvailability();Check(!p.benefitAnimation.activeSelf,"initially no choice");
+  Check(!p.CanOfferPerk(p.local),"Space cannot open cards before earning a choice");
   p.local.PerkChoicesEarned=1;p.UpdateBenefitAvailability();Check(p.benefitAnimation.activeSelf,"level-up lights notification");
+  Check(p.CanOfferPerk(p.local),"Earned choice enables cards");
   int toggles=p.benefitAnimation.toggles;p.UpdateBenefitAvailability();Check(p.benefitAnimation.toggles==toggles,"do not restart Animator every frame");
   p.requestPending=true;p.UpdateBenefitAvailability();Check(!p.benefitAnimation.activeSelf,"waiting for authority hides availability");
+  Check(!p.CanOfferPerk(p.local),"Pending selection cannot reopen cards");
   p.requestPending=false;p.UpdateBenefitAvailability();Check(p.benefitAnimation.activeSelf,"rejection/timeout restores available choice");
   p.local.PerkChoicesUsed=1;p.UpdateBenefitAvailability();Check(!p.benefitAnimation.activeSelf,"last choice consumed hides notification");
+  Check(!p.CanOfferPerk(p.local),"Spent choice cannot open cards again");
   p.local.PerkChoicesEarned=3;p.UpdateBenefitAvailability();Check(p.benefitAnimation.activeSelf,"unspent extra choices remain available");
   p.OnResult(false,PerkId.None,1);p.UpdateBenefitAvailability();Check(p.benefitAnimation.activeSelf,"rejected selection does not dismiss notification");
   p.OnResult(true,(PerkId)1,2);Check(!p.benefitAnimation.activeSelf,"accepted choice immediately hides notification before snapshot update");

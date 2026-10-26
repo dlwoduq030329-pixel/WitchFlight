@@ -52,7 +52,11 @@ public class enemyLockOn : MonoBehaviour
             }
             return currentTarget != null ? currentTarget.Id : default;
         }
-        if (!wasHeld && held) currentTarget = FindClosestVisibleEnemy();
+        if (!wasHeld && held)
+        {
+            currentTarget = FindClosestVisibleEnemy();
+            if (currentTarget == null && !HasEnemyInRange()) BattlePerkUI.ShowNoEnemyInRange();
+        }
         if (currentTarget != null && !IsVisible(currentTarget)) currentTarget = null;
         if (held && currentTarget == null && Time.unscaledTime >= nextRefreshTime)
         {
@@ -93,6 +97,20 @@ public class enemyLockOn : MonoBehaviour
             if (score < bestScore) { bestScore = score; best = candidate.Object; }
         }
         return best;
+    }
+
+    // Do not call a wall/behind-camera rejection a range failure.
+    private bool HasEnemyInRange()
+    {
+        float configured = owner.SelectedMagicStats.range;
+        float range = configured > 0f ? Mathf.Min(maxTargetDistance, configured) : maxTargetDistance;
+        foreach (Player enemy in Player.ActiveCombatants)
+            if (enemy != null && enemy.Runner == owner.Runner && enemy.IsTargetableBy(owner) &&
+                (enemy.LockAimPoint - owner.LockAimPoint).sqrMagnitude <= range * range) return true;
+        foreach (var summon in MagicProjectile.ActiveProjectiles)
+            if (summon != null && summon.IsSummonEnemyOf(owner) &&
+                (summon.transform.position - owner.LockAimPoint).sqrMagnitude <= range * range) return true;
+        return false;
     }
 
     public bool TryGetAlignedAim(out Vector3 direction)

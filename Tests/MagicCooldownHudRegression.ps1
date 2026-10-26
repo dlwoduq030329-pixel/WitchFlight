@@ -19,11 +19,16 @@ namespace UnityEngine {
   public bool IsChildOf(Transform other)=>this==other||(parent!=null&&parent.IsChildOf(other));
  }
  public class GameObject {
+  public bool activeInHierarchy=>activeSelf;
+  public ParticleSystem[] particles=Array.Empty<ParticleSystem>();
+  public T[] GetComponentsInChildren<T>(bool includeInactive)=>particles as T[];
   public Transform transform=new();public bool activeSelf=true;public int activeChanges;
   public GameObject(){transform.gameObject=this;}
   public void SetActive(bool value){activeSelf=value;activeChanges++;}
  }
  public class MonoBehaviour {public GameObject gameObject=new();public Transform transform=>gameObject.transform;}
+ public enum ParticleSystemStopBehavior {StopEmittingAndClear}
+ public class ParticleSystem {public GameObject gameObject=new();public int plays,stops;public void Play(bool children){plays++;}public void Stop(bool children,ParticleSystemStopBehavior mode){stops++;}}
  public class Sprite {}
  public class SerializeField:Attribute {}
  public class DisallowMultipleComponent:Attribute {}
@@ -154,10 +159,15 @@ public static class Tests {
   Check(ancestor.gameObject.activeSelf&&!ancestor.enabled,"ancestor assignment cannot disable the entire battle UI");
   ui.transform.parent=null;
   p.Runner=new();p.IsAlive=true;Player.LocalPlayer=p;
-  var selection=new BattleMagicUI {magic1SelectedFx=new(),magic2SelectedFx=new()};selection.OnEnable();
+  var selection=new BattleMagicUI {magic1SelectedFx=new(),magic2SelectedFx=new()};
+  var firstFx=new UnityEngine.ParticleSystem();var secondFx=new UnityEngine.ParticleSystem();
+  selection.magic1SelectedFx.particles=new[]{firstFx};selection.magic2SelectedFx.particles=new[]{secondFx};
+  selection.OnEnable();
+  Check(firstFx.plays==1&&secondFx.plays==0,"explicit play for selected feather with PlayOnAwake off");
   Check(selection.magic1SelectedFx.activeSelf&&!selection.magic2SelectedFx.activeSelf,"slot one activates only its FX");
   p.CurrentMagicSlot=2;selection.Update();Check(!selection.magic1SelectedFx.activeSelf&&selection.magic2SelectedFx.activeSelf,"number two swaps FX");
   int fxWrites=selection.magic2SelectedFx.activeChanges;selection.Update();
+  Check(firstFx.stops==2&&secondFx.plays==1,"switch clears old particles and plays new particles only once");
   Check(selection.magic2SelectedFx.activeChanges==fxWrites,"unchanged selection never restarts FX");
   p.MagicCooldowns[(int)MagicType.Fire]=new(){end=3};
   selection.Update();Check(selection.magic2SelectedFx.activeSelf,"cooldown does not clear slot selection");

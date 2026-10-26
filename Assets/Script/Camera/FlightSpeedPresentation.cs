@@ -7,10 +7,10 @@ public sealed class FlightSpeedPresentation
 {
     public bool enabled = true;
     [Header("Acceleration and boost")]
-    [Range(0f, 10f)] public float boostFieldOfView = 4f;
-    [Range(0f, 5f)] public float accelerationFieldOfView = 1.5f;
-    [Min(0f)] public float cruiseCameraDistance = .25f;
-    [Min(0f)] public float boostCameraDistance = .35f;
+    [Range(0f, 10f)] public float boostFieldOfView = 10f;
+    [Range(0f, 5f)] public float accelerationFieldOfView = 3f;
+    [Min(0f)] public float cruiseCameraDistance = .65f;
+    [Min(0f)] public float boostCameraDistance = 1.5f;
     [Min(.1f)] public float response = 5f;
     [Tooltip("가속 시작 순간을 강조하는 짧은 연출의 길이(초)입니다.")]
     [Min(.1f)] public float accelerationSeconds = .65f;
@@ -75,7 +75,7 @@ public sealed class FlightSpeedPresentation
             Reset();
             return;
         }
-        float ratio = player.CurrentSpeedStage > 0 ? player.ForwardCruiseSpeedRatio : 0f;
+        float ratio = player.CurrentSpeedStage > 0 || player.CobraActive ? player.ForwardCruiseSpeedRatio : 0f;
         bool boosting = player.CurrentSpeedStage > 0 && player.IsBoosting;
         bool discontinuity = !initialized || observedPlayer != player || portal != player.PortalExitSequence ||
             (player.transform.position - previousPosition).sqrMagnitude >
@@ -91,8 +91,9 @@ public sealed class FlightSpeedPresentation
         }
         float dt = Mathf.Min(Time.deltaTime, .1f);
         // A selected stage or blocked motor must not sound like forward travel.
-        float travelledSpeed = discontinuity ? 0f : Mathf.Max(0f,
-            Vector3.Dot(player.transform.position - previousPosition, player.transform.forward) / Mathf.Max(.001f, dt));
+        Vector3 displacement = player.transform.position - previousPosition;
+        float travelledSpeed = discontinuity ? 0f : player.CobraActive ? displacement.magnitude / Mathf.Max(.001f, dt) : Mathf.Max(0f,
+            Vector3.Dot(displacement, player.transform.forward) / Mathf.Max(.001f, dt));
         ratio *= Mathf.Clamp01(travelledSpeed / Mathf.Max(.1f, Mathf.Abs(player.CurrentSpeed)));
         float blend = 1f - Mathf.Exp(-Mathf.Max(.1f, response) * dt);
         float accelerationRate = (ratio - previousRatio) / Mathf.Max(.001f, dt);
@@ -183,8 +184,9 @@ public sealed class FlightSpeedPresentation
         if (audioTable == null || windAudio == null) return;
         float master = Mathf.Clamp01(audioTable.masterVolume);
         float windVolume = Mathf.Clamp01(audioTable.flightWindVolume) * master *
-            Mathf.Clamp01(speed * speed * .65f + boost * .25f + acceleration * .15f);
-        ApplyAudio(windAudio, audioTable.flightWindClip, windVolume, Mathf.Lerp(.8f, 1.25f, speed) + boost * .1f, 0f);
+            Mathf.Clamp01(speed * speed * .75f + boost * .4f + acceleration * .2f);
+        ApplyAudio(windAudio, audioTable.flightWindClip, windVolume,
+            Mathf.Lerp(audioTable.flightWindMinPitch, audioTable.flightWindMaxPitch, Mathf.Clamp01(speed * .8f + boost * .2f)), 0f);
         passAge += dt;
         float passVolume = Pulse(passAge, .55f) * passStrength * Mathf.Clamp01(audioTable.flightPassVolume) * master;
         ApplyAudio(passAudio, audioTable.flightPassClip != null ? audioTable.flightPassClip : audioTable.flightWindClip,
@@ -194,7 +196,7 @@ public sealed class FlightSpeedPresentation
     private void ApplyAudio(AudioSource source, AudioClip clip, float volume, float pitch, float pan)
     {
         if (source.clip != clip) { source.Stop(); source.clip = clip; }
-        source.outputAudioMixerGroup = audioTable.outputMixer;
+        source.outputAudioMixerGroup = GameAudioSettings.Group(GameAudioCategory.SFX);
         source.volume = volume;
         source.pitch = pitch;
         source.panStereo = pan;

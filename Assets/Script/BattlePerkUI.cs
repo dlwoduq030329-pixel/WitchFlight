@@ -44,7 +44,7 @@ public sealed class PerkPlayerView
 
 // Keep this on the always-active BattleManager, never inside a managed UI root.
 [DefaultExecutionOrder(-200), DisallowMultipleComponent]
-public sealed class BattlePerkUI : MonoBehaviour
+public sealed partial class BattlePerkUI : MonoBehaviour
 {
     [Header("Shared style / icons (empty = project defaults)")]
     [SerializeField] private TMP_FontAsset font;
@@ -105,7 +105,7 @@ public sealed class BattlePerkUI : MonoBehaviour
     {
         if (inputFrame == Time.frameCount) return;
         inputFrame = Time.frameCount;
-        gate.Sample(Allowed && !BattleEmoteUI.CapturesMouse,Input.GetKey(KeyCode.Space),Input.GetMouseButton(0),Input.GetMouseButton(1));
+        gate.Sample(Allowed && !BattleEmoteUI.CapturesMouse && CanOfferPerk(PlayerData.Local),Input.GetKey(KeyCode.Space),Input.GetMouseButton(0),Input.GetMouseButton(1));
     }
     private void Awake()
     {
@@ -165,7 +165,7 @@ public sealed class BattlePerkUI : MonoBehaviour
         // No retry/queued input on timeout. A fresh click can safely retry with the current revision.
         if (requestPending && Time.unscaledTime-requestedAt > 3f) { requestPending = false; awaitedRevision = -1; }
         if (gate.Showing && gate.Choice >= 0) Choose(gate.Choice == 1);
-        bool cards = gate.Showing && Ready(local);
+        bool cards = gate.Showing && CanOfferPerk(local);
         if (cards && !wasShowing) openedAt = Time.unscaledTime;
         wasShowing = cards;
         Show(selectionRoot,cards); // Space release hides immediately, regardless of animation.
@@ -186,6 +186,7 @@ public sealed class BattlePerkUI : MonoBehaviour
         if (teamComparisonRoot != comparisonRoot) Show(teamComparisonRoot,compare && teamBattle);
         if (compare) UpdateComparison();
         UpdateExperience(); UpdateFeedback(); UpdateBenefitAvailability();
+        UpdateLevelUpFeedback();
     }
     // Optional custom UI events. They obey the same held-Space, phase and request guards.
     public void ChooseLeft() => Choose(false);
@@ -270,6 +271,7 @@ public sealed class BattlePerkUI : MonoBehaviour
     }
     private void LateUpdate()
     {
+        AnimateLevelUpWings();
         if (generatedExperience == null || experienceAnchor == null || canvas == null) return;
         Show(generatedExperience.gameObject, experienceAnchor.gameObject.activeInHierarchy);
         experienceAnchor.GetWorldCorners(hpCorners);
@@ -332,8 +334,8 @@ public sealed class BattlePerkUI : MonoBehaviour
     {
         BattleFlag flag = BattleFlag.Instance;
         return Ready(d) && flag != null && flag.Object != null && flag.Object.IsValid &&
-            flag.Runner == d.Runner && d.Object.InputAuthority != Fusion.PlayerRef.None &&
-            flag.Carrier == d.Object.InputAuthority;
+            flag.Runner == d.Runner && d.ParticipantRef != Fusion.PlayerRef.None &&
+            flag.Carrier == d.ParticipantRef;
     }
     private void FillPlayer(PerkPlayerView view, PlayerData d)
     {
@@ -401,6 +403,7 @@ public sealed class BattlePerkUI : MonoBehaviour
     private void OnApplicationFocus(bool focus) { if(!focus){Show(selectionRoot,false);Show(comparisonRoot,false);Show(teamComparisonRoot,false);Show(acquiredRoot,false);Show(benefitAnimation,false);} }
     private void OnDisable()
     {
+        ResetLevelUpFeedback();
         if(active==this)active=null;
         Show(selectionRoot,false);Show(comparisonRoot,false);Show(acquiredRoot,false);
         Show(teamComparisonRoot,false);
@@ -409,6 +412,7 @@ public sealed class BattlePerkUI : MonoBehaviour
     private void OnEnable() => active=this;
     private void OnDestroy()
     {
+        DestroyLevelUpFeedback();
         if(local!=null)local.PerkSelectionResult-=OnResult;
         if(canvas!=null)Destroy(canvas.gameObject);
     }

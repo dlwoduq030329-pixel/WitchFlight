@@ -25,29 +25,29 @@ namespace Fusion {
  public class NetworkRunner {
   public bool IsRunning=true,IsServer=true;public PlayerRef LocalPlayer=1;public List<PlayerRef> ActivePlayers=new();public SessionInfo SessionInfo=new();
   public NetworkObject Spawn(NetworkPrefabRef prefab,Vector3 pos,Quaternion rot,PlayerRef who)=>new(){InputAuthority=who,transform=new(){position=pos,rotation=rot}};
-  public void SetPlayerObject(PlayerRef who,NetworkObject obj){}
+  public int SpawnCalls,FailAt=-1; public NetworkObject Spawn(NetworkPrefabRef prefab,Vector3 pos,Quaternion rot,PlayerRef who,Action<NetworkRunner,NetworkObject> onBeforeSpawned){if(++SpawnCalls==FailAt)return null; var o=new NetworkObject{InputAuthority=who};o.Data=new PlayerData{Runner=this,Object=o};onBeforeSpawned(this,o);PlayerData.PerkPlayers.Add(o.Data);return o;} public void MakeDontDestroyOnLoad(object o){} public void Despawn(NetworkObject o){o.IsValid=false;PlayerData.PerkPlayers.Remove(o.Data);} public void SetPlayerObject(PlayerRef who,NetworkObject obj){}
  }
  public class NetworkObject {
   public bool IsValid=true,HasStateAuthority=true,HasInputAuthority=true;public PlayerRef InputAuthority;public Transform transform=new();public Player Pilot=new();
-  public T GetComponent<T>() where T:class=>Pilot as T;
+  public PlayerData Data;public object gameObject=>this; public T GetComponent<T>() where T:class=>typeof(T)==typeof(PlayerData)?Data as T:Pilot as T;
  }
 }
 public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);}
 public struct Vector3 {
- public float x,y,z;public Vector3(float a,float b,float c){x=a;y=b;z=c;}
+ public static Vector3 zero=>default;public float x,y,z;public Vector3(float a,float b,float c){x=a;y=b;z=c;}
  public static Vector3 operator+(Vector3 a,Vector3 b)=>new(a.x+b.x,a.y+b.y,a.z+b.z);
  public static Vector3 operator*(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);
 }
-public struct Quaternion {}
+public struct Quaternion {public static Quaternion identity=>default;}
 public class Transform {public Vector3 position,right=new(1,0,0);public Quaternion rotation;}
-public static class Debug {public static void LogError(string s,object c){}}
+public static class Debug {public static void LogError(string s,object c){} public static void LogException(Exception e,object c){}}
 public enum Camp {A,B}
 public class Player {public bool Respawn;public PlayerData data;public void InitPlayer(PlayerData d,bool respawn){data=d;Respawn=respawn;}}
 public class PlayerData {
  public static List<PlayerData> PerkPlayers=new();public NetworkRunner Runner;public NetworkObject Object=new();
  public int teamIndex,playerprofile;public bool IsLoadoutInitialized=true,IsRoomOwner;public Camp camp;
- public BattleMatchMode RoomMatchMode=BattleMatchMode.TwoVsTwo;
- public static PlayerData FindPerkData(NetworkRunner r,PlayerRef who)=>PerkPlayers.Find(d=>d.Runner==r&&d.Object.IsValid&&d.Object.InputAuthority==who);
+ public PlayerConfig GetPlayerConfig()=>default;public bool IsMatchBot;public int MatchBotSlot; public PlayerRef ParticipantRef=>IsMatchBot?BattleParticipants.BotRef(MatchBotSlot):Object.InputAuthority; public void InitializeMatchBot(int slot,int team,object config){IsMatchBot=true;MatchBotSlot=slot;teamIndex=team;} public int CounterSelections;public void ChooseBotCounters(bool previous){CounterSelections++;} public BattleMatchMode RoomMatchMode=BattleMatchMode.TwoVsTwo;
+ public static PlayerData FindPerkData(NetworkRunner r,PlayerRef who)=>PerkPlayers.Find(d=>d.Runner==r&&d.Object.IsValid&&d.ParticipantRef==who);
  public Dictionary<PlayerRef,(PlayerData data,int profile,int ownProfile,int team,int ownTeam)> lobbyPreviews=new();
 '@
 foreach($name in @('SetRoomMatchMode','HasPresentedLobbyOpponent','RPC_ConfirmLobbyProfilePreview','RPC_ClearLobbyProfilePreview','RequestWaitingTeam','RPC_RequestWaitingTeam')){$source+=Method $data $name}
@@ -55,9 +55,9 @@ $source+=@'
 }
 public class NetworkGameManager {
  public static NetworkGameManager Instance;public NetworkRunner _runner;public NetworkRunner Runner=>_runner;
- public BattleMatchMode roomMatchMode=BattleMatchMode.TwoVsTwo;
+ public NetworkPrefabRef playerDataPrefab; public BattleMatchMode roomMatchMode=BattleMatchMode.TwoVsTwo;
  public bool IsRandomMatch,IsTraining,IsBattleSceneLoaded,isGameStarting,cancelRequested,stopInProgress;
- public bool IsMatching=true,IsWaitingInCodeRoom=true,IsRoomHost=true;public string Status;
+ public bool IsBotMatch=>!IsTraining&&BattleMatchRules.HasBots(CurrentMatchMode); public bool IsMatching=true,IsWaitingInCodeRoom=true,IsRoomHost=true;public string Status;
  public Dictionary<PlayerRef,PlayerData> playerDatas=new();public Dictionary<PlayerRef,int> assignedTeamIndexes=new();
  public int RequiredPlayerCount=>IsTraining?1:BattleMatchRules.PlayerCount(CurrentMatchMode);
  public int ConnectedPlayerCount=>_runner?.ActivePlayers.Count??0;
@@ -66,6 +66,7 @@ public class NetworkGameManager {
 '@
 $mode=[regex]::Match($network,'(?ms)^    public BattleMatchMode CurrentMatchMode\r?\n    \{.*?^    \}').Value
 if(!$mode){throw 'Missing replicated room mode getter'};$source+=$mode
+$source+=Method (Get-Content Assets/Script/NetworkGameManager.MatchBots.cs -Raw) 'FillBotSeats'
 foreach($name in @('TrySetRoomMatchMode','TrySetWaitingTeam','NextTeamIndex','RefreshRoomAdmission','AreBattlePlayerDatasReady')){$source+=Method $network $name}
 $source+=@'
 }
@@ -80,6 +81,7 @@ public class BattleProbe {
 foreach($name in @('SpawnBattlePlayer','IsConnected','PlayerLeft')){$source+=Method $battle $name}
 $source+="`n}`n"+((Get-Content Assets/Script/BattleMatchRules.cs -Raw)-replace '(?m)^using .*;\r?\n','')
 $source+=@'
+public struct PlayerConfig {} public static class MatchBotSettings {public static PlayerConfig RandomAppearance(IReadOnlyList<PlayerConfig> teammates=null)=>default;} public static class BattleParticipants { public static PlayerRef BotRef(int slot)=>1024+slot; public static IEnumerable<PlayerRef> Refs(NetworkRunner r) { foreach(var p in r.ActivePlayers)yield return p; foreach(var d in PlayerData.PerkPlayers) if(d.IsMatchBot&&d.Runner==r&&d.Object.IsValid)yield return d.ParticipantRef; } }
 public static class Checks {
  static int n;static void Check(bool value,string name){if(!value)throw new Exception(name);n++;}
  static PlayerData Add(NetworkGameManager m,int id,int team){
@@ -171,6 +173,31 @@ public static class Checks {
   m=Fresh();host=Add(m,1,1);guest=Add(m,2,2);guest.Object.HasInputAuthority=false;guest.RequestWaitingTeam(1);
   Check(guest.teamIndex==2,"local UI cannot request another participant's team");
   guest.Object.HasInputAuthority=true;guest.RequestWaitingTeam(0);Check(guest.teamIndex==2,"owner wrapper filters invalid input");
+  for(int humanCount=1;humanCount<=4;humanCount++) {
+   m=Fresh();host=Add(m,1,1);host.RoomMatchMode=BattleMatchMode.TwoVsTwoBot;
+   for(int i=2;i<=humanCount;i++)Add(m,i,i%2==0?2:1);
+   Check(m.AreBattlePlayerDatasReady(),"bot mode allows incomplete human roster "+humanCount);
+   Check(m.FillBotSeats()&&m.playerDatas.Count==4,"fills exactly vacant seats "+humanCount);
+   BattleMatchRules.CollectRoster(m.Runner,roster);
+   Check(BattleMatchRules.IsFullBalanced(roster,4),"bot fill balances teams "+humanCount);
+   Check(m.Runner.ActivePlayers.Count==humanCount,"bots are not fake connected clients "+humanCount);
+   b=new BattleProbe{runner=m.Runner,playerDatas=m.playerDatas};
+   foreach(var pair in m.playerDatas)b.SpawnBattlePlayer(pair.Key,pair.Value,default);
+   Check(b.spawnedPlayers.Count==4,"bot actors spawn and participate "+humanCount);
+   foreach(var pair in m.playerDatas)if(pair.Value.IsMatchBot)
+    Check(b.spawnedPlayers[pair.Key].InputAuthority==PlayerRef.None,"bot has no synthetic Fusion input authority");
+  }
+  m=Fresh();host=Add(m,1,1);host.RoomMatchMode=BattleMatchMode.TwoVsTwoBot;guest=Add(m,2,1);
+  Check(m.FillBotSeats(),"two humans on same team can launch");BattleMatchRules.CollectRoster(m.Runner,roster);
+  Check(BattleMatchRules.IsFullBalanced(roster,4)&&roster[2].IsMatchBot&&roster[3].IsMatchBot,"two enemy bots fill B");
+  m=Fresh();host=Add(m,1,1);host.RoomMatchMode=BattleMatchMode.OneVsOneBot;
+  Check(m.AreBattlePlayerDatasReady()&&m.FillBotSeats()&&m.playerDatas.Count==2,"solo 1v1 BOT starts with one opponent");
+  Check(!m.TrySetWaitingTeam(host,2),"1v1 BOT cannot switch teams");
+  m=Fresh();host=Add(m,1,1);host.RoomMatchMode=BattleMatchMode.TwoVsTwoBot;m.Runner.FailAt=2;
+  Check(!m.FillBotSeats()&&m.playerDatas.Count==1,"partial bot spawn rolls back safely");
+  Check(PlayerData.PerkPlayers.Count==1,"failed spawn leaves no ghost participant");
+  m.Runner.FailAt=-1;Check(m.FillBotSeats()&&m.playerDatas.Count==4,"retry fills all seats after rollback");
+  for(int i=0;i<4;i++)Check(BattleMatchRules.DropdownIndex(BattleMatchRules.FromDropdown(i))==i,"four dropdown modes roundtrip "+i);
   return n;
  }
 }
@@ -188,7 +215,7 @@ foreach($contract in @(
  @($network,'WitchFlight-Random-2v2-v1'),
  @($network,'ConnectedPlayerCount >= RequiredPlayerCount'),
  @($network,'assignedTeamIndexes.Count >= RequiredPlayerCount'),
- @($settings,'TMP_DefaultControls.CreateDropdown'),
+ @($settings,'dropdown.name == "Dropdown_mode"'),
  @($settings,'modeDropdown.interactable = manager.IsRoomHost;'),
  @($settings,'boundDropdown.onValueChanged.AddListener(SelectMode);'),
  @($random,'ShowParticipant(teammateData'),
@@ -227,7 +254,7 @@ $bridge=Get-Content Assets/Script/linkuserinfo.cs -Raw
 foreach($contract in @(
  @($data,'[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]'),
  @($data,'NetworkGameManager.Instance?.TrySetWaitingTeam(this, team);'),
- @($teamUI,'GetCodeWaitingRoomProfile(local.Object.InputAuthority)'),
+ @($teamUI,'GetCodeWaitingRoomProfile(local.ParticipantRef)'),
  @($teamUI,'rect.SetParent(anchor, false)'),
  @($teamUI,'option.interactable = allowTeamA'),
  @($teamUI,'option.interactable = allowTeamB'),

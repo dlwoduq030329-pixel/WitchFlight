@@ -106,7 +106,7 @@ public sealed class BattleAudio : MonoBehaviour
         audio.maxDistance = Mathf.Max(audio.minDistance + .1f, cue.maxDistance);
         audio.rolloffMode = AudioRolloffMode.Linear;
         audio.dopplerLevel = 0f;
-        audio.outputAudioMixerGroup = table.outputMixer;
+        audio.outputAudioMixerGroup = GameAudioSettings.Group(cue.category);
         audio.loop = loop;
         audio.Play();
         if (nextAllowed.Count > 4096) nextAllowed.Clear();

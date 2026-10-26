@@ -10,6 +10,7 @@ public class CameraManager : MonoBehaviour
     {
         Instance = this;
         follow = GetComponent<CameraFollow>();
+        if (GetComponent<RearThreatCamera>() == null) gameObject.AddComponent<RearThreatCamera>();
     }
 
     public void SetTarget(GameObject target)

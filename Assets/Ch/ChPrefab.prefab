@@ -5582,7 +5582,7 @@ MonoBehaviour:
   magicStatTable: {fileID: 11400000, guid: d81c29d2f62042b1944c5e42544d9636, type: 2}
   magicProjectilePrefab:
     RawGuidValue: 1af9a38d86554be0a519edc0452ebc9f
-  parryWindowSeconds: 0.3
+  parryWindowSeconds: 0.4
   parryCooldownSeconds: 0.3
   defaultHitStunSeconds: 0.25
   knockbackDamping: 30
@@ -5594,6 +5594,7 @@ MonoBehaviour:
     quickActionSeconds: 0.25
     parryStartSeconds: 0.08
     parryEndSeconds: 0.12
+    alternateParryAnimations: 1
     speedTransitionSeconds: 0.35
     hideStaffWhenDisarmed: 1
   _IsBoosting: 0
@@ -5780,6 +5781,7 @@ MonoBehaviour:
     scale: 1
   parryShieldVfxPrefab: {fileID: 1070897446116272, guid: 189038a8fc10a2946b97658479b710ff, type: 3}
   parryShieldDuration: 1
+  parryShieldOpacity: 0.75
   parryShieldForwardOffset: 1
 --- !u!143 &8619302157754221902
 CharacterController:
@@ -5830,8 +5832,8 @@ MonoBehaviour:
   nicknameOffset: {x: 0, y: 4}
   showEnemyHalo: 1
   enemyHaloSprite: {fileID: 0}
-  enemyHaloColor: {r: 1, g: 0.08, b: 0.12, a: 0.6}
-  allyHaloColor: {r: 0.1, g: 0.4, b: 1, a: 0.6}
+  enemyHaloColor: {r: 1, g: 0.08, b: 0.12, a: 0.95}
+  allyHaloColor: {r: 0.1, g: 0.4, b: 1, a: 0.95}
   enemyHaloSize: {x: 3.2, y: 3.2}
   haloSizeMultiplier: 1.5
   enemyHaloOffset: {x: 0, y: -0.25, z: 0}
@@ -5860,8 +5862,11 @@ MonoBehaviour:
   - {fileID: 6013886973073483256}
   - {fileID: 1558668446950683776}
   - {fileID: 7997655109521306197}
-  amplitude: 0.08
-  frequency: 0.6
+  amplitude: 0.18
+  idleAmplitude: 0.18
+  idleFrequency: 0.25
+  frequency: 0.4
+  highSpeedBobMultiplier: 0.8
   fullAmplitudeSpeed: 10
   blendSpeed: 4
   maxBankAngle: 25
@@ -5882,7 +5887,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   outlineMode: 0
   outlineColor: {r: 1, g: 0, b: 0, a: 1}
-  outlineWidth: 2
+  outlineWidth: 4
   precomputeOutline: 0
   bakeKeys: []
   bakeValues: []

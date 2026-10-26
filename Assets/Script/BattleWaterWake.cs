@@ -21,7 +21,8 @@ public sealed class BattleWaterWake : MonoBehaviour
     [SerializeField, Min(.1f)] private float rippleSize = 4f;
     [SerializeField, Min(.1f)] private float directionalWakeSize = 5f;
     [SerializeField, Min(.1f)] private float lifetime = 2f;
-    [SerializeField, Min(0f)] private float rearOffset = 1f;
+    [Tooltip("실제 이동 방향으로 파문 시작점을 앞당기는 거리입니다. 후진할 때도 진행 방향을 따릅니다.")]
+    [SerializeField, Min(0f)] private float forwardOffset = 4f;
     [SerializeField] private float particleYawOffset;
     [SerializeField, Range(0f, 1f)] private float opacity = .65f;
     [Tooltip("캐릭터와 수면 사이에 바닥이나 벽이 있으면 파문을 만들지 않습니다.")]
@@ -31,20 +32,29 @@ public sealed class BattleWaterWake : MonoBehaviour
     private readonly List<Player> stale = new();
     private readonly RaycastHit[] hits = new RaycastHit[16];
     private float nextSample;
+    private BattleAudioTable audioTable;
+    private AudioSource skimSound;
+    private float soundStrength, soundSpeedRatio, lastSoundSample = -100f;
+    private Player splashPlayer;
+    private Transform splashCamera;
+    private bool splashInitialized, wasSubmerged;
+    private int splashPortal, splashDeath;
 
     private void Awake() { if (water == null) water = GetComponent<SuimonoModule>(); }
     private void LateUpdate()
     {
+        UpdateSplashSound();
+        UpdateSkimSound();
         if (Time.time < nextSample) return;
         nextSample = Time.time + Mathf.Max(.04f, sampleInterval);
+        soundStrength = 0f;
         Player local = Player.LocalPlayer;
-        if (water == null || !water.isActiveAndEnabled || !water.enableAdvancedDistort ||
+        if (water == null || !water.isActiveAndEnabled ||
             local == null || local.Object == null || !local.Object.IsValid ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
         { samples.Clear(); return; }
         var library = water.suimonoModuleLibrary;
         var systems = library != null && library.fxObject != null ? library.fxObject.fxParticles : null;
-        if (systems == null) return;
         Vector3 viewer = water.setCamera != null ? water.setCamera.position : local.transform.position;
         foreach (Player player in Player.ActiveCombatants)
         {
@@ -62,13 +72,22 @@ public sealed class BattleWaterWake : MonoBehaviour
             if (!water.TryGetSurfaceHeight(position, out float surfaceY)) continue;
             if (!TryWake(delta, elapsed, position.y-surfaceY, maximumHeight, minimumSpeed, fullStrengthSpeed,
                 out Vector3 direction, out float strength)) continue;
-            Vector3 point = new Vector3(position.x, surfaceY+.08f, position.z);
+            Vector3 ahead = position + direction * Mathf.Max(0f, forwardOffset);
+            if (!water.TryGetSurfaceHeight(ahead, out float aheadY)) continue;
+            Vector3 point = new Vector3(ahead.x, aheadY+.08f, ahead.z);
             if (Obstructed(player, position, point)) continue;
+            if (player == local)
+            {
+                soundStrength = strength;
+                soundSpeedRatio = new Vector2(delta.x, delta.z).magnitude / elapsed / Mathf.Max(.1f, fullStrengthSpeed);
+                lastSoundSample = Time.time;
+            }
+            if (systems == null || !water.enableAdvancedDistort) continue;
             // Place a bounded number of samples along motion, without long teleport trails.
             int count = Mathf.Clamp(Mathf.CeilToInt(new Vector2(delta.x,delta.z).magnitude/Mathf.Max(.1f,wakeSpacing)),1,3);
             for (int i=0; i<count; i++)
             {
-                Vector3 at = point - direction*(rearOffset+i*Mathf.Min(wakeSpacing,delta.magnitude/count));
+                Vector3 at = point - direction*(i*Mathf.Min(wakeSpacing,delta.magnitude/count));
                 float angle = Mathf.Atan2(direction.x,direction.z)*Mathf.Rad2Deg + particleYawOffset;
                 Emit(systems, directionalWakeSystemIndex, at, angle, directionalWakeSize, strength);
                 if (i==0) Emit(systems, rippleSystemIndex, at, angle, rippleSize, strength*.65f);
@@ -79,6 +98,33 @@ public sealed class BattleWaterWake : MonoBehaviour
             if (entry.Key == null || entry.Key.Object == null || !entry.Key.Object.IsValid || Time.time-entry.Value.time > 1f)
                 stale.Add(entry.Key);
         foreach (Player player in stale) samples.Remove(player);
+    }
+
+    private void UpdateSplashSound()
+    {
+        Player player = Player.LocalPlayer;
+        if (water == null || !water.isActiveAndEnabled || water.setCamera == null || player == null ||
+            player.Object == null || !player.Object.IsValid || !player.IsAlive || player.IsReturningToMap ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        { splashInitialized = false; return; }
+        bool sameContext = splashPlayer == player && splashCamera == water.setCamera &&
+            splashPortal == player.PortalExitSequence && splashDeath == player.DeathSequence;
+        bool submerged = water.CameraIsSubmerged;
+        // Use Suimono's hysteresis-filtered camera state, matching the underwater sound/FX.
+        // Joining underwater, respawning and portals establish a baseline without a fake splash.
+        if (ShouldPlaySplash(splashInitialized, sameContext, wasSubmerged, submerged) && water.playSounds)
+            BattleAudio.Play(submerged ? BattleSound.WaterEnter : BattleSound.WaterExit, player.transform.position, local: true);
+        splashInitialized = true;
+        splashPlayer = player;
+        splashCamera = water.setCamera;
+        splashPortal = player.PortalExitSequence;
+        splashDeath = player.DeathSequence;
+        wasSubmerged = submerged;
+    }
+
+    internal static bool ShouldPlaySplash(bool initialized, bool sameContext, bool wasSubmerged, bool submerged)
+    {
+        return initialized && sameContext && wasSubmerged != submerged;
     }
 
     internal static bool TryWake(Vector3 movement, float seconds, float height, float maxHeight,
@@ -127,5 +173,40 @@ public sealed class BattleWaterWake : MonoBehaviour
         },1);
         if (!system.isPlaying) system.Play();
     }
-    private void OnDisable() { samples.Clear(); nextSample=0f; }
+    internal static float SkimVolumeWeight(float strength, float speedRatio)
+        => Mathf.Clamp01(Mathf.Clamp01(strength) * Mathf.Lerp(.35f, 1.25f, Mathf.Clamp01(speedRatio / 1.5f)));
+
+    private void UpdateSkimSound()
+    {
+        Player local = Player.LocalPlayer;
+        bool allowed = local != null && local.Object != null && local.Object.IsValid && local.IsAlive &&
+            !local.IsReturningToMap && Time.timeScale > 0f && !CombatPresentation.MenuOpen &&
+            water != null && water.isActiveAndEnabled && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        float weight = allowed && Time.time - lastSoundSample <= Mathf.Max(.3f, sampleInterval * 2f)
+            ? SkimVolumeWeight(soundStrength, soundSpeedRatio) : 0f;
+        if (audioTable == null) audioTable = Resources.Load<BattleAudioTable>("BattleAudioTable");
+        if (audioTable == null || audioTable.waterSkimClip == null) { if (skimSound != null) skimSound.Stop(); return; }
+        if (skimSound == null)
+        {
+            if (weight <= .001f) return;
+            var root = new GameObject("Water skimming sound (local)"); root.transform.SetParent(transform, false);
+            skimSound = root.AddComponent<AudioSource>(); skimSound.playOnAwake = false; skimSound.loop = true;
+            skimSound.spatialBlend = 0f; skimSound.dopplerLevel = 0f; skimSound.volume = 0f;
+        }
+        if (skimSound.clip != audioTable.waterSkimClip) { skimSound.Stop(); skimSound.clip = audioTable.waterSkimClip; }
+        skimSound.outputAudioMixerGroup = GameAudioSettings.Group(GameAudioCategory.SFX);
+        float volume = weight * Mathf.Clamp01(audioTable.waterSkimVolume) * Mathf.Clamp01(audioTable.masterVolume);
+        skimSound.volume = Mathf.MoveTowards(skimSound.volume, volume, Time.unscaledDeltaTime * 3f);
+        float pitch = Mathf.Lerp(audioTable.waterSkimMinPitch, audioTable.waterSkimMaxPitch, Mathf.Clamp01(soundSpeedRatio / 1.5f));
+        skimSound.pitch = Mathf.Lerp(skimSound.pitch, pitch, 1f - Mathf.Exp(-6f * Time.unscaledDeltaTime));
+        if (skimSound.volume > .001f) { if (!skimSound.isPlaying) skimSound.Play(); }
+        else if (skimSound.isPlaying) skimSound.Stop();
+    }
+
+    private void OnDisable()
+    {
+        samples.Clear(); nextSample = 0f; soundStrength = 0f; lastSoundSample = -100f;
+        splashInitialized = false;
+        if (skimSound != null) { skimSound.Stop(); skimSound.volume = 0f; }
+    }
 }

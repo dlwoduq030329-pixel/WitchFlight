@@ -153,7 +153,7 @@ Add-Type -TypeDefinition ($stubs + ($followMethods -join "`n") + $fovProbe + $ch
 $steering = [regex]::Match($follow,'(?ms)^    public bool TryGetSteeringInput\(.*?^    \}').Value
 if ($steering -match 'Kick|Shake|currentLocalOffset') { throw 'Camera effects must not alter mouse steering' }
 if ($follow -notmatch 'currentLocalOffset \+ Vector3.back \* \(kickDistance \+ flightDistance\)' -or $follow -match 'currentLocalOffset.z\s*[-+]=') { throw 'Dolly must not accumulate into base offset' }
-if ($effects -notmatch 'int displayStage = boundaryView \? 0 : player.CurrentSpeedStage' -or $effects -notmatch 'flightSensation.FieldOfViewScale\(displayStage\)') { throw 'FOV must combine forward stage and actual travel, with boundary reset' }
+if ($effects -notmatch 'int displayStage = boundaryView \? 0 : player.CobraActive \? 3 : player.CurrentSpeedStage' -or $effects -notmatch 'flightSensation.FieldOfViewScale\(displayStage\)') { throw 'FOV must combine forward stage and actual travel, including cobra, with boundary reset' }
 if ((Method $effects 'ApplyWeight') -match 'fieldOfView') { throw 'Blur/wind intensity must not overwrite stage FOV' }
 $scene = Get-Content Assets/Scenes/Battle.unity -Raw
 # Inspector values are user-editable: verify wiring, not old hard-coded FOV defaults.

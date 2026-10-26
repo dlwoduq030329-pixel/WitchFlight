@@ -5,6 +5,7 @@ using UnityEngine.Rendering;
 // No colliders, NetworkObjects, target selection, or damage is created here.
 public sealed class UtilityMagicVisual : MonoBehaviour
 {
+    public static readonly System.Collections.Generic.HashSet<UtilityMagicVisual> SmokeViews = new();
     private Material ownedMaterial;
     private Material ownedFlareMaterial;
     private Player flareOwner;
@@ -70,9 +71,10 @@ public sealed class UtilityMagicVisual : MonoBehaviour
             var glowEmission = glow.emission;
             glowEmission.rateOverTime = 22f;
             glowEmission.SetBursts(new[] { new ParticleSystem.Burst(0f,14) });
-            CombatTransientEffect.PlayPulse(position,new Color(1f,.6f,.12f,.55f),1.5f*scale,.2f);
+            CombatTransientEffect.PlayPulse(position,new Color(1f,.6f,.12f,.55f),1.5f*scale,.2f, caster);
         }
         visual.flareParticles = root.GetComponentsInChildren<ParticleSystem>(true);
+        RearThreatCamera.ExcludeLocalEffect(root, caster);
         foreach (ParticleSystem particles in visual.flareParticles)
         {
             if (!particles.gameObject.activeInHierarchy) continue;
@@ -131,6 +133,8 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         var root = new GameObject("Smoke cloud (local VFX)");
         root.transform.position = center;
         var visual = root.AddComponent<UtilityMagicVisual>();
+        SmokeViews.Add(visual);
+        SmokeInteriorView.Ensure();
         visual.effectAudio = BattleAudio.StartMagicLoop(MagicType.Smoke, MagicSound.EffectLoop, root.transform);
         GameObject custom = CombatPresentation.InstantiateVfx(prefab, center, Quaternion.identity, root.transform);
         if (custom != null)
@@ -202,6 +206,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
 
     private void OnDestroy()
     {
+        SmokeViews.Remove(this);
         effectAudio.Stop();
         if (ownedMaterial != null) Destroy(ownedMaterial);
         if (ownedFlareMaterial != null) Destroy(ownedFlareMaterial);

@@ -19,7 +19,7 @@ public partial class Player
     private void RPC_RequestEmote(int emoteId)
     {
         EmoteTable table = EmoteTable.Default;
-        if (!IsAlive || IsReturningToMap || Object.InputAuthority == PlayerRef.None ||
+        if (!IsAlive || IsReturningToMap || ParticipantRef == PlayerRef.None ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
             table == null || !table.TryGet(emoteId, out _) || TimerIsActive(emoteRepeatTimer)) return;
         emoteRepeatTimer = TickTimer.CreateFromSeconds(Runner, table.MinimumInterval);

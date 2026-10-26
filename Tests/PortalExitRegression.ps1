@@ -63,7 +63,8 @@ namespace PortalChecks {
   public NetworkObject Object=new();public NetworkRunner Runner=new();public NetworkTransform portalNetworkTransform=new();
   public Transform transform=new();public GameObject gameObject=new();public CharacterController characterController=new();
   public bool IsAlive=true,IsReturningToMap,hasPendingPortalTeleport,controllerNeedsRenderReset=true;
-  public Vector3 pendingPortalPosition,KnockbackVelocity;public Quaternion pendingPortalRotation,PortalExitRotation;
+  public Vector3 pendingPortalPosition,KnockbackVelocity,PortalEntryPosition;public Quaternion pendingPortalRotation,PortalExitRotation;
+  public bool CobraActive;
   public TickTimer portalReentryTimer;public int PortalExitSequence,SpeedStage=3;public float Speed=45,currentPitch,currentYaw,currentAimTurnSpeed=10,currentTurnSpeed=20;
   public Collider[] portalExitOverlaps=new Collider[64];public T GetComponent<T>() where T:class=>portalNetworkTransform as T;
 '@

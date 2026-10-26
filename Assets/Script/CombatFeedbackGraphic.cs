@@ -11,6 +11,8 @@ public sealed class CombatFeedbackGraphic : MaskableGraphic
     public bool CornerFrame;
     public bool HitMarker;
     public bool Flag;
+    [Range(0f, 1f)] public float RingFill = 1f;
+    [Min(0.5f)] public float RingWidth = 2.5f;
     public Vector4 HitMarkerAngles = new Vector4(-30f, -120f, 30f, 120f);
     public float HitMarkerRadius = 28f;
     public float HitMarkerLength = 18f;
@@ -106,15 +108,18 @@ public sealed class CombatFeedbackGraphic : MaskableGraphic
         }
         const int segments = 64;
         float radius = Mathf.Min(rect.width, rect.height) * 0.5f;
-        float inner = Mathf.Max(0f, radius - 2.5f);
-        for (int i = 0; i < segments; i++)
+        float inner = Mathf.Max(0f, radius - RingWidth);
+        float fill = Mathf.Clamp01(RingFill);
+        if (fill <= 0f) return;
+        int arcSegments = Mathf.Max(1, Mathf.CeilToInt(segments * fill));
+        for (int i = 0; i <= arcSegments; i++)
         {
-            float a = i * Mathf.PI * 2f / segments;
+            float a = Mathf.PI * .5f - (float)i / arcSegments * fill * Mathf.PI * 2f;
             Vector2 direction = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
             vh.AddVert(rect.center + direction * radius, color, Vector2.zero);
             vh.AddVert(rect.center + direction * inner, color, Vector2.zero);
         }
-        for (int i = 0; i < segments; i++) Quad(vh, i * 2, ((i + 1) % segments) * 2);
+        for (int i = 0; i < arcSegments; i++) Quad(vh, i * 2, (i + 1) * 2);
     }
     private void AddBar(VertexHelper vh, Rect rect, float x0, float y0, float x1, float y1)
     {

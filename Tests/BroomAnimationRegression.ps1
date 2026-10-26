@@ -83,6 +83,19 @@ public static class BroomAnimationChecks
         Check(m.Motion == BroomMotion.Equip, "Swap deferred by attack still plays afterwards.");
         s.Playing = false; m.Step(s, 0);
         Check(m.Motion == BroomMotion.ArmIdle, "Intermission cancels unfinished action visuals.");
+        s = Active(); m = Create(s); s.Parrying = true;
+        for (int sequence=1; sequence<=6; sequence++)
+        {
+            s.ParryStartSequence=sequence; int before=m.Revision; m.Step(s, 0);
+            Check(m.Motion==BroomMotion.ParryStart && m.Revision>before, "Rapid accepted parry restarts before prior animation ends.");
+            Check(m.AlternateParry==(sequence%2==0), "Accepted uses alternate A/B/A/B.");
+            before=m.Revision; m.Step(s,0);
+            Check(m.Revision==before, "Same snapshot does not replay or alternate again.");
+        }
+        var remote = Create(Active()); s.ParryStartSequence=6; remote.Step(s,0);
+        Check(remote.AlternateParry==m.AlternateParry, "Skipped network snapshots preserve the same variant.");
+        s.Parrying=false; Steps(m,s,2);
+        Check(m.AlternateParry, "Raised variant persists through block ending.");
         return checks;
     }
 }
@@ -113,6 +126,15 @@ foreach ($name in $names) {
     if ($clipText -notmatch ('m_LoopTime: ' + [int]$loop)) { throw "Wrong loop flag: $name" }
 }
 "Broom animation asset checks passed: $($names.Count) mapped states/clips"
+foreach ($phase in @('Start','Loop','End')) {
+    $name='AS_Broom_SitFly_Arm_Block1_'+$phase
+    $alternate=@($states | Where-Object {$_.Value -match "(?m)^  m_Name: $($name)_Raised\r?$"})
+    if($alternate.Count -ne 1 -or $alternate[0].Value -notmatch 'm_Mirror: 0'){throw "Missing unmirrored raised $phase state"}
+    $clip=$clips | Where-Object BaseName -eq ('AS_Broom_SitFly_Arm_Attack1_'+$phase) | Select-Object -First 1
+    $guid=[regex]::Match((Get-Content ($clip.FullName+'.meta') -Raw),'guid: (\w+)').Groups[1].Value
+    if(!$alternate[0].Value.Contains('guid: '+$guid) -or !$layer.Contains('m_State: {fileID: '+$alternate[0].Groups[1].Value+'}')){throw 'Raised state has wrong clip/layer'}
+}
+"Three raised block phases reference the right-hand Attack1 clips without mirroring."
 
 $player = Get-Content (Join-Path $repo 'Assets/Script/Player.cs') -Raw
 if ($player -notmatch 'broomAnimation.Render\(animator, snapshot' -or $player -notmatch 'ParryStartSequence\+\+') { throw 'Missing Player integration.' }

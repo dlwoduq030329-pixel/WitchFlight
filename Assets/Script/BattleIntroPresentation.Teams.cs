@@ -46,7 +46,7 @@ public sealed partial class BattleIntroPresentation
         for (int i = 0; i < 4; i++)
         {
             PlayerData data = teamRoster[i];
-            if (!network.Runner.TryGetPlayerObject(data.Object.InputAuthority, out var obj) || obj == null || !obj.IsValid)
+            if (!BattleParticipants.TryGetPlayerObject(network.Runner, data.ParticipantRef, out var obj) || obj == null || !obj.IsValid)
                 return;
             Player player = obj.GetComponent<Player>();
             if (player == null || !player.IsPresentationReady) return;

@@ -50,6 +50,6 @@ public partial class PlayerData
 
     private bool IsEnemyForStats(PlayerData other) => other != null && other != this &&
         other.Object != null && other.Object.IsValid && other.Runner == Runner &&
-        other.Object.InputAuthority != Object.InputAuthority &&
+        other.ParticipantRef != ParticipantRef &&
         teamIndex > 0 && other.teamIndex > 0 && teamIndex != other.teamIndex;
 }

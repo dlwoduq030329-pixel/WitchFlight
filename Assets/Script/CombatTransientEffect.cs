@@ -58,18 +58,20 @@ public sealed class CombatTransientEffect : MonoBehaviour
 
     // Only short-lived LOCAL visuals are pooled. Decoy meshes remain separately
     // owned; NetworkObject spawn/despawn and authoritative hits are unchanged.
-    public static void PlayPulse(Vector3 position, Color color, float diameter, float lifetime)
+    public static void PlayPulse(Vector3 position, Color color, float diameter, float lifetime, Player owner = null)
     {
         CombatTransientEffect effect = Acquire(PoolKind.Pulse);
+        RearThreatCamera.ExcludeLocalEffect(effect.gameObject, owner);
         effect.transform.SetPositionAndRotation(position, Quaternion.identity);
         effect.materials[0].color = color; // Undo the previous use's faded alpha.
         effect.Initialize(lifetime, Vector3.one * 0.08f, Vector3.one * diameter, effect.materials);
         effect.gameObject.SetActive(true);
     }
 
-    public static void PlayBeam(Vector3 origin, Vector3 end, Color color)
+    public static void PlayBeam(Vector3 origin, Vector3 end, Color color, Player owner = null)
     {
         CombatTransientEffect effect = Acquire(PoolKind.Beam);
+        RearThreatCamera.ExcludeLocalEffect(effect.gameObject, owner);
         effect.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         effect.beamLine.SetPosition(0, origin);
         effect.beamLine.SetPosition(1, end);

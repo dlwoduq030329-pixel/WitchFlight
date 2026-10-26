@@ -40,10 +40,10 @@ public partial class Player
     // No extra RPC per tick: reuses the existing rate-limited confirmed-hit notification.
     public void ConfirmSummonHit()
     {
-        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || Object.InputAuthority == PlayerRef.None ||
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || ParticipantRef == PlayerRef.None ||
             TimerIsActive(nextHitMarkerFeedback)) return;
         nextHitMarkerFeedback = TickTimer.CreateFromSeconds(Runner, .05f);
-        RPC_ConfirmedMagicHit();
+        RPC_ConfirmedMagicHit(false);
     }
 
     private void TrackPerkSummonBeam(MagicProjectile target, float time, MagicStatEntry stats)

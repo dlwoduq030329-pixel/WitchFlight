@@ -5,6 +5,22 @@ using UnityEngine.Rendering;
 // Shards never apply damage, physics queries or extra network objects themselves.
 public sealed class IceImpactFollowUpVisual : MonoBehaviour
 {
+    private static readonly System.Collections.Generic.HashSet<IceImpactFollowUpVisual> active = new();
+    public static System.Collections.Generic.IEnumerable<IceImpactFollowUpVisual> ActiveVisuals => active;
+    private void OnEnable() => active.Add(this);
+    private void OnDisable() => active.Remove(this);
+    public Player Caster => caster;
+    public Player Victim => victim;
+    public void CollectFlyingShardPositions(System.Collections.Generic.List<Vector3> positions)
+    {
+        if (impactPlayed) return;
+        for (int i = 0; i < launched; i++)
+        {
+            Shard shard = shards[i];
+            if (shard != null && !shard.arrived && shard.view != null && shard.view.gameObject.activeInHierarchy)
+                positions.Add(shard.view.position);
+        }
+    }
     public const int ShardCount = 8;
     private sealed class Shard
     {
@@ -88,7 +104,7 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
     {
         if (impactPlayed) return;
         impactPlayed = true;
-        CombatPresentation.ShowImpact(targetPoint, MagicType.Ice);
+        CombatPresentation.ShowImpact(targetPoint, MagicType.Ice, caster);
         Destroy(gameObject);
     }
 

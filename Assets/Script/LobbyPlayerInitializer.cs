@@ -103,7 +103,12 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         if (equipment == null && characterSearchRoot != null)
             equipment = characterSearchRoot.GetComponentInChildren<PlayerEquipment>(true);
         if (equipment != null)
+        {
             equipment.SetFlightEquipmentVisible(customizationPanel != null && customizationPanel.activeInHierarchy);
+            var look = equipment.GetComponent<LobbyCursorLook>();
+            if (look == null) look = equipment.gameObject.AddComponent<LobbyCursorLook>();
+            look.FollowCursor = CanCustomize && (customizationPanel == null || !customizationPanel.activeInHierarchy);
+        }
     }
 
     private void OnDisable()
@@ -116,6 +121,8 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         {
             equipment.UnbindFromDataConfig();
             equipment.SetFlightEquipmentVisible(false);
+            var look = equipment.GetComponent<LobbyCursorLook>();
+            if (look != null) look.FollowCursor = false;
         }
     }
 

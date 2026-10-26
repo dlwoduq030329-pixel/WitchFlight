@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7b24f88862cf48cf961bed904bd3ed21, type: 3}
+  m_Name: MatchBotSettings
+  m_EditorClassIdentifier:
+  tailDistance: 18
+  obstacleProbeDistance: 16
+  reactionSeconds: 0.3
+  attackPauseSeconds: 0.65
+  availableHats: 010000000200000003000000
+  availableBrooms: 010000000200000003000000
+  alternativeAttacks: 03000000010000000200000004000000
+  counters:
+  - opponent: 1
+    preferred: 11
+  - opponent: 2
+    preferred: 11
+  - opponent: 6
+    preferred: 11
+  - opponent: 3
+    preferred: 12
+  - opponent: 4
+    preferred: 6
+  - opponent: 5
+    preferred: 1
+  - opponent: 7
+    preferred: 5
+  - opponent: 8
+    preferred: 3
+  - opponent: 9
+    preferred: 3
+  - opponent: 10
+    preferred: 6
+  - opponent: 11
+    preferred: 3
+  - opponent: 12
+    preferred: 1

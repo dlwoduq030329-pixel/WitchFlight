@@ -104,9 +104,9 @@ public sealed class BattleItemPickup : NetworkBehaviour
         Player candidate = null;
         float nearest = float.PositiveInfinity;
         Vector3 point = PickupPoint;
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
+        foreach (PlayerRef playerRef in BattleParticipants.Refs(Runner))
         {
-            if (!Runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) ||
+            if (!BattleParticipants.TryGetPlayerObject(Runner, playerRef, out NetworkObject playerObject) ||
                 playerObject == null || !playerObject.IsValid)
             {
                 previousPositions.Remove(playerRef);

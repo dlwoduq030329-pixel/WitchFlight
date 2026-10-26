@@ -10,17 +10,25 @@ function Extract-Method($path,$name) {
 $source=@'
 using System;
 namespace WaterChecks {
- public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);public static float Clamp01(float x)=>Math.Clamp(x,0,1);}
+ public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);public static float Clamp01(float x)=>Math.Clamp(x,0,1);public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);}
  public struct Vector3 {public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public float sqrMagnitude=>x*x+y*y+z*z;public float magnitude=>(float)Math.Sqrt(sqrMagnitude);public void Normalize(){float m=magnitude;x/=m;y/=m;z/=m;}}
  public static class Logic {
 '@
 $source+=(Extract-Method Assets/Script/WaterCaptureSettings.cs NeedsRefresh)
 $source+=(Extract-Method Assets/Script/BattleWaterWake.cs TryWake)
+$source+=(Extract-Method Assets/Script/BattleWaterWake.cs ShouldPlaySplash)
+$source+=[regex]::Match((Get-Content Assets/Script/BattleWaterWake.cs -Raw),'(?ms)^    internal static float SkimVolumeWeight\([^;]+;').Value.Replace('internal static','public static')
 $source+=@'
  }
  public static class Checks {
   static int count;static void Check(bool value,string name){if(!value)throw new Exception(name);count++;}
   public static int Run(){
+   Check(Logic.ShouldPlaySplash(true,true,false,true),"entry splash once on crossing");
+   Check(Logic.ShouldPlaySplash(true,true,true,false),"exit splash once on crossing");
+   Check(!Logic.ShouldPlaySplash(true,true,true,true),"no splash every submerged frame");
+   Check(!Logic.ShouldPlaySplash(true,true,false,false),"no splash every above-water frame");
+   Check(!Logic.ShouldPlaySplash(false,true,false,true),"initial underwater snapshot stays silent");
+   Check(!Logic.ShouldPlaySplash(true,false,true,false),"respawn/portal/camera replacement stays silent");
    Check(Logic.NeedsRefresh(false,0,30,0,.25f,0,.5f,false),"first capture renders immediately");
    Check(!Logic.NeedsRefresh(true,.01f,30,0,.25f,0,.5f,false),"stationary duplicate frame reuses texture");
    Check(Logic.NeedsRefresh(true,.034f,30,0,.25f,0,.5f,false),"animated water refreshes on schedule even while stationary");
@@ -40,6 +48,11 @@ $source+=@'
    Check(!Logic.TryWake(new(0,3,0),.1f,1,10,2,30,out _,out _),"vertical-only movement has no invented horizontal heading");
    Check(!Logic.TryWake(new(0,0,.01f),.1f,1,10,2,30,out _,out _),"stationary jitter does not emit");
    Check(!Logic.TryWake(new(0,0,3),0,1,10,2,30,out _,out _),"zero sample time rejected");
+   Check(Logic.SkimVolumeWeight(0,2)==0,"no surface contact means silence");
+   Check(Logic.SkimVolumeWeight(1,.3f)<Logic.SkimVolumeWeight(1,1),"water rushing grows with speed");
+   Check(Logic.SkimVolumeWeight(1,1)<Logic.SkimVolumeWeight(1,1.5f),"boost adds more rushing beyond normal speed");
+   Check(Logic.SkimVolumeWeight(.2f,1)<Logic.SkimVolumeWeight(1,1),"greater height softens water sound");
+   Check(Logic.SkimVolumeWeight(1,100)<=1,"extreme speed volume clamped");
    return count;
   }
  }

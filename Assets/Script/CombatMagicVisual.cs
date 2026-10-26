@@ -13,6 +13,12 @@ public sealed class CombatMagicVisual : MonoBehaviour
     private float duration;
     private Vector3 shieldFacing;
     private float shieldOffset;
+    private bool heldShield, shieldEnding;
+    private LineRenderer shieldRim;
+    private LineRenderer shieldImpactRing;
+    private Color shieldRimColor;
+    private float shieldRimWidth, shieldRadius, shieldPulseUntil;
+    private int shieldStartSequence;
     private static readonly int DissolveAmountId = Shader.PropertyToID("_DissolveAmount");
     private readonly List<ShieldDissolveTarget> shieldDissolveTargets = new List<ShieldDissolveTarget>();
 
@@ -68,15 +74,18 @@ public sealed class CombatMagicVisual : MonoBehaviour
         }
     }
 
-    public static void Shield(Player player, GameObject prefab, float seconds, Vector3 facing, float forwardOffset = 0f)
+    public static CombatMagicVisual Shield(Player player, GameObject prefab, float seconds, Vector3 facing, float forwardOffset = 0f, float opacity = .75f,
+        bool holdForParry = false, float rimRadius = 2.2f, float rimWidth = .035f, Color? rimColor = null)
     {
-        if (prefab == null || player == null || player.Object == null || !player.Object.IsValid || !player.IsAlive ||
-            player.IsHiddenBySmokeFor(Player.LocalPlayer)) return;
+        if (player == null || player.Object == null || !player.Object.IsValid || !player.IsAlive ||
+            player.IsHiddenBySmokeFor(Player.LocalPlayer)) return null;
         var root = new GameObject("Directional parry VFX");
         var effect = root.AddComponent<CombatMagicVisual>();
         effect.follow = player;
         effect.duration = Mathf.Max(0.05f, seconds);
         effect.expires = Time.unscaledTime + effect.duration;
+        effect.heldShield = holdForParry;
+        effect.shieldStartSequence = player.ParryStartSequence;
         effect.shieldFacing = facing.sqrMagnitude > .0001f ? facing.normalized : player.transform.forward;
         effect.shieldOffset = Mathf.Max(0f, forwardOffset);
         Vector3 up = Mathf.Abs(Vector3.Dot(effect.shieldFacing, Vector3.up)) > .99f ? Vector3.forward : Vector3.up;
@@ -84,17 +93,103 @@ public sealed class CombatMagicVisual : MonoBehaviour
         Vector3 position = player.LockAimPoint + effect.shieldFacing * effect.shieldOffset;
         root.transform.SetPositionAndRotation(position, rotation);
         GameObject view = CombatPresentation.InstantiateVfx(prefab, position, rotation, root.transform);
-        if (view == null)
+        if (view != null)
         {
-            Destroy(root);
+            // The bundled Shield_03 Animator scales to zero on its own timeline.
+            // The accepted parry deadline owns this held shield's lifetime instead.
+            if (holdForParry)
+                foreach (Animator animator in view.GetComponentsInChildren<Animator>(true))
+                    if (animator.gameObject.name == "Shield_03") animator.enabled = false;
+            effect.InitializeShieldDissolve(view, opacity);
         }
-        else
+        if (holdForParry || view == null)
+            effect.CreateShieldRim(rimRadius, rimWidth, rimColor ?? new Color(.35f, .95f, 1f, .9f), view == null);
+        RearThreatCamera.ExcludeLocalEffect(root, player);
+        return effect;
+    }
+
+    private void CreateShieldRim(float radius, float width, Color color, bool hemisphere)
+    {
+        shieldRadius = Mathf.Max(.1f, radius);
+        shieldRimWidth = Mathf.Max(.005f, width);
+        shieldRimColor = color;
+        ownedMaterial = CombatPresentation.CreateEffectMaterial(Color.white);
+        shieldRim = CreateShieldLine("Active shield rim", 65);
+        for (int i = 0; i <= 64; i++)
         {
-            effect.InitializeShieldDissolve(view);
+            float angle = i * Mathf.PI * 2f / 64f;
+            shieldRim.SetPosition(i, new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * shieldRadius);
+        }
+        if (!hemisphere) return;
+        // A light wire hemisphere when no authored prefab is assigned.
+        for (int axis = 0; axis < 2; axis++)
+        {
+            LineRenderer arc = CreateShieldLine("Shield hemisphere arc", 33);
+            for (int i = 0; i <= 32; i++)
+            {
+                float angle = i * Mathf.PI / 32f;
+                float side = Mathf.Cos(angle) * shieldRadius;
+                arc.SetPosition(i, new Vector3(axis == 0 ? side : 0f, axis == 1 ? side : 0f, Mathf.Sin(angle) * shieldRadius));
+            }
         }
     }
 
-    private void InitializeShieldDissolve(GameObject view)
+    private LineRenderer CreateShieldLine(string title, int count)
+    {
+        var child = new GameObject(title);
+        child.transform.SetParent(transform, false);
+        var rim = child.AddComponent<LineRenderer>();
+        rim.sharedMaterial = ownedMaterial;
+        rim.useWorldSpace = false;
+        rim.positionCount = count;
+        rim.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+        rim.widthMultiplier = shieldRimWidth;
+        rim.startColor = rim.endColor = shieldRimColor;
+        rim.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        rim.receiveShadows = false;
+        return rim;
+    }
+
+    public void ParrySuccess(Vector3 facing)
+    {
+        if (facing.sqrMagnitude > .0001f) shieldFacing = facing.normalized;
+        shieldPulseUntil = Time.unscaledTime + .12f;
+        if (ownedMaterial != null && shieldImpactRing == null)
+        {
+            shieldImpactRing = CreateShieldLine("Shield impact ripple", 49);
+            for (int i = 0; i <= 48; i++)
+            {
+                float angle = i * Mathf.PI * 2f / 48f;
+                shieldImpactRing.SetPosition(i, new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f));
+            }
+            // New renderer must also be hidden from its owner's rear cameras.
+            RearThreatCamera.ExcludeLocalEffect(shieldImpactRing.gameObject, follow);
+        }
+        if (follow != null)
+            CombatTransientEffect.PlayPulse(follow.LockAimPoint + shieldFacing * (shieldOffset + shieldRadius),
+                new Color(1f, .9f, .4f, .7f), .65f, .12f, follow);
+    }
+
+    public void RefreshParry()
+    {
+        if (follow == null || shieldStartSequence == follow.ParryStartSequence) return;
+        shieldStartSequence = follow.ParryStartSequence;
+        shieldFacing = follow.transform.forward;
+        shieldPulseUntil = 0f;
+    }
+
+    public void EndParry()
+    {
+        if (!heldShield || shieldEnding) return;
+        shieldEnding = true;
+        expires = Time.unscaledTime + duration;
+        // No lingering bright outline after the real block window has ended.
+        if (shieldRim != null) shieldRim.enabled = false;
+        foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>())
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+    }
+
+    private void InitializeShieldDissolve(GameObject view, float opacity)
     {
         foreach (Renderer renderer in view.GetComponentsInChildren<Renderer>(true))
         {
@@ -105,11 +200,21 @@ public sealed class CombatMagicVisual : MonoBehaviour
                 if (material == null ||
                     (material.name != "Shield_03" && material.name != "Shield_03 (Instance)") ||
                     !material.HasProperty(DissolveAmountId)) continue;
+                var properties = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(properties, i);
+                if (properties.isEmpty) renderer.GetPropertyBlock(properties);
+                if (material.HasProperty("_TintColor"))
+                {
+                    Color tint = material.GetColor("_TintColor");
+                    tint.a *= Mathf.Clamp01(opacity);
+                    properties.SetColor("_TintColor", tint);
+                }
+                renderer.SetPropertyBlock(properties, i);
                 shieldDissolveTargets.Add(new ShieldDissolveTarget
                 {
                     renderer = renderer,
                     materialIndex = i,
-                    properties = new MaterialPropertyBlock()
+                    properties = properties
                 });
             }
         }
@@ -136,14 +241,39 @@ public sealed class CombatMagicVisual : MonoBehaviour
             follow.IsHiddenBySmokeFor(Player.LocalPlayer) || BattleManager.Instance == null ||
             !BattleManager.Instance.IsGameplayActive)
         { Destroy(gameObject); return; }
-        UpdateShieldDissolve(Mathf.Clamp01(1f - (expires - Time.unscaledTime) / duration));
+        if (heldShield)
+        {
+            if (!follow.IsParrying || follow.IsReturningToMap) EndParry();
+            if (!shieldEnding)
+            {
+                expires = Time.unscaledTime + duration;
+                if (shieldRim != null)
+                {
+                    bool pulse = Time.unscaledTime < shieldPulseUntil;
+                    shieldRim.startColor = shieldRim.endColor = pulse ? new Color(1f, .9f, .4f, 1f) : shieldRimColor;
+                    shieldRim.widthMultiplier = shieldRimWidth * (pulse ? 2f : 1f);
+                }
+            }
+        }
+        UpdateShieldDissolve(heldShield && !shieldEnding ? 0f : Mathf.Clamp01(1f - (expires - Time.unscaledTime) / duration));
         if (Time.unscaledTime >= expires) { Destroy(gameObject); return; }
         // Follow translation, but retain the world direction of the blocked attack during this flash.
         transform.position = follow.LockAimPoint + shieldFacing * shieldOffset;
+        Vector3 up = Mathf.Abs(Vector3.Dot(shieldFacing, Vector3.up)) > .99f ? Vector3.forward : Vector3.up;
+        transform.rotation = Quaternion.LookRotation(shieldFacing, up);
+        if (shieldImpactRing != null)
+        {
+            float remaining = Mathf.Clamp01((shieldPulseUntil - Time.unscaledTime) / .12f);
+            shieldImpactRing.enabled = remaining > 0f;
+            shieldImpactRing.transform.localPosition = Vector3.forward * shieldRadius;
+            shieldImpactRing.transform.localScale = Vector3.one * Mathf.Lerp(.65f, .08f, remaining);
+            Color rippleColor = new Color(1f, .9f, .4f, remaining);
+            shieldImpactRing.startColor = shieldImpactRing.endColor = rippleColor;
+        }
         if (ownedMaterial != null)
         {
-            Color color = ownedMaterial.color;
-            color.a = 0.25f * Mathf.Clamp01((expires - Time.unscaledTime) / duration);
+            Color color = Color.white;
+            color.a = heldShield && !shieldEnding ? 1f : Mathf.Clamp01((expires - Time.unscaledTime) / duration);
             ownedMaterial.color = color;
         }
     }
