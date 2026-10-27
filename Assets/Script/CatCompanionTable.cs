@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-public enum CatAnimation { StandingIdle, SittingIdle, Loaf, Standing, Walk, Run, Jump, Scratch, Punch, Grooming, Knead, Cheer }
+public enum CatAnimation { StandingIdle, SittingIdle, Loaf, Standing, Walk, Run, Jump, Scratch, Punch, Grooming, Knead, Cheer, Yawn }
 public enum CatTutorialTarget { None, Wardrobe, WeaponTab, CustomBack, BattleMenu, Training, CreateRoom, RandomMatch, BattleBack }
 public enum CatGreetingKind { Welcome, Victory, Defeat }
 
@@ -95,8 +95,13 @@ public sealed class CatCompanionTable : ScriptableObject
     [Min(0f)] public float vsCharacterGap = .15f;
     [Min(.1f)] public float vsMinimumHalfHeight = .85f;
     [Header("Lobby floating companion")]
-    public Vector3 lobbyOffset = new Vector3(.85f, .85f, 0);
-    [Min(0)] public float orbitRadius = .22f, orbitSpeed = .35f, bobHeight = .08f;
+    public Vector3 lobbyOffset = new Vector3(.55f, .85f, 0);
+    [Min(0)] public float orbitRadius = .1f, orbitSpeed = .35f, bobHeight = .08f;
+    [Header("로비 하품 / 쓰다듬기 반응")]
+    public Vector2 lobbyYawnInterval = new Vector2(18f, 35f);
+    [Min(1)] public int petScratchStrokeCount = 8;
+    [Min(1f)] public float petScratchWindowSeconds = 10f;
+    [Min(0f)] public float petScratchCooldownSeconds = 5f;
     [Min(.05f)] public float lobbyReturnStableSeconds = .15f;
     [Min(.05f)] public float lobbyRevealSeconds = .45f;
     public bool lobbyFollowCursor = true;

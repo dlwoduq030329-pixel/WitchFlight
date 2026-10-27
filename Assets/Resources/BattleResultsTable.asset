@@ -12,8 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 16ba2a45ae0f41f69bfcd6843163cbef, type: 3}
   m_Name: BattleResultsTable
   m_EditorClassIdentifier:
-  roundResultSeconds: 3
-  roundFadeSeconds: 0.45
+  roundResultSeconds: 4
+  roundFadeSeconds: 1.2
+  roundSlowdownResponse: 2.2
   statRevealSeconds: 0.85
   statPauseSeconds: 0.2
   statStartScale: 2.2
@@ -22,6 +23,6 @@ MonoBehaviour:
   standingClip: {fileID: 7400000, guid: d011bf4c00c71e542954e04bf7e9a72a, type: 2}
   happyClip: {fileID: 0}
   floatingCatScale: 0.7
-  floatingCatGap: 0.12
+  floatingCatGap: 0.04
   floatingCatHeight: 0.8
   portraitResolution: 512

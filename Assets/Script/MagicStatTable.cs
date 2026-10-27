@@ -51,7 +51,7 @@ public struct MagicStatEntry
     [Min(0f)] public float castSeconds;
     [Tooltip("0이면 히트스캔. 양수이면 실제 네트워크 발사체.")]
     [Min(0f)] public float projectileSpeed;
-    [Tooltip("비록온 투사체의 선회 속도. 록온 투사체는 현재 대상 위치로 직접 유도되어 이 값을 사용하지 않습니다.")]
+    [Tooltip("유도 투사체의 최대 선회 속도(도/초). 록온 마법에도 적용하며, 0이면 발사 후 방향을 바꾸지 않습니다.")]
     [Min(0f)] public float projectileTurnSpeed;
     [Min(0.01f)] public float projectileLifetime;
     [Tooltip("날아가는 투사체의 충돌 반경입니다. 즉발/직선 광선은 Hitscan Radius를 사용합니다.")]
@@ -266,13 +266,13 @@ public sealed class MagicStatTable : ScriptableObject
             case MagicType.Fire:
                 e.effect = MagicEffectKind.DirectDamage; e.damage = 45; e.apCost = 45;
                 e.range = 130f; e.cooldownSeconds = 3.75f; e.lockChargeSeconds = 0.8f;
-                e.projectileSpeed = 75; e.projectileTurnSpeed = 220; e.projectileLifetime = 5f;
+                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 176; e.projectileLifetime = 5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "높은 피해의 유도 마법. 길게 록온한 뒤 버튼을 놓아 발사합니다."; break;
             case MagicType.Ice:
                 e.effect = MagicEffectKind.SlowDamage; e.damage = 25; e.apCost = 30;
                 e.range = 90f; e.cooldownSeconds = 2.7f; e.lockChargeSeconds = 0.35f;
-                e.projectileSpeed = 85; e.projectileTurnSpeed = 320;
+                e.projectileSpeed = 76.5f; e.projectileTurnSpeed = 256;
                 e.movementMultiplier = 0.4f; e.effectDuration = 2.5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "빠르게 록온하여 발사합니다. 적중한 적의 이동 속도를 낮춥니다."; break;
@@ -289,7 +289,7 @@ public sealed class MagicStatTable : ScriptableObject
                 e.description = "누르는 동안 공중의 범위를 조준하고 휠로 거리를 조절합니다. 놓으면 확정된 위치에 잠시 뒤 낙뢰가 떨어집니다."; break;
             case MagicType.Mine:
                 e.effect = MagicEffectKind.PursuitSummon; e.damage = 18; e.apCost = 40;
-                e.cooldownSeconds = 7.5f; e.projectileSpeed = 45; e.placementDistance = 2;
+                e.cooldownSeconds = 7.5f; e.projectileSpeed = 40.5f; e.projectileTurnSpeed = 176; e.placementDistance = 2;
                 e.activationDelay = 0.5f; e.effectDuration = 15; e.projectileRadius = 0.2f;
                 e.range = 100f; e.lockChargeSeconds = 0.65f; e.summonMoveSpeed = 28;
                 e.summonAttackRange = 50f; e.summonFollowDistance = 18; e.summonAttackInterval = 2;
@@ -306,7 +306,7 @@ public sealed class MagicStatTable : ScriptableObject
             case MagicType.Binding:
                 e.effect = MagicEffectKind.Binding; e.apCost = 50; e.cooldownSeconds = 18;
                 e.range = 142.5f; e.effectDuration = 3; e.lockChargeSeconds = 0.6f;
-                e.projectileSpeed = 75; e.projectileTurnSpeed = 300;
+                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 240;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "록온 후 유도 마법을 발사합니다. 피해 없이 3초 동안 적의 이동을 막습니다."; break;
             case MagicType.Curse:

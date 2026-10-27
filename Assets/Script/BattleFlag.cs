@@ -6,6 +6,7 @@ using UnityEngine.Rendering;
 public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission, MapTour, TrainingTutorial, RoundResult }
 
 // One existing network flag owns the replicated match clock, carrier and result.
+[DefaultExecutionOrder(50)]
 public partial class BattleFlag : NetworkBehaviour, IAfterRender
 {
     [SerializeField, Min(0.1f)] private float pickupRadius = 0.85f;
@@ -18,8 +19,11 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     [SerializeField] private Transform flagVisualRoot;
     [Tooltip("소지 중에만 원래 모델 크기에 곱할 배율입니다. 드랍 시 원래 크기로 복구됩니다.")]
     [SerializeField, Range(0.05f, 1f)] private float carriedVisualScale = 0.35f;
-    [Tooltip("소지 중 모델 위치. 다른 플레이어는 깃발 루트 기준, 내 깃발은 카메라의 오른쪽/위/앞 방향 기준으로 적용합니다.")]
-    [SerializeField] private Vector3 carriedVisualOffset = new Vector3(1.1f, -0.3f, 0f);
+    [Tooltip("소지 중 등 본 기준 위치. 카메라 회전에 영향받지 않습니다.")]
+    [SerializeField] private Vector3 carriedVisualOffset = new Vector3(-.12f, -.3f, -.24f);
+    [SerializeField] private Vector3 carriedVisualEuler = new Vector3(0f, -15f, 35f);
+    private Quaternion originalVisualRotation;
+    private FlagClothMotion clothMotion;
 
     [Networked] public PlayerRef Carrier { get; private set; }
     [Networked] public PlayerRef LastCarrier { get; private set; }
@@ -71,7 +75,9 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     private bool flagSmokeHidden;
     private Vector3 originalVisualPosition, originalVisualScale;
     private bool visualTransformCached;
-    private Camera carrierViewCamera;
+    private readonly FlagBackMount backMount = new();
+    private Player lastVisualCarrier;
+    private int lastVisualPortalSequence;
 
     private struct PositionSample
     {
@@ -276,6 +282,8 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         {
             if (PhaseTimer.Expired(Runner))
             {
+                if (Team1Wins >= WinsRequired || Team2Wins >= WinsRequired)
+                { EndSeries(LastRoundWinner); return; }
                 Phase = BattleStartPhase.Intermission;
                 PhaseTimer = TickTimer.CreateFromSeconds(Runner, magicChangeSeconds);
                 BattleManager.Instance?.BeginMagicChange();
@@ -330,11 +338,6 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         Carrier = PlayerRef.None;
         CarrierObjectId = default;
         ClearRoundSmoke();
-        if (Team1Wins >= WinsRequired || Team2Wins >= WinsRequired)
-        {
-            EndSeries(team);
-            return;
-        }
         Phase = BattleStartPhase.RoundResult;
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, BattleResultsTable.Default.roundResultSeconds);
     }
@@ -710,6 +713,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
             transform.rotation = Quaternion.Euler(0f, carrier.transform.eulerAngles.y, 0f);
         UpdateCarriedVisual(carrier);
         UpdateFlagVisibility();
+        // LateUpdate attaches to the final animated torso pose before integrating cloth.
     }
 
     private void CacheFlagVisualTransform()
@@ -719,6 +723,8 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         if (!visualTransformCached) return;
         originalVisualPosition = flagVisualRoot.localPosition;
         originalVisualScale = flagVisualRoot.localScale;
+        originalVisualRotation = flagVisualRoot.localRotation;
+        clothMotion = flagVisualRoot.GetComponentInChildren<FlagClothMotion>(true);
     }
 
     private void UpdateCarriedVisual(Player carrier)
@@ -732,13 +738,24 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         // Never resize the NetworkObject root or its authoritative pickup sphere.
         // Always multiply the saved scale, not last frame's already-shrunken scale.
         flagVisualRoot.localScale = originalVisualScale * Mathf.Clamp(carriedVisualScale, 0.05f, 1f);
-        flagVisualRoot.localPosition = originalVisualPosition + carriedVisualOffset;
-        if (carrier != Player.LocalPlayer) return;
-        if (carrierViewCamera == null || !carrierViewCamera.isActiveAndEnabled) carrierViewCamera = Camera.main;
-        if (carrierViewCamera == null) return;
-        // My camera can orbit independently of the pilot. Keep the flag to its right
-        // instead of letting a body-relative side offset swing across the crosshair.
-        flagVisualRoot.position = carrier.LockAimPoint + carrierViewCamera.transform.TransformDirection(carriedVisualOffset);
+        backMount.Resolve(carrier.transform);
+        backMount.Pose(out Vector3 backPosition,out Quaternion backRotation);
+        flagVisualRoot.position = backPosition + backRotation * carriedVisualOffset;
+        flagVisualRoot.rotation = backRotation * Quaternion.Euler(carriedVisualEuler) * originalVisualRotation;
+        if(clothMotion!=null)clothMotion.SetTorso(backMount.Chest);
+    }
+
+    private void LateUpdate()
+    {
+        if(Object==null || !Object.IsValid || !IsPrepared)return;
+        Player carrier=Carrier!=PlayerRef.None?GetCarrierPlayer():null;
+        UpdateCarriedVisual(carrier);
+        if(clothMotion==null)return;
+        int portal=carrier!=null?carrier.PortalExitSequence:0;
+        if(carrier!=lastVisualCarrier || portal!=lastVisualPortalSequence)clothMotion.ResetMotion();
+        lastVisualCarrier=carrier;lastVisualPortalSequence=portal;
+        if(carrier==null)clothMotion.SetTorso(null);
+        clothMotion.AnimateMotion(carrier!=null && carrier.IsAlive,!flagSmokeHidden,Time.deltaTime);
     }
 
     private void RestoreFlagVisualTransform()
@@ -746,6 +763,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         if (!visualTransformCached || flagVisualRoot == null) return;
         flagVisualRoot.localPosition = originalVisualPosition;
         flagVisualRoot.localScale = originalVisualScale;
+        flagVisualRoot.localRotation = originalVisualRotation;
     }
 
     // Local-only visibility. The authoritative pickup, carrier and colliders never change.

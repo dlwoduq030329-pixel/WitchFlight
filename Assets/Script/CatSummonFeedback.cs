@@ -101,7 +101,7 @@ public sealed class CatSummonFeedback : MonoBehaviour
         bool showLabel = sight && viewport.z > 0 && viewport.x >= 0 && viewport.x <= 1 && viewport.y >= 0 && viewport.y <= 1;
         healthRoot.SetActive(showLabel);
         if (!showLabel) return;
-        fill.transform.parent.gameObject.SetActive(source.IsSummonEnemyOf(local));
+        fill.transform.parent.gameObject.SetActive(true);
         string catName = table.GetCatName(avatar.BodyIndex);
         if (nameLabel.text != catName) nameLabel.text = catName;
         healthRoot.transform.SetPositionAndRotation(center + Vector3.up * (table.catHeight * .5f + table.summonHealthBarOffset), camera.transform.rotation);
@@ -110,7 +110,7 @@ public sealed class CatSummonFeedback : MonoBehaviour
         float scale = Mathf.Max(1, pixelWorld * 5 / (Mathf.Max(1, camera.pixelHeight) * Mathf.Max(.01f, table.summonHealthBarSize.y)));
         healthRoot.transform.localScale = Vector3.one * scale;
         ((RectTransform)fill.transform.parent).sizeDelta = table.summonHealthBarSize;
-        fill.color = table.enemyColor;
+        fill.color = enemy ? table.enemyColor : table.allyColor;
         fill.rectTransform.anchorMax = new Vector2(source.SummonHealthFraction, 1);
     }
 

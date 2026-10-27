@@ -341,6 +341,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         WallDamageTimer = TickTimer.None;
         WallContactTimer = TickTimer.None;
         LastFlightVelocity = Vector3.zero;
+        SubmergedSeconds = 0f;
         RamCooldown = CobraTimer = CobraCooldown = TickTimer.None;
         CobraActive = false;
         IsBoosting = false;
@@ -459,6 +460,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
 
         LocalPlayer = this;
+        if (GetComponent<DrowningWarning>() == null) gameObject.AddComponent<DrowningWarning>();
 
         bool releaseCursor = BattleManager.Instance == null ||
             !BattleManager.Instance.IsGameplayActive || CombatPresentation.MenuOpen;
@@ -492,8 +494,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         BattleManager battle = BattleManager.Instance;
         if (battle == null || !battle.IsGameplayActive || !IsAlive || battle.MapBoundary == null) return;
         Vector3 position = transform.position;
-        Vector3 constrained = battle.MapBoundary.ClampToLowerLimit(position);
-        if (constrained.y <= position.y) return;
+        Vector3 constrained = IsMatchBot ? battle.MapBoundary.ClampBotPosition(position) : battle.MapBoundary.ClampToLowerLimit(position);
+        if ((constrained - position).sqrMagnitude < .000001f) return;
 
         // Enforce on host and predicted owner, including portal/bot/return paths.
         // Only height changes: no U-turn, speed-stage reset or collision damage.
@@ -508,7 +510,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private Vector3 ConstrainMapMovement(Vector3 movement)
     {
         MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
-        return table != null ? table.ConstrainMovement(transform.position, movement) : movement;
+        if (table == null) return movement;
+        return IsMatchBot ? table.ClampBotPosition(transform.position + movement) - transform.position :
+            table.ConstrainMovement(transform.position, movement);
     }
 
     private void SimulateMovementTick()
@@ -541,19 +545,23 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             areaAimArmed = false;
             IsReturningToMap = false;
             hasPendingPortalTeleport = false;
-            Speed = 0f;
+            if (Object.HasStateAuthority) SubmergedSeconds = 0f;
+            bool coasting = BattleManager.Instance != null && BattleManager.Instance.Phase == BattleStartPhase.RoundResult && IsAlive;
+            if (coasting) TickRoundEndCoast();
+            else Speed = 0f;
             SpeedStage = 0;
             currentTurnSpeed = 0f;
             previousButtons = default;
             pendingMagic = MagicType.None;
             pendingTargetId = default;
             castTimer = TickTimer.None;
-            KnockbackVelocity = Vector3.zero;
+            if (!coasting) KnockbackVelocity = Vector3.zero;
             ClearLockTargetInternal();
             return;
         }
         if (!IsAlive)
         {
+            if (Object.HasStateAuthority) SubmergedSeconds = 0f;
             areaAimArmed = false;
             IsReturningToMap = false;
             hasPendingPortalTeleport = false;
@@ -569,6 +577,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         TickPerkEffects();
         if (!IsAlive) return;
+        if (TickDrowning()) return;
         if (testBot != null)
         {
             if (Object.HasStateAuthority) testBot.Simulate(this);
@@ -628,6 +637,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private bool CheckAltitudeLimit()
     {
         if (!Object.HasStateAuthority) return false;
+        // Scripted return arcs, updrafts and portal arrivals must obey the bot box too.
+        if (IsMatchBot) EnforceMapFloor();
         MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
         if (!IsAlive || table == null || !table.ExceedsAltitudeLimit(transform.position.y))
             return false;

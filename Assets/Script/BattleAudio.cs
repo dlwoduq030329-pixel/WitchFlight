@@ -143,7 +143,7 @@ public sealed class BattleAudio : MonoBehaviour
             if (phase == BattleStartPhase.Intro) Play(BattleSound.MatchIntro, local: true);
             if (phase == BattleStartPhase.Playing) Play(BattleSound.RoundStart, local: true);
             if (Player.LocalPlayer != null && Player.LocalPlayer.Object != null && Player.LocalPlayer.Object.IsValid &&
-                (phase == BattleStartPhase.Intermission || phase == BattleStartPhase.Ended))
+                (phase == BattleStartPhase.RoundResult || phase == BattleStartPhase.Ended))
             {
                 int winner = phase == BattleStartPhase.Ended ? flag.WinningTeam : flag.LastRoundWinner;
                 if (winner > 0)

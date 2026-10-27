@@ -21,6 +21,13 @@ public sealed class CatAvatar : MonoBehaviour
     private Quaternion animatedHeadRotation;
     private bool cursorLookApplied;
     private Vector2 cursorLook;
+    private SkinnedMeshRenderer mouthRenderer;
+    private int mouthShape = -1;
+    private float yawnStarted = -1f;
+    private bool yawnPoseApplied;
+    private Quaternion preYawnHead;
+    private float preYawnMouth, preYawnEye;
+    public bool IsBusy => pendingIdle || yawnStarted >= 0f;
 
     public static CatAvatar Create(Transform parent, int body, int eyes, bool plane, GameObject existingCat = null)
     {
@@ -75,6 +82,9 @@ public sealed class CatAvatar : MonoBehaviour
         foreach (var skin in cat.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             if (skin.sharedMesh != null && skin.sharedMesh.GetBlendShapeIndex("eye") >= 0)
             { avatar.eyeRenderer = skin; avatar.closedEyeShape = skin.sharedMesh.GetBlendShapeIndex("eye"); break; }
+        foreach (var skin in cat.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            if (skin.sharedMesh != null && skin.sharedMesh.GetBlendShapeIndex("mouth") >= 0)
+            { avatar.mouthRenderer = skin; avatar.mouthShape = skin.sharedMesh.GetBlendShapeIndex("mouth"); break; }
         var grooming = table.GetAnimation(CatAnimation.Grooming);
         if (grooming != null) avatar.groomingStateHash = Animator.StringToHash(grooming.stateName);
         var kneading = table.GetAnimation(CatAnimation.Knead);
@@ -92,6 +102,15 @@ public sealed class CatAvatar : MonoBehaviour
 
     public void Play(CatAnimation animation, bool returnToIdle = true)
     {
+        StopYawn();
+        if (animation == CatAnimation.Yawn)
+        {
+            // The shipped rig has a mouth morph but no separate imported yawn clip.
+            Play(CatAnimation.SittingIdle, false);
+            StopCursorLook();
+            yawnStarted = Time.unscaledTime;
+            return;
+        }
         var entry = table.GetAnimation(animation);
         if (entry == null || animator == null || !animator.HasState(0, Animator.StringToHash(entry.stateName))) return;
         animator.CrossFadeInFixedTime(entry.stateName, .12f, 0, 0);
@@ -101,6 +120,7 @@ public sealed class CatAvatar : MonoBehaviour
     private void Update()
     {
         RestoreCursorLook();
+        RestoreYawnPose();
         if (pendingIdle && Time.unscaledTime >= idleAt) Play(CatAnimation.SittingIdle, false);
     }
     // Called after the lobby's orbit positioning and Animator evaluation. Only the
@@ -108,6 +128,7 @@ public sealed class CatAvatar : MonoBehaviour
     public void FollowLobbyCursor(Camera camera, Ray pointer, bool follow)
     {
         RestoreCursorLook();
+        if (yawnStarted >= 0f) return;
         if (lookHead == null || camera == null) return;
         Vector2 desired = Vector2.zero;
         if (follow && table.lobbyFollowCursor && !pendingIdle)
@@ -138,10 +159,10 @@ public sealed class CatAvatar : MonoBehaviour
         if (cursorLookApplied && lookHead != null) lookHead.localRotation = animatedHeadRotation;
         cursorLookApplied = false;
     }
-    private void OnDisable() => StopCursorLook();
+    private void OnDisable() { StopCursorLook(); StopYawn(); }
     private void LateUpdate()
     {
-        if (animator == null || eyeRenderer == null || closedEyeShape < 0) return;
+        if (animator == null || eyeRenderer == null || closedEyeShape < 0) { ApplyYawn(); return; }
         bool current = ClosesEyes(animator.GetCurrentAnimatorStateInfo(0).shortNameHash);
         float closing = current ? 1f : 0f;
         if (animator.IsInTransition(0))
@@ -154,7 +175,43 @@ public sealed class CatAvatar : MonoBehaviour
         // Override after Animator because the clips also write the eye blend shape.
         if (closing > 0 || wasClosingEyes) eyeRenderer.SetBlendShapeWeight(closedEyeShape, closing * 100f);
         wasClosingEyes = closing > 0;
+        ApplyYawn();
     }
+    private void ApplyYawn()
+    {
+        if (yawnStarted < 0f) return;
+        float t = Time.unscaledTime - yawnStarted;
+        if (t >= 3.2f) { StopYawn(); return; }
+        float open = Mathf.SmoothStep(0f,1f,Mathf.Clamp01((t-.25f)/.9f)) *
+            (1f-Mathf.SmoothStep(0f,1f,Mathf.Clamp01((t-1.8f)/1.2f)));
+        float eyes = Mathf.SmoothStep(0f,1f,Mathf.Clamp01(t/.5f)) *
+            (1f-Mathf.SmoothStep(0f,1f,Mathf.Clamp01((t-2.4f)/.8f)));
+        if (lookHead != null)
+        {
+            preYawnHead = lookHead.localRotation;
+            lookHead.rotation = Quaternion.AngleAxis(-12f*open,transform.right) * lookHead.rotation;
+        }
+        if (mouthRenderer != null)
+        {
+            preYawnMouth = mouthRenderer.GetBlendShapeWeight(mouthShape);
+            mouthRenderer.SetBlendShapeWeight(mouthShape,Mathf.Lerp(preYawnMouth,100f,open));
+        }
+        if (eyeRenderer != null && closedEyeShape >= 0)
+        {
+            preYawnEye = eyeRenderer.GetBlendShapeWeight(closedEyeShape);
+            eyeRenderer.SetBlendShapeWeight(closedEyeShape,Mathf.Lerp(preYawnEye,100f,eyes));
+        }
+        yawnPoseApplied = true;
+    }
+    private void RestoreYawnPose()
+    {
+        if (!yawnPoseApplied) return;
+        if (lookHead != null) lookHead.localRotation = preYawnHead;
+        if (mouthRenderer != null) mouthRenderer.SetBlendShapeWeight(mouthShape,preYawnMouth);
+        if (eyeRenderer != null && closedEyeShape >= 0) eyeRenderer.SetBlendShapeWeight(closedEyeShape,preYawnEye);
+        yawnPoseApplied = false;
+    }
+    private void StopYawn() { RestoreYawnPose(); yawnStarted = -1f; }
     private bool ClosesEyes(int stateHash) => stateHash != 0 &&
         (stateHash == groomingStateHash || stateHash == kneadingStateHash);
     public void SetVisible(bool visible)

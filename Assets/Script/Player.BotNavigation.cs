@@ -31,6 +31,9 @@ public partial class Player
                 if (portal == null || portal.gameObject.scene != gameObject.scene ||
                     !portal.TryGetBotRoute(Runner, out var start, out var end, out var rotation) ||
                     !CanOccupyPortalExit(end, rotation)) continue;
+                var boundary = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
+                if (boundary != null && boundary.TryGetBotFlightBounds(out var box) &&
+                    (!box.Contains(start) || !box.Contains(end))) continue;
                 botPortals.Add(portal); botPortalEntries.Add(start); botPortalExits.Add(end);
             }
             int n = botPortals.Count;
@@ -124,6 +127,8 @@ public partial class Player
     {
         float clearance = BotClearance(origin, candidate, distance);
         var boundary = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
+        if (boundary != null && boundary.TryGetBotFlightBounds(out var flightBox) &&
+            !flightBox.Contains(transform.position + candidate * distance)) return;
         Vector3 end = origin + candidate * Mathf.Min(clearance, 8f);
         if (boundary != null && ((boundary.HasValidBounds &&
             (end.x < boundary.xmin || end.x > boundary.xmax || end.z < boundary.zmin || end.z > boundary.zmax)) ||

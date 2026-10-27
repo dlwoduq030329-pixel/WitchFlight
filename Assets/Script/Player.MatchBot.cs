@@ -19,7 +19,11 @@ public partial class Player
     private bool ReadCombatInput(out NetworkInputData input)
     {
         bool valid = BuildBotCombatInput(out input);
-        if (valid && IsMatchBot && Object.HasStateAuthority) ApplyBotAimError(ref input);
+        if (valid && IsMatchBot && Object.HasStateAuthority)
+        {
+            ApplyBotAimError(ref input);
+            UpdateBotParry(ref input);
+        }
         return valid;
     }
 
@@ -55,6 +59,7 @@ public partial class Player
         bool carrying = flag != null && flag.Carrier == ParticipantRef;
         bool retreating = botRecovering || carrying;
         bool pickupGoal = false;
+        var botBoundary = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
         float goalRadius = .85f;
         Vector3 destination = hasEnemy ? botTarget.transform.position - botTarget.transform.forward * settings.tailDistance
             : transform.position + transform.forward * 30;
@@ -64,17 +69,33 @@ public partial class Player
             if (away.sqrMagnitude < .01f) away = -transform.forward;
             // Keep possession rather than deliberately turning into a pursuer.
             destination = transform.position + away * settings.carrierSafeDistance;
+            if (botBoundary != null)
+                destination = botBoundary.BotRetreatDestination(transform.position, botTarget.transform.position,
+                    transform.forward, settings.carrierSafeDistance);
         }
         if (flag != null && flag.Carrier == PlayerRef.None && !botRecovering)
         { destination = flag.transform.position; pickupGoal = true; goalRadius = flag.PickupRadius; }
         if (botHealthPickup != null && botHealthPickup.IsAvailableHealth(Runner))
         { destination = botHealthPickup.BotPickupPoint; pickupGoal = true; goalRadius = botHealthPickup.BotPickupRadius; }
+        if (botBoundary != null) destination = botBoundary.ClampBotPosition(destination);
         if (TryBotPortalRoute(destination, settings, out Vector3 portalEntry))
         { destination = portalEntry; pickupGoal = true; goalRadius = .1f; }
         Vector3 direction = destination - transform.position;
         if (direction.sqrMagnitude < .001f) direction = transform.forward;
         direction.Normalize();
         direction = BotRouteDirection(destination, direction, settings, out bool avoidingWall, pickupGoal, goalRadius);
+        if (botBoundary != null && botBoundary.TryGetBotFlightBounds(out var flightBounds))
+        {
+            float lookAhead = Mathf.Max(8f, Mathf.Abs(Speed) * Mathf.Max(1.5f, settings.obstacleLookAheadSeconds));
+            Vector3 projected = transform.position + direction * lookAhead;
+            if (!flightBounds.Contains(projected))
+            {
+                Vector3 inward = flightBounds.ClosestPoint(projected) - transform.position;
+                if (inward.sqrMagnitude < 4f) inward = flightBounds.center - transform.position;
+                direction = inward.normalized;
+                avoidingWall = true;
+            }
+        }
         input.aimDirection = direction; input.aimUp = Vector3.up; input.steerToAim = true;
         input.portalExitSequence = PortalExitSequence;
         int desiredStage = avoidingWall || Vector3.Dot(transform.forward, direction) < .4f ||

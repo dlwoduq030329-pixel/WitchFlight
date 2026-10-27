@@ -3,8 +3,9 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "WitchFlight/Battle Results Table")]
 public sealed class BattleResultsTable : ScriptableObject
 {
-    [Min(.5f)] public float roundResultSeconds = 3f;
-    [Min(.05f)] public float roundFadeSeconds = .45f;
+    [Min(.5f)] public float roundResultSeconds = 4f;
+    [Min(.05f)] public float roundFadeSeconds = 1.2f;
+    [Min(.1f)] public float roundSlowdownResponse = 2.2f;
     [Min(.1f)] public float statRevealSeconds = .85f;
     [Min(0f)] public float statPauseSeconds = .2f;
     [Min(1f)] public float statStartScale = 2.2f;
@@ -14,7 +15,7 @@ public sealed class BattleResultsTable : ScriptableObject
     public AnimationClip happyClip;
     [UnityEngine.Serialization.FormerlySerializedAs("shoulderCatScale")]
     [Min(.1f)] public float floatingCatScale = .7f;
-    [Min(0f)] public float floatingCatGap = .12f;
+    [Min(0f)] public float floatingCatGap = .04f;
     public float floatingCatHeight = .8f;
     [Range(128, 1024)] public int portraitResolution = 512;
     private static BattleResultsTable cached;

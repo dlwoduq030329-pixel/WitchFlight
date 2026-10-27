@@ -45,6 +45,8 @@ public sealed class CatTutorialDirector : MonoBehaviour
     private Vector2 petPointer;
     private float petOrbitPause, petStrokeTravel;
     private int petStrokeDirection, lastPetStroke;
+    private readonly Queue<float> recentPetStrokes = new();
+    private float nextYawnAt, petAllowedAt, scratchEndsAt;
     private string account;
     private AudioSource audioSource;
     private BattleAudio.Loop petPurr;
@@ -378,7 +380,7 @@ public sealed class CatTutorialDirector : MonoBehaviour
         var renderer = lobbyCharacter.GetComponentInChildren<Renderer>(); if (renderer != null) layer = renderer.gameObject.layer;
         avatar.SetLayer(layer);
         if (petting && !Input.GetMouseButton(0)) EndPetting();
-        if (petting) petOrbitPause += Time.unscaledDeltaTime;
+        if (petting || Time.unscaledTime < scratchEndsAt) petOrbitPause += Time.unscaledDeltaTime;
         float t = (Time.unscaledTime - petOrbitPause) * table.orbitSpeed;
         Vector3 offset = table.lobbyOffset + new Vector3(Mathf.Cos(t) * table.orbitRadius, Mathf.Sin(t * 2) * table.bobHeight, Mathf.Sin(t) * table.orbitRadius);
         offset.x += (1 - reveal) * .25f;
@@ -386,8 +388,9 @@ public sealed class CatTutorialDirector : MonoBehaviour
         avatar.transform.rotation = Quaternion.Euler(0, lobbyCamera.transform.eulerAngles.y + 180 + Mathf.Sin(t) * 15, Mathf.Sin(t * 1.5f) * 3);
         bool hasPointer = TryGetLobbyPointerRay(false, out Ray lookRay);
         avatar.FollowLobbyCursor(lobbyCamera, lookRay, hasPointer && !petting && reveal >= .99f);
+        UpdateLobbyIdle(reveal);
         if (petting) { UpdatePetting(); return; }
-        if (reveal < .99f || !Input.GetMouseButtonDown(0)) return;
+        if (reveal < .99f || Time.unscaledTime < petAllowedAt || !Input.GetMouseButtonDown(0)) return;
         if (!TryGetLobbyPointerRay(true, out Ray ray)) return;
         RawImage surface = lobbySurface;
         if (EventSystem.current != null)
@@ -431,6 +434,8 @@ public sealed class CatTutorialDirector : MonoBehaviour
 
     private void UpdatePetting()
     {
+        // Dragging outside the cat no longer counts as stroking it.
+        if (!TryGetLobbyPointerRay(true,out Ray ray) || !avatar.Intersects(ray)) { EndPetting(); return; }
         Vector2 pointer = Input.mousePosition;
         Vector2 delta = (pointer - petPointer) * (1080f / Mathf.Max(1, Screen.height));
         petPointer = pointer;
@@ -439,10 +444,41 @@ public sealed class CatTutorialDirector : MonoBehaviour
         if (direction != petStrokeDirection) { petStrokeDirection = direction; petStrokeTravel = 0; }
         petStrokeTravel += Mathf.Abs(delta.y);
         if (petStrokeTravel < 14 || direction == lastPetStroke || Time.unscaledTime < nextPetAt) return;
+        float now = Time.unscaledTime;
+        while (recentPetStrokes.Count > 0 && now - recentPetStrokes.Peek() > Mathf.Max(1f,table.petScratchWindowSeconds))
+            recentPetStrokes.Dequeue();
+        recentPetStrokes.Enqueue(now);
+        ScheduleYawn();
+        if (recentPetStrokes.Count >= Mathf.Max(1,table.petScratchStrokeCount))
+        {
+            EndPetting();
+            avatar.Play(CatAnimation.Scratch);
+            BattleAudio.Play(BattleSound.CatAnnoyed, local: true);
+            scratchEndsAt = now + Mathf.Max(.15f,table.GetAnimation(CatAnimation.Scratch)?.seconds ?? 1.8f);
+            petAllowedAt = Mathf.Max(scratchEndsAt,now + Mathf.Max(0f,table.petScratchCooldownSeconds));
+            recentPetStrokes.Clear();
+            return;
+        }
         avatar.Play(CatAnimation.Knead);
         if (!petPurrPlaying) { petPurr = BattleAudio.StartLoop(BattleSound.CatPetPurr, avatar.transform, true); petPurrPlaying = true; }
         petPurrUntil = Time.unscaledTime + 1f;
         lastPetStroke = direction; nextPetAt = Time.unscaledTime + .7f;
+    }
+
+    private void ScheduleYawn()
+    {
+        float min = Mathf.Max(3.2f,table.lobbyYawnInterval.x);
+        nextYawnAt = Time.unscaledTime + UnityEngine.Random.Range(min,Mathf.Max(min,table.lobbyYawnInterval.y));
+    }
+    private void UpdateLobbyIdle(float reveal)
+    {
+        if (nextYawnAt <= 0f) ScheduleYawn();
+        if (!Application.isFocused || reveal < .99f || petting || avatar.IsBusy || Time.unscaledTime < petAllowedAt) return;
+        if (Time.unscaledTime < nextYawnAt) return;
+        avatar.Play(CatAnimation.Yawn);
+        StopPetPurr();
+        BattleAudio.Play(BattleSound.CatYawn, local: true);
+        ScheduleYawn();
     }
 
     private void EndPetting()
@@ -509,6 +545,7 @@ public sealed class CatTutorialDirector : MonoBehaviour
     private void ResetLobbyReveal()
     {
         EndPetting();
+        recentPetStrokes.Clear(); nextYawnAt = petAllowedAt = scratchEndsAt = 0f;
         revealStarted = -1; sampledSurface = false; surfaceStableAt = Time.unscaledTime;
     }
 

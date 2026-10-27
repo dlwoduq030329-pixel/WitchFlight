@@ -3,6 +3,11 @@ using UnityEngine;
 
 public partial class Player
 {
+    public Vector3 SummonLaunchVelocity => (IsBound || IsHitStunned ? Vector3.zero : transform.forward * Speed) + KnockbackVelocity;
+    public float SummonFlightAcceleration => stageTransitionSpeed;
+    public float SummonFlightBraking => brakeSpeed;
+    public float SummonFlightTurnResponse => turnAccel;
+
     public bool TryGetMagicTarget(NetworkId id, out Player player, out MagicProjectile summon, out Vector3 point)
     {
         player = null; summon = null; point = default;

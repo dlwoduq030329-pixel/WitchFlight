@@ -10,7 +10,7 @@ public enum BattleSound
     Emote, KillNotice, FlagPickup, FlagDrop, MatchIntro, Countdown, RoundStart,
     RoundWin, RoundLose, MatchVictory, MatchDefeat, Binding, Slow, HitStun, Burn,
     WallCrash, UIClick, UIConfirm, UICancel, BodyRam, Cobra, HurtVoice, WaterEnter, WaterExit,
-    CatPetPurr, CatVictory, CatDefeat
+    CatPetPurr, CatVictory, CatDefeat, CatAnnoyed, CatYawn, DrowningWarning
 }
 
 public enum MagicSound { LockComplete, Cast, ProjectileLoop, Impact, ChannelLoop, ChannelEnd, FollowUp, AreaWarning, SummonAttack, EffectLoop }
@@ -73,6 +73,10 @@ public sealed class BattleAudioTable : ScriptableObject
     public BattleSoundCue catPetPurr = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .6f };
     public BattleSoundCue catVictory = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
     public BattleSoundCue catDefeat = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
+    public BattleSoundCue catAnnoyed = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
+    public BattleSoundCue catYawn = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
+    [Header("잠수 5초 경고 (수면 위에서는 중지)")]
+    public BattleSoundCue drowningWarning = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .65f };
     [Range(8, 128)] public int maxVoices = 48;
     [Header("Local flight speed sounds")]
     public AudioClip flightWindClip;
@@ -95,6 +99,9 @@ public sealed class BattleAudioTable : ScriptableObject
         if (sound == BattleSound.CatPetPurr) return catPetPurr;
         if (sound == BattleSound.CatVictory) return catVictory;
         if (sound == BattleSound.CatDefeat) return catDefeat;
+        if (sound == BattleSound.CatAnnoyed) return catAnnoyed;
+        if (sound == BattleSound.CatYawn) return catYawn;
+        if (sound == BattleSound.DrowningWarning) return drowningWarning;
         foreach (var entry in commonSounds)
             if (entry != null && entry.sound == sound) return entry.audio;
         return null;
