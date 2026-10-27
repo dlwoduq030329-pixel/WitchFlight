@@ -3,7 +3,7 @@ using UnityEngine;
 
 public enum ControlAction
 {
-    MagicSlot1, MagicSlot2, Parry, Boost, Accelerate, TurnLeft, TurnRight, LockOn, MagicUse
+    MagicSlot1, MagicSlot2, Parry, Boost, Accelerate, TurnLeft, TurnRight, LockOn, MagicUse, QuickBrake, Emote
 }
 
 // Local preferences only. Fusion receives the resulting actions, never another client's key map.
@@ -12,7 +12,7 @@ public static class ControlSettings
     private const string Prefix = "WitchFlight.Controls.v1.";
     private static readonly KeyCode[] defaults = {
         KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Mouse1, KeyCode.LeftShift,
-        KeyCode.W, KeyCode.A, KeyCode.D, KeyCode.Mouse0, KeyCode.Mouse0
+        KeyCode.W, KeyCode.A, KeyCode.D, KeyCode.Mouse0, KeyCode.Mouse0, KeyCode.Q, KeyCode.T
     };
     private static KeyCode[] keys;
     private static float sensitivity;
@@ -34,7 +34,21 @@ public static class ControlSettings
             KeyCode key = (KeyCode)PlayerPrefs.GetInt(Prefix + (ControlAction)i, (int)defaults[i]);
             if (IsAssignable(key)) keys[i] = Normalize(key);
         }
-        keys[(int)ControlAction.MagicUse] = keys[(int)ControlAction.LockOn];
+        keys[(int)ControlAction.MagicUse] = keys[(int)ControlAction.LockOn] = KeyCode.Mouse0;
+        // Older saves may already use Q for another action. Give only the new action
+        // an unused default instead of discarding the player's entire control setup.
+        for (int i = (int)ControlAction.QuickBrake; i <= (int)ControlAction.Emote; i++)
+        {
+            if (PlayerPrefs.GetInt(Prefix + (ControlAction)i, -1) >= 0) continue;
+            bool duplicate = false;
+            for (int j = 0; j < i; j++) duplicate |= keys[j] == keys[i];
+            if (!duplicate) continue;
+            foreach (var candidate in defaults)
+            {
+                if (candidate == KeyCode.Mouse0 || Array.IndexOf(keys, candidate) >= 0) continue;
+                keys[i] = candidate; break;
+            }
+        }
         // Corrupted/manual preference edits must not disable unrelated controls.
         if (!ValidBindings(keys)) keys = (KeyCode[])defaults.Clone();
     }
@@ -62,11 +76,24 @@ public static class ControlSettings
         Changed?.Invoke();
     }
 
+    public static void ResetToDefaults()
+    {
+        keys = (KeyCode[])defaults.Clone();
+        sensitivity = 50f;
+        for (int i = 0; i < keys.Length; i++)
+            PlayerPrefs.SetInt(Prefix + (ControlAction)i, (int)keys[i]);
+        PlayerPrefs.SetFloat(Prefix + "Sensitivity", sensitivity);
+        PlayerPrefs.Save();
+        Changed?.Invoke();
+    }
+
     public static bool TryRebind(ControlAction action, KeyCode requested, out string error)
     {
         EnsureLoaded();
         KeyCode key = Normalize(requested);
         error = "";
+        if (action == ControlAction.LockOn || action == ControlAction.MagicUse || key == KeyCode.Mouse0)
+        { error = "좌클릭 조준·발사는 고정입니다"; return false; }
         if (!IsAssignable(key)) { error = "예약된 키 · 다른 키 입력"; return false; }
         KeyCode old = keys[(int)action];
         var next = (KeyCode[])keys.Clone();
@@ -103,7 +130,7 @@ public static class ControlSettings
     {
         // These inputs still own fixed game/UI actions (deceleration, third slot, menus, perks, emotes).
         return Enum.IsDefined(typeof(KeyCode), key) && key != KeyCode.None && key < KeyCode.JoystickButton0 &&
-            key != KeyCode.Escape && key != KeyCode.Tab && key != KeyCode.Space && key != KeyCode.T &&
+            key != KeyCode.Escape && key != KeyCode.Tab && key != KeyCode.Space &&
             key != KeyCode.S && key != KeyCode.Alpha3;
     }
 

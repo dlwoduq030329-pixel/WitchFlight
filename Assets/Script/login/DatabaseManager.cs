@@ -37,6 +37,10 @@ public class DatabaseManager : MonoBehaviour
         public int magic1Index = (int)MagicType.Fire;
         public int magic2Index = (int)MagicType.Ice;
         public int playerprofile;
+        // Stable one-based IDs. Zero means this account has not received a cat yet.
+        public int catBodyIndex;
+        public int catEyeIndex;
+        public int catTutorialCompleted;
         public int hairStylePreset;
         public float bangsLength;
         public float bangsDirection = 0.5f;
@@ -86,6 +90,7 @@ public class DatabaseManager : MonoBehaviour
     private int dataSessionVersion;
     private readonly ConcurrentQueue<Action> saveCompletions = new ConcurrentQueue<Action>();
     public bool IsAutoSavePending => autoSaveDirty || autoSaveInFlight;
+    public string LoadedAccountId => HasLoadedProfile ? loadedUserInDate : string.Empty;
     public bool IsPlayerSettingLoaded { get; private set; }
     public bool IsDataConfigReady { get; private set; }
     public bool LastSaveSucceeded { get; private set; }
@@ -336,6 +341,7 @@ public class DatabaseManager : MonoBehaviour
         }
 
         PlayerSetting setting = ReadPlayerSetting(row);
+        if (!EnsureCatAppearanceSaved(setting)) return false;
 
 
         currentPlayerSetting =
@@ -380,6 +386,7 @@ public class DatabaseManager : MonoBehaviour
             playerprofile = Mathf.Max(0, defaults.playerprofile)
         };
         setting.SetPlayerConfig(defaults.GetPlayerConfig());
+        AssignMissingCatAppearance(setting);
 
         // Called only after a successful GetMyData returned an empty array.
         BackendReturnObject result = Backend.GameData.Insert(TABLE_NAME, CreateParam(setting));
@@ -617,6 +624,7 @@ public class DatabaseManager : MonoBehaviour
             setting.playerprofile = currentPlayerSetting.playerprofile;
             setting.magic1Index = currentPlayerSetting.magic1Index;
             setting.magic2Index = currentPlayerSetting.magic2Index;
+            setting.catTutorialCompleted = currentPlayerSetting.catTutorialCompleted;
         }
 
 
@@ -732,6 +740,9 @@ public class DatabaseManager : MonoBehaviour
         );
         PlayerConfig config = setting.GetPlayerConfig();
         param.Add("playerprofile", setting.playerprofile);
+        param.Add("catBodyIndex", setting.catBodyIndex);
+        param.Add("catEyeIndex", setting.catEyeIndex);
+        param.Add("catTutorialCompleted", setting.catTutorialCompleted);
         param.Add("hairStylePreset", config.hairStylePreset);
         param.Add("bangsLength", config.bangsLength);
         param.Add("bangsDirection", config.bangsDirection);
@@ -740,7 +751,7 @@ public class DatabaseManager : MonoBehaviour
         param.Add("hairColor", "#" + ColorUtility.ToHtmlStringRGBA(config.hairColor));
         param.Add("clothColor", "#" + ColorUtility.ToHtmlStringRGBA(config.clothColor));
         param.Add("eyeColor", "#" + ColorUtility.ToHtmlStringRGBA(config.eyeColor));
-        // Wand appearance is not persisted; the current 14-column schema omits wandIndex.
+        // Wand appearance is not persisted; the account schema omits wandIndex.
         // Schema-defined LoginPlayerData stores bangsLength only. ReadPlayerSetting
         // still accepts legacy hairLength rows, but new writes must not require that column.
 
@@ -775,6 +786,11 @@ public class DatabaseManager : MonoBehaviour
             DataConfig.magic2Index;
         setting.SetPlayerConfig(DataConfig.GetPlayerConfig());
         setting.playerprofile = Mathf.Max(0, DataConfig.playerprofile);
+        // Cosmetic UI / nickname saves must never reroll or clear the account's cat.
+        setting.catBodyIndex = currentPlayerSetting?.catBodyIndex ?? 0;
+        setting.catEyeIndex = currentPlayerSetting?.catEyeIndex ?? 0;
+        setting.catTutorialCompleted = DataConfig.catTutorialCompleted;
+        AssignMissingCatAppearance(setting);
         setting.magic1Index = NormalizeMagicIndex(setting.magic1Index, (int)MagicType.Fire);
         setting.magic2Index = NormalizeMagicIndex(setting.magic2Index, (int)MagicType.Ice);
 
@@ -803,6 +819,9 @@ public class DatabaseManager : MonoBehaviour
             magic1Index = NormalizeMagicIndex(ReadInt(row, "magic1Index", (int)MagicType.Fire), (int)MagicType.Fire),
             magic2Index = NormalizeMagicIndex(ReadInt(row, "magic2Index", (int)MagicType.Ice), (int)MagicType.Ice),
             playerprofile = Mathf.Max(0, ReadInt(row, "playerprofile", 0)),
+            catBodyIndex = ReadInt(row, "catBodyIndex", 0),
+            catEyeIndex = ReadInt(row, "catEyeIndex", 0),
+            catTutorialCompleted = ReadInt(row, "catTutorialCompleted", 0) == 1 ? 1 : 0,
             hairStylePreset = ReadInt(row, "hairStylePreset", 0),
             bangsLength = ReadFloat(row, "bangsLength", ReadFloat(row, "hairLength", 0f)),
             bangsDirection = ReadFloat(row, "bangsDirection", 0.5f),
@@ -817,10 +836,47 @@ public class DatabaseManager : MonoBehaviour
         return setting;
     }
 
+    public bool TryGetCatAppearance(out int bodyIndex, out int eyeIndex)
+    {
+        bodyIndex = eyeIndex = 0;
+        if (!HasLoadedProfile || !IsDataConfigReady) return false;
+        bodyIndex = currentPlayerSetting.catBodyIndex;
+        eyeIndex = currentPlayerSetting.catEyeIndex;
+        return bodyIndex >= 1 && bodyIndex <= 7 && eyeIndex >= 1 && eyeIndex <= 3;
+    }
+
+    private static void AssignMissingCatAppearance(PlayerSetting setting)
+    {
+        // Random-looking allocation from the unique account ID, stable across failed
+        // saves, retries and concurrent first logins. Never depend on device prefs.
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        byte[] hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes("WitchCat/v1/" + Backend.UserInDate));
+        if (setting.catBodyIndex < 1 || setting.catBodyIndex > 7)
+            setting.catBodyIndex = 1 + ((hash[0] << 8) | hash[1]) % 7;
+        if (setting.catEyeIndex < 1 || setting.catEyeIndex > 3)
+            setting.catEyeIndex = 1 + ((hash[2] << 8) | hash[3]) % 3;
+    }
+
+    private bool EnsureCatAppearanceSaved(PlayerSetting setting)
+    {
+        if (setting.catBodyIndex >= 1 && setting.catBodyIndex <= 7 &&
+            setting.catEyeIndex >= 1 && setting.catEyeIndex <= 3) return true;
+        AssignMissingCatAppearance(setting);
+        // Migrate old accounts by updating only the new fields, not their equipment.
+        var param = new Param();
+        param.Add("catBodyIndex", setting.catBodyIndex);
+        param.Add("catEyeIndex", setting.catEyeIndex);
+        var result = Backend.GameData.UpdateV2(TABLE_NAME, currentPlayerSettingInDate, Backend.UserInDate, param);
+        if (!result.IsSuccess())
+            return Fail($"고양이 외형 저장 실패. LoginPlayerData의 catBodyIndex, catEyeIndex 컬럼을 확인해주세요: {result.GetMessage()}");
+        return true;
+    }
+
     private static void ApplyToDataConfig(PlayerSetting setting)
     {
         using var batch = DataConfig.BeginChangeBatch(false);
         DataConfig.ApplyPlayerConfig(setting.GetPlayerConfig());
+        DataConfig.catTutorialCompleted = setting.catTutorialCompleted;
         // Reuse the existing backend column; no duplicate playerName column is needed.
         DataConfig.playerName = (setting.nickname ?? string.Empty).Trim();
         DataConfig.playerprofile = setting.playerprofile;

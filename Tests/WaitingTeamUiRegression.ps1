@@ -20,7 +20,7 @@ public class GameObject {public bool activeSelf=true;public void SetActive(bool 
 public class Image {public int Profile=-1;}
 public class TMP_Text {public string text;public bool richText=true;}
 public class NetworkObject {public PlayerRef InputAuthority;}
-public class PlayerData {public NetworkObject Object=new();public bool IsRoomOwner,Ready=true;public int teamIndex,playerprofile;public string playerName;}
+public class PlayerData {public PlayerRef ParticipantRef=>Object.InputAuthority;public NetworkObject Object=new();public bool IsRoomOwner,Ready=true;public int teamIndex,playerprofile;public string playerName;}
 public class NetworkRunner {public PlayerRef LocalPlayer;public Info SessionInfo=new();public class Info {public string Name="1234";}}
 public class NetworkGameManager {public bool IsWaitingInCodeRoom=true;public int RequiredPlayerCount=4;}
 public class WaitingRoomSlot {

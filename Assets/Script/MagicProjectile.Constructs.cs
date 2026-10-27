@@ -178,7 +178,7 @@ public sealed partial class MagicProjectile
         }
         else
         {
-            if (summonVisual == null) summonVisual = MagicSummonVisual.Create(PresentationStats, transform, SummonAttackSequence);
+            if (summonVisual == null) summonVisual = MagicSummonVisual.Create(PresentationStats, transform, SummonAttackSequence, this);
             // Render is read-only. FindTarget clears invalid IDs and is simulation-only.
             Player target = Runner.TryFindObject(TargetId,out NetworkObject targetObject) && targetObject != null
                 ? targetObject.GetComponent<Player>() : null;

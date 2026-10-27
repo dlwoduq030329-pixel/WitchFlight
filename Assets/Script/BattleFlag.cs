@@ -3,12 +3,15 @@ using Fusion;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission, MapTour }
+public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission, MapTour, TrainingTutorial, RoundResult }
 
 // One existing network flag owns the replicated match clock, carrier and result.
-public class BattleFlag : NetworkBehaviour, IAfterRender
+public partial class BattleFlag : NetworkBehaviour, IAfterRender
 {
     [SerializeField, Min(0.1f)] private float pickupRadius = 0.85f;
+    public float PickupRadius => pickupRadius;
+    [Tooltip("드롭된 깃발과 맵 벽 사이에 확보할 공간입니다.")]
+    [SerializeField, Min(.1f)] private float dropClearance = 1.2f;
     [SerializeField] private Vector3 carryOffset = new Vector3(0f, 1.3f, -0.5f);
     [Header("Carried flag appearance (pickup radius stays unchanged)")]
     [Tooltip("깃발 모델을 묶은 자식 Transform입니다. NetworkObject 루트가 아닌 모델 전용 자식을 연결하세요.")]
@@ -78,10 +81,12 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
 
     private readonly Dictionary<PlayerRef, PositionSample> previousPositions = new();
     private readonly RaycastHit[] obstacleHits = new RaycastHit[32];
+    private readonly Collider[] dropObstacles = new Collider[64];
+    private SphereCollider dropProbe;
     private PropertyReader<Vector3> worldPositionReader;
     private PropertyReader<NetworkId> carrierIdReader;
     public static BattleFlag Instance { get; private set; }
-    // Shared by predicted movement and authority-only XP. LastCarrier is only a victory rule.
+    // Shared by predicted movement and authority-only XP. Only the current holder counts.
     public bool IsCarriedBy(NetworkRunner runner, PlayerRef player)
     {
         return Object != null && Object.IsValid && Runner == runner &&
@@ -159,7 +164,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority)
             return;
         readyPlayers.Remove(playerRef);
-        if (Phase == BattleStartPhase.Intro || Phase == BattleStartPhase.MapTour || Phase == BattleStartPhase.Countdown)
+        if (Phase == BattleStartPhase.Intro || Phase == BattleStartPhase.MapTour || Phase == BattleStartPhase.Countdown || Phase == BattleStartPhase.TrainingTutorial)
             ResetPreparation();
     }
 
@@ -209,6 +214,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             PhaseTimer = TickTimer.CreateFromSeconds(Runner,
                 training ? (playTour ? TourDuration : 3f) : introSeconds);
             if (Phase == BattleStartPhase.MapTour) mapTourStarted = true;
+            if (training && !playTour) BeginTrainingGuideOrCountdown();
         }
         else if (Phase == BattleStartPhase.Intro && PhaseTimer.Expired(Runner))
         {
@@ -219,6 +225,10 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         }
         else if (Phase == BattleStartPhase.MapTour && PhaseTimer.Expired(Runner))
         {
+            BeginTrainingGuideOrCountdown();
+        }
+        else if (Phase == BattleStartPhase.TrainingTutorial && !CatTutorialDirector.TrainingGuideRequired)
+        {
             Phase = BattleStartPhase.Countdown;
             PhaseTimer = TickTimer.CreateFromSeconds(Runner, 3f);
         }
@@ -226,6 +236,14 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         {
             BeginMatch(WorldPosition, matchSeconds);
         }
+    }
+
+    private void BeginTrainingGuideOrCountdown()
+    {
+        bool guide = BattleManager.Instance != null && BattleManager.Instance.IsTraining &&
+            CatTutorialDirector.TrainingGuideRequired;
+        Phase = guide ? BattleStartPhase.TrainingTutorial : BattleStartPhase.Countdown;
+        PhaseTimer = guide ? TickTimer.None : TickTimer.CreateFromSeconds(Runner, 3f);
     }
 
     private void BeginMatch(Vector3 position, float durationSeconds)
@@ -254,6 +272,16 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
     {
         if (!Object.HasStateAuthority || !IsPrepared || HasEnded)
             return;
+        if (Phase == BattleStartPhase.RoundResult)
+        {
+            if (PhaseTimer.Expired(Runner))
+            {
+                Phase = BattleStartPhase.Intermission;
+                PhaseTimer = TickTimer.CreateFromSeconds(Runner, magicChangeSeconds);
+                BattleManager.Instance?.BeginMagicChange();
+            }
+            return;
+        }
         if (Phase == BattleStartPhase.Intermission)
         {
             if (PhaseTimer.Expired(Runner)) PrepareNextRound();
@@ -265,17 +293,6 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             return;
         }
         bool training = BattleManager.Instance != null && BattleManager.Instance.IsTraining;
-        if (!training && MatchTimer.Expired(Runner))
-        {
-            if (LastCarrierTeam == 1 || LastCarrierTeam == 2)
-            {
-                FinishRound(LastCarrierTeam);
-                return;
-            }
-            // No draw rounds: after an unclaimed flag timer expires, the first pickup wins.
-            IsOvertime = true;
-        }
-
         BattleManager.Instance?.TickRespawns();
         if (Carrier != PlayerRef.None)
         {
@@ -289,7 +306,15 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         UpdateDescent();
         CheckPickupAndRecordPositions();
         transform.position = WorldPosition;
-        if (!training && IsOvertime && LastCarrierTeam > 0) FinishRound(LastCarrierTeam);
+        // Resolve death/drop and pickups before the deadline decision. A past owner
+        // never wins while the flag is free, including while it is falling.
+        if (!training && (IsOvertime || MatchTimer.Expired(Runner)))
+        {
+            Player current = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
+            if (current != null && current.IsAlive && (current.TeamIndex == 1 || current.TeamIndex == 2))
+                FinishRound(current.TeamIndex);
+            else IsOvertime = true;
+        }
     }
 
     private void FinishRound(int team)
@@ -310,9 +335,8 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
             EndSeries(team);
             return;
         }
-        Phase = BattleStartPhase.Intermission;
-        PhaseTimer = TickTimer.CreateFromSeconds(Runner, magicChangeSeconds);
-        BattleManager.Instance?.BeginMagicChange();
+        Phase = BattleStartPhase.RoundResult;
+        PhaseTimer = TickTimer.CreateFromSeconds(Runner, BattleResultsTable.Default.roundResultSeconds);
     }
 
     private void PrepareNextRound()
@@ -351,6 +375,7 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
 
     private void EndSeries(int team)
     {
+        SelectMatchAwards();
         WinningTeam = team;
         HasEnded = true;
         Phase = BattleStartPhase.Ended;
@@ -391,17 +416,17 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         DroppedBy = playerRef;
         DroppedPickupTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f,
             FlightCombatTable.Default != null ? FlightCombatTable.Default.droppedFlagOwnerDelay : 1.2f));
-        WorldPosition = position;
+        WorldPosition = ResolveDropPosition(position);
         Carrier = PlayerRef.None;
         CarrierObjectId = default;
         IsDescending = descend;
         if (descend)
         {
-            fallStopHeight = Mathf.Min(initialFlagHeight, position.y);
+            fallStopHeight = Mathf.Min(initialFlagHeight, WorldPosition.y);
             MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
             fallSpeed = Mathf.Max(0.1f, table != null ? table.flagFallSpeed : 5f);
         }
-        // Keep LastCarrier/LastCarrierTeam: the rule is the last holder, even if the flag is dropped.
+        // Retain history for presentation only; it no longer decides a round winner.
         previousPositions.Clear();
     }
 
@@ -412,20 +437,91 @@ public class BattleFlag : NetworkBehaviour, IAfterRender
         float step = fallSpeed * Runner.DeltaTime;
         float stopHeight = fallStopHeight;
         // Stop above solid scenery, ignoring flag triggers and player colliders.
-        RaycastHit[] hits = GetObstacleHits(WorldPosition, Vector3.down, step + pickupRadius, out int count);
+        float clearance = Mathf.Max(pickupRadius, dropClearance);
+        int count = Runner.GetPhysicsScene().SphereCast(WorldPosition, clearance, Vector3.down,
+            obstacleHits, step + .05f, ~0, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = obstacleHits;
+        if (count == obstacleHits.Length) { IsDescending = false; return; }
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = hits[i];
-            if (hit.collider == null || hit.transform.IsChildOf(transform) ||
-                hit.collider.GetComponentInParent<Player>() != null)
-                continue;
-            stopHeight = Mathf.Max(stopHeight, Mathf.Min(WorldPosition.y, hit.point.y + pickupRadius));
+            if (!IsDropScenery(hit.collider)) continue;
+            stopHeight = Mathf.Max(stopHeight, WorldPosition.y - Mathf.Max(0f, hit.distance - .05f));
         }
         Vector3 position = WorldPosition;
         position.y = Mathf.Max(stopHeight, position.y - step);
         WorldPosition = position;
         if (position.y <= stopHeight)
             IsDescending = false;
+    }
+
+    private bool IsDropScenery(Collider hit) => hit != null && !hit.isTrigger &&
+        !hit.transform.IsChildOf(transform) && hit.GetComponentInParent<Player>() == null &&
+        hit.GetComponentInParent<MagicProjectile>() == null && hit.GetComponentInParent<BattleItemPickup>() == null;
+
+    private bool DropPointClear(Vector3 point, float radius)
+    {
+        int count = Runner.GetPhysicsScene().OverlapSphere(point, radius, dropObstacles, ~0, QueryTriggerInteraction.Ignore);
+        if (count == dropObstacles.Length) return false;
+        for (int i = 0; i < count; i++) if (IsDropScenery(dropObstacles[i])) return false;
+        return true;
+    }
+
+    private Vector3 ResolveDropPosition(Vector3 requested)
+    {
+        float radius = Mathf.Max(pickupRadius, dropClearance);
+        Player holder = GetCarrierPlayer();
+        Vector3 anchor = holder != null ? holder.LockAimPoint : requested;
+        // The pilot's capsule is the safe side of the wall. Start there rather
+        // than at an animated/offset flag model that may already cross the wall.
+        if (holder != null) GetCapsule(holder, out anchor, out _, out _);
+        if (dropProbe == null)
+        {
+            var probeObject = new GameObject("Flag drop clearance probe");
+            probeObject.transform.SetParent(transform, false);
+            dropProbe = probeObject.AddComponent<SphereCollider>();
+            dropProbe.enabled = false; dropProbe.isTrigger = true;
+        }
+        // ComputePenetration uses the collider shape scale even with explicit poses.
+        dropProbe.transform.localScale = new Vector3(
+            1f / Mathf.Max(.0001f, Mathf.Abs(transform.lossyScale.x)),
+            1f / Mathf.Max(.0001f, Mathf.Abs(transform.lossyScale.y)),
+            1f / Mathf.Max(.0001f, Mathf.Abs(transform.lossyScale.z)));
+        dropProbe.radius = radius;
+        Vector3 point = anchor;
+        for (int pass = 0; pass < 12; pass++)
+        {
+            if (DropPointClear(point, radius)) return point;
+            int count = Runner.GetPhysicsScene().OverlapSphere(point, radius, dropObstacles, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                Collider wall = dropObstacles[i];
+                if (!IsDropScenery(wall)) continue;
+                if (Physics.ComputePenetration(dropProbe, point, Quaternion.identity, wall,
+                    wall.transform.position, wall.transform.rotation, out Vector3 normal, out float depth))
+                    point += normal * (depth + .06f);
+            }
+        }
+        // Deep concave mesh interiors can have no penetration normal. Search
+        // nearby clear points without crossing a wall from the capsule center.
+        for (float distance = radius; distance <= 16f; distance *= 2f)
+            for (int y = -1; y <= 1; y++)
+                for (int yaw = 0; yaw < 360; yaw += 45)
+                {
+                    Vector3 direction = (Quaternion.Euler(0, yaw, 0) * Vector3.forward + Vector3.up * y).normalized;
+                    Vector3 candidate = anchor + direction * distance;
+                    if (!DropPointClear(candidate, radius)) continue;
+                    int count = Runner.GetPhysicsScene().Raycast(anchor, direction, obstacleHits, distance, ~0, QueryTriggerInteraction.Ignore);
+                    bool blocked = count == obstacleHits.Length;
+                    for (int i = 0; i < count; i++) blocked |= IsDropScenery(obstacleHits[i].collider);
+                    if (!blocked) return candidate;
+                }
+        // An invalid/deeply embedded pilot must not make the objective unrecoverable.
+        point = roundFlagPosition;
+        for (int i = 0; i < 32; i++, point += Vector3.up * radius * 2f)
+            if (DropPointClear(point, radius)) return point;
+        Debug.LogWarning("No clear flag drop point near the pilot or flag spawn; check map colliders.", this);
+        return roundFlagPosition;
     }
 
     private void CheckPickupAndRecordPositions()

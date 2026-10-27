@@ -1,0 +1,655 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 271d0c6264084a7c9be196f9cdbfbeb7, type: 3}
+  m_Name: CatCompanionTable
+  m_EditorClassIdentifier:
+  catPrefab: {fileID: 2466759643076185548, guid: 7f9096ba70eb4764c8fb1b00535460c2, type: 3}
+  paperAirplanePrefab: {fileID: 6017417974894778097, guid: 810e7f1c1002ac44c9a41caab9101ec2, type: 3}
+  tutorialPrefab: {fileID: 4614782080702164151, guid: 19c7c37a63078d548abc10d298ce5085, type: 3}
+  useCatForSummon: 1
+  catNames:
+  - 쿠로 먀녀
+  - 치즈 먀녀
+  - 먼지 먀녀
+  - 자반 먀녀
+  - 고등어 먀녀
+  - 턱시도 먀녀
+  - 시로 먀녀
+  catHeight: 0.42
+  catEuler: {x: 0, y: 0, z: 0}
+  planeScale: {x: 0.45, y: 0.45, z: 0.45}
+  catSeatOffset: {x: 0, y: 0.003, z: -0.05}
+  broomSeatOffset: {x: 0, y: 0.18, z: -0.75}
+  broomSeatEuler: {x: 0, y: 0, z: 0}
+  autoBroomSeat: 1
+  broomRearSeatRatio: 0.22
+  broomSurfaceOffset: {x: 0, y: 0.003, z: 0}
+  allyColor: {r: 0.1, g: 0.4, b: 1, a: 1}
+  enemyColor: {r: 1, g: 0.08, b: 0.12, a: 1}
+  summonOutlineWidth: 4
+  summonHaloSize: 0.85
+  summonHaloAlpha: 0.65
+  summonHealthBarSize: {x: 0.65, y: 0.055}
+  summonHealthBarOffset: 0.12
+  vsCatOffset: {x: 0.48, y: -0.3, z: 0.12}
+  vsCharacterGap: 0.15
+  vsMinimumHalfHeight: 0.85
+  lobbyOffset: {x: 0.85, y: 0.85, z: 0}
+  orbitRadius: 0.22
+  orbitSpeed: 0.35
+  bobHeight: 0.08
+  lobbyReturnStableSeconds: 0.15
+  lobbyRevealSeconds: 0.45
+  lobbyFollowCursor: 1
+  lobbyHeadYaw: 35
+  lobbyHeadPitch: 22
+  lobbyLookResponse: 7
+  portraitStagePosition: {x: 10000, y: 10000, z: 10000}
+  portraitCameraOffset: {x: 0.65, y: 0.5, z: 1.3}
+  portraitCameraSize: 0.42
+  portraitResolution: 512
+  highlightColor: {r: 1, g: 0.8, b: 0.16, a: 1}
+  highlightPadding: {x: 14, y: 14}
+  highlightSound: {fileID: 0}
+  highlightPulseSeconds: 0.8
+  summonBoardingSeconds: 0.7
+  summonJumpHeight: 0.65
+  animations:
+  - animation: 0
+    stateName: cat - standing idle
+    seconds: 3
+  - animation: 1
+    stateName: cat - sitting idle
+    seconds: 3
+  - animation: 2
+    stateName: cat - loaf
+    seconds: 1
+  - animation: 3
+    stateName: cat - standing
+    seconds: 1
+  - animation: 4
+    stateName: cat - walk
+    seconds: 1
+  - animation: 5
+    stateName: cat - run
+    seconds: 1
+  - animation: 6
+    stateName: cat - jump
+    seconds: 1.2
+  - animation: 7
+    stateName: cat - scratch
+    seconds: 1.8
+  - animation: 8
+    stateName: cat - punch
+    seconds: 0.8
+  - animation: 9
+    stateName: cat - grooming
+    seconds: 3.8
+  - animation: 10
+    stateName: cat - knead
+    seconds: 2.4
+  - animation: 11
+    stateName: cat - cheer
+    seconds: 2.4
+  tutorial:
+  - id: greeting
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 3
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "새로운 집사… 어? 마녀였냥? 아무튼 반갑다옹~"
+    - "새로운 집사… 아니, 마녀가 왔구나냥~ 환영한다냥!"
+    - "새로운 마녀네. 딱히 기다린 건 아니다옹… 들어오라냥."
+    - "새로운… 누구였지냥… 아, 마녀다옹. 잘 왔다냥~"
+    - "새로운 집사… 아니 마녀다냥! 반갑다냥, 냥냥~♡"
+    - "새로 오신 마녀님이시군요. 마법 학교에 오신 것을 환영한다냥."
+    - "새로운 마녀로구나냥! 이 몸을 만나다니 운이 좋다옹~"
+  - id: introduction
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 1.3
+    personalityLines:
+    - "너에게 배정된 선배 마녀다옹! 길은… 아마 알고 있다냥!"
+    - "나는 너에게 배정된 선배 마녀다옹. 차근차근 도와주겠다냥~"
+    - "네 안내를 맡은 선배 마녀다옹. 헤매면 곤란하니까 알려주는 거다냥."
+    - "난 네 선배… 먀녀… 마녀다옹. 잠깐 딴생각했다냥."
+    - "너만의 선배 마녀다옹~ 우리 금방 친해질 것 같다냥♡"
+    - "저는 마녀님의 안내를 맡은 선배 마녀다옹. 잘 부탁드린다냥."
+    - "너에게 배정된 선배 마녀, 바로 이 몸이다옹! 영광으로 알라냥~"
+  - id: wardrobe
+    highlight: 1
+    waitForTargetClick: 1
+    animation: 3
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "저 옷장으로 가라냥! 보답은 츄르… 두 개였나냥? 옷장을 눌러보라냥!"
+    - "따라오라냥! 빛나는 옷장을 눌러보라냥. 보답은 츄르로 받겠다냥~"
+    - "옷장부터 눌러보라냥. 안내비는 츄르면 충분하다옹… 특별히 봐주는 거다냥."
+    - "따라오라냥… 츄르 생각은 나중에 하고. 빛나는 옷장을 누르라냥."
+    - "반짝반짝 옷장을 콕 눌러보라냥~ 보답은 츄르랑 쓰담쓰담이다냥♡"
+    - "먼저 표시된 옷장을 눌러주시겠냥? 사례는 츄르 한 개면 충분하다옹."
+    - "이 몸을 따라 옷장을 열어보라냥! 보답으로 최고급 츄르를 준비하라옹~"
+  - id: dorm
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "여기가 네 기숙사다냥! 침대는… 옷장 안에 없겠지냥?"
+    - "이곳은 너의 기숙사다냥~ 편하게 쉬고 꾸미는 곳이다옹."
+    - "네 기숙사다냥. 정리는 스스로 하라옹… 필요하면 조금은 도와주겠다냥."
+    - "이곳은 너의 기숙사… 햇볕이 좋아서 잠이 온다옹…"
+    - "여기가 네 기숙사다냥~ 아늑하다옹, 나도 놀러 와도 되냥?♡"
+    - "이곳이 마녀님의 기숙사다옹. 편안하게 이용하시라냥."
+    - "네 기숙사다냥. 이 몸의 궁전만큼은 아니지만 제법이다옹~"
+  - id: free_style
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 9
+    dreamyPauseSeconds: 1.5
+    personalityLines:
+    - "옷이랑 미용실은 공짜다냥! 공짜면 츄르도… 아, 그건 아니다옹."
+    - "마녀들에게 의상과 미용실은 공짜다옹. 부담 없이 마음껏 꾸며보라냥~"
+    - "의상과 미용실은 공짜다옹. 네가 잘 어울리게 꾸미든 말든… 기대는 안 한다냥."
+    - "의상과 미용실은… 음… 맞다, 공짜다옹. 마음껏 꾸며보라냥."
+    - "옷도 머리도 마음껏 꾸며보라냥! 전부 공짜라니 신난다옹~♡"
+    - "의상과 미용실은 무료로 제공된다옹. 취향에 맞게 천천히 골라보시라냥."
+    - "의상과 미용실은 공짜다옹! 이 몸 곁에 설 테니 멋지게 꾸며보라냥~"
+  - id: weapon_tab
+    highlight: 2
+    waitForTargetClick: 1
+    animation: 3
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "멋있어졌으면 위쪽 무기 탭을 눌러보라냥. 빗은 무기가 아니었냥…?"
+    - "꾸미기는 언제든 다시 할 수 있다냥. 이번엔 위쪽 무기 탭을 눌러보라냥~"
+    - "꾸미기는 나중에도 할 수 있다옹. 이제 위쪽 무기 탭을 눌러라냥."
+    - "위쪽… 어느 쪽이었지… 아, 반짝이는 무기 탭을 눌러보라냥."
+    - "이번엔 위쪽 무기 탭을 콕! 멋진 지팡이를 구경하자냥~♡"
+    - "이제 상단의 무기 탭을 선택해주시겠냥?"
+    - "꾸미기는 계속할 수 있다옹. 이제 위쪽 무기 탭을 열어보라냥!"
+  - id: wands
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 3
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "다양한 마법 지팡이가 있다옹! 전부 츄르 막대기는 아니라냥."
+    - "다양한 마법 지팡이가 있다옹. 네 마음에 드는 마법을 찾아보라냥~"
+    - "마법 지팡이는 종류가 많다옹. 겉모습만 보지 말고 설명도 읽으라냥."
+    - "여러 가지 지팡이가… 반짝인다냥… 아, 마법도 살펴보라냥."
+    - "예쁜 마법 지팡이가 가득하다냥~ 어떤 게 네 마음에 쏙 드냥?♡"
+    - "다양한 마법 지팡이가 마련되어 있다옹. 설명을 비교하며 살펴보시라냥."
+    - "지팡이가 다양하다옹. 이 몸의 품격에 어울릴 만한 걸 찾아보라냥~"
+  - id: equip_and_back
+    highlight: 3
+    waitForTargetClick: 1
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "무기를 장착해 보는 건 어떻냐옹? 다 봤으면 반짝이는 뒤로가기를 누르라냥!"
+    - "원하는 무기를 장착해보라냥. 준비되면 표시된 뒤로가기를 누르면 된다옹~"
+    - "무기도 장착해보라냥. 다 봤으면 뒤로가기를 눌러라옹. 기다려줄 테니까."
+    - "장착도 해보고… 나는 잠깐… 아, 다 됐으면 뒤로가기를 누르라냥."
+    - "마음에 드는 무기를 장착해보라냥♡ 다 됐으면 뒤로가기 콕이다옹!"
+    - "무기를 장착해보시라냥. 살펴보신 뒤 표시된 뒤로가기로 돌아가면 된다옹."
+    - "무기를 골라 장착해보라냥! 구경이 끝났다면 뒤로가기를 누르라옹~"
+  - id: battle_menu
+    highlight: 4
+    waitForTargetClick: 1
+    animation: 6
+    dreamyPauseSeconds: 1.2
+    personalityLines:
+    - "다음은 전투다냥! 전투 버튼은 저기다옹. 이번엔 길 안 잃었다냥!"
+    - "따라오라냥~ 이번엔 전투를 알려주겠다옹. 전투 버튼을 눌러보라냥!"
+    - "이제 전투를 알려주겠다옹. 다치지 않게 설명은 잘 들으라냥… 전투 버튼이다옹."
+    - "이번엔… 뭐였더라… 전투다냥! 반짝이는 전투 버튼을 누르라냥."
+    - "이번엔 함께 전투를 알아보자냥~ 반짝이는 전투 버튼을 콕 눌러보라냥♡"
+    - "다음으로 전투 메뉴를 안내하겠다옹. 표시된 전투 버튼을 선택해주시라냥."
+    - "이번엔 전투를 배울 차례다냥! 이 몸의 안내를 따라 전투 버튼을 누르라옹!"
+  - id: training
+    highlight: 5
+    waitForTargetClick: 0
+    animation: 8
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "훈련장에선 마법 로봇과 대련할 수 있다냥! 먼저 여기서 연습하라옹. 나도 가끔 헛손질한다냥."
+    - "훈련장에서는 마법 로봇과 대련하며 연습할 수 있다냥. 가장 먼저 시험해보길 추천한다옹~"
+    - "훈련장에서 마법 로봇과 먼저 연습하라냥. 네가 걱정돼서 하는 말은… 조금 맞다옹."
+    - "로봇과 연습하는 훈련장이다냥… 로봇은 졸지 않겠지냥? 처음엔 여기부터 해보라옹."
+    - "훈련장에서 마법 로봇과 연습해보라냥~ 처음엔 여기부터! 내가 응원한다옹♡"
+    - "훈련장에서는 마법 로봇을 상대로 실력을 익힐 수 있다옹. 먼저 연습해보시길 권한다냥."
+    - "훈련장에서 로봇과 연습하라냥! 이 몸의 제자라면 기본기부터 갖춰야 한다옹~"
+  - id: create_room
+    highlight: 6
+    waitForTargetClick: 0
+    animation: 3
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "여기서는 방을 만들어 다른 마녀와 겨룬다냥! 방 청소는… 그 방이 아니냥?"
+    - "방을 만들면 다른 마녀와 실력을 겨룰 수 있다옹. 친구와 함께해도 좋다냥~"
+    - "직접 방을 만들어 다른 마녀와 겨룰 수도 있다옹. 연습한 걸 보여주라냥."
+    - "방 만들기… 낮잠 방 말고 대전 방이다냥. 다른 마녀와 실력을 겨뤄보라옹."
+    - "방을 만들어 친구 마녀와 대결해보라냥~ 함께하면 더 즐겁다옹♡"
+    - "방을 생성하여 다른 마녀와 대결하실 수 있다옹."
+    - "네 방을 만들어 다른 마녀를 초대하라냥! 멋진 승부를 보여주라옹~"
+  - id: bot_rooms
+    highlight: 6
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "로봇 마녀도 준비되어 있다냥! 진짜 마녀랑 헷갈릴지도… 다양한 마법으로 연습하라옹."
+    - "로봇 마녀들과 겨루는 모드도 있다냥. 다양한 마법을 사용하며 실력을 키워보라옹~"
+    - "로봇 마녀와도 대전할 수 있다옹. 여러 마법을 써보고 네 방식을 찾으라냥."
+    - "로봇 마녀도 있다옹… 어, 아까 로봇이랑 다르냐냥? 여러 마법을 시험해보라옹."
+    - "로봇 마녀도 기다리고 있다냥! 여러 마법을 써보면서 쑥쑥 성장하라옹♡"
+    - "로봇 마녀와 대련하는 모드도 준비되어 있다옹. 여러 마법의 운용을 익혀보시라냥."
+    - "로봇 마녀도 상대해주겠다냥! 다양한 마법을 익혀 이 몸을 빛내주라옹~"
+  - id: random_match
+    highlight: 7
+    waitForTargetClick: 0
+    animation: 3
+    dreamyPauseSeconds: 1.3
+    personalityLines:
+    - "무작위 매칭은 처음 보는 마녀를 만나는 곳이다냥! 츄르 나눔회는 아니다옹."
+    - "무작위 매칭에서는 새로운 마녀들을 만나 실력을 겨뤄볼 수 있다옹."
+    - "무작위 매칭은 모르는 마녀와 겨루는 곳이다옹. 상대가 만만할 거라 생각하지 마라냥."
+    - "무작위 마녀를 만나… 뭐 했더라… 맞다, 실력을 겨루는 곳이다냥."
+    - "무작위 매칭에서는 새로운 마녀를 만난다냥~ 두근두근 승부다옹♡"
+    - "무작위 매칭에서는 다른 마녀들과 실력을 겨루게 된다옹."
+    - "무작위 매칭에서 이름을 떨쳐보라냥! 다양한 마녀와 승부하는 곳이다옹~"
+  - id: random_warning
+    highlight: 7
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "초보 마녀에겐 어려울 수 있다냥! 준비하고 가라옹. 나는 준비물을 자주 잊는다냥…"
+    - "처음에는 조금 어려울 수 있다냥. 충분히 연습하고 자신감이 생기면 도전하라옹~"
+    - "초보가 바로 들어가면 힘들 수 있다옹. 충분히 준비하라냥. 괜히 다치면… 곤란하니까."
+    - "초보에겐 어려울 수 있다냥… 졸지 말고 충분히 준비해서 들어가라옹."
+    - "처음엔 어려울 수도 있다냥. 충분히 연습하고 도전하라옹! 넌 할 수 있다냥♡"
+    - "초보 마녀에게는 어려운 상대를 만날 수 있다옹. 충분히 준비하신 뒤 도전하시라냥."
+    - "준비 없이 들어가면 안 된다옹! 충분히 실력을 쌓고 당당하게 도전하라냥~"
+  - id: return
+    highlight: 8
+    waitForTargetClick: 1
+    animation: 3
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "이제 돌아가자냥! 뒤로가기… 이번엔 정확히 찾았다옹. 눌러보라냥!"
+    - "설명은 여기까지다냥~ 표시된 뒤로가기를 눌러 함께 돌아가라옹."
+    - "다 들었으면 뒤로가기를 눌러라냥. 마지막으로 할 말이 있다옹."
+    - "이제 돌아가… 어디로? 아, 뒤로가기를 누르라냥."
+    - "뒤로가기를 콕 눌러 돌아가자냥~ 마지막 인사가 남았다옹♡"
+    - "안내를 마치고 돌아가겠다옹. 표시된 뒤로가기를 선택해주시라냥."
+    - "이제 뒤로가기를 누르라냥! 이 몸의 마지막 환영 인사를 들으라옹~"
+  - id: welcome
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 11
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "다시 한번 마법 학교에 온 걸 환영한다냥! 학교 이름은… 아무튼 환영이다옹!"
+    - "다시 한번 마법 학교에 온 걸 환영한다냥! 즐거운 학교생활이 되길 바란다옹~"
+    - "마법 학교에 온 걸… 환영한다냥. 한 번만 말할 테니 잘 기억하라옹."
+    - "마법 학교에 온 걸 환영한다냥… 환영 인사 했었나냥? 한 번 더 하면 좋다옹."
+    - "마법 학교에 온 걸 정말 정말 환영한다냥~♡ 우리 즐겁게 지내자옹!"
+    - "다시 한번 마법 학교에 오신 것을 진심으로 환영한다옹."
+    - "마법 학교에 온 걸 환영한다냥! 이 몸이 직접 환영해주는 거다옹~"
+  - id: stay_together
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 10
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "난 네 곁에서 도와주겠다냥! 나를 꾹 누르고 위아래로 문질러주라냥. 츄르 말고 쓰담도 좋다옹!"
+    - "늘 곁에서 도와줄 테니 힘내라냥! 나를 누른 채 위아래로 움직이면 쓰다듬을 수 있다옹~"
+    - "곁에 있어주겠다냥. 나를 누른 채 위아래로 쓰다듬어도 된다옹. 좋아서 그러는 건 아니다냥!"
+    - "네 곁에 떠 있겠다냥… 나를 꾹 누르고 위아래로 쓰다듬어 깨워주라옹… 또 졸았다냥."
+    - "항상 응원한다냥♡ 나를 꾹 누르고 위아래로 쓰담쓰담해주라옹~"
+    - "앞으로도 곁에서 돕겠다옹. 저를 누른 채 위아래로 움직여 쓰다듬어주시라냥."
+    - "이 몸이 곁을 지켜주겠다냥! 나를 누른 채 위아래로 정성껏 쓰다듬어도 좋다옹~"
+  trainingTutorial:
+  - id: flag
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "깃발을 마지막에 가진 팀이 이긴다옹! 먼저 먹으면 끝…은 아니라냥! 마지막까지 챙겨야 한다옹."
+    - "이 게임은 제한 시간이 끝날 때 마지막으로 깃발을 가진 팀이 이긴다옹! 팀이 함께 지키는 것이 중요하다냥."
+    - "시간이 끝날 때 마지막 깃발 소유 팀이 승리한다냥. 먼저 먹었다고 방심하지 말라옹."
+    - "깃발… 반짝인다냥. 아, 시간이 끝날 때 마지막으로 가진 팀이 이긴다옹."
+    - "반짝반짝 깃발이 승리의 열쇠다냥♡ 시간이 끝날 때 마지막으로 가진 팀이 승리한다옹!"
+    - "제한 시간 종료 시 마지막으로 깃발을 소유한 팀이 승리한다옹. 잘 기억해주시라냥."
+    - "승리의 깃발은 이 몸에게 어울린다냥! 시간이 끝날 때 마지막으로 가진 팀이 이긴다옹."
+  - id: speed
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 4
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "{accelerate}는 속도 단계 올리기, S는 내리기다냥! 거꾸로 누르면… 뒤로 갈 수도 있다옹!"
+    - "{accelerate}로 속도 단계를 높이고 S로 낮출 수 있다냥. 단계를 낮추다 보면 후진도 가능하다옹."
+    - "{accelerate}는 가속 단계, S는 감속 단계다냥. 무작정 빠르게만 날지는 말라옹."
+    - "{accelerate}를 누르면 빨라지고… S를 누르면 느려진다냥. 구름만 보다가 잊지 말라옹."
+    - "{accelerate}로 쌩쌩, S로 살살~ 속도 단계를 조절하며 날 수 있다냥♡"
+    - "{accelerate}로 속도 단계를 높이고 S로 낮추시면 된다옹. 상황에 따라 속도를 조절할 수 있다냥."
+    - "{accelerate}로 속도를 높이고 S로 낮출 수 있다냥. 우아한 비행에는 속도 조절도 필요하다옹!"
+  - id: aim
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 8
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "앞에 봇이 있다옹! 록온 마법은 {aim}을 꾹 누르면 조준한다냥. 츄르를 조준하는 건 아니다옹!"
+    - "설명이 끝나면 앞에 보이는 봇을 공격할 수 있다냥. 록온 마법을 고르고 {aim}을 누른 채 조준하면 된다옹."
+    - "훈련장 봇은 공격 연습 상대다냥. 록온 마법은 {aim}을 누른 채 적을 조준하는 거다옹."
+    - "앞에 있는 봇… 움직이나냥? 록온 마법은 {aim}을 꾹 누르면 조준이 시작된다옹."
+    - "앞의 봇은 마법 연습 상대다냥♡ 록온 마법은 {aim}을 꾹 누르고 조준하면 된다옹!"
+    - "앞의 봇에게 공격 연습을 하실 수 있다옹. 록온 마법은 {aim}을 누른 채 조준하는 방식이다냥."
+    - "저 봇은 네 솜씨를 키워줄 연습 상대다냥! 록온 마법은 {aim}을 꾹 눌러 조준하는 거다옹."
+  - id: release
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 8
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "조준이 초록색이면 준비 끝이다냥! 그때 {aim}을 떼면 슝~ 하고 발사된다옹!"
+    - "조준이 완료되면 표식이 초록색으로 변한다옹. 그때 {aim}을 떼면 마법이 발사된다냥."
+    - "초록색은 조준이 끝났다는 뜻이다냥. 완료되면 {aim}을 떼어서 발사하면 된다옹."
+    - "초록색… 눈 색 같기도 하다냥. 조준이 끝난 거니까 {aim}을 떼면 발사된다옹."
+    - "초록색으로 반짝이면 준비 완료냥♡ {aim}을 떼면 마법이 날아간다옹!"
+    - "초록색 표식은 조준 완료를 뜻한다옹. 그때 {aim}을 놓으면 마법이 발사된다냥."
+    - "초록색으로 변하면 준비 완료다냥! 그때 {aim}을 놓으면 멋지게 발사된다옹."
+  - id: instant_magic
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "어라, 일부 마법은 조준이 필요 없다옹! 초록색만 기다리다 낮잠 자면 안 된다냥."
+    - "일부 마법은 조준이 필요 없는 경우도 있다옹. 마법마다 조준 방식과 사용 조건이 다르다냥."
+    - "모든 마법이 조준을 기다리는 건 아니다냥. 조준 없이 바로 쓰는 마법도 있다는 뜻이다옹."
+    - "조준… 기다리고 있었나냥? 일부 마법은 조준이 필요 없다옹. 사용 방식은 마법마다 다르다냥."
+    - "조준 없이 쓸 수 있는 마법도 있다옹♡ 마법마다 사용 방식도 다르다냥!"
+    - "일부 마법은 조준 없이 사용할 수 있다옹. 사용 방식은 각 마법의 설명에도 적혀 있다냥."
+    - "조준이 필요 없는 마법도 있다냥! 모든 마법을 같은 방식으로 다루려 하지 말라옹."
+  - id: slots
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "{slot1}, {slot2}로 마법을 고른다냥! 둘 중 어느 게 간식 마법인지는… 아직 모른다옹."
+    - "{slot1}, {slot2} 키로 장착한 두 마법을 바꿔 선택할 수 있다옹. 전투 중에도 선택을 바꿀 수 있다냥."
+    - "{slot1}, {slot2}로 마법을 선택할 수 있다냥. 상황에 맞춰 바꾸는 게 중요하다옹."
+    - "{slot1}번… 아니, {slot1} 키와 {slot2} 키로 마법을 선택한다냥. 기억했다옹."
+    - "{slot1}, {slot2}로 장착한 마법을 쏙쏙 바꿀 수 있다냥♡ 조합에 따라 싸우는 방식도 달라진다옹!"
+    - "{slot1}, {slot2} 키로 각 슬롯의 마법을 선택하실 수 있다옹."
+    - "{slot1}, {slot2}로 마법을 바꿀 수 있다냥! 이 몸처럼 다채로운 전투가 가능하다옹."
+  - id: parry
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 8
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "적 마법이 온다냥? 맞기 직전에 {parry}를 누르면 패링할 수 있다옹! 너무 일찍 누르면 내가 놀란다냥!"
+    - "적 마법이 날아오면 타이밍에 맞춰 {parry}로 패링할 수 있다냥. 방어 시간은 0.4초여서 타이밍이 중요하다옹."
+    - "패링은 {parry}다냥. 적 마법이 닿을 타이밍에 눌러야 막는다옹. 막 누르지 말라냥."
+    - "날아오는 마법을 보고… 졸면 안 된다냥. 맞을 타이밍에 {parry}를 누르면 패링할 수 있다옹."
+    - "무서운 마법도 팅~ 하고 막을 수 있다냥♡ 적중 타이밍에 {parry}로 패링하면 된다옹!"
+    - "적의 마법이 도달하는 순간에 맞춰 {parry}를 누르면 패링으로 방어할 수 있다냥. 타이밍이 핵심이다옹."
+    - "이 몸에게 마법이 닿게 두지 말라냥! 적중 타이밍에 {parry}를 누르면 패링할 수 있다옹."
+  - id: experience
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "때리고, 처치하고, 시간이 지나도 경험치를 얻는다냥! 간식을 먹는다고 오르진 않는다옹… 아쉽다냥."
+    - "적에게 피해를 주거나 처치하면 경험치를 얻는다옹. 시간이 지나면서도 조금씩 쌓인다냥."
+    - "피해를 주고 적을 처치하면 경험치를 얻는다냥. 시간으로도 얻지만 전투를 하면 더 빠르게 성장한다옹."
+    - "시간이 흐르면… 경험치도 쌓인다냥. 피해를 주거나 적을 처치해도 얻는다옹."
+    - "공격하고 처치하면 쑥쑥 성장한다냥♡ 시간이 지나도 경험치가 조금씩 쌓인다옹!"
+    - "피해를 주거나 적을 처치하면 경험치를 획득한다옹. 시간 경과로도 경험치를 얻는다냥."
+    - "적에게 피해를 주고 처치하면 경험치가 쌓인다냥! 시간으로도 조금씩 성장한다옹."
+  - id: perk_select
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "레벨업하면 Space를 꾹 누르고 좌클릭이나 우클릭으로 특전을 고른다냥! 양손으로 동시에 고르는 건 안 된다옹."
+    - "레벨업하면 Space를 누른 채 좌클릭 또는 우클릭으로 특전을 선택할 수 있다냥. 놓으면 선택창이 접힌다옹."
+    - "레벨업했으면 Space를 누른 채 좌클릭이나 우클릭으로 특전을 고를 수 있다냥. 강화 기회를 잊지 말라옹."
+    - "경험치가 쌓여 레벨업하면… 어디까지 말했더라냥? Space를 누른 채 좌클릭이나 우클릭으로 특전을 선택할 수 있다옹."
+    - "레벨업하면 강화 기회가 생긴다냥♡ Space를 꾹 누르고 좌클릭 또는 우클릭으로 특전을 고를 수 있다옹!"
+    - "레벨업 후 Space를 누른 상태에서 좌클릭 또는 우클릭으로 특전을 선택하실 수 있다냥."
+    - "레벨업하면 Space를 누르고 좌클릭이나 우클릭으로 특전을 고를 수 있다냥! 이 몸을 지킬 힘이 생기는 거다옹."
+  - id: perk_limit
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "마법 강화는 최대 두 번, 끝까지 키울 마법은 하나다냥! 그 뒤엔 빗자루나 마력 강화도 나온다옹. 셋까지 세진 말라냥!"
+    - "마법은 두 단계까지 강화하고, 최대 강화는 한 슬롯만 가능하다옹. 그 뒤엔 빗자루·마력 공용 강화도 선택할 수 있다냥."
+    - "마법은 두 단계까지, 최대 강화 슬롯은 하나뿐이다냥. 그 뒤엔 빗자루나 마력 강화도 선택지에 등장한다옹."
+    - "하나, 둘… 마법 강화는 두 단계다냥. 최대 강화는 한 슬롯만, 그 뒤엔 빗자루·마력 강화도 나온다옹."
+    - "한 마법은 두 단계까지 쑥쑥 성장한다냥♡ 최대 강화는 한 슬롯만! 그 뒤엔 빗자루·마력 강화도 뜬다옹."
+    - "마법 강화는 최대 두 단계이며 최대 강화 슬롯은 하나로 제한된다옹. 이후 빗자루·마력 공용 강화도 등장한다냥."
+    - "최대로 강화할 마법은 한 슬롯만 골라야 한다냥! 두 단계까지 키우면 빗자루·마력 강화도 등장한다옹."
+  - id: boost
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 6
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "{boost}를 누르면 부스트다냥! 빨라진다고 내가 츄르를 놓치지는 않는다옹!"
+    - "{boost}로 부스트를 써서 더 빠르게 날 수 있다냥. 사용하는 동안 마나가 소모된다옹."
+    - "부스트는 {boost}다냥. 빠르다고 마나까지 잊지는 말라옹."
+    - "{boost}를 누르면… 바람이 세진다냥. 부스트로 더 빨리 날 수 있다옹."
+    - "{boost}로 슈우웅~ 부스트로 더 빨라진다냥♡ 마나도 아껴줘야 한다옹!"
+    - "{boost}를 누르면 부스트로 가속하실 수 있다옹. 사용하는 동안 마나가 소모된다냥."
+    - "{boost}를 누르면 부스트다냥! 빨라지는 만큼 마나를 소모한다옹."
+  - id: quick_brake
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 6
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "최대 속도로 달릴 때 {brake}를 누르면 급제동이다냥! 빗자루를 세워 속도를 줄인다옹. S는 그냥 단계만 내린다냥!"
+    - "최대 속도로 전진 중 {brake}를 누르면 빗자루를 세우며 급제동한다옹. S는 급제동 없이 속도 단계만 낮춘다냥."
+    - "최대 속도에서 급제동하려면 {brake}다냥. S로 감속하는 것과 다르니 헷갈리지 말라옹."
+    - "빨리 날다가… {brake}를 누르면 급제동이다냥. 최대 속도에서 쓸 수 있고 S는 단계만 낮춘다옹."
+    - "최대 속도에서 {brake}를 누르면 멋지게 급제동한다냥♡ S는 속도 단계를 낮추기만 한다옹!"
+    - "최대 속도 전진 중 {brake}를 누르면 급제동한다옹. S의 단계 감속과 별개이며 재사용 대기시간이 있다냥."
+    - "최대 속도에서 {brake}를 누르면 빗자루를 세우며 급제동한다냥! S는 단계 감속일 뿐이다옹."
+  - id: emote
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 11
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "{emote}를 누른 채 마우스로 방향을 고르고 키를 떼면 감정표현이다냥! 츄르 자랑도 되나냥?"
+    - "{emote}를 누른 채 마우스로 방향을 고르고 키를 떼면 감정표현을 보낸다옹. 적 처치 후 기쁨을 표현할 수도 있다냥!"
+    - "{emote}를 누르고 마우스로 방향을 고른 뒤 키를 떼면 된다냥. 감정표현 정도는 해도 된다옹."
+    - "{emote}를 누르고… 마우스로 방향을 고른 뒤 떼면 감정표현이다냥. 무슨 표정이었더라옹?"
+    - "처치의 기쁨도 나눌 수 있다냥♡ {emote}를 꾹 누르고 마우스 방향을 골라 떼면 감정표현이다옹!"
+    - "{emote}를 누른 상태로 마우스 방향을 선택하고 키를 놓으면 감정표현을 전송한다옹."
+    - "{emote}를 누르고 방향을 골라 키를 떼면 감정표현이 나온다냥! 처치의 기쁨을 자랑할 수도 있다옹."
+  - id: wall
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 6
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "최대 속도에서 벽에 쿵 하면 아프고 깃발도 떨어진다냥! 벽은 츄르처럼 부드럽지 않다옹!"
+    - "최대 속도로 벽에 부딪히면 피해를 받고 깃발도 떨어뜨린다옹. 미리 속도를 낮추면 충돌 피해를 피할 수 있다냥."
+    - "최대 속도에서 벽을 들이받으면 피해와 깃발 드롭이다냥. 앞을 잘 보라옹."
+    - "벽은… 단단하다냥. 최대 속도로 부딪히면 피해를 받고 깃발도 떨어진다옹."
+    - "벽에 쿵 하면 아프다냥! 최대 속도 충돌은 피해도 받고 깃발도 떨어지니 조심하라옹♡"
+    - "최대 속도로 벽에 충돌하면 피해를 받고 깃발을 떨어뜨린다옹. 안전한 비행을 부탁드린다냥."
+    - "벽에 부딪히는 건 우아하지 않다냥! 최대 속도 충돌은 피해도 받고 깃발도 떨어지니 조심하라옹."
+  - id: practice
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 11
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "설명은 여기까지다냥! 말풍선을 누르면 3·2·1 뒤 훈련 시작이다옹. 셋 다음은… 날면 된다냥!"
+    - "이제부터는 다양한 마법을 자유롭게 연습할 수 있다냥. 선배 마녀가 응원한다옹! 말풍선을 누르면 3·2·1 뒤 시작이다냥."
+    - "이제 여러 마법을 자유롭게 연습할 수 있다냥. 선배 조언은 여기까지다옹. 말풍선을 누르면 3·2·1 뒤 훈련이 시작된다냥."
+    - "연습할 시간이다냥… 내가 무슨 말 했더라옹? 아, 말풍선을 누르면 3·2·1 뒤 시작이다냥."
+    - "다양한 마법으로 함께 연습할 시간이다냥♡ 말풍선을 누르면 3·2·1 뒤 시작이다옹. 힘내라냥!"
+    - "여러 마법을 자유롭게 시험하며 실력을 쌓으실 수 있다냥. 말풍선을 누르면 3·2·1 후 훈련을 시작한다옹."
+    - "이 몸의 특별한 설명은 여기까지다냥! 말풍선을 누르면 3·2·1 뒤 시작이다옹. 이제 네 실력을 키울 시간이다냥!"
+  greetingSeconds: 3
+  greetingFadeSeconds: 0.35
+  returningGreetings:
+  - id: returningGreetings_0
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "어라? 너 누구… 아! 오랜만이다냥!"
+    - "오랜만이다냥! 다시 만나서 반갑다옹~"
+    - "오랜만이네. 딱히 반가운 건 아니다냥!"
+    - "……어? 오랜만이다냥…"
+    - "오랜만이다냥~ 보고 싶었다냥♡"
+    - "오랜만에 뵙습니다, 마녀님. 반갑다옹."
+    - "오랜만이구나냥! 이 몸을 만나러 왔구나?"
+  - id: returningGreetings_1
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "기다리고 있었다냥! 뭘 기다렸더라… 너다냥!"
+    - "기다리고 있었다냥~ 오늘도 함께하자옹!"
+    - "이제 왔냐옹? 기다린 건 아니라니까냥…"
+    - "……기다리다가… 잠깐 멍했냥…"
+    - "기다리고 있었다냥~ 얼른 이리 오라냥♡"
+    - "마녀님의 귀환을 기다리고 있었습니다옹."
+    - "이 몸을 기다리게 하다니! 어서 오라냥~"
+  - id: returningGreetings_2
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "바쁜가보다냥… 나도 바쁘다냥. 낮잠 자야 하냥!"
+    - "요즘 바쁜가보다냥… 잠깐 쉬어 가라냥~"
+    - "바쁜가 보네냥. 무리하지는 말라옹…"
+    - "……바빴냥? 시간은 참… 빨리 가냥…"
+    - "바쁜가보다냥… 그래도 나랑 조금만 놀자냥♡"
+    - "많이 바쁘셨나 봅니다옹. 편히 쉬어 가십시오냥."
+    - "바쁘더라도 이 몸을 잊으면 안 된다냥!"
+  victoryGreetings:
+  - id: victoryGreetings_0
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "짜릿한 승부였다냥! 털이 쭈뼛 섰다냥!"
+    - "정말 짜릿한 승부였다냥! 멋졌어냥~"
+    - "제법 짜릿했네냥. 이번엔 좀 멋있었다옹."
+    - "……번쩍… 짜릿한 승부였다냥…"
+    - "짜릿한 승부였다냥~ 우리 마녀 최고다냥♡"
+    - "참으로 짜릿한 승부였습니다, 마녀님."
+    - "이 몸의 마녀답게 짜릿한 승리였다냥!"
+  - id: victoryGreetings_1
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "마법 실력이 많이 늘었다냥! 키도 늘었냥?"
+    - "마법 실력이 많이 늘었다냥~ 노력한 보람이 있구나옹!"
+    - "마법 실력이 늘긴 했네냥. 칭찬은 한 번뿐이다옹!"
+    - "……마법이… 전보다 능숙해졌냥…"
+    - "마법 실력이 쑥쑥 늘었다냥~ 자랑스럽다냥♡"
+    - "마법 실력이 크게 향상되셨습니다옹. 훌륭합니다."
+    - "마법 실력이 늘었구나냥! 이 몸의 가르침 덕이다옹."
+  - id: victoryGreetings_2
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "마력이 엄청나다냥! 엄청난 마녀가… 이미 마녀였냥!"
+    - "강력한 마력이 느껴진다냥! 엄청난 마녀가 될 거야옹!"
+    - "강한 마력이 느껴지네냥… 대단한 마녀가 되겠어옹."
+    - "……마력이 반짝… 엄청난 마녀가 되겠냥…"
+    - "강력한 마력이다냥~ 세상에서 제일 멋진 마녀가 되라냥♡"
+    - "강력한 마력이 느껴집니다옹. 위대한 마녀가 되실 겁니다."
+    - "강력한 마력이다냥! 이 몸에 걸맞은 대단한 마녀가 되라옹!"
+  defeatGreetings:
+  - id: defeatGreetings_0
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "아쉽다냥… 다음엔 이기는 주문을 외우자냥!"
+    - "아쉽다냥… 그래도 끝까지 잘 싸웠다옹."
+    - "아쉽긴 하네냥… 너무 풀이 죽지는 말라옹."
+    - "……아… 아쉽다냥…"
+    - "아쉽다냥… 내가 토닥토닥해 주겠다냥♡"
+    - "아쉬운 승부였습니다옹. 고개를 드십시오, 마녀님."
+    - "아쉽지만 이 몸의 마녀가 기죽을 수는 없다냥!"
+  - id: defeatGreetings_1
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "승리가 있으면 패배도 있다냥! 그다음은 간식이냥?"
+    - "승리가 있으면 패배도 있는 법이라냥~ 다음을 준비하자옹."
+    - "승리도 패배도 있는 거다냥. 다음엔 이기면 되잖냐옹."
+    - "……이길 때도… 질 때도 있는 거냥…"
+    - "승리도 패배도 함께다냥~ 다음에도 곁에 있겠다냥♡"
+    - "승리가 있으면 패배도 있는 법입니다옹. 좋은 경험이었습니다."
+    - "패배도 승리로 가는 과정이다냥! 이 몸은 믿고 있다옹."
+  - id: defeatGreetings_2
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "다른 마법을 써 보면 어떻냥? 간식 마법은 없냥?"
+    - "다른 마법을 사용해 보는 건 어떻냥? 잘 맞는 마법을 찾자옹~"
+    - "다른 마법도 써 보라냥. 네게 더 맞을지도 모르잖냐옹."
+    - "……다른 마법도… 있었지냥… 써 볼까옹?"
+    - "다른 마법도 함께 골라 보자냥~ 분명 잘 맞을 거다냥♡"
+    - "다른 마법을 시험해 보시는 건 어떻겠습니까옹?"
+    - "다른 마법을 골라 보라냥! 이 몸의 안목을 믿어라옹."
+  - id: defeatGreetings_3
+    highlight: 0
+    waitForTargetClick: 0
+    animation: 1
+    dreamyPauseSeconds: 0
+    personalityLines:
+    - "마법 강화를 다양하게 써 보라냥! 다양하면 맛있… 아니 강하다냥!"
+    - "마법 강화를 다양하게 사용해 보라냥~ 새로운 방법이 보일 거다옹!"
+    - "강화도 늘 같은 것만 고르지 말라냥. 바꿔 보면 되잖냐옹."
+    - "……강화 조합을… 바꿔 보는 것도 좋겠냥…"
+    - "마법 강화도 이것저것 골라 보자냥~ 같이 강해지자옹♡"
+    - "여러 마법 강화 조합을 시도해 보시길 권합니다옹."
+    - "강화 조합을 다양하게 써 보라냥! 이 몸에게 어울리는 전략이 필요하다옹."

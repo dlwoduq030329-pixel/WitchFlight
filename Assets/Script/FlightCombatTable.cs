@@ -14,7 +14,17 @@ public sealed class FlightCombatTable : ScriptableObject
     [Min(0f)] public float ramStun = .15f;
     [Min(.1f)] public float droppedFlagOwnerDelay = 1.2f;
     public bool dropFlagOnWallCrash = true;
-    [Header("Cobra: top-speed forward flight + decelerate")]
+    [Header("Spawn protection")]
+    [Min(0f)] public float spawnProtectionSeconds = 2.5f;
+    [Tooltip("몸 중심에서 회전 보호막 중심까지의 거리(m). 보호막 자체 크기와 별개입니다.")]
+    [Min(0f)] public float spawnProtectionOrbitRadius = .8f;
+    [Min(.05f)] public float spawnShieldScale = .5f;
+    [Range(0f, 1f)] public float spawnShieldOpacity = .5f;
+    [Header("벽 충돌 보호")]
+    [Min(0f)] public float wallCrashGraceSeconds = 3f;
+    [Tooltip("벽으로 실제 이동해 온 속도가 이 값 미만이면 접촉만으로 피해를 주지 않습니다.")]
+    [Min(.1f)] public float minimumWallImpactSpeed = 3f;
+    [Header("급제동: 최고 속도 전진 중 Q")]
     public bool enableCobra = true;
     [Range(.5f, 1f)] public float cobraMinimumSpeedRatio = .9f;
     [Min(.2f)] public float cobraSeconds = 1.4f;

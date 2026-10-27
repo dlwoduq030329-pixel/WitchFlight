@@ -32,6 +32,7 @@ public sealed class BattleRoundUI : MonoBehaviour
     [Tooltip("켜면 선택 표시와 슬롯 번호를 함께 표시합니다. 끄면 MagicStatTable의 장착 마법 이름만 표시합니다.")]
     [SerializeField] private bool showSlotNumberInText = true;
     [SerializeField] private Button equipButton;
+    [SerializeField] private Button resetMagicButton;
     [Header("Final result panel (empty = generated UI)")]
     [SerializeField] private GameObject finalResultPanel;
     [SerializeField] private TMP_Text resultTitleText;
@@ -50,9 +51,12 @@ public sealed class BattleRoundUI : MonoBehaviour
     private int descriptionRevision, requestedDescriptionRevision;
     private float requestStarted, resultShownAt;
     private string cachedScore, cachedResult;
+    private BattleResultsPresentation resultsPresentation;
 
     private void Awake()
     {
+        resultsPresentation = GetComponent<BattleResultsPresentation>();
+        if (resultsPresentation == null) resultsPresentation = gameObject.AddComponent<BattleResultsPresentation>();
         if (uiFont == null) uiFont = GetComponent<BattleHud>()?.FeedbackFont;
         if (magicTable == null) magicTable = MagicStatTable.Default;
         ValidatePanel(ref magicSwapPanel);
@@ -62,6 +66,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         Show(finalResultPanel, false);
         EnsureUIInput();
         if (equipButton != null) equipButton.onClick.AddListener(EquipSelectedMagic);
+        BindResetButton();
         if (returnToMainButton != null) returnToMainButton.onClick.AddListener(ReturnToMain);
     }
 
@@ -124,7 +129,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         }
         else requestPending = false;
         Show(magicSwapPanel, swapping);
-        if (resultLatched)
+        if (resultLatched && !resultsPresentation.OwnsFinalUI)
         {
             EnsureResultPanel();
             Text(resultTitleText, cachedResult);
@@ -139,7 +144,7 @@ public sealed class BattleRoundUI : MonoBehaviour
                     resultTitleText.transform.localScale = Vector3.one * (1f + Mathf.Sin(t * Mathf.PI) * 0.2f);
             }
         }
-        Show(finalResultPanel, resultLatched);
+        if (!resultsPresentation.OwnsFinalUI) Show(finalResultPanel, resultLatched);
         if (swapping || resultLatched)
         {
             Cursor.lockState = CursorLockMode.None;
@@ -154,8 +159,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         cachedResult = won ? "승리!" : "패배";
         cachedScore = Score(battle) + "  ·  2선승 경기 종료";
         resultShownAt = Time.unscaledTime;
-        EnsureResultPanel();
-        Show(finalResultPanel, true);
+        resultsPresentation.ShowResults(battle);
         if (resultTitleText != null) resultTitleText.color = won ? new Color(0.2f, 0.9f, 0.85f) : new Color(1f, 0.4f, 0.45f);
         if (won) onVictory.Invoke(); else onDefeat.Invoke();
     }
@@ -225,13 +229,18 @@ public sealed class BattleRoundUI : MonoBehaviour
 
     public void ResetRoundChanges()
     {
-        if (CanEdit && !requestPending) SendLoadout(localData.MagicChangeBase1, localData.MagicChangeBase2);
+        // InitialMagic is the host-accepted DataConfig loadout captured on entering the room.
+        if (!CanEdit || requestPending) return;
+        selectedMagic = MagicType.None;
+        descriptionRevision++;
+        SetDescriptionVisible(false);
+        SendLoadout(localData.InitialMagic1, localData.InitialMagic2, true, true);
     }
 
-    private void SendLoadout(MagicType first, MagicType second, bool closeDescription = false)
+    private void SendLoadout(MagicType first, MagicType second, bool closeDescription = false, bool resetInitial = false)
     {
         BattleManager battle = BattleManager.Instance;
-        if (!BattleRoundRules.IsAllowedLoadout(localData.MagicChangeBase1, localData.MagicChangeBase2,
+        if (!resetInitial && !BattleRoundRules.IsAllowedLoadout(localData.MagicChangeBase1, localData.MagicChangeBase2,
             first, second, battle.AllowedMagicChanges))
         {
             Status($"최대 {battle.AllowedMagicChanges}슬롯만 변경할 수 있습니다. 다른 슬롯을 바꾸려면 변경 초기화를 누르세요.");
@@ -246,7 +255,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         requestedDescriptionRevision = descriptionRevision;
         requestStarted = Time.unscaledTime;
         Status("서버 확인 중...");
-        if (!localData.RequestRoundMagicChange(battle.RoundNumber, first, second, pendingRequestId))
+        if (!localData.RequestRoundMagicChange(battle.RoundNumber, first, second, pendingRequestId, resetInitial))
         {
             requestPending = false;
             Status("접속 정보를 확인해주세요.");
@@ -415,7 +424,7 @@ public sealed class BattleRoundUI : MonoBehaviour
     private void EnsureSwapPanel()
     {
         EnsureUIInput();
-        if (magicSwapPanel != null) return;
+        if (magicSwapPanel != null) { BindResetButton(); return; }
         magicSwapPanel = Panel("Between rounds - magic changes");
         Transform root = magicSwapPanel.transform;
         swapCountdownText = Label(root, "Time", "", new Vector2(0, 360), new Vector2(1100, 70), 46);
@@ -463,7 +472,29 @@ public sealed class BattleRoundUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (resetMagicButton != null) resetMagicButton.onClick.RemoveListener(ResetRoundChanges);
         if (equipButton != null) equipButton.onClick.RemoveListener(EquipSelectedMagic);
         if (returnToMainButton != null) returnToMainButton.onClick.RemoveListener(ReturnToMain);
+    }
+
+    private bool resetButtonBound;
+    private void BindResetButton()
+    {
+        if (resetButtonBound || magicSwapPanel == null) return;
+        if (resetMagicButton == null)
+            foreach (Button button in magicSwapPanel.GetComponentsInChildren<Button>(true))
+            {
+                TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+                if (button.name.IndexOf("reset", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    button.name.IndexOf("init", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    (label != null && label.text.Contains("초기화"))) { resetMagicButton = button; break; }
+            }
+        if (resetMagicButton == null) return;
+        for (int i = 0; i < resetMagicButton.onClick.GetPersistentEventCount(); i++)
+            if (resetMagicButton.onClick.GetPersistentTarget(i) == this &&
+                resetMagicButton.onClick.GetPersistentMethodName(i) == nameof(ResetRoundChanges))
+            { resetButtonBound = true; return; }
+        resetMagicButton.onClick.AddListener(ResetRoundChanges);
+        resetButtonBound = true;
     }
 }

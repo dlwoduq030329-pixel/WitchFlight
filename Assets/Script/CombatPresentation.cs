@@ -70,6 +70,7 @@ public sealed class CombatPresentation : MonoBehaviour
     [SerializeField, Min(.005f)] private float parryRimWidth = .035f;
     [SerializeField] private Color parryRimColor = new Color(.35f, .95f, 1f, .9f);
     private CombatMagicVisual activeParryShield;
+    private readonly CombatMagicVisual[] spawnShields = new CombatMagicVisual[2];
     private int activeParryStartSequence;
     private CombatMagicVisual channelVisual;
     private GameObject lockCompleteVfx;
@@ -196,6 +197,7 @@ public sealed class CombatPresentation : MonoBehaviour
             StartDeathFade();
         }
         UpdateActiveParryShield();
+        UpdateSpawnShields();
         if (lastParry != owner.ParrySequence)
         {
             lastParry = owner.ParrySequence;
@@ -205,6 +207,23 @@ public sealed class CombatPresentation : MonoBehaviour
         UpdateChannelVisual();
         UpdateMaterials();
         UpdateSmokeVisibility();
+    }
+
+    private void UpdateSpawnShields()
+    {
+        bool show = owner.IsSpawnProtected && !owner.IsHiddenBySmokeFor(Player.LocalPlayer) &&
+            BattleManager.Instance != null && (BattleManager.Instance.IsGameplayActive || owner.IsCountdownProtected);
+        for (int i = 0; i < spawnShields.Length; i++)
+        {
+            if (!show)
+            {
+                if (spawnShields[i] != null) spawnShields[i].EndParry();
+                spawnShields[i] = null;
+            }
+            else if (spawnShields[i] == null)
+                spawnShields[i] = CombatMagicVisual.SpawnShield(owner, parryShieldVfxPrefab,
+                    i * 180f, parryShieldOpacity * parryActiveOpacityMultiplier, parryRimRadius);
+        }
     }
 
     private void UpdateActiveParryShield()
@@ -273,6 +292,11 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void OnDisable()
     {
+        for (int i = 0; i < spawnShields.Length; i++)
+        {
+            if (spawnShields[i] != null) Destroy(spawnShields[i].gameObject);
+            spawnShields[i] = null;
+        }
         if (activeParryShield != null) Destroy(activeParryShield.gameObject);
         activeParryShield = null;
         ClearLockCompleteVfx();

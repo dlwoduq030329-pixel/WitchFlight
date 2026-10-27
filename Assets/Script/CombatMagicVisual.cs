@@ -14,6 +14,9 @@ public sealed class CombatMagicVisual : MonoBehaviour
     private Vector3 shieldFacing;
     private float shieldOffset;
     private bool heldShield, shieldEnding;
+    private bool spawnShield;
+    private float spawnOrbitPhase;
+    private float spawnOpacity = 1f;
     private LineRenderer shieldRim;
     private LineRenderer shieldImpactRing;
     private Color shieldRimColor;
@@ -27,6 +30,8 @@ public sealed class CombatMagicVisual : MonoBehaviour
         public Renderer renderer;
         public int materialIndex;
         public MaterialPropertyBlock properties;
+        public Color tint;
+        public bool hasTint;
     }
 
     public static CombatMagicVisual Beam(MagicType magic, GameObject prefab, Material material = null)
@@ -105,6 +110,24 @@ public sealed class CombatMagicVisual : MonoBehaviour
         if (holdForParry || view == null)
             effect.CreateShieldRim(rimRadius, rimWidth, rimColor ?? new Color(.35f, .95f, 1f, .9f), view == null);
         RearThreatCamera.ExcludeLocalEffect(root, player);
+        return effect;
+    }
+
+    public static CombatMagicVisual SpawnShield(Player player, GameObject prefab, float phase, float opacity, float rimRadius)
+    {
+        if (player == null || player.Runner == null) return null;
+        var table = FlightCombatTable.Default;
+        float orbitRadius = table != null ? table.spawnProtectionOrbitRadius : .8f;
+        float angle = (float)player.Runner.SimulationTime * 180f + phase;
+        Vector3 facing = Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward;
+        float opacityMultiplier = table != null ? table.spawnShieldOpacity : .5f;
+        var effect = Shield(player, prefab, .15f, facing, orbitRadius, opacity * opacityMultiplier, true, rimRadius);
+        if (effect == null) return null;
+        effect.name = "Spawn protection shield";
+        effect.spawnShield = true;
+        effect.spawnOrbitPhase = phase;
+        effect.spawnOpacity = opacityMultiplier;
+        effect.transform.localScale = Vector3.one * (table != null ? table.spawnShieldScale : .5f);
         return effect;
     }
 
@@ -214,7 +237,9 @@ public sealed class CombatMagicVisual : MonoBehaviour
                 {
                     renderer = renderer,
                     materialIndex = i,
-                    properties = properties
+                    properties = properties,
+                    hasTint = material.HasProperty("_TintColor"),
+                    tint = material.HasProperty("_TintColor") ? properties.GetColor("_TintColor") : Color.white
                 });
             }
         }
@@ -230,6 +255,12 @@ public sealed class CombatMagicVisual : MonoBehaviour
             target.renderer.GetPropertyBlock(target.properties, target.materialIndex);
             if (target.properties.isEmpty) target.renderer.GetPropertyBlock(target.properties);
             target.properties.SetFloat(DissolveAmountId, amount);
+            if (spawnShield && target.hasTint)
+            {
+                Color tint = target.tint;
+                tint.a *= follow != null ? follow.SpawnShieldVisibility : 0f;
+                target.properties.SetColor("_TintColor", tint);
+            }
             target.renderer.SetPropertyBlock(target.properties, target.materialIndex);
         }
     }
@@ -239,11 +270,17 @@ public sealed class CombatMagicVisual : MonoBehaviour
         if (expires <= 0f) return;
         if (follow == null || follow.Object == null || !follow.Object.IsValid || !follow.IsAlive ||
             follow.IsHiddenBySmokeFor(Player.LocalPlayer) || BattleManager.Instance == null ||
-            !BattleManager.Instance.IsGameplayActive)
+            !(BattleManager.Instance.IsGameplayActive || (spawnShield && follow.IsCountdownProtected)))
         { Destroy(gameObject); return; }
         if (heldShield)
         {
-            if (!follow.IsParrying || follow.IsReturningToMap) EndParry();
+            if (spawnShield)
+            {
+                if (!follow.IsSpawnProtected) EndParry();
+                float angle = (float)follow.Runner.SimulationTime * 180f + spawnOrbitPhase;
+                shieldFacing = Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward;
+            }
+            else if (!follow.IsParrying || follow.IsReturningToMap) EndParry();
             if (!shieldEnding)
             {
                 expires = Time.unscaledTime + duration;
@@ -274,6 +311,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
         {
             Color color = Color.white;
             color.a = heldShield && !shieldEnding ? 1f : Mathf.Clamp01((expires - Time.unscaledTime) / duration);
+            if (spawnShield) color.a *= spawnOpacity * follow.SpawnShieldVisibility;
             ownedMaterial.color = color;
         }
     }

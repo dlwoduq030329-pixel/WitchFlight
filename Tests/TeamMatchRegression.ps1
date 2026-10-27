@@ -254,8 +254,8 @@ $bridge=Get-Content Assets/Script/linkuserinfo.cs -Raw
 foreach($contract in @(
  @($data,'[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]'),
  @($data,'NetworkGameManager.Instance?.TrySetWaitingTeam(this, team);'),
- @($teamUI,'GetCodeWaitingRoomProfile(local.ParticipantRef)'),
- @($teamUI,'rect.SetParent(anchor, false)'),
+ @($teamUI,'GetCodeWaitingRoomCard(local.ParticipantRef)'),
+ @($teamUI,'rect.SetParent(parent, false)'),
  @($teamUI,'option.interactable = allowTeamA'),
  @($teamUI,'option.interactable = allowTeamB'),
  @($teamUI,'teamDropdown.onValueChanged.AddListener(SelectTeam);'),

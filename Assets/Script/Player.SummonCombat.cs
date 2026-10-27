@@ -43,6 +43,7 @@ public partial class Player
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority || ParticipantRef == PlayerRef.None ||
             TimerIsActive(nextHitMarkerFeedback)) return;
         nextHitMarkerFeedback = TickTimer.CreateFromSeconds(Runner, .05f);
+        RecordCatAttack(false);
         RPC_ConfirmedMagicHit(false);
     }
 

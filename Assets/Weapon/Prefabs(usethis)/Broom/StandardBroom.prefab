@@ -764,6 +764,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 863021001100002}
   - {fileID: 2465310822994851804}
   - {fileID: 214286618375370103}
   m_Father: {fileID: 0}
@@ -995,4 +996,35 @@ Transform:
   m_Children:
   - {fileID: 8256370985588648794}
   m_Father: {fileID: 197132981019348939}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &863021001100001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 863021001100002}
+  m_Layer: 0
+  m_Name: CatSeat
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &863021001100002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 863021001100001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.666926563, y: 0.167373613, z: -0.660182655, w: -0.302248329}
+  m_LocalPosition: {x: 0.6300651, y: 0.042030625, z: -0.0400564}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7428714250556423478}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

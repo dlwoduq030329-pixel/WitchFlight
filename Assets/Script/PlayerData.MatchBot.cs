@@ -9,6 +9,8 @@ public partial class PlayerData
     public void InitializeMatchBot(int slot, int team, PlayerConfig config)
     {
         MatchBotSlot = slot;
+        CatBodyIndex = Random.Range(1, 8);
+        CatEyeIndex = Random.Range(1, 4);
         teamIndex = team; camp = team == 1 ? Camp.A : Camp.B;
         config = config.Sanitized();
         hat = (HatType)config.hatIndex; broom = (BroomType)config.broomIndex;

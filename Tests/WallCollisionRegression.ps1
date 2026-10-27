@@ -18,6 +18,7 @@ namespace WallChecks {
  }
  public struct Vector3 {
   public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
+  public static Vector3 operator -(Vector3 a)=>new(-a.x,-a.y,-a.z);
   public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;
   public static Vector3 ProjectOnPlane(Vector3 v,Vector3 n){float d=Dot(v,n)/Dot(n,n);return new(v.x-n.x*d,v.y-n.y*d,v.z-n.z*d);}
  }
@@ -29,11 +30,12 @@ namespace WallChecks {
   public Collider collider=new();public Vector3 normal=new(0,0,-1),moveDirection=new(0,0,1);
  }
  public class MagicProjectile {}
- public class FlightCombatTable {public static FlightCombatTable Default=new();public bool dropFlagOnWallCrash=true;}
+ public class FlightCombatTable {public static FlightCombatTable Default=new();public bool dropFlagOnWallCrash=true;public float wallCrashGraceSeconds=3,minimumWallImpactSpeed=3;}
  public enum BattleSound {WallCrash}
  public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;}
  public class Runner {public float Time;}
  public enum PlayerRef {None}
+ public class PlayerData {public static PlayerData FindPerkData(Runner r,PlayerRef p)=>new();public void RecordWallCrash(){}}
  public struct TickTimer {
   public bool IsRunning;public float End;
   public bool Expired(Runner runner)=>runner.Time>=End;
@@ -41,11 +43,12 @@ namespace WallChecks {
  }
  public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
  public class Player {
+  public PlayerRef ParticipantRef=>PlayerRef.None;
   public NetworkObject Object=new();public Runner Runner=new();
-  public bool SimulatesMovement=true,IsAlive=true,IsReturningToMap,IsBoosting,boostNeedsRelease;
+  public bool SimulatesMovement=true,IsAlive=true,IsReturningToMap,IsBoosting,boostNeedsRelease,IsSpawnProtected;
   public int SpeedStage=3,DamageCalls;public float Speed=37.5f,Hp=100;
   public float wallDamageSpeedThreshold=30,wallDamage=20,wallDamageCooldown=.5f;
-  public Vector3 KnockbackVelocity;public TickTimer WallDamageTimer;
+  public Vector3 KnockbackVelocity,LastFlightVelocity=new(0,0,30);public TickTimer WallDamageTimer,WallContactTimer;
   public void TakeDamage(float damage,PlayerRef attacker){Hp-=damage;DamageCalls++;}
   public int FlagDrops,CrashSounds;
   void DropCarriedFlag(){FlagDrops++;}
@@ -84,10 +87,21 @@ $source += @'
    Check(host.FlagDrops==1&&owner.FlagDrops==0,"predicting owner never drops authoritative flag");
    host.SpeedStage=3;host.Speed=30;host.OnControllerColliderHit(wall);
    Check(host.SpeedStage==0&&host.Speed==0&&host.DamageCalls==1,"cooldown suppresses damage but still stops new high-stage impact");
-   host.Runner.Time=1;host.SpeedStage=3;host.Speed=30;host.OnControllerColliderHit(wall);
+   host.Runner.Time=3.1f;host.SpeedStage=3;host.Speed=30;host.OnControllerColliderHit(wall);
    Check(host.DamageCalls==2,"new high-stage crash can damage after cooldown");
+   var protectedPlayer=new Player{IsSpawnProtected=true};protectedPlayer.OnControllerColliderHit(wall);
+   Check(protectedPlayer.SpeedStage==0&&protectedPlayer.DamageCalls==0&&protectedPlayer.FlagDrops==0,"spawn protection prevents crash damage and flag loss, but still stops at wall");
    var configured=new Player{wallDamage=7,wallDamageCooldown=2};configured.OnControllerColliderHit(wall);
-   Check(configured.Hp==93&&Near(configured.WallDamageTimer.End,2),"existing configurable damage/cooldown retained");
+   Check(configured.Hp==93&&Near(configured.WallDamageTimer.End,3),"existing configurable damage/cooldown retained");
+   var touching=new Player{SpeedStage=1};touching.OnControllerColliderHit(wall);
+   touching.SpeedStage=3;touching.Runner.Time=.1f;touching.OnControllerColliderHit(wall);
+   Check(touching.DamageCalls==0,"accelerating while touching a wall is not a fresh impact");
+   for(int i=0;i<50;i++){touching.Runner.Time+=.1f;touching.SpeedStage=3;touching.OnControllerColliderHit(wall);}
+   Check(touching.DamageCalls==0,"continuous wall contact never re-arms damage");
+   var stationary=new Player{LastFlightVelocity=new(0,0,0)};stationary.OnControllerColliderHit(wall);
+   Check(stationary.DamageCalls==0,"stage selection without approach motion cannot cause damage");
+   var grace=new Player();grace.OnControllerColliderHit(wall);grace.Runner.Time=1;grace.SpeedStage=3;grace.OnControllerColliderHit(wall);
+   Check(grace.DamageCalls==1,"separate collision during three-second grace causes no damage");
    FlightCombatTable.Default.dropFlagOnWallCrash=false;
    var noDrop=new Player();noDrop.OnControllerColliderHit(wall);
    Check(noDrop.FlagDrops==0&&noDrop.DamageCalls==1,"flag-drop setting does not disable wall damage");

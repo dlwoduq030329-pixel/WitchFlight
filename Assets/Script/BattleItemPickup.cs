@@ -39,6 +39,16 @@ public sealed class BattleItemPickup : NetworkBehaviour
     private bool[] originalRenderingOff;
     private bool ready;
     private Vector3 PickupPoint => transform.TransformPoint(pickupOffset);
+    private static readonly HashSet<BattleItemPickup> activeItems = new();
+    public static IEnumerable<BattleItemPickup> ActiveItems => activeItems;
+    public Vector3 BotPickupPoint => PickupPoint;
+    public float BotPickupRadius => pickupRadius;
+    public bool IsAvailableHealth(NetworkRunner runner) => ready && isActiveAndEnabled &&
+        Object != null && Object.IsValid && Runner == runner && !Consumed &&
+        itemType == BattleItemType.HealthPotion && healAmount > 0f;
+
+    private void OnEnable() => activeItems.Add(this);
+    private void OnDisable() => activeItems.Remove(this);
 
     private void Awake()
     {

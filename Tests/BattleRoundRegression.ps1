@@ -1,5 +1,6 @@
 # Actual round transitions and loadout validation with small Unity/Fusion doubles.
 # Does not replace an end-to-end two-client Unity test.
+param([switch]$StateOnly)
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $flag = Get-Content Assets/Script/BattleFlag.cs -Raw
@@ -35,16 +36,22 @@ public static class Mathf {
  public static int Clamp(int a,int b,int c)=>Math.Clamp(a,b,c);public static float Clamp(float a,float b,float c)=>Math.Clamp(a,b,c);public static float Clamp01(float a)=>Math.Clamp(a,0,1);
  public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);public static float Pow(float a,float b)=>(float)Math.Pow(a,b);
 }
-public class Player {public bool IsAlive=true,DiedFromAltitude;public Transform transform=new();}
+public class Player {public bool IsAlive=true,DiedFromAltitude;public int TeamIndex=1;public Transform transform=new();}
 public class PlayerData {
  public void PerkLoadoutChanged(){}
  public NetworkRunner Runner;public NetworkObject Object=new();public bool IsLoadoutInitialized=true;
  public int MagicChangeRound=1;public MagicType MagicChangeBase1=MagicType.Fire,MagicChangeBase2=MagicType.Ice;
  public MagicType magic1=MagicType.Fire,magic2=MagicType.Ice;
+ public PlayerRef ParticipantRef=PlayerRef.A;
+ public MagicType InitialMagic1=MagicType.Binding,InitialMagic2=MagicType.Healing;
 }
+public static class CatTutorialDirector { public static bool TrainingGuideRequired; }
+public class BattleResultsTable { public static BattleResultsTable Default=new();public float roundResultSeconds=3; }
 public class BattleFlag {
  public NetworkRunner Runner=new();public NetworkObject Object=new();public Transform transform=new();
  public bool IsPrepared,HasEnded,HasStarted,IsDescending,IsOvertime,startRequested;
+ public bool mapTourStarted;
+ public void SelectMatchAwards(){}
  public bool AllReady=true;public int PickupTeam;
  public float initialFlagHeight,introSeconds,matchSeconds,magicChangeSeconds;
  public float TourMoveSeconds,TourFadeSeconds;
@@ -56,12 +63,12 @@ public class BattleFlag {
  public HashSet<PlayerRef> readyPlayers=new();public Dictionary<int,int> previousPositions=new();
  public NetworkArray<int> SmokeClouds=new();
  public bool AreAllPlayersReady()=>AllReady;
- public Player GetCarrierPlayer()=>null;
+ public Player CurrentHolder;public Player GetCarrierPlayer()=>CurrentHolder;
  public void DropCarrier(PlayerRef p,Vector3 v,bool b){Carrier=PlayerRef.None;}
  public void UpdateDescent(){}
- public void CheckPickupAndRecordPositions(){if(PickupTeam>0)LastCarrierTeam=PickupTeam;}
+ public void CheckPickupAndRecordPositions(){if(PickupTeam>0){LastCarrierTeam=PickupTeam;Carrier=PlayerRef.B;CurrentHolder=new Player{TeamIndex=PickupTeam};PickupTeam=0;}}
 '@
-$flagMethods = @('PrepareMatch','RequestStart','ResetPreparation','TickPreparation','BeginMatch','FixedUpdateNetwork',
+$flagMethods = @('PrepareMatch','RequestStart','ResetPreparation','TickPreparation','BeginTrainingGuideOrCountdown','BeginMatch','FixedUpdateNetwork',
     'FinishRound','PrepareNextRound','EndSeriesByForfeit','EndSeries','ClearRoundSmoke') | ForEach-Object { Method $flag $_ }
 $flagMethods += [regex]::Match($flag,'    public float TourDuration =>[^;]+;').Value
 $managerStub = @'
@@ -89,7 +96,7 @@ public static class Tests {
  static int count;static void Check(bool b,string m){if(!b)throw new Exception(m);count++;}
  static BattleFlag New(int limit=2){var f=new BattleFlag();BattleManager.Instance=new(){runner=f.Runner,battleFlag=f};f.PrepareMatch(new Vector3(50),10,2,5,40,limit);return f;}
  static void Start(BattleFlag f){f.FixedUpdateNetwork();Check(f.Phase==BattleStartPhase.Intro,"ready begins VS");f.Runner.Time=f.PhaseTimer.End;f.FixedUpdateNetwork();Check(f.Phase==BattleStartPhase.Countdown,"VS completes into shared countdown");f.Runner.Time=f.PhaseTimer.End;f.FixedUpdateNetwork();Check(f.Phase==BattleStartPhase.Playing,"countdown starts round");}
- static void Win(BattleFlag f,int team){f.LastCarrierTeam=team;f.Runner.Time=f.MatchTimer.End;f.FixedUpdateNetwork();}
+ static void Win(BattleFlag f,int team){f.LastCarrierTeam=team;f.Carrier=PlayerRef.A;f.CurrentHolder=new Player{TeamIndex=team};f.Runner.Time=f.MatchTimer.End;f.FixedUpdateNetwork();}
  public static int Run(){
   {
    var f=New();BattleManager.Instance.IsTraining=true;BattleManager.Instance.AutoStartWhenReady=false;
@@ -114,7 +121,9 @@ public static class Tests {
      Check(f.RoundNumber==outcomes.Length&&BattleManager.Instance.Results==1,"correct round count and one result event");
      Check(!f.CanChangeMagic(f.RoundNumber),"no changes after final result");
     }else{
-     Check(!f.HasEnded&&f.Phase==BattleStartPhase.Intermission,"nonfinal result opens intermission");
+     Check(!f.HasEnded&&f.Phase==BattleStartPhase.RoundResult&&!f.CanChangeMagic(f.RoundNumber),"round result blocks magic edits before intermission");
+     f.Runner.Time=f.PhaseTimer.End;f.FixedUpdateNetwork();
+     Check(f.Phase==BattleStartPhase.Intermission,"round result completes into magic change");
      Check(f.PhaseTimer.End-f.Runner.Time==40&&f.CanChangeMagic(f.RoundNumber),"server owns full 40 second change window");
      f.PrepareNextRound();Check(f.RoundNumber==i+1,"cannot skip change timer");
      f.Runner.Time=f.PhaseTimer.End;Check(!f.CanChangeMagic(f.RoundNumber),"changes close at exact deadline");f.FixedUpdateNetwork();
@@ -126,10 +135,21 @@ public static class Tests {
   }
   var overtime=New();Start(overtime);overtime.Runner.Time=overtime.MatchTimer.End;overtime.FixedUpdateNetwork();
   Check(overtime.IsOvertime&&overtime.Phase==BattleStartPhase.Playing,"unclaimed flag extends round instead of scoring a draw");
-  overtime.PickupTeam=2;overtime.FixedUpdateNetwork();Check(overtime.Team2Wins==1&&overtime.Phase==BattleStartPhase.Intermission,"first overtime pickup wins");
+  overtime.PickupTeam=2;overtime.FixedUpdateNetwork();Check(overtime.Team2Wins==1&&overtime.Phase==BattleStartPhase.RoundResult,"first overtime pickup wins");
+  var dropped=New();Start(dropped);dropped.LastCarrierTeam=1;dropped.LastCarrier=PlayerRef.A;dropped.IsDescending=true;
+  dropped.Runner.Time=dropped.MatchTimer.End;dropped.FixedUpdateNetwork();
+  Check(dropped.IsOvertime&&dropped.Team1Wins==0&&dropped.Team2Wins==0,"past holder cannot win a free falling flag at deadline");
+  dropped.Runner.Time+=5;dropped.FixedUpdateNetwork();Check(dropped.IsOvertime&&dropped.Team1Wins==0,"overtime remains open with old owner history");
+  dropped.PickupTeam=2;dropped.FixedUpdateNetwork();Check(dropped.Team2Wins==1,"new holder wins instead of previous holder");
+  var dead=New();Start(dead);dead.Carrier=PlayerRef.A;dead.LastCarrierTeam=1;dead.CurrentHolder=new Player{IsAlive=false,TeamIndex=1};
+  dead.Runner.Time=dead.MatchTimer.End;dead.FixedUpdateNetwork();Check(dead.IsOvertime&&dead.Carrier==PlayerRef.None&&dead.Team1Wins==0,"dead carrier is dropped before deadline scoring");
+  var missing=New();Start(missing);missing.Carrier=PlayerRef.A;missing.LastCarrierTeam=1;missing.Runner.Time=missing.MatchTimer.End;missing.FixedUpdateNetwork();
+  Check(missing.IsOvertime&&missing.Team1Wins==0,"despawned carrier cannot win at deadline");
   var proxy=New();proxy.Object.HasStateAuthority=false;proxy.FinishRound(1);proxy.EndSeriesByForfeit(2);Check(proxy.Team1Wins+proxy.Team2Wins==0&&!proxy.HasEnded,"clients cannot award wins");
   var forfeit=New();forfeit.EndSeriesByForfeit(2);forfeit.EndSeriesByForfeit(1);Check(forfeit.Team2Wins==2&&forfeit.WinningTeam==2&&BattleManager.Instance.Results==1,"disconnect ends once with remaining team winning");
   var limited=New(1);Start(limited);Win(limited,1);var manager=BattleManager.Instance;var data=new PlayerData{Runner=limited.Runner};manager.playerDatas[PlayerRef.A]=data;
+  Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _,true),"reset is blocked during result presentation");
+  limited.Runner.Time=limited.PhaseTimer.End;limited.FixedUpdateNetwork();
   Check(manager.TryChangeRoundMagic(data,1,MagicType.Vision,MagicType.Ice,out _),"one slot may change");
   Check(manager.TryChangeRoundMagic(data,1,MagicType.Thunder,MagicType.Ice,out _),"same slot may be selected again");
   Check(!manager.TryChangeRoundMagic(data,1,MagicType.Thunder,MagicType.Flare,out _)&&data.magic2==MagicType.Ice,"second changed slot rejected without mutation");
@@ -138,6 +158,8 @@ public static class Tests {
   Check(!manager.TryChangeRoundMagic(data,1,(MagicType)99,MagicType.Ice,out _),"invalid enum rejected");
   var impostor=new PlayerData{Runner=limited.Runner};Check(!manager.TryChangeRoundMagic(impostor,1,MagicType.Fire,MagicType.Ice,out _),"unregistered object cannot change another player");
   limited.AllowedMagicChanges=2;Check(manager.TryChangeRoundMagic(data,1,MagicType.Flare,MagicType.Smoke,out _),"two-slot setting accepts both choices");
+  limited.AllowedMagicChanges=1;
+  Check(manager.TryChangeRoundMagic(data,1,(MagicType)99,(MagicType)99,out _,true)&&data.magic1==MagicType.Binding&&data.magic2==MagicType.Healing,"reset restores server account snapshot even after both slots changed; ignores supplied values");
   manager.Connected=false;Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _),"disconnected owner rejected");manager.Connected=true;
   limited.Runner.Time=limited.PhaseTimer.End;Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _),"late packets cannot equip after deadline");
   var start=KillAnimation.EvaluateAnimation(0,.12f,.75f,.75f,1.2f,.6f);
@@ -161,6 +183,7 @@ Add-Type -TypeDefinition ($stubs + $canChange + ($flagMethods -join "`n") + $man
     (Method $manager 'TryChangeRoundMagic') + $tests + (Method $kill 'EvaluateAnimation') + (Method $kill 'EvaluateNoticeAnimation') + $run +
     "`nnamespace RoundChecks {`n$enums`n$rules`n}")
 "Round state, loadout authority and kill animation checks passed: $([RoundChecks.Tests]::Run())"
+if ($StateOnly) { return }
 
 $scene = Get-Content Assets/Scenes/Battle.unity -Raw
 $ids = [regex]::Matches($scene,'(?m)^--- !u!\d+ &(\d+)') | ForEach-Object {$_.Groups[1].Value}

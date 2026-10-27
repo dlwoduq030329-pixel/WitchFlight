@@ -845,6 +845,22 @@ namespace Suimono.Core
             if (underSoundComponent != null) underSoundComponent.Stop();
 		}
 
+        // A respawn is a camera teleport, not a swimmer leaving the previous water surface.
+        public void ResetCameraWaterAfterRespawn()
+        {
+            doWaterTransition = false;
+            cameraIsSubmerged = false;
+            isUnderwater = false;
+            if (cameraWaterSurface != null) cameraWaterSurface.useShader = cameraWaterSurface.shader_Surface;
+            cameraWaterSurface = null;
+            if (underSoundComponent != null) underSoundComponent.Stop();
+            if (setCamera != null) underwaterObject = setCamera.GetComponent<Suimono_UnderwaterFog>();
+            if (underwaterObject != null) underwaterObject.ClearWaterTransition();
+            // Re-sample at the new position: underwater spawns still receive underwater effects.
+            StoreSurfaceHeight();
+            PlayUnderwaterSound();
+        }
+
 		void StoreSurfaceHeight(){
 			if (this.enabled){
 				if (setCamera != null){

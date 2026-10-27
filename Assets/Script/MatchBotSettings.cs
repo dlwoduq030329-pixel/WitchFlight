@@ -12,8 +12,28 @@ public sealed class MatchBotSettings : ScriptableObject
     public static MatchBotSettings Default => cached != null ? cached : cached = Resources.Load<MatchBotSettings>("MatchBotSettings") ?? CreateInstance<MatchBotSettings>();
     [Min(1)] public float tailDistance = 18;
     [Min(1)] public float obstacleProbeDistance = 16;
+    [Header("비행 경로 회피")]
+    [Min(.1f)] public float obstacleLookAheadSeconds = 1.5f;
+    [Min(.1f)] public float routeHoldSeconds = 1.2f;
+    [Min(.1f)] public float stuckSeconds = 1f;
     [Min(.1f)] public float reactionSeconds = .3f;
     [Min(.1f)] public float attackPauseSeconds = .65f;
+    [Header("깃발 회수 / 생존")]
+    [Min(2f)] public float pickupApproachDistance = 14f;
+    [Range(.05f, .9f)] public float seekHealthBelow = .4f;
+    [Range(.1f, 1f)] public float resumeCombatAbove = .7f;
+    [Min(5f)] public float healthSearchDistance = 180f;
+    [Min(5f)] public float carrierSafeDistance = 45f;
+    [Header("포탈 지름길")]
+    public bool usePortals = true;
+    [Min(0f)] public float portalMinimumSaving = 10f;
+    [Min(0f)] public float portalTraversalCost = 4f;
+    [Header("논타겟 조준 오차 (호스트에서 결정)")]
+    [Range(0f, 1f)] public float nonTargetMissChance = .35f;
+    [Min(0f)] public float aimSpreadDegrees = 1.5f;
+    [Min(0f)] public float missAngleDegrees = 12f;
+    [Min(.1f)] public float aimCorrectionSeconds = .65f;
+    [Min(0f)] public float areaMissRadiusMultiplier = 1.4f;
     [Tooltip("ChPrefab에 외형이 연결된 모자만 지정합니다.")]
     public HatType[] availableHats = { HatType.Classic, HatType.Twisted, HatType.Elemental };
     public BroomType[] availableBrooms = { BroomType.Slow, BroomType.Standard, BroomType.Speed };

@@ -82,4 +82,11 @@ public sealed partial class linkuserinfo
         return index >= 0 && waitingRoomSlots != null && index < waitingRoomSlots.Length
             ? waitingRoomSlots[index]?.profileImage : null;
     }
+
+    public RectTransform GetCodeWaitingRoomCard(PlayerRef player)
+    {
+        int index = waitingParticipants.IndexOf(player);
+        return waitingRoomInitialized && index >= 0 && waitingRoomSlots != null && index < waitingRoomSlots.Length
+            ? waitingRoomSlots[index]?.slotRoot?.GetComponent<RectTransform>() : null;
+    }
 }

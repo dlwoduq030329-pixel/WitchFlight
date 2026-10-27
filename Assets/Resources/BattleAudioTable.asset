@@ -25,6 +25,33 @@ MonoBehaviour:
   waterSkimMaxPitch: 1.45
   flightPassClip: {fileID: 0}
   flightPassVolume: 0.3
+  catPetPurr:
+    category: 0
+    clip: {fileID: 8300000, guid: fdc32b5125304e34bbc767aad6ead2ce, type: 3}
+    volume: 0.35
+    pitch: 1
+    minimumInterval: 0.1
+    spatialBlend: 0
+    minDistance: 4
+    maxDistance: 80
+  catVictory:
+    category: 0
+    clip: {fileID: 8300000, guid: 5bfef6904b1b438aa3f94f762495eb86, type: 3}
+    volume: 0.55
+    pitch: 1
+    minimumInterval: 0.1
+    spatialBlend: 0
+    minDistance: 4
+    maxDistance: 80
+  catDefeat:
+    category: 0
+    clip: {fileID: 8300000, guid: 3e76fc67dab34417b58c596d5fce5d25, type: 3}
+    volume: 0.45
+    pitch: 1
+    minimumInterval: 0.1
+    spatialBlend: 0
+    minDistance: 4
+    maxDistance: 80
   commonSounds:
   - label: ParryReady - 패링 가능 타이밍
     sound: 0

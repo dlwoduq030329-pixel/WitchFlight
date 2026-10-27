@@ -16,7 +16,7 @@ namespace UnityEngine {
  public class RuntimeInitializeOnLoadMethodAttribute:Attribute {public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t){}}
  public class SerializeField:Attribute {} public class DisallowMultipleComponent:Attribute {}
  public class MonoBehaviour {public Transform transform=new Transform();}
- public class Transform {public Transform Find(string p)=>null;public T GetComponent<T>() where T:class=>null;}
+ public class Transform {public Transform parent=>this;public T[] GetComponentsInChildren<T>(bool b)=>Array.Empty<T>();public bool IsChildOf(Transform t)=>false;public Transform Find(string p)=>null;public T GetComponent<T>() where T:class=>null;}
  public static class Mathf {public static float Clamp(float v,float a,float b)=>Math.Clamp(v,a,b);public static float Round(float v)=>(float)Math.Round(v);public static int RoundToInt(float v)=>(int)Math.Round(v);}
  public static class Time {public static int frameCount;}
  public static class Input {
@@ -30,7 +30,7 @@ namespace UnityEngine {
   public static void SetFloat(string k,float v)=>floats[k]=v;public static void SetInt(string k,int v)=>ints[k]=v;public static void Save()=>saves++;
  }
 }
-namespace TMPro {public class TMP_Text {public string text;}}
+namespace TMPro {public class TMP_Text {public Transform transform=new();public string text;}}
 namespace UnityEngine.Events {
  public delegate void UnityAction();
  public class ClickEvent {public event UnityAction action;public void AddListener(UnityAction a)=>action+=a;public void RemoveListener(UnityAction a)=>action-=a;public void Invoke()=>action?.Invoke();}
@@ -39,12 +39,15 @@ namespace UnityEngine.Events {
 namespace UnityEngine.EventSystems {public class EventSystem {public static EventSystem current=new();public void SetSelectedGameObject(object o){}}}
 namespace UnityEngine.UI {
  public struct Navigation {public enum Mode {None}public Mode mode;}
- public class Button {public bool interactable=true;public Navigation navigation;public ClickEvent onClick=new();public T GetComponentInChildren<T>(bool b) where T:class=>null;}
+ public class Button {public Transform transform=new();public bool interactable=true;public Navigation navigation;public ClickEvent onClick=new();public T GetComponentInChildren<T>(bool b) where T:class=>null;}
  public class Slider {public float minValue,maxValue,value;public bool wholeNumbers,interactable=true;public Navigation navigation;public FloatEvent onValueChanged=new();public void SetValueWithoutNotify(float v)=>value=v;}
 }
 '@
 foreach ($path in 'Assets/Script/ControlSettings.cs','Assets/Script/ControlSettingsUI.cs') {
-    $source += "`n" + ((Get-Content $path -Raw) -replace '(?m)^using [^;]+;\r?\n','')
+    $code = (Get-Content $path -Raw) -replace '(?m)^using [^;]+;\r?\n',''
+    # Layout generation needs Unity. Exercise the real binding/reset callbacks with an assigned button.
+    $code = $code -replace '(?ms)    private void EnsureResetButton\(\)\r?\n    \{.*?^    \}', '    private void EnsureResetButton() { resetButton ??= new Button(); }'
+    $source += "`n" + $code
 }
 $source += @'
 public static class ControlChecks {
@@ -63,13 +66,12 @@ public static class ControlChecks {
   ControlSettings.SetSensitivity(50);string error;
   Check(ControlSettings.TryRebind(ControlAction.MagicSlot1,KeyCode.Alpha2,out error),"slot swap accepted");
   Check(ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.Alpha2&&ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.Alpha1,"both sides of slot swap updated");
-  Check(ControlSettings.TryRebind(ControlAction.LockOn,KeyCode.E,out error),"lock key remapped");
-  Check(ControlSettings.GetKey(ControlAction.MagicUse)==KeyCode.E,"cast key always follows lock key");
-  Check(ControlSettings.TryRebind(ControlAction.MagicUse,KeyCode.Mouse1,out error),"cast label can remap the shared binding");
-  Check(ControlSettings.GetKey(ControlAction.LockOn)==KeyCode.Mouse1&&ControlSettings.GetKey(ControlAction.Parry)==KeyCode.E,"shared binding swaps with parry atomically");
-  Check(ControlSettings.TryRebind(ControlAction.Parry,KeyCode.Mouse1,out error),"swap into shared binding");
-  Check(ControlSettings.GetKey(ControlAction.LockOn)==KeyCode.E&&ControlSettings.GetKey(ControlAction.MagicUse)==KeyCode.E,"both shared actions move together when displaced");
-  foreach(var k in new[]{KeyCode.Escape,KeyCode.Tab,KeyCode.Space,KeyCode.T,KeyCode.S,KeyCode.Alpha3,KeyCode.None,KeyCode.JoystickButton0})
+  Check(!ControlSettings.TryRebind(ControlAction.LockOn,KeyCode.E,out error),"aim cannot be remapped");
+  Check(!ControlSettings.TryRebind(ControlAction.MagicUse,KeyCode.Mouse1,out error),"cast cannot be remapped");
+  Check(ControlSettings.GetKey(ControlAction.LockOn)==KeyCode.Mouse0&&ControlSettings.GetKey(ControlAction.MagicUse)==KeyCode.Mouse0,"hold and release remain on left mouse");
+  Check(ControlSettings.GetKey(ControlAction.QuickBrake)==KeyCode.Q&&ControlSettings.GetKey(ControlAction.Emote)==KeyCode.T,"new actions default to Q and T");
+  Check(ControlSettings.TryRebind(ControlAction.Emote,KeyCode.E,out error),"emote can rebind");
+  foreach(var k in new[]{KeyCode.Escape,KeyCode.Tab,KeyCode.Space,KeyCode.S,KeyCode.Alpha3,KeyCode.None,KeyCode.JoystickButton0,KeyCode.Mouse0})
    Check(!ControlSettings.TryRebind(ControlAction.Accelerate,k,out error),"fixed action key rejected: "+k);
   Press(KeyCode.RightShift);Check(ControlSettings.Held(ControlAction.Boost)&&ControlSettings.Down(ControlAction.Boost),"both shift keys retain boost");Release();
   Check(ControlSettings.TryRebind(ControlAction.Boost,KeyCode.Q,out error),"boost remaps");
@@ -78,7 +80,9 @@ public static class ControlChecks {
   Reload();Check(ControlSettings.Sensitivity==50&&ControlSettings.GetKey(ControlAction.Boost)==KeyCode.Q,"settings reload from saved values");
   var ui=new ControlSettingsUI();var slider=new Slider();var label=new TMP_Text();
   var rows=new ControlSettingsUI.BindingRow[9];for(int i=0;i<9;i++)rows[i]=new(){action=(ControlAction)i,button=new(),keyText=new()};
+  var reset=new Button();Field(ui,"resetButton",reset);
   Field(ui,"bindings",rows);Field(ui,"sensitivitySlider",slider);Field(ui,"sensitivityText",label);Call(ui,"Awake");Call(ui,"OnEnable");
+  Check(rows[7].action==ControlAction.QuickBrake&&rows[8].action==ControlAction.Emote,"old serialized rows migrate without losing references");
   Check(slider.value==.5f&&label.text=="50","authored UI loads default 50");
   Check(rows[0].keyText.text=="2"&&rows[3].keyText.text=="Q","all button labels reflect preferences");
   slider.onValueChanged.Invoke(.75f);Check(ControlSettings.Sensitivity==75&&label.text=="75","slider applies and displays 75");
@@ -90,10 +94,14 @@ public static class ControlChecks {
   rows[0].button.onClick.Invoke();Press(KeyCode.Escape);Call(ui,"Update");
   Check(rows[0].keyText.text=="D"&&ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.D,"Escape cancels without modifying binding");Release();
   rows[7].button.onClick.Invoke();Press(KeyCode.Mouse2);Call(ui,"Update");
-  Check(rows[7].keyText.text=="휠 클릭"&&rows[8].keyText.text=="휠 클릭","mouse binding updates both lock and cast labels");Release();
+  Check(rows[7].keyText.text=="휠 클릭"&&rows[8].keyText.text=="E","brake and emote have independent rows");Release();
   rows[1].button.onClick.Invoke();Call(ui,"OnDisable");Press(KeyCode.W);Call(ui,"Update");
   Check(ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.Alpha1,"closing tab cancels pending capture");Release();
-  Call(ui,"OnEnable");Check(label.text=="75","reopening tab restores current settings");Call(ui,"OnDisable");Call(ui,"OnDestroy");
+  Call(ui,"OnEnable");Check(label.text=="75","reopening tab restores current settings");
+  reset.onClick.Invoke();
+  Check(label.text=="50"&&slider.value==.5f&&rows[0].keyText.text=="1"&&rows[3].keyText.text=="Shift"&&rows[7].keyText.text=="Q"&&rows[8].keyText.text=="T","reset restores every visible key and sensitivity");
+  Reload();Check(ControlSettings.GetKey(ControlAction.QuickBrake)==KeyCode.Q&&ControlSettings.GetKey(ControlAction.Emote)==KeyCode.T&&ControlSettings.Sensitivity==50,"reset persists across restarts");
+  Call(ui,"OnDisable");Call(ui,"OnDestroy");
   return count;
  }
 }

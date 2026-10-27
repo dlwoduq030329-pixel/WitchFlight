@@ -5,6 +5,8 @@ using UnityEngine;
 public sealed partial class MagicProjectile
 {
     [Networked] public float SummonDamageTaken { get; private set; }
+    public float SummonMaxHealth => PresentationStats.summonChannelHealth > 0 ? PresentationStats.summonChannelHealth : 50f;
+    public float SummonHealthFraction => IsLiveSummon ? Mathf.Clamp01(1f - SummonDamageTaken / SummonMaxHealth) : 0f;
     public static IEnumerable<MagicProjectile> ActiveProjectiles => active;
     public bool IsLiveSummon => Object != null && Object.IsValid &&
         ConstructKind == MagicConstructKind.Summon && !Finished;
