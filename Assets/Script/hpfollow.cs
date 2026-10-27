@@ -55,6 +55,9 @@ public sealed class hpfollow : MonoBehaviour
     private GridHPBar gridBar;
     private Slider slider;
     private Image filledImage;
+    private Graphic healthFillGraphic;
+    private Color originalHealthFillColor;
+    private static readonly Color AllyHealthColor = new Color(.1f, .4f, 1f, 1f);
     private float healthFraction;
     private float maxHealth;
     private bool healthDirty = true;
@@ -152,6 +155,7 @@ public sealed class hpfollow : MonoBehaviour
         SetVisible(true);
         UpdateEnemyHalo();
         UpdateNickname();
+        UpdateTeamHealthColor();
 
         if (!healthDirty) return;
         healthDirty = false;
@@ -167,6 +171,22 @@ public sealed class hpfollow : MonoBehaviour
             slider.SetValueWithoutNotify(healthFraction);
         else if (filledImage != null)
             filledImage.fillAmount = healthFraction;
+    }
+
+    private void UpdateTeamHealthColor()
+    {
+        bool ally = owner.TeamIndex == Player.LocalPlayer.TeamIndex;
+        if (gridBar != null) { gridBar.SetFillTint(ally ? AllyHealthColor : (Color?)null); return; }
+        if (healthFillGraphic == null)
+        {
+            healthFillGraphic = fallbackFill != null ? fallbackFill.GetComponent<Graphic>() :
+                slider != null && slider.fillRect != null ? slider.fillRect.GetComponent<Graphic>() : filledImage;
+            if (healthFillGraphic == null) return;
+            originalHealthFillColor = healthFillGraphic.color;
+        }
+        Color color = ally ? AllyHealthColor : originalHealthFillColor;
+        color.a = originalHealthFillColor.a;
+        healthFillGraphic.color = color;
     }
 
     private bool CanShowToLocalPlayer()
@@ -439,6 +459,7 @@ public sealed class hpfollow : MonoBehaviour
         gridBar = null;
         slider = null;
         filledImage = null;
+        healthFillGraphic = null;
         nicknameText = null;
         if (nicknameOutlineMaterial != null) Destroy(nicknameOutlineMaterial);
         nicknameOutlineMaterial = null;

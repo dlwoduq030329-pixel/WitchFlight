@@ -18,6 +18,14 @@ public sealed class MatchBotSettings : ScriptableObject
     [Min(.1f)] public float stuckSeconds = 1f;
     [Min(.1f)] public float reactionSeconds = .3f;
     [Min(.1f)] public float attackPauseSeconds = .65f;
+    [Header("패링 반응 / 입력 타이밍 (호스트에서 1회 추첨)")]
+    public bool useParry = true;
+    [Range(0f,1f)] public float parryGoodTimingChance = .55f;
+    [Range(0f,1f)] public float parryEarlyShareOfMistakes = .5f;
+    [Min(.01f)] public float parryReactionSeconds = .12f;
+    [Min(.1f)] public float parryLookAheadSeconds = 1.5f;
+    [Min(1f)] public float parryDetectionRange = 160f;
+    public Vector2 parryMistakeSeconds = new Vector2(.1f,.25f);
     [Header("깃발 회수 / 생존")]
     [Min(2f)] public float pickupApproachDistance = 14f;
     [Range(.05f, .9f)] public float seekHealthBelow = .4f;

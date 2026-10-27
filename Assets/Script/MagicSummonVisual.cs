@@ -12,12 +12,17 @@ public sealed class MagicSummonVisual : MonoBehaviour
     private bool moving, retiring;
     private int attackSequence;
     private CatSummonPresentation catPresentation;
+    private Quaternion shownRotation;
+    private Vector3 previousFlightHeading;
+    private float bankAngle;
 
     public static MagicSummonVisual Create(MagicStatEntry stats, Transform parent, int attackSequence, MagicProjectile source = null)
     {
         var root = new GameObject("Pursuing familiar visual");
         root.transform.SetParent(parent,false);
         var visual = root.AddComponent<MagicSummonVisual>();
+        visual.shownRotation = parent.rotation;
+        visual.previousFlightHeading = parent.forward;
         visual.material = CombatPresentation.CreateEffectMaterial(new Color(1f,.65f,.15f,.9f));
         visual.catPresentation = CatSummonPresentation.Create(source, root.transform, attackSequence);
         var authored = visual.catPresentation != null ? visual.catPresentation.gameObject :
@@ -40,6 +45,7 @@ public sealed class MagicSummonVisual : MonoBehaviour
         }
         visual.targetRing = MagicAreaVisual.Ring(null,visual.material,Quaternion.identity);
         visual.targetRing.gameObject.SetActive(false);
+        root.transform.localScale = Vector3.one * SummonFlightMotion.VisualScale;
         return visual;
     }
 
@@ -76,7 +82,16 @@ public sealed class MagicSummonVisual : MonoBehaviour
     {
         animationPlayer?.Render(moving, attackSequence, Time.deltaTime);
         if (retiring) return;
-        if (body != null) body.localRotation=Quaternion.Euler(0,Time.time*60f,0);
+        bool validTarget = target != null && target.Object != null && target.Object.IsValid && target.IsAlive;
+        Vector3 gaze = validTarget ? target.LockAimPoint - transform.position :
+            (transform.parent != null ? transform.parent.forward : shownRotation * Vector3.forward);
+        shownRotation = SummonFlightMotion.SmoothLook(shownRotation, gaze, Time.deltaTime);
+        Vector3 flightHeading = transform.parent != null ? transform.parent.forward : previousFlightHeading;
+        float yawRate = Time.deltaTime > .0001f ? Vector3.SignedAngle(previousFlightHeading,flightHeading,Vector3.up) / Time.deltaTime : 0f;
+        float desiredBank = moving ? -Mathf.Clamp(yawRate / 120f,-1f,1f) * 25f : 0f;
+        bankAngle = Mathf.Lerp(bankAngle,desiredBank,1f - Mathf.Exp(-5f * Time.deltaTime));
+        previousFlightHeading = flightHeading;
+        transform.rotation = shownRotation * Quaternion.Euler(0,0,bankAngle);
         bool visible=target!=null && target.Object!=null && target.Object.IsValid && target.IsAlive && progress>0f &&
             !target.IsHiddenBySmokeFor(Player.LocalPlayer);
         targetRing.gameObject.SetActive(visible);

@@ -19,6 +19,11 @@ public sealed partial class MagicProjectile
     private int constructSpawnTick;
     private MagicAreaVisual areaVisual;
     private MagicSummonVisual summonVisual;
+    private readonly SummonFlightMotion summonFlight = new();
+    private TickTimer summonPursuitRefresh;
+    private NetworkId summonPursuitTarget;
+    private Vector3 summonObservedPosition, summonObservedVelocity;
+    private const float SummonReactionSeconds = .35f;
     public bool IsConstruct => ConstructKind == MagicConstructKind.ThunderArea || ConstructKind == MagicConstructKind.Summon;
     public MagicStatEntry PresentationStats => initialized ? stats : ConstructKind == MagicConstructKind.SummonBolt
         ? SummonBoltStats(CombatPresentation.Stats(Magic)) : CombatPresentation.Stats(Magic);
@@ -51,6 +56,16 @@ public sealed partial class MagicProjectile
         SummonDamageTaken = 0f;
         SummonMoving = false;
         SummonAttackSequence = 0;
+        summonPursuitRefresh = TickTimer.None;
+        summonPursuitTarget = default;
+        ResetSummonNavigation();
+        if (ConstructKind == MagicConstructKind.Summon)
+        {
+            summonFlight.Initialize(owner.SummonLaunchVelocity, owner.transform.forward, entry.summonMoveSpeed,
+                owner.SteeringTurnRate, owner.SummonFlightTurnResponse, owner.SummonFlightAcceleration, owner.SummonFlightBraking);
+            direction = summonFlight.Heading;
+            transform.rotation = Quaternion.LookRotation(direction);
+        }
     }
 
     public static void TrimSummons(Player owner, int limit, NetworkObject newest)
@@ -96,8 +111,6 @@ public sealed partial class MagicProjectile
         if (!Runner.TryFindObject(ShooterId,out NetworkObject obj) || obj == null ||
             !obj.TryGetComponent(out Player owner) || !owner.IsAlive)
         { Runner.Despawn(Object); return; }
-        if (!ConstructTimer.Expired(Runner)) return;
-
         Player target = FindTarget();
         if (!summonScanTimer.IsRunning || summonScanTimer.Expired(Runner))
         {
@@ -109,24 +122,31 @@ public sealed partial class MagicProjectile
                 SummonLockProgress = 0f;
             }
         }
-        if (target == null) { SummonLockProgress = 0f; return; }
-        Vector3 delta = target.LockAimPoint - transform.position;
-        float distanceToTarget = delta.magnitude;
-        if (distanceToTarget > .01f)
+        Vector3 delta = target != null ? target.LockAimPoint - transform.position : Vector3.zero;
+        bool launching = summonFlight.Launching;
+        Vector3 pursuitDelta = delta;
+        if (target != null)
         {
-            direction = delta / distanceToTarget;
-            float step = Mathf.Min(Mathf.Max(0f,distanceToTarget-Mathf.Max(.5f,stats.summonFollowDistance)),
-                Mathf.Max(.1f,stats.summonMoveSpeed) * Runner.DeltaTime);
-            // Reuse the projectile sweep: collision stops motion, never clips through walls.
-            if (!TryGetInitialOverlap(out _) && step > 0f)
+            if (summonPursuitTarget != target.Object.Id || summonPursuitRefresh.ExpiredOrNotRunning(Runner))
             {
-                if (TryGetCollision(step,out RaycastHit hit)) step = Mathf.Max(0f,hit.distance-.03f);
-                transform.position += direction * step;
-                SummonMoving = step > .0001f;
+                summonPursuitTarget = target.Object.Id;
+                summonObservedPosition = target.LockAimPoint;
+                summonObservedVelocity = target.ParryHintVelocity;
+                summonPursuitRefresh = TickTimer.CreateFromSeconds(Runner,SummonReactionSeconds);
             }
-            transform.rotation = Quaternion.LookRotation(direction);
+            float sinceObservation = SummonReactionSeconds - (summonPursuitRefresh.RemainingTime(Runner) ?? 0f);
+            // Chase the last observed flight path. Abrupt braking creates a real overshoot window.
+            pursuitDelta = summonObservedPosition + summonObservedVelocity*(.45f+sinceObservation) - transform.position;
         }
-        if (distanceToTarget > Mathf.Max(1f,stats.summonAttackRange) || !HasBlastSight(target))
+        else { summonPursuitTarget = default; summonPursuitRefresh = TickTimer.None; }
+        MoveSummonWithNavigation(pursuitDelta, target != null);
+        direction = summonFlight.Heading;
+        transform.rotation = Quaternion.LookRotation(summonFlight.Heading);
+        if (target == null || launching || !ConstructTimer.Expired(Runner)) { SummonLockProgress = 0f; return; }
+        delta = target.LockAimPoint - transform.position;
+        float distanceToTarget = delta.magnitude;
+        if (distanceToTarget > Mathf.Max(1f,stats.summonAttackRange) ||
+            Vector3.Dot(summonFlight.Heading,delta.normalized) < .5f || !HasBlastSight(target))
         { SummonLockProgress = 0f; return; }
         SummonLockProgress = Mathf.Clamp01(SummonLockProgress + Runner.DeltaTime / Mathf.Max(.05f,stats.lockChargeSeconds));
         if (SummonLockProgress < 1f || (summonShotTimer.IsRunning && !summonShotTimer.Expired(Runner))) return;
@@ -134,7 +154,7 @@ public sealed partial class MagicProjectile
         if (bolt != null)
         {
             var projectile = bolt.GetComponent<MagicProjectile>();
-            projectile.Initialize(owner,target,SummonBoltStats(stats),direction);
+            projectile.Initialize(owner,target,SummonBoltStats(stats),delta.normalized);
             projectile.ConstructKind = MagicConstructKind.SummonBolt;
             SummonAttackSequence++;
         }

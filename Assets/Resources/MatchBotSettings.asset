@@ -15,6 +15,13 @@ MonoBehaviour:
   tailDistance: 18
   obstacleProbeDistance: 16
   reactionSeconds: 0.3
+  useParry: 1
+  parryGoodTimingChance: 0.55
+  parryEarlyShareOfMistakes: 0.5
+  parryReactionSeconds: 0.12
+  parryLookAheadSeconds: 1.5
+  parryDetectionRange: 160
+  parryMistakeSeconds: {x: 0.1, y: 0.25}
   attackPauseSeconds: 0.65
   usePortals: 1
   portalMinimumSaving: 10

@@ -12,13 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 72de6d4fd9674519966be2e740da9d90, type: 3}
   m_Name: MapBoundaryTable
   m_EditorClassIdentifier: 
+  botFlightBoxEnabled: 1
+  botFlightBox:
+    m_Center: {x: 6.0071106, y: 6.723816, z: 2.4000015}
+    m_Extent: {x: 158.80956, y: 111.60982, z: 157.4}
+  botBoundaryMargin: 5
   boundaryEnabled: 1
   xmin: -300
   xmax: 300
   zmin: -300
   zmax: 300
   lowerLimitEnabled: 1
-  ymin: -150
+  ymin: -35
   altitudeLimitEnabled: 1
   ymax: 150
   altitudeFadeStartY: 100

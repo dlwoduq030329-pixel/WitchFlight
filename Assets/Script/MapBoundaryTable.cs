@@ -3,6 +3,57 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "MapBoundaryTable", menuName = "WitchFlight/Map/Boundary Table")]
 public sealed class MapBoundaryTable : ScriptableObject
 {
+    [Header("Bot flight box (world space, baked from map geometry)")]
+    public bool botFlightBoxEnabled;
+    public Bounds botFlightBox;
+    [Min(0.1f)] public float botBoundaryMargin = 5f;
+
+    public bool TryGetBotFlightBounds(out Bounds bounds)
+    {
+        bool box = botFlightBoxEnabled && botFlightBox.size.x > .2f &&
+            botFlightBox.size.y > .2f && botFlightBox.size.z > .2f;
+        Vector3 min = box ? botFlightBox.min : new Vector3(xmin, ymin, zmin);
+        Vector3 max = box ? botFlightBox.max : new Vector3(xmax, ymax, zmax);
+        if (HasValidBounds)
+        {
+            min.x = Mathf.Max(min.x, xmin); max.x = Mathf.Min(max.x, xmax);
+            min.z = Mathf.Max(min.z, zmin); max.z = Mathf.Min(max.z, zmax);
+        }
+        // Bots stay below blackout, not merely below the lethal ceiling.
+        if (HasValidLowerLimit) min.y = Mathf.Max(min.y, ymin);
+        if (HasValidAltitudeLimit) max.y = Mathf.Min(max.y, altitudeFadeStartY);
+        bounds = default;
+        if (!IsFinite(min.x) || !IsFinite(min.y) || !IsFinite(min.z) ||
+            !IsFinite(max.x) || !IsFinite(max.y) || !IsFinite(max.z) ||
+            max.x <= min.x || max.y <= min.y || max.z <= min.z) return false;
+        Vector3 inset = Vector3.Min(Vector3.one * Mathf.Max(.1f, botBoundaryMargin), (max - min) * .2f);
+        bounds.SetMinMax(min + inset, max - inset);
+        return true;
+    }
+
+    public Vector3 ClampBotPosition(Vector3 position) =>
+        TryGetBotFlightBounds(out var bounds) ? bounds.ClosestPoint(position) : ClampToLowerLimit(position);
+
+    public Vector3 BotRetreatDestination(Vector3 position, Vector3 enemy, Vector3 forward, float distance)
+    {
+        Vector3 away = Vector3.ProjectOnPlane(position - enemy, Vector3.up).normalized;
+        if (away.sqrMagnitude < .01f) away = Vector3.ProjectOnPlane(-forward, Vector3.up).normalized;
+        if (away.sqrMagnitude < .01f) away = Vector3.forward;
+        Vector3 best = ClampBotPosition(position);
+        float bestScore = float.NegativeInfinity;
+        for (int i = 0; i < 16; i++)
+        {
+            Vector3 target = ClampBotPosition(position + Quaternion.AngleAxis(i * 22.5f, Vector3.up) * away * distance);
+            Vector3 delta = target - position;
+            // Prefer usable lateral travel over remaining pinned against an edge.
+            if (delta.sqrMagnitude < 4f) continue;
+            float score = Vector3.Distance(target, enemy) + Mathf.Min(delta.magnitude, distance) * .35f +
+                Vector3.Dot(delta.normalized, forward) * 3f;
+            if (score > bestScore) { bestScore = score; best = target; }
+        }
+        return best;
+    }
+
     [Header("World-space X/Z bounds")]
     public bool boundaryEnabled = true;
     public float xmin = -200f;

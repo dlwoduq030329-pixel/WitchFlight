@@ -11,20 +11,9 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c83c085d698148398d8f9c26b3c4d691, type: 3}
   m_Name: BattleAudioTable
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   masterVolume: 1
-  outputMixer: {fileID: 0}
-  maxVoices: 48
-  flightWindClip: {fileID: 8300000, guid: 9a74bae9f03523645bf2fbda40ce0ff8, type: 3}
-  flightWindVolume: 0.3
-  flightWindMinPitch: 0.7
-  flightWindMaxPitch: 1.5
-  waterSkimClip: {fileID: 8300000, guid: 243aea5d1b9e69b4aa8897e4347337c8, type: 3}
-  waterSkimVolume: 0.7
-  waterSkimMinPitch: 0.75
-  waterSkimMaxPitch: 1.45
-  flightPassClip: {fileID: 0}
-  flightPassVolume: 0.3
+  outputMixer: {fileID: 24300000, guid: 03c9cbd9716843afa374d194799c9932, type: 2}
   catPetPurr:
     category: 0
     clip: {fileID: 8300000, guid: fdc32b5125304e34bbc767aad6ead2ce, type: 3}
@@ -52,10 +41,49 @@ MonoBehaviour:
     spatialBlend: 0
     minDistance: 4
     maxDistance: 80
+  catAnnoyed:
+    category: 0
+    clip: {fileID: 8300000, guid: 859440eab22047c684175b1f38834c0c, type: 3}
+    volume: 0.5
+    pitch: 1
+    minimumInterval: 0.1
+    spatialBlend: 0
+    minDistance: 4
+    maxDistance: 80
+  catYawn:
+    category: 0
+    clip: {fileID: 8300000, guid: 153a4bfbb0874e21bc7b836ff84de07b, type: 3}
+    volume: 0.45
+    pitch: 1
+    minimumInterval: 0.1
+    spatialBlend: 0
+    minDistance: 4
+    maxDistance: 80
+  drowningWarning:
+    category: 0
+    clip: {fileID: 8300000, guid: 6c0f43b60086470a8f02a69b2857d8bf, type: 3}
+    volume: 0.65
+    pitch: 1
+    minimumInterval: 0.1
+    spatialBlend: 0
+    minDistance: 4
+    maxDistance: 80
+  maxVoices: 48
+  flightWindClip: {fileID: 8300000, guid: 9a74bae9f03523645bf2fbda40ce0ff8, type: 3}
+  flightWindVolume: 0.3
+  flightWindMinPitch: 0.7
+  flightWindMaxPitch: 1.5
+  waterSkimClip: {fileID: 8300000, guid: 243aea5d1b9e69b4aa8897e4347337c8, type: 3}
+  waterSkimVolume: 0.7
+  waterSkimMinPitch: 0.75
+  waterSkimMaxPitch: 1.45
+  flightPassClip: {fileID: 0}
+  flightPassVolume: 0.3
   commonSounds:
-  - label: ParryReady - 패링 가능 타이밍
+  - label: "ParryReady - \uD328\uB9C1 \uAC00\uB2A5 \uD0C0\uC774\uBC0D"
     sound: 0
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.45
       pitch: 1
@@ -63,9 +91,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: ParryStart - 패링 시도
+  - label: "ParryStart - \uD328\uB9C1 \uC2DC\uB3C4"
     sound: 1
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 42d11d5763f434fbc8f48bc8bca6f0c5, type: 3}
       volume: 0.45
       pitch: 1
@@ -73,9 +102,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: ParrySuccess - 패링 성공
+  - label: "ParrySuccess - \uD328\uB9C1 \uC131\uACF5"
     sound: 2
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 5147903f3a2554cf99089a50755b6381, type: 3}
       volume: 0.45
       pitch: 1
@@ -83,9 +113,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: DamageReceived - 피해 받음
+  - label: "DamageReceived - \uD53C\uD574 \uBC1B\uC74C"
     sound: 3
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: b9f449896c7094078a1b92bbf262486b, type: 3}
       volume: 0.22
       pitch: 1
@@ -93,9 +124,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: HitConfirmed - 공격 명중 확인
+  - label: "HitConfirmed - \uACF5\uACA9 \uBA85\uC911 \uD655\uC778"
     sound: 4
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 23f40e938276746b0919c1c7ef58305a, type: 3}
       volume: 0.22
       pitch: 1
@@ -103,9 +135,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Death - 사망
+  - label: "Death - \uC0AC\uB9DD"
     sound: 5
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 868933fa698ca477f8d58a1a1b84d9e3, type: 3}
       volume: 0.45
       pitch: 1
@@ -113,9 +146,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Respawn - 부활
+  - label: "Respawn - \uBD80\uD65C"
     sound: 6
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 37be39df8d3d548ee90ab1886819355d, type: 3}
       volume: 0.45
       pitch: 1
@@ -123,9 +157,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: HealingReceived - 회복 받음
+  - label: "HealingReceived - \uD68C\uBCF5 \uBC1B\uC74C"
     sound: 7
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 1173f3f6759e54a8592363a99a3de829, type: 3}
       volume: 0.45
       pitch: 1
@@ -133,9 +168,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: MagicSlotChanged - 마법 슬롯 변경
+  - label: "MagicSlotChanged - \uB9C8\uBC95 \uC2AC\uB86F \uBCC0\uACBD"
     sound: 8
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 23f40e938276746b0919c1c7ef58305a, type: 3}
       volume: 0.45
       pitch: 1
@@ -143,9 +179,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: BoostStart - 부스트 시작
+  - label: "BoostStart - \uBD80\uC2A4\uD2B8 \uC2DC\uC791"
     sound: 9
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 6e97ea8c300b44d43932d703f1363ef3, type: 3}
       volume: 0.45
       pitch: 1
@@ -153,9 +190,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: BoostLoop - 부스트 지속
+  - label: "BoostLoop - \uBD80\uC2A4\uD2B8 \uC9C0\uC18D"
     sound: 10
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 1105612c71178474b849857051a7a30c, type: 3}
       volume: 0.16
       pitch: 1
@@ -163,9 +201,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Portal - 포탈 이동
+  - label: "Portal - \uD3EC\uD0C8 \uC774\uB3D9"
     sound: 11
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 27b5b300326a345ef8d12f13d1af1713, type: 3}
       volume: 0.45
       pitch: 1
@@ -173,9 +212,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: HealthPotion - HP 포션 획득
+  - label: "HealthPotion - HP \uD3EC\uC158 \uD68D\uB4DD"
     sound: 12
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 1173f3f6759e54a8592363a99a3de829, type: 3}
       volume: 0.45
       pitch: 1
@@ -183,9 +223,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: ManaPotion - MP 포션 획득
+  - label: "ManaPotion - MP \uD3EC\uC158 \uD68D\uB4DD"
     sound: 13
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 0d6fe63a2135e43baa10917ddcc68475, type: 3}
       volume: 0.45
       pitch: 1
@@ -193,9 +234,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: BoosterPickup - 속도 부스터 획득
+  - label: "BoosterPickup - \uC18D\uB3C4 \uBD80\uC2A4\uD130 \uD68D\uB4DD"
     sound: 14
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 55c00b3954399446e95d1e96be438bca, type: 3}
       volume: 0.45
       pitch: 1
@@ -203,9 +245,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Updraft - 상승기류
+  - label: "Updraft - \uC0C1\uC2B9\uAE30\uB958"
     sound: 15
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: b7f08580250e04e01949f8602db6afd8, type: 3}
       volume: 0.45
       pitch: 1
@@ -213,9 +256,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: InsufficientMana - 마나 부족
+  - label: "InsufficientMana - \uB9C8\uB098 \uBD80\uC871"
     sound: 16
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 0a89822109ba44092ba91468c6964740, type: 3}
       volume: 0.45
       pitch: 1
@@ -223,9 +267,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: PerkAvailable - 특전 선택 가능
+  - label: "PerkAvailable - \uD2B9\uC804 \uC120\uD0DD \uAC00\uB2A5"
     sound: 17
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 35d39072aee4d49169c0b3b2e0dcd896, type: 3}
       volume: 0.45
       pitch: 1
@@ -233,9 +278,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: PerkSelected - 특전 선택 완료
+  - label: "PerkSelected - \uD2B9\uC804 \uC120\uD0DD \uC644\uB8CC"
     sound: 18
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 2fac387695ab946faa8591490522be85, type: 3}
       volume: 0.45
       pitch: 1
@@ -243,9 +289,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Emote - 감정표현
+  - label: "Emote - \uAC10\uC815\uD45C\uD604"
     sound: 19
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.45
       pitch: 1
@@ -253,9 +300,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: KillNotice - 처치 알림
+  - label: "KillNotice - \uCC98\uCE58 \uC54C\uB9BC"
     sound: 20
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 86d47b99b5f114509ac4b2f6461ac8d3, type: 3}
       volume: 0.45
       pitch: 1
@@ -263,9 +311,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: FlagPickup - 깃발 획득
+  - label: "FlagPickup - \uAE43\uBC1C \uD68D\uB4DD"
     sound: 21
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 2fac387695ab946faa8591490522be85, type: 3}
       volume: 0.45
       pitch: 1
@@ -273,9 +322,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: FlagDrop - 깃발 드롭
+  - label: "FlagDrop - \uAE43\uBC1C \uB4DC\uB86D"
     sound: 22
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 0a89822109ba44092ba91468c6964740, type: 3}
       volume: 0.45
       pitch: 1
@@ -283,9 +333,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: MatchIntro - VS 시작
+  - label: "MatchIntro - VS \uC2DC\uC791"
     sound: 23
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 15b621ee2b9194227ae94db04fd4493f, type: 3}
       volume: 0.45
       pitch: 1
@@ -293,9 +344,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Countdown - 카운트다운
+  - label: "Countdown - \uCE74\uC6B4\uD2B8\uB2E4\uC6B4"
     sound: 24
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.45
       pitch: 1
@@ -303,9 +355,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: RoundStart - 라운드 시작
+  - label: "RoundStart - \uB77C\uC6B4\uB4DC \uC2DC\uC791"
     sound: 25
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 35d39072aee4d49169c0b3b2e0dcd896, type: 3}
       volume: 0.45
       pitch: 1
@@ -313,9 +366,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: RoundWin - 라운드 승리
+  - label: "RoundWin - \uB77C\uC6B4\uB4DC \uC2B9\uB9AC"
     sound: 26
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 86d47b99b5f114509ac4b2f6461ac8d3, type: 3}
       volume: 0.45
       pitch: 1
@@ -323,9 +377,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: RoundLose - 라운드 패배
+  - label: "RoundLose - \uB77C\uC6B4\uB4DC \uD328\uBC30"
     sound: 27
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 0a89822109ba44092ba91468c6964740, type: 3}
       volume: 0.45
       pitch: 1
@@ -333,9 +388,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: MatchVictory - 최종 승리
+  - label: "MatchVictory - \uCD5C\uC885 \uC2B9\uB9AC"
     sound: 28
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 36f9d65f4ab694e76bae1660c6c1b39c, type: 3}
       volume: 0.45
       pitch: 1
@@ -343,9 +399,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: MatchDefeat - 최종 패배
+  - label: "MatchDefeat - \uCD5C\uC885 \uD328\uBC30"
     sound: 29
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 67dc250ee5e0447bd95a25a32ce4698e, type: 3}
       volume: 0.45
       pitch: 1
@@ -353,9 +410,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Binding - 속박
+  - label: "Binding - \uC18D\uBC15"
     sound: 30
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 868933fa698ca477f8d58a1a1b84d9e3, type: 3}
       volume: 0.45
       pitch: 1
@@ -363,9 +421,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Slow - 둔화
+  - label: "Slow - \uB454\uD654"
     sound: 31
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: cb201c4d86fcd48fe9dc0363480707d1, type: 3}
       volume: 0.45
       pitch: 1
@@ -373,9 +432,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: HitStun - 경직
+  - label: "HitStun - \uACBD\uC9C1"
     sound: 32
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: b9f449896c7094078a1b92bbf262486b, type: 3}
       volume: 0.45
       pitch: 1
@@ -383,9 +443,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Burn - 화상
+  - label: "Burn - \uD654\uC0C1"
     sound: 33
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 1ac88265a7ccf47288943cad41069d82, type: 3}
       volume: 0.45
       pitch: 1
@@ -393,9 +454,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: WallCrash - 벽 충돌
+  - label: "WallCrash - \uBCBD \uCDA9\uB3CC"
     sound: 34
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 51306351c141847218816233da58c03a, type: 3}
       volume: 0.45
       pitch: 1
@@ -403,9 +465,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: UIClick - UI 클릭 (수동 연결)
+  - label: "UIClick - UI \uD074\uB9AD (\uC218\uB3D9 \uC5F0\uACB0)"
     sound: 35
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 23f40e938276746b0919c1c7ef58305a, type: 3}
       volume: 0.45
       pitch: 1
@@ -413,9 +476,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: UIConfirm - UI 확인 (수동 연결)
+  - label: "UIConfirm - UI \uD655\uC778 (\uC218\uB3D9 \uC5F0\uACB0)"
     sound: 36
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 2fac387695ab946faa8591490522be85, type: 3}
       volume: 0.45
       pitch: 1
@@ -423,9 +487,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: UICancel - UI 취소 (수동 연결)
+  - label: "UICancel - UI \uCDE8\uC18C (\uC218\uB3D9 \uC5F0\uACB0)"
     sound: 37
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.45
       pitch: 1
@@ -436,6 +501,7 @@ MonoBehaviour:
   - label: BodyRam - body collision
     sound: 38
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 51306351c141847218816233da58c03a, type: 3}
       volume: 0.45
       pitch: 1
@@ -446,6 +512,7 @@ MonoBehaviour:
   - label: Cobra - hard brake
     sound: 39
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 37442c57249474fd69f3eb7a14d201b0, type: 3}
       volume: 0.45
       pitch: 1
@@ -464,9 +531,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: WaterEnter - 입수 첨벙
+  - label: "WaterEnter - \uC785\uC218 \uCCA8\uBC99"
     sound: 41
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 952453ae2ff2c8b499b58a459b8ea343, type: 3}
       volume: 0.65
       pitch: 1
@@ -474,9 +542,10 @@ MonoBehaviour:
       spatialBlend: 0
       minDistance: 4
       maxDistance: 80
-  - label: WaterExit - 출수 첨벙
+  - label: "WaterExit - \uCD9C\uC218 \uCCA8\uBC99"
     sound: 42
     audio:
+      category: 0
       clip: {fileID: 8300000, guid: 831fc30dbd5721644bb40e62a6d2338b, type: 3}
       volume: 0.55
       pitch: 1.1
@@ -485,9 +554,10 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
   magicSounds:
-  - label: Fire 화염
+  - label: "Fire \uD654\uC5FC"
     magic: 1
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 0.925
@@ -496,6 +566,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: fc9cbca844034438381d9d70376f00e5, type: 3}
       volume: 0.5
       pitch: 1
@@ -504,6 +575,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -512,6 +584,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: bf5176b9e71d248f0a3b6b40b9cf1a2f, type: 3}
       volume: 0.5
       pitch: 1
@@ -520,6 +593,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -528,6 +602,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -536,6 +611,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -544,6 +620,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -552,6 +629,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -560,6 +638,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -567,9 +646,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Ice 얼음
+  - label: "Ice \uC5BC\uC74C"
     magic: 2
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 0.95
@@ -578,6 +658,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 229f375126daa495b8f6ef83b4b980ea, type: 3}
       volume: 0.5
       pitch: 1
@@ -586,6 +667,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -594,6 +676,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 37ccc381e70c442b78b004fa26dc1ae0, type: 3}
       volume: 0.5
       pitch: 1
@@ -602,6 +685,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -610,6 +694,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -618,6 +703,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 8300000, guid: cb201c4d86fcd48fe9dc0363480707d1, type: 3}
       volume: 0.18
       pitch: 1
@@ -626,6 +712,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -634,6 +721,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -642,6 +730,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -649,9 +738,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Vision 비전
+  - label: "Vision \uBE44\uC804"
     magic: 3
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 0.975
@@ -660,6 +750,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 42d11d5763f434fbc8f48bc8bca6f0c5, type: 3}
       volume: 0.5
       pitch: 1
@@ -668,6 +759,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -676,6 +768,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: bb8423acaa3ac4b41bd11de02995eb61, type: 3}
       volume: 0.5
       pitch: 1
@@ -684,6 +777,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -692,6 +786,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -700,6 +795,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -708,6 +804,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -716,6 +813,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -724,6 +822,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -731,9 +830,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Thunder 천둥
+  - label: "Thunder \uCC9C\uB465"
     magic: 4
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1
@@ -742,6 +842,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 1eb0b200a160d4d5fb53007b31a24ae9, type: 3}
       volume: 0.5
       pitch: 1
@@ -750,6 +851,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -758,6 +860,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 0df2e65c0da0d447fbba8faf17143eb7, type: 3}
       volume: 0.5
       pitch: 1
@@ -766,6 +869,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -774,6 +878,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -782,6 +887,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -790,6 +896,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 8300000, guid: 98de78aedd44f4110a4f258b70741c66, type: 3}
       volume: 0.5
       pitch: 1
@@ -798,6 +905,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -806,6 +914,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -813,9 +922,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Healing 회복
+  - label: "Healing \uD68C\uBCF5"
     magic: 5
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.025
@@ -824,6 +934,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 37be39df8d3d548ee90ab1886819355d, type: 3}
       volume: 0.5
       pitch: 1
@@ -832,6 +943,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -840,6 +952,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 1173f3f6759e54a8592363a99a3de829, type: 3}
       volume: 0.5
       pitch: 1
@@ -848,6 +961,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -856,6 +970,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -864,6 +979,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -872,6 +988,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -880,6 +997,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -888,6 +1006,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -895,9 +1014,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Binding 속박
+  - label: "Binding \uC18D\uBC15"
     magic: 6
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.05
@@ -906,6 +1026,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 05d930ca2d09a4f2683ec16f45e86d61, type: 3}
       volume: 0.5
       pitch: 1
@@ -914,6 +1035,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -922,6 +1044,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 868933fa698ca477f8d58a1a1b84d9e3, type: 3}
       volume: 0.5
       pitch: 1
@@ -930,6 +1053,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -938,6 +1062,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -946,6 +1071,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -954,6 +1080,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -962,6 +1089,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -970,6 +1098,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -977,9 +1106,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Dark 암흑
+  - label: "Dark \uC554\uD751"
     magic: 7
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.075
@@ -988,6 +1118,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 67dc250ee5e0447bd95a25a32ce4698e, type: 3}
       volume: 0.5
       pitch: 1
@@ -996,6 +1127,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1004,6 +1136,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 39899440f495d427abb37146933481f3, type: 3}
       volume: 0.5
       pitch: 1
@@ -1012,6 +1145,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1020,6 +1154,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1028,6 +1163,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1036,6 +1172,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1044,6 +1181,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1052,6 +1190,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1059,9 +1198,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Curse 저주
+  - label: "Curse \uC800\uC8FC"
     magic: 8
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.1
@@ -1070,6 +1210,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 9e1f6e2f888584072a973459172dc5c8, type: 3}
       volume: 0.5
       pitch: 1
@@ -1078,6 +1219,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1086,6 +1228,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 868933fa698ca477f8d58a1a1b84d9e3, type: 3}
       volume: 0.2
       pitch: 1
@@ -1094,6 +1237,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 8300000, guid: d326e592ff3c344679852c591ac16ed1, type: 3}
       volume: 0.25
       pitch: 1
@@ -1102,6 +1246,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 8300000, guid: 64e42c48aae8447c2bfe41d9bd62121b, type: 3}
       volume: 0.5
       pitch: 1
@@ -1110,6 +1255,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1118,6 +1264,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1126,6 +1273,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1134,6 +1282,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1141,9 +1290,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Mine 소환
+  - label: "Mine \uC18C\uD658"
     magic: 9
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.125
@@ -1152,6 +1302,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: e39f822c236874ae4b139f62f8f329c2, type: 3}
       volume: 0.5
       pitch: 1
@@ -1160,6 +1311,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1168,6 +1320,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 8ac32a0378ccc4035aad8e86c72dd7fd, type: 3}
       volume: 0.5
       pitch: 1
@@ -1176,6 +1329,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1184,6 +1338,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1192,6 +1347,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1200,6 +1356,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1208,6 +1365,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 8300000, guid: e39f822c236874ae4b139f62f8f329c2, type: 3}
       volume: 0.5
       pitch: 1
@@ -1216,6 +1374,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1223,9 +1382,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Razier 광선
+  - label: "Razier \uAD11\uC120"
     magic: 10
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.15
@@ -1234,6 +1394,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: ae1d4cd24b532400f911c45987bb7078, type: 3}
       volume: 0.5
       pitch: 1
@@ -1242,6 +1403,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1250,6 +1412,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 348f809ce24cc47dfa6e2f3ba77f3d00, type: 3}
       volume: 0.2
       pitch: 1
@@ -1258,6 +1421,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 8300000, guid: 5fcb61be804514990a873d57f699b134, type: 3}
       volume: 0.25
       pitch: 1
@@ -1266,6 +1430,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 8300000, guid: 348f809ce24cc47dfa6e2f3ba77f3d00, type: 3}
       volume: 0.5
       pitch: 1
@@ -1274,6 +1439,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1282,6 +1448,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1290,6 +1457,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1298,6 +1466,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1305,9 +1474,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Flare 플레어
+  - label: "Flare \uD50C\uB808\uC5B4"
     magic: 11
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.175
@@ -1316,6 +1486,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 5f1e0a685149145c5a8cfef92dee0902, type: 3}
       volume: 0.5
       pitch: 1
@@ -1324,6 +1495,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1332,6 +1504,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 501d60881091e4b64a398cd72c11e01b, type: 3}
       volume: 0.5
       pitch: 1
@@ -1340,6 +1513,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1348,6 +1522,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1356,6 +1531,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1364,6 +1540,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1372,6 +1549,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1380,6 +1558,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1387,9 +1566,10 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: Smoke 연막
+  - label: "Smoke \uC5F0\uB9C9"
     magic: 12
     lockComplete:
+      category: 0
       clip: {fileID: 8300000, guid: 7a3ca8977a95b427eb7311d0a56f8484, type: 3}
       volume: 0.4
       pitch: 1.2
@@ -1398,6 +1578,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     cast:
+      category: 0
       clip: {fileID: 8300000, guid: 6e97ea8c300b44d43932d703f1363ef3, type: 3}
       volume: 0.5
       pitch: 1
@@ -1406,6 +1587,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     projectileLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1414,6 +1596,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     impact:
+      category: 0
       clip: {fileID: 8300000, guid: 9c97c66c3e44149f486b4b9cfcc025d5, type: 3}
       volume: 0.5
       pitch: 1
@@ -1422,6 +1605,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1430,6 +1614,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     channelEnd:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1438,6 +1623,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     followUp:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1446,6 +1632,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     areaWarning:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1454,6 +1641,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     summonAttack:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1
@@ -1462,6 +1650,7 @@ MonoBehaviour:
       minDistance: 4
       maxDistance: 80
     effectLoop:
+      category: 0
       clip: {fileID: 0}
       volume: 1
       pitch: 1

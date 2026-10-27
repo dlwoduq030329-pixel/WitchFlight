@@ -226,15 +226,27 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             table != null ? table.projectilePredictionLead : 0.2f);
         float remainingRange = (source.IsMine ? stats.placementDistance : stats.range) - source.TravelledDistance;
         Vector3 forward = source.transform.forward;
-        if (stats.requiresTarget && runner.TryFindObject(source.TargetId, out NetworkObject obj) && obj != null)
+        Vector3? targetPoint = null;
+        if ((stats.requiresTarget || stats.projectileTurnSpeed > 0f) && runner.TryFindObject(source.TargetId, out NetworkObject obj) && obj != null)
         {
             var player = obj.GetComponent<Player>();
             if (player != null && player.IsAlive)
-                forward = MagicProjectile.ResolveHomingDirection(true, forward, player.LockAimPoint - position, 0, 0);
+                targetPoint = player.LockAimPoint;
             else if (obj.TryGetComponent(out MagicProjectile summon) && summon.IsLiveSummon)
-                forward = MagicProjectile.ResolveHomingDirection(true, forward, summon.transform.position - position, 0, 0);
+                targetPoint = summon.transform.position;
         }
-        return Sweep(position, position + forward * Mathf.Min(stats.projectileSpeed * lead, Mathf.Max(0f, remainingRange)), out _);
+        // Extrapolate along the same limited arc, sweeping each segment against walls.
+        while (lead > 0f && remainingRange > 0f)
+        {
+            float dt = Mathf.Min(lead,1f/60f); lead -= dt;
+            if (targetPoint.HasValue)
+                forward = MagicProjectile.ResolveHomingDirection(stats.requiresTarget,forward,targetPoint.Value-position,stats.projectileTurnSpeed,dt);
+            float step = Mathf.Min(stats.projectileSpeed*dt,remainingRange);
+            position = Sweep(position,position+forward*step,out bool hit);
+            remainingRange -= step;
+            if (hit) break;
+        }
+        return position;
     }
 
     public static float BoundedLead(float timeGap, float maximum)

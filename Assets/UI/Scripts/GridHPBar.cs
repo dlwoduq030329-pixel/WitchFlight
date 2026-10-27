@@ -23,6 +23,8 @@ public class GridHPBar : MonoBehaviour
     private readonly List<Image> cells = new();
     private readonly List<Color> baseColors = new();
     private Image[] legacyCells;
+    private Color[] legacyBaseColors;
+    private Color? fillTint;
     private float lastHp = -1f, lastMaxHp = -1f, flashRemaining;
     private int displayedCellCount = -1;
     private bool initialized;
@@ -57,6 +59,15 @@ public class GridHPBar : MonoBehaviour
     {
         lastHp = lastMaxHp = -1f;
         flashRemaining = 0f;
+    }
+
+    // Viewer-local team tint; never changes the shared prefab or its cell template.
+    public void SetFillTint(Color? tint)
+    {
+        if (fillTint.Equals(tint)) return;
+        fillTint = tint;
+        if (cellTemplate != null) RefreshCells();
+        else { displayedCellCount = -1; UpdateLegacy(currentPercent); }
     }
 
     public void UpdateHealth(float current, float maximum)
@@ -137,7 +148,7 @@ public class GridHPBar : MonoBehaviour
             if (cell == null) continue;
             float fill = CellFill(lastHp, lastMaxHp, healthPerCell, i);
             cell.fillAmount = fill > 0f ? fill : 1f;
-            Color color = Color.Lerp(baseColors[i], damageFlashColor, flash);
+            Color color = Color.Lerp(fillTint ?? baseColors[i], damageFlashColor, flash);
             color.a = (fill > 0f ? 1f : emptyCellAlpha) * baseColors[i].a;
             cell.color = color;
         }
@@ -153,7 +164,12 @@ public class GridHPBar : MonoBehaviour
 
     private void UpdateLegacy(float percent)
     {
-        if (legacyCells == null && gridParent != null) legacyCells = gridParent.GetComponentsInChildren<Image>(true);
+        if (legacyCells == null && gridParent != null)
+        {
+            legacyCells = gridParent.GetComponentsInChildren<Image>(true);
+            legacyBaseColors = new Color[legacyCells.Length];
+            for (int i = 0; i < legacyCells.Length; i++) legacyBaseColors[i] = legacyCells[i].color;
+        }
         if (legacyCells == null) return;
         int count = Mathf.RoundToInt(legacyCells.Length * percent);
         if (displayedCellCount == count) return;
@@ -161,7 +177,7 @@ public class GridHPBar : MonoBehaviour
         for (int i = 0; i < legacyCells.Length; i++)
         {
             if (legacyCells[i] == null) continue;
-            Color color = legacyCells[i].color;
+            Color color = fillTint ?? legacyBaseColors[i];
             color.a = i < count ? 1f : 0f;
             legacyCells[i].color = color;
         }

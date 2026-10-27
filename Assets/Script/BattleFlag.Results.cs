@@ -10,6 +10,7 @@ public struct BattleAwardResult : INetworkStruct
     public PlayerRef Winner;
     public NetworkString<_32> Name;
     public float Value;
+    public int Team;
 }
 
 public static class BattleAwardRules
@@ -83,7 +84,7 @@ public static class BattleAwardRules
         {
             var winner = roster[bestWinners[i]]; var category = (BattleAward)bestCategories[i];
             result[i] = new BattleAwardResult { Category = category, Winner = winner.ParticipantRef,
-                Name = winner.playerName, Value = Value(winner, category) };
+                Name = winner.playerName, Value = Value(winner, category), Team = winner.teamIndex };
         }
         for (int i = 0; i < result.Length; i++)
         { int pick = Random.Range(i, result.Length); (result[i], result[pick]) = (result[pick], result[i]); }

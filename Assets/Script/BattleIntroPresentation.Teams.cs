@@ -176,8 +176,8 @@ public sealed partial class BattleIntroPresentation
             Transform secondVisual = companion.Stage.transform.Find("Visual meshes only");
             secondVisual.SetParent(snapshot.Stage.transform, false);
             firstVisual.localRotation = secondVisual.localRotation = Quaternion.identity;
-            firstVisual.localPosition = Vector3.left * teamCharacterSpacing * .5f;
-            secondVisual.localPosition = Vector3.right * teamCharacterSpacing * .5f;
+            firstVisual.localPosition = Vector3.left * teamCharacterSpacing * .42f;
+            secondVisual.localPosition = Vector3.right * teamCharacterSpacing * .42f;
             snapshot.OwnedMeshes.AddRange(companion.OwnedMeshes);
             snapshot.AnimatedCat |= companion.AnimatedCat;
             companion.OwnedMeshes.Clear(); // Ownership follows the reparented visual, never double-dispose baked meshes.
@@ -214,6 +214,7 @@ public sealed partial class BattleIntroPresentation
                 catFloat.PlaceBeside(camera, renderers, 1, CatCompanionTable.Default.vsCharacterGap);
             foreach (var catFloat in secondVisual.GetComponentsInChildren<CatIntroFloat>())
                 catFloat.PlaceBeside(camera, renderers, -1, CatCompanionTable.Default.vsCharacterGap);
+            CatIntroFloat.FrameWholeGroup(snapshot.Stage.transform,camera);
             Light light = snapshot.Stage.GetComponentInChildren<Light>();
             if (light != null)
             {

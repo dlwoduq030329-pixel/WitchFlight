@@ -34,6 +34,7 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     private Canvas overlay;
     private CanvasGroup roundGroup;
     private TMP_Text roundLabel;
+    private Image roundShade;
     private readonly Dictionary<int, GameObject> characterCache = new();
     private readonly Dictionary<int, (int body, int eyes)> catCache = new();
     private readonly Dictionary<GameObject, bool> hiddenResultChildren = new();
@@ -41,6 +42,7 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     private Coroutine reveal;
     private float nextCacheCheck;
     private BattleAwardResult[] awardSnapshot;
+    private readonly Dictionary<Animator,float> roundAnimationSpeeds = new();
 
     private void Awake()
     {
@@ -62,16 +64,32 @@ public sealed class BattleResultsPresentation : MonoBehaviour
             if (shownRound != battle.RoundNumber)
             {
                 shownRound = battle.RoundNumber; roundStarted = Time.unscaledTime;
+                RestoreRoundAnimationSpeeds();
+                foreach (var player in Player.ActiveCombatants)
+                    if (player != null)
+                        foreach (var animator in player.GetComponentsInChildren<Animator>())
+                            if (animator != null) roundAnimationSpeeds[animator] = animator.speed;
                 bool won = PlayerData.Local != null && PlayerData.Local.teamIndex == battle.LastRoundWinner;
-                roundLabel.text = $"{shownRound}라운드 {(won ? "승리!" : "패배!")}";
-                roundLabel.color = won ? new Color(.25f, 1, .85f) : new Color(1, .35f, .35f);
+                roundLabel.text = won ? "승리!" : "패배!";
+                roundLabel.color = won ? new Color(1f,.72f,.12f) : new Color(1f,.25f,.2f);
             }
             roundGroup.gameObject.SetActive(true);
-            float t = Mathf.Clamp01((Time.unscaledTime - roundStarted) / Mathf.Max(.05f, settings.roundFadeSeconds));
-            roundGroup.alpha = t;
-            roundLabel.transform.localScale = Vector3.one * Mathf.Lerp(1.35f, 1f, 1 - Mathf.Pow(1 - t, 3));
+            float elapsed = Time.unscaledTime - roundStarted;
+            float animationRate = Mathf.Max(.08f,Mathf.Exp(-settings.roundSlowdownResponse*elapsed));
+            foreach (var entry in roundAnimationSpeeds) if(entry.Key!=null) entry.Key.speed = entry.Value*animationRate;
+            float t = Mathf.SmoothStep(0f,1f,Mathf.Clamp01(elapsed / Mathf.Max(.05f,settings.roundFadeSeconds)));
+            roundGroup.alpha = 1f;
+            float ending = Mathf.SmoothStep(0f,1f,Mathf.Clamp01((elapsed-(settings.roundResultSeconds-.7f))/.7f));
+            roundShade.color = new Color(.008f,.012f,.025f,Mathf.Lerp(.58f*t,1f,ending));
+            float textFade = Mathf.SmoothStep(0f,1f,Mathf.Clamp01((elapsed-.25f)/.55f));
+            roundLabel.alpha = textFade;
+            roundLabel.transform.localScale = Vector3.one * Mathf.Lerp(1.18f,1f,textFade);
         }
-        else if (roundGroup != null) roundGroup.gameObject.SetActive(false);
+        else
+        {
+            if (roundGroup != null) roundGroup.gameObject.SetActive(false);
+            RestoreRoundAnimationSpeeds();
+        }
         if (!OwnsFinalUI) return;
         CaptureAwards();
         Cursor.visible = true; Cursor.lockState = CursorLockMode.None;
@@ -194,6 +212,12 @@ public sealed class BattleResultsPresentation : MonoBehaviour
             var result = awardSnapshot[i]; var panel = panels[i];
             if (panel == null) continue;
             Set(panel.nickname, result.Name.ToString()); Set(panel.chingho, BattleAwardRules.Title(result.Category));
+            if (panel.nickname != null)
+            {
+                int ownTeam = PlayerData.Local != null ? PlayerData.Local.teamIndex : 0;
+                panel.nickname.color = ownTeam > 0 && result.Team > 0 && result.Team != ownTeam
+                    ? new Color(1f,.2f,.2f) : Color.white;
+            }
             Set(panel.count, BattleAwardRules.Count(result.Category, result.Value)); Set(panel.what, BattleAwardRules.Unit(result.Category));
             panel.lastPraise = flag != null && flag.Object != null && flag.Object.IsValid ? flag.PraiseSequences[i] : 0;
             if (characterCache.TryGetValue(result.Winner.RawEncoded, out GameObject template))
@@ -337,7 +361,10 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     {
         if (roundGroup != null) return;
         var root = NewPanel("RoundResult"); roundGroup = root.AddComponent<CanvasGroup>();
-        roundLabel = Label(root.transform, "Round result", Vector2.zero, new Vector2(1500, 180), 85);
+        roundShade = root.GetComponent<Image>();
+        roundLabel = Label(root.transform, "Round result", Vector2.zero, new Vector2(1500, 220), 120);
+        roundLabel.fontStyle = FontStyles.Bold | FontStyles.Italic;
+        roundLabel.outlineColor = new Color32(70,38,10,255); roundLabel.outlineWidth = .12f;
     }
     private void EnsureFinalFallback()
     {
@@ -377,9 +404,16 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     }
     private void OnDestroy()
     {
+        RestoreRoundAnimationSpeeds();
         foreach (var listener in listeners) if (listener.button != null) listener.button.onClick.RemoveListener(listener.listener);
         foreach (var item in hiddenResultChildren) if (item.Key != null) item.Key.SetActive(item.Value);
         foreach (var cache in characterCache.Values) if (cache != null) Destroy(cache);
         foreach (var panel in panels) if (panel?.portrait != null) Destroy(panel.portrait.gameObject);
+    }
+    private void OnDisable() => RestoreRoundAnimationSpeeds();
+    private void RestoreRoundAnimationSpeeds()
+    {
+        foreach(var entry in roundAnimationSpeeds) if(entry.Key!=null) entry.Key.speed = entry.Value;
+        roundAnimationSpeeds.Clear();
     }
 }

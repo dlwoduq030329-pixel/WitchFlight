@@ -160,8 +160,8 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         }
     }
 
-    // Lock-on shots take the direct direction immediately, not a turn-speed-limited arc.
-    // Non-lock projectiles (including mines) retain their authored firing direction.
+    // Lock-on chooses the initial aim only. In flight, all guidance obeys the turn limit.
+    // Non-lock projectiles (including mines) retain their authored firing direction at launch.
     public static Vector3 ResolveLaunchDirection(bool locked, Vector3 aim, Vector3 forward, Vector3 targetDelta)
     {
         Vector3 result = locked && targetDelta.sqrMagnitude > 0.001f ? targetDelta : aim;
@@ -172,8 +172,8 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         float turnSpeed, float deltaTime)
     {
         if (targetDelta.sqrMagnitude <= 0.001f) return current;
-        return locked ? targetDelta.normalized : Vector3.RotateTowards(current, targetDelta.normalized,
-            Mathf.Max(0f, turnSpeed) * Mathf.Deg2Rad * deltaTime, 0f).normalized;
+        return Vector3.RotateTowards(current, targetDelta.normalized,
+            Mathf.Max(0f, turnSpeed) * Mathf.Deg2Rad * Mathf.Max(0f,deltaTime), 0f).normalized;
     }
 
     private Player FindTarget()
@@ -456,7 +456,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         return false;
     }
 
-    // Presentation estimate only: never delays a shot or grants a block. Hitscan spells
+    // Warning/bot reaction estimate only: never delays a shot or grants a block. Hitscan spells
     // have no MagicProjectile instance and therefore never enter this warning path.
     public bool TryGetImpactTime(Player observer, out float seconds)
     {
@@ -468,10 +468,29 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         if (entry.projectileSpeed <= 0f) return false;
         Vector3 offset = transform.position - observer.LockAimPoint;
         bool guidedToObserver = entry.requiresTarget && TargetId.Equals(observer.Object.Id);
-        Vector3 forward = guidedToObserver && offset.sqrMagnitude > 0.001f ? -offset.normalized : transform.forward;
-        Vector3 relativeVelocity = forward * entry.projectileSpeed - observer.ParryHintVelocity;
+        Vector3 forward = transform.forward;
+        float radius = Mathf.Max(0.02f,entry.projectileRadius) + observer.ParryHintRadius;
+        Vector3 observerVelocity = observer.ParryHintVelocity;
+        if (guidedToObserver && entry.projectileTurnSpeed > 0f)
+        {
+            // Follow the limited arc against constant target velocity. A shot flying past
+            // the defender is no longer treated as pointing directly at them this tick.
+            float horizon = Mathf.Min(4f,Mathf.Max(0f,entry.range-TravelledDistance)/entry.projectileSpeed);
+            for(float elapsed=0f;elapsed<horizon;)
+            {
+                float dt = Mathf.Min(1f/30f,horizon-elapsed);
+                forward = ResolveHomingDirection(true,forward,-offset,entry.projectileTurnSpeed,dt);
+                Vector3 relative = forward*entry.projectileSpeed-observerVelocity;
+                if(TryEstimateImpactTime(offset,relative,radius,false,out float contact) && contact<=dt)
+                { seconds=elapsed+contact; return true; }
+                offset += relative*dt;
+                elapsed += dt;
+            }
+            return false;
+        }
+        Vector3 relativeVelocity = forward * entry.projectileSpeed - observerVelocity;
         return TryEstimateImpactTime(offset, relativeVelocity,
-            Mathf.Max(0.02f, entry.projectileRadius) + observer.ParryHintRadius, guidedToObserver, out seconds);
+            radius, false, out seconds);
     }
 
     public static bool TryEstimateImpactTime(Vector3 offset, Vector3 relativeVelocity,

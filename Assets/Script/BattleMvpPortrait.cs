@@ -128,22 +128,8 @@ public sealed class BattleMvpPortrait : MonoBehaviour
             var floating = view.cat.gameObject.AddComponent<CatIntroFloat>();
             floating.Initialize(position, slot * 1.7f);
             floating.PlaceBeside(camera, model.GetComponentsInChildren<Renderer>(), 1, view.table.floatingCatGap);
-            // Center the pair rather than leaving the witch centered and wasting the
-            // opposite half of this tall RawImage when the cat sits beside her.
-            Bounds combined = default;
-            bool found = false;
-            foreach (var renderer in root.GetComponentsInChildren<Renderer>())
-            {
-                if (!renderer.enabled) continue;
-                if (!found) { combined = renderer.bounds; found = true; }
-                else combined.Encapsulate(renderer.bounds);
-            }
-            if (found)
-            {
-                camera.transform.position = new Vector3(combined.center.x, combined.center.y, camera.transform.position.z);
-                camera.orthographicSize = Mathf.Max(combined.extents.y + .2f, (combined.extents.x + .2f) / aspect);
-            }
         }
+        CatIntroFloat.FrameWholeGroup(root.transform,camera);
         var light = new GameObject("MVP fill", typeof(Light)).GetComponent<Light>();
         light.transform.SetParent(root.transform, false); light.transform.position = center + new Vector3(0, 1, 3);
         light.type = LightType.Point; light.range = 8; light.intensity = 2; light.cullingMask = 1 << Layer;

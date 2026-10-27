@@ -399,8 +399,11 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         camera.farClipPlane = Mathf.Max(5f, headDistance + 3f);
         // Keep the companion outside the witch silhouette and frame the entire plane/cat.
         foreach (var catFloat in visualRoot.GetComponentsInChildren<CatIntroFloat>())
+        {
             catFloat.PlaceBeside(camera, visualRoot.GetComponentsInChildren<Renderer>(), slot % 2 == 0 ? -1 : 1,
-                catTable.vsCharacterGap);
+                Mathf.Min(.06f,catTable.vsCharacterGap));
+            catFloat.FrameWithFocus(camera,target,new Vector2(.38f,Mathf.Max(.42f,portraitHalfHeight)));
+        }
         camera.allowHDR = false;
         camera.allowMSAA = false;
         camera.useOcclusionCulling = false;
