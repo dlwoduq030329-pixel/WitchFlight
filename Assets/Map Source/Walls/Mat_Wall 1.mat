@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-6784242504896720042
+--- !u!114 &-459193975065072091
 MonoBehaviour:
   m_ObjectHideFlags: 11
   m_CorrespondingSourceObject: {fileID: 0}
@@ -20,7 +20,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: StonePillar_01
+  m_Name: Mat_Wall 1
   m_Shader: {fileID: -6465566751694194690, guid: 0e1b927c1f5a1e14c82704e35a60e8c0, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -38,19 +38,19 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _Base_Texture:
-        m_Texture: {fileID: 2800000, guid: 73d5d67b1c63ac241b4dc4aade5083bb, type: 3}
+        m_Texture: {fileID: 2800000, guid: 5d866694f5563bc4cacd92d26f94ef49, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Metallic_Map:
-        m_Texture: {fileID: 2800000, guid: ebb95a1708cf779469a87637e9f1988e, type: 3}
+        m_Texture: {fileID: 2800000, guid: dce11551ba4072249a3729ba3d8eb625, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Normal_Map:
-        m_Texture: {fileID: 2800000, guid: f831905a40e19ce43bdfdacce8f9844b, type: 3}
+        m_Texture: {fileID: 2800000, guid: 3595a87b1f1615245bbd578f6968d8bc, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Roughness_Map:
-        m_Texture: {fileID: 2800000, guid: ae58c9fdf2ab0044c8c8ed56bbc3bc47, type: 3}
+        m_Texture: {fileID: 2800000, guid: d140d207bb786df42a9a73799e7d3cb3, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:
@@ -69,8 +69,8 @@ Material:
     m_Floats:
     - _Base_Texture_Strength: 1
     - _Metallic: 0
-    - _Metallic_Strength: 1
-    - _Normal_Strength: 0
+    - _Metallic_Strength: 0
+    - _Normal_Strength: 0.5
     - _QueueControl: 0
     - _QueueOffset: 0
     - _Roughness: 0.6

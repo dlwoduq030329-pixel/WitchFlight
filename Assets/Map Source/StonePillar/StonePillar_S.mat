@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-459193975065072091
+--- !u!114 &-6784242504896720042
 MonoBehaviour:
   m_ObjectHideFlags: 11
   m_CorrespondingSourceObject: {fileID: 0}
@@ -20,7 +20,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Mat_Wall_Toon
+  m_Name: StonePillar_S
   m_Shader: {fileID: 4800000, guid: be891319084e9d147b09d89e80ce60e0, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -72,7 +72,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Base_Texture:
-        m_Texture: {fileID: 2800000, guid: c012242b9c92a284a8085289f2bb9d45, type: 3}
+        m_Texture: {fileID: 2800000, guid: 73d5d67b1c63ac241b4dc4aade5083bb, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BentNormalMap:
@@ -120,7 +120,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: c012242b9c92a284a8085289f2bb9d45, type: 3}
+        m_Texture: {fileID: 2800000, guid: 82ec0468cda39964ca7fcb668a5e977f, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MaskMap:
@@ -132,11 +132,11 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Metallic_Map:
-        m_Texture: {fileID: 2800000, guid: dce11551ba4072249a3729ba3d8eb625, type: 3}
+        m_Texture: {fileID: 2800000, guid: ebb95a1708cf779469a87637e9f1988e, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _NormalMap:
-        m_Texture: {fileID: 2800000, guid: b9727cd137b839d429220e24de6e44d9, type: 3}
+        m_Texture: {fileID: 2800000, guid: 77bc9edc91ca6a748bf0f2e94a144555, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _NormalMapForMatCap:
@@ -148,7 +148,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Normal_Map:
-        m_Texture: {fileID: 2800000, guid: b9727cd137b839d429220e24de6e44d9, type: 3}
+        m_Texture: {fileID: 2800000, guid: f831905a40e19ce43bdfdacce8f9844b, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OutlineTex:
@@ -160,7 +160,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Roughness_Map:
-        m_Texture: {fileID: 2800000, guid: 1ed9badf9dd404544af8846868262253, type: 3}
+        m_Texture: {fileID: 2800000, guid: ae58c9fdf2ab0044c8c8ed56bbc3bc47, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Set_1st_ShadePosition:
@@ -348,11 +348,11 @@ Material:
     - _MatCap: 0
     - _MaterialID: 1
     - _Metallic: 0
-    - _Metallic_Strength: 0
+    - _Metallic_Strength: 1
     - _Nearest_Distance: 0.5
     - _NormalMapSpace: 0
     - _NormalScale: 1
-    - _Normal_Strength: 0.5
+    - _Normal_Strength: 0
     - _OUTLINE: 0
     - _ObjectSpaceUVMapping: 0
     - _Offset_X_Axis_BLD: -0.05
@@ -440,7 +440,7 @@ Material:
     - _simpleUI: 0
     - _utsTechnique: 0
     m_Colors:
-    - _1st_ShadeColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _1st_ShadeColor: {r: 0.44246173, g: 0.5495185, b: 0.5754717, a: 1}
     - _2nd_ShadeColor: {r: 0, g: 0, b: 0, a: 1}
     - _AngelRingMaskColor: {r: 0, g: 1, b: 0, a: 1}
     - _AngelRing_Color: {r: 1, g: 1, b: 1, a: 1}
