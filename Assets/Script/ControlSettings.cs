@@ -87,6 +87,16 @@ public static class ControlSettings
         Changed?.Invoke();
     }
 
+    public static void ResetKeyBindings()
+    {
+        EnsureLoaded();
+        keys = (KeyCode[])defaults.Clone();
+        for (int i = 0; i < keys.Length; i++)
+            PlayerPrefs.SetInt(Prefix + (ControlAction)i, (int)keys[i]);
+        PlayerPrefs.Save();
+        Changed?.Invoke();
+    }
+
     public static bool TryRebind(ControlAction action, KeyCode requested, out string error)
     {
         EnsureLoaded();

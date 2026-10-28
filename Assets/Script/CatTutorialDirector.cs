@@ -11,7 +11,7 @@ using DG.Tweening;
 public class CatTutorialButtonBinding { public CatTutorialTarget target; public Button button; }
 
 [DefaultExecutionOrder(500)]
-public sealed class CatTutorialDirector : MonoBehaviour
+public sealed partial class CatTutorialDirector : MonoBehaviour
 {
     [SerializeField] private CatCompanionTable table;
     [SerializeField] private GameObject tutorialUI;
@@ -254,6 +254,7 @@ public sealed class CatTutorialDirector : MonoBehaviour
     }
     private void ShowStep()
     {
+        EndPracticeStep();
         Unsubscribe(); advanceQueued = false;
         if (Steps == null || step >= Steps.Length) { Complete(); return; }
         var data = Steps[step];
@@ -265,6 +266,7 @@ public sealed class CatTutorialDirector : MonoBehaviour
         next.interactable = !data.waitForTargetClick;
         next.targetGraphic.raycastTarget = !data.waitForTargetClick;
         nextHint.gameObject.SetActive(!data.waitForTargetClick);
+        nextHint.text = trainingScene && data.practice != CatTrainingAction.None ? "클릭하여 실습 시작" : "클릭하여 다음";
         if (data.waitForTargetClick)
         {
             if (targets.TryGetValue(data.highlight, out subscribed) && subscribed != null) subscribed.onClick.AddListener(TargetClicked);
@@ -277,6 +279,11 @@ public sealed class CatTutorialDirector : MonoBehaviour
     {
         if (greeting) { if (Time.unscaledTime - greetingAt >= .15f) CloseGreeting(); return; }
         if (!running || Time.unscaledTime < clickAfter || Steps[step].waitForTargetClick) return;
+        if (trainingScene && Steps[step].practice != CatTrainingAction.None)
+        {
+            if (!practiceStarted) BeginPractice();
+            return;
+        }
         step++; ShowStep();
     }
     private void TargetClicked()
@@ -293,6 +300,7 @@ public sealed class CatTutorialDirector : MonoBehaviour
     }
     private void StopTutorial()
     {
+        RestoreTrainingPractice();
         if (greetingGroup != null) greetingGroup.alpha = 1f;
         if (greeting && tutorialUI != null) tutorialUI.GetComponent<RectTransform>().anchoredPosition = greetingPosition;
         greeting = greetingClosing = false;
@@ -354,6 +362,7 @@ public sealed class CatTutorialDirector : MonoBehaviour
             if (!running) return;
             if (Time.unscaledTime >= showAt && explanationText.text != Dialogue(Steps[step]))
             { explanationText.text = Dialogue(Steps[step]); avatar.Play(Steps[step].animation); }
+            if (trainingScene) UpdatePractice();
             UpdateHighlight();
         }
     }
@@ -580,6 +589,12 @@ public sealed class CatTutorialDirector : MonoBehaviour
 
     private void UpdateHighlight()
     {
+        if (trainingScene && practiceStarted)
+        {
+            highlight.gameObject.SetActive(false);
+            foreach (var blocker in blockers) blocker.gameObject.SetActive(false);
+            return;
+        }
         var data = Steps[step];
         bool found = targets.TryGetValue(data.highlight, out var target) && target != null && target.gameObject.activeInHierarchy;
         highlight.gameObject.SetActive(found);
@@ -637,6 +652,7 @@ public sealed class CatTutorialDirector : MonoBehaviour
     { rt.gameObject.SetActive(true); rt.anchorMin = min; rt.anchorMax = max; rt.offsetMin = rt.offsetMax = Vector2.zero; }
     private void OnDestroy()
     {
+        RestoreTrainingPractice();
         StopPetPurr();
         Unsubscribe();
         if (next != null) next.onClick.RemoveListener(Next);

@@ -28,6 +28,7 @@ float _SuimonoNormalsValid, _SuimonoWakeValid, _SuimonoShoreValid;
 
 	samplerCUBE _SkyCubemap;
 	samplerCUBE _CubeTex;
+	float _CubeReflectionMip;
 
 	half4 _SkyCubemap_HDR;
 	half4 _SkyTint;
@@ -522,7 +523,11 @@ float _SuimonoNormalsValid, _SuimonoWakeValid, _SuimonoShoreValid;
 			//rough
 			col.rgb = col.rgb + ((((fixed3(ndf2,ndf2,ndf2) * fixed3(h,h,h) * lerp(fixed3(1,1,1), fixed3(0.1,0.1,0.1), _roughnessLocal))) * _SpecularColor.rgb * outLight.a) * _SpecularColor.a);
 			//bright
-			col.rgb = col.rgb + (((fixed3(ndf,ndf,ndf) * fixed3(h,h,h) * lerp(fixed3(1,1,1), fixed3(0.1,0.1,0.1), _roughnessLocal)) * atten) * outLight.rgb)*1.75;
+			// Match the transparent path: the opaque fallback must honour the
+			// inspector's highlight strength and clamp the GGX peak before applying it.
+			// Otherwise Scene view / disabled refraction can produce an unbounded glare.
+			float hotspec = ndf * h * lerp(1.0, 0.1, _roughnessLocal) * atten * 1.75;
+			col.rgb += saturate(hotspec) * outLight.rgb * _specularPower;
 		}
 
 
@@ -807,7 +812,9 @@ if (_sui_metalTestMode == 3){
 		if (suimono_refl_cube == 1.0){
 			reflectMask = 1.0;
 			cubeRef = SuimonoWorldReflection(IN.worldPosition, IN.basisT, IN.basisB, IN.basisN, o.Normal * _ReflectStrength);
-			fallbackReflectColor.rgb = texCUBE(_CubeTex, cubeRef).rgb;
+			// Sample the precomputed lower-resolution mip instead of re-rendering
+			// or filtering the scene. Water normals still animate the reflection.
+			fallbackReflectColor.rgb = texCUBElod(_CubeTex, float4(cubeRef, _CubeReflectionMip)).rgb;
 			useReflectColor = fallbackReflectColor;
 		}
 

@@ -99,8 +99,8 @@ public static class ControlChecks {
   Check(ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.Alpha1,"closing tab cancels pending capture");Release();
   Call(ui,"OnEnable");Check(label.text=="75","reopening tab restores current settings");
   reset.onClick.Invoke();
-  Check(label.text=="50"&&slider.value==.5f&&rows[0].keyText.text=="1"&&rows[3].keyText.text=="Shift"&&rows[7].keyText.text=="Q"&&rows[8].keyText.text=="T","reset restores every visible key and sensitivity");
-  Reload();Check(ControlSettings.GetKey(ControlAction.QuickBrake)==KeyCode.Q&&ControlSettings.GetKey(ControlAction.Emote)==KeyCode.T&&ControlSettings.Sensitivity==50,"reset persists across restarts");
+  Check(label.text=="75"&&slider.value==.75f&&rows[0].keyText.text=="1"&&rows[3].keyText.text=="Shift"&&rows[7].keyText.text=="Q"&&rows[8].keyText.text=="T","reset restores every visible key while preserving sensitivity");
+  Reload();Check(ControlSettings.GetKey(ControlAction.QuickBrake)==KeyCode.Q&&ControlSettings.GetKey(ControlAction.Emote)==KeyCode.T&&ControlSettings.Sensitivity==75,"reset persists across restarts without resetting sensitivity");
   Call(ui,"OnDisable");Call(ui,"OnDestroy");
   return count;
  }

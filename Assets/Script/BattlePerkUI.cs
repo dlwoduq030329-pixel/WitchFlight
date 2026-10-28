@@ -100,7 +100,8 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         get { if (active == null) return false; active.SampleInput(); return active.gate.BlocksCombat; }
     }
     private bool Allowed => Application.isFocused && !CombatPresentation.MenuOpen && BattleManager.Instance != null &&
-        (BattleManager.Instance.Phase == BattleStartPhase.Playing || BattleManager.Instance.Phase == BattleStartPhase.Countdown);
+        (BattleManager.Instance.Phase == BattleStartPhase.Playing || BattleManager.Instance.Phase == BattleStartPhase.Countdown ||
+        CatTutorialDirector.PracticeInputActive);
     private void SampleInput()
     {
         if (inputFrame == Time.frameCount) return;

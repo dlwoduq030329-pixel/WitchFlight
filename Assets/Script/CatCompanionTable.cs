@@ -4,6 +4,7 @@ using UnityEngine;
 public enum CatAnimation { StandingIdle, SittingIdle, Loaf, Standing, Walk, Run, Jump, Scratch, Punch, Grooming, Knead, Cheer, Yawn }
 public enum CatTutorialTarget { None, Wardrobe, WeaponTab, CustomBack, BattleMenu, Training, CreateRoom, RandomMatch, BattleBack }
 public enum CatGreetingKind { Welcome, Victory, Defeat }
+public enum CatTrainingAction { None, SpeedUpAndDown, AimAndFire, SwitchSlots, Parry, ChoosePerk, Boost, QuickBrake, Emote }
 
 [Serializable]
 public class CatAnimationEntry
@@ -19,6 +20,8 @@ public class CatTutorialStep
     public string id;
     public CatTutorialTarget highlight;
     public bool waitForTargetClick;
+    [Tooltip("첫 훈련장 전용. 실습 시작을 누른 후 실제 행동에 성공해야 다음 대사로 진행합니다.")]
+    public CatTrainingAction practice;
     public CatAnimation animation = CatAnimation.SittingIdle;
     [Min(0)] public float dreamyPauseSeconds;
     [Tooltip("몸 ID 순서: 멍청 / 친절 / 츤데레 / 멍때림 / 애교 / 신사 / 공주병")]

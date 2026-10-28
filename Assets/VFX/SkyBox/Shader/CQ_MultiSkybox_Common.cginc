@@ -182,8 +182,10 @@ float3 CQ_MultiSkybox(float3 rd, float3 sun, float3 moon, float daylight, float 
 }
 float3 CQ_MultiSkyboxFinish(float3 color, float3 rd, float daylight)
 {
+    #if !defined(WITCHFLIGHT_CLOUD_SEA)
     float3 ground = _GroundColor.rgb*lerp(0.035,0.5,daylight);
     color = lerp(ground,color,smoothstep(-0.045,0.006,rd.y));
+    #endif
     color = max(color,0.0)*_Exposure;
     color = lerp(color,1.0-exp(-color),step(0.5,_ToneMap));
     #if defined(UNITY_COLORSPACE_GAMMA)

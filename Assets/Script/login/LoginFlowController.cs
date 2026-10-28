@@ -23,10 +23,13 @@ public sealed class LoginFlowController : MonoBehaviour
     private bool processing;
     private LonginLink loginForm;
     private LoginManager subscribedLoginManager;
+    private LoginIntroTransition introTransition;
 
     private void Awake()
     {
         if (introRoot != null) loginForm = introRoot.GetComponentInChildren<LonginLink>(true);
+        introTransition = LoginIntroTransition.TryCreate(introRoot != null ? introRoot.transform : null,
+            loginForm != null ? loginForm.gameObject : loginPanel);
     }
 
     private void OnEnable()
@@ -40,6 +43,13 @@ public sealed class LoginFlowController : MonoBehaviour
         // them on a return trip; always use the surviving authenticated singletons.
         ResolveSessionManagers();
         if (loginManager != null && loginManager.IsLoggedIn) ContinueAfterLogin();
+        else if (introTransition != null)
+        {
+            SetActive(lobbyRoot, false);
+            SetActive(introRoot, true);
+            SetActive(errorPanel, false);
+            introTransition.ShowInitial();
+        }
         else ShowLogin();
     }
 
@@ -47,6 +57,8 @@ public sealed class LoginFlowController : MonoBehaviour
     {
         UnsubscribeLogin();
     }
+
+    private void OnDestroy() => introTransition?.Dispose();
 
     private void ResolveSessionManagers()
     {
@@ -82,6 +94,7 @@ public sealed class LoginFlowController : MonoBehaviour
         IsLobbyReady = false;
         SetActive(lobbyRoot, false);
         SetActive(introRoot, true);
+        introTransition?.OpenLogin();
         SetActive(loginPanel, true);
         SetActive(errorPanel, false);
         if (loginForm != null) loginForm.gameObject.SetActive(true);
@@ -144,6 +157,7 @@ public sealed class LoginFlowController : MonoBehaviour
                 return;
             }
             IsLobbyReady = true;
+            introTransition?.Dismiss();
             SetActive(introRoot, false);
             if (errorText != null) errorText.text = string.Empty;
             onLobbyReady.Invoke();
@@ -161,6 +175,7 @@ public sealed class LoginFlowController : MonoBehaviour
         if (databaseManager != null) databaseManager.SuspendLobbyInitialization();
         SetActive(lobbyRoot, false);
         SetActive(introRoot, true);
+        introTransition?.OpenLogin();
         SetActive(loginPanel, true);
         if (loginForm != null) loginForm.gameObject.SetActive(true);
         if (errorText != null) errorText.text = message;

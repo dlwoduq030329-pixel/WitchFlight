@@ -69,7 +69,8 @@ public class BattleManager : MonoBehaviour
     public static BattleManager Instance => instance;
     private bool HasValidFlag => battleFlag != null && battleFlag.Object != null && battleFlag.Object.IsValid;
     public BattleStartPhase Phase => HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
-    public bool IsGameplayActive => Phase == BattleStartPhase.Playing;
+    public bool IsGameplayActive => Phase == BattleStartPhase.Playing ||
+        (IsTraining && Phase == BattleStartPhase.TrainingTutorial && CatTutorialDirector.PracticeInputActive);
     public bool IsTraining => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
     public bool AutoStartWhenReady => autoStartWhenReady;
     public int ExpectedPlayerCount => HasValidFlag && battleFlag.ExpectedPlayerCount > 0

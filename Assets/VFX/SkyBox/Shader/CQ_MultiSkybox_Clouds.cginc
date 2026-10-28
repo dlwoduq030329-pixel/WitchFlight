@@ -3,6 +3,9 @@
 #include "CQ_MultiSkybox_Common.cginc"
 sampler2D _CloudMap;
 float _SecondLayer, _CloudSoftness;
+#if defined(WITCHFLIGHT_CLOUD_SEA)
+#include "BattleSkyAtmosphere.cginc"
+#endif
 
 // Analytic projected cloud sheets. No depth traversal or ray marching.
 // Each layer uses exactly three texture samples: body, erosion and light offset.
@@ -72,6 +75,15 @@ float4 CQ_MultiSkyboxFrag(CQ_MultiSkyboxVaryings i) : SV_Target
         color = lerp(color,highColor,alpha);
     }
     #endif
+    #if defined(WITCHFLIGHT_CLOUD_SEA)
+    if (_CumulusClouds > 0.5)
+    {
+        float4 cumulus = BattleCumulusClouds(rd,daylight,twilight,cloudTime);
+        cumulus.rgb = lerp(cumulus.rgb,color,saturate(_Haze*0.14/(rd.y*rd.y+0.4)));
+        color = lerp(color,cumulus.rgb,cumulus.a);
+    }
+    else
+    #endif
     if (_CloudDensity>0.001 && _CloudCoverage+_Overcast>0.001)
     {
         #if !defined(CQ_MULTISKYBOX_LITE)
@@ -86,6 +98,9 @@ float4 CQ_MultiSkyboxFrag(CQ_MultiSkyboxVaryings i) : SV_Target
         lower.rgb = lerp(lower.rgb,color,saturate(_Haze*0.18/(rd.y*rd.y+0.4)));
         color = lerp(color,lower.rgb,lower.a);
     }
+    #if defined(WITCHFLIGHT_CLOUD_SEA)
+    color = BattleSkyAtmosphere(color, rd, daylight, cloudTime);
+    #endif
     return float4(CQ_MultiSkyboxFinish(color,rd,daylight),1.0);
 }
 #endif

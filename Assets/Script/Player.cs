@@ -494,7 +494,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         BattleManager battle = BattleManager.Instance;
         if (battle == null || !battle.IsGameplayActive || !IsAlive || battle.MapBoundary == null) return;
         Vector3 position = transform.position;
-        Vector3 constrained = IsMatchBot ? battle.MapBoundary.ClampBotPosition(position) : battle.MapBoundary.ClampToLowerLimit(position);
+        Vector3 constrained = IsMatchBot || (CatTutorialDirector.TrainingSessionActive && !IsTestBot)
+            ? battle.MapBoundary.ClampBotPosition(position) : battle.MapBoundary.ClampToLowerLimit(position);
         if ((constrained - position).sqrMagnitude < .000001f) return;
 
         // Enforce on host and predicted owner, including portal/bot/return paths.
@@ -576,6 +577,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             SpawnProtectionTimer = seconds > 0f ? TickTimer.CreateFromSeconds(Runner, seconds) : TickTimer.None;
         }
         TickPerkEffects();
+        if (CatTutorialDirector.TrainingSessionActive && !IsTestBot && Object.HasStateAuthority)
+            RestoreAp(MaxAp);
         if (!IsAlive) return;
         if (TickDrowning()) return;
         if (testBot != null)
@@ -637,6 +640,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private bool CheckAltitudeLimit()
     {
         if (!Object.HasStateAuthority) return false;
+        if (CatTutorialDirector.TrainingSessionActive && !IsTestBot) return false;
         // Scripted return arcs, updrafts and portal arrivals must obey the bot box too.
         if (IsMatchBot) EnforceMapFloor();
         MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
@@ -1278,6 +1282,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         MagicCooldowns.Set(magicIndex, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.cooldownSeconds)));
         LastCastMagic = selectedMagic;
         CastSequence++;
+        if (stats.requiresFullLock && IsFullyLocked) CatTutorialDirector.NotifyPracticeLockedCast(this);
         stats.perkCast = CastSequence;
         stats.perkAttacker = ParticipantRef;
         if (stats.castSeconds > 0f && !stats.TargetsAllies && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke &&
@@ -1638,6 +1643,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             RegisterParry(incomingDirection, attacker, attackerId);
             return;
         }
+        if (CatTutorialDirector.TrainingSessionActive && !IsTestBot) return;
         Player perkSource = null;
         if (Runner.TryFindObject(attackerId, out NetworkObject perkSourceObject) && perkSourceObject != null)
             perkSource = perkSourceObject.GetComponent<Player>();
@@ -1717,6 +1723,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             RegisterParry(Vector3.zero, attacker, attackerId);
             return;
         }
+
+        if (CatTutorialDirector.TrainingSessionActive && !IsTestBot) return;
 
         LastAttacker = attacker;
         LastReceivedDamage = damage;
