@@ -462,6 +462,9 @@ namespace Suimono.Core
             var mainData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(copyCam);
             mainData.requiresDepthTexture = true; mainData.requiresColorTexture = true;
             if (!Application.isPlaying && cameraType != suiCamToolType.shorelineObject) return;
+            // Do not schedule even a first-frame reflection capture when the module
+            // uses a saved cubemap. Other water captures still run normally.
+            if (cameraType == suiCamToolType.localReflection && (!module.enableReflections || !module.enableDynamicReflections)) return;
             if ((cameraType == suiCamToolType.normals || cameraType == suiCamToolType.wakeEffects) && !module.enableAdvancedDistort) {
                 Shader.SetGlobalTexture(cameraType == suiCamToolType.normals ? "_suimono_NormalsTex" : "_suimono_WakeTex", Texture2D.blackTexture); return;
             }

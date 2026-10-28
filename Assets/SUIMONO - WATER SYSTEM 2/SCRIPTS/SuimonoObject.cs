@@ -708,6 +708,8 @@ namespace Suimono.Core
 
 					if (!moduleObject.enableReflections) useEnableReflections = false;
 					if (!moduleObject.enableDynamicReflections) useEnableDynamicReflections = false;
+					// The shader branch must follow the same switches as the capture camera.
+					useDynReflections = useEnableReflections && useEnableDynamicReflections;
 					
 					if (!useEnableReflections || !moduleObject.enableReflections){
 						useReflections = false;
@@ -870,6 +872,10 @@ namespace Suimono.Core
 					}
 
 					//set custom cubemap
+					// Reflection Blur also applies to the saved sky, without a blur camera/pass.
+					float cubeMip = customRefCubemap != null
+						? Mathf.Clamp01(reflectBlur) * Mathf.Log(Mathf.Max(1, customRefCubemap.width), 2f) : 0f;
+					surfaceRenderer.sharedMaterial.SetFloat("_CubeReflectionMip", cubeMip);
 					if (customRefCubemap != null)
 						surfaceRenderer.sharedMaterial.SetTexture("_CubeTex", customRefCubemap);
 

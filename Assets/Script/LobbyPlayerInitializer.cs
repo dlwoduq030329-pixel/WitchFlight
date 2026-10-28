@@ -4,7 +4,7 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 
 // Put on an always-active Main scene object, outside the panels being toggled.
-public sealed class LobbyPlayerInitializer : MonoBehaviour
+public sealed partial class LobbyPlayerInitializer : MonoBehaviour
 {
     [SerializeField] private PlayerEquipment equipment;
     [SerializeField] private Transform characterSearchRoot;
@@ -83,6 +83,7 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         RefreshEquipmentVisibility();
         // Login snapshots and logout resets can be silent DataConfig changes.
         RefreshPlayerProfile();
+        RefreshColorSelections();
     }
 
     private void RefreshPlayerProfile()
@@ -230,6 +231,7 @@ public sealed class LobbyPlayerInitializer : MonoBehaviour
         RefreshSlider(bangsLengthSlider, bangsLengthText, DataConfig.bangsLength, ready);
         RefreshSlider(bangsDirectionSlider, bangsDirectionText, DataConfig.bangsDirection, ready);
         RefreshSlider(sideHairLengthSlider, sideHairLengthText, DataConfig.sideHairLength, ready);
+        RefreshColorSelections();
     }
 
     private static void RefreshSlider(Slider slider, TMP_Text text, float value, bool ready)

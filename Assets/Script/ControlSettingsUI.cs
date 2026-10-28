@@ -120,13 +120,19 @@ public sealed class ControlSettingsUI : MonoBehaviour
     public void ResetControls()
     {
         CancelRebind();
-        ControlSettings.ResetToDefaults();
+        ControlSettings.ResetKeyBindings();
         Refresh();
     }
 
     private void EnsureResetButton()
     {
         if (resetButton != null) return;
+        // The authored button may sit beside ControlTab under the same SettingUI.
+        Transform scope = transform;
+        for (Transform parent = transform.parent; parent != null; parent = parent.parent)
+            if (parent.name == "SettingUI") { scope = parent; break; }
+        foreach (Button candidate in scope.GetComponentsInChildren<Button>(true))
+            if (candidate.name == "Initalize") { resetButton = candidate; return; }
         foreach (Button candidate in GetComponentsInChildren<Button>(true))
             if (candidate.name == "ResetControlsButton") { resetButton = candidate; return; }
         var root = new GameObject("ResetControlsButton", typeof(RectTransform), typeof(Image), typeof(Button));

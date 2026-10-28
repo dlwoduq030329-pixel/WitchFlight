@@ -45,7 +45,14 @@ public partial class PlayerData
     }
     public bool CanSelectPerks => Object != null && Object.IsValid && PerksInitialized &&
         BattleManager.Instance != null && (BattleManager.Instance.Phase == BattleStartPhase.Playing ||
-        BattleManager.Instance.Phase == BattleStartPhase.Countdown) && PendingPerkChoices > 0;
+        BattleManager.Instance.Phase == BattleStartPhase.Countdown || CatTutorialDirector.PracticeInputActive) && PendingPerkChoices > 0;
+
+    public void GrantTrainingPracticeChoice()
+    {
+        if (!CatTutorialDirector.TrainingSessionActive || Object == null || !Object.HasStateAuthority) return;
+        ResetMatchPerks();
+        AddPerkXp(PerkTable.RequiredXp(0));
+    }
 
     public void ResetMatchPerks()
     {

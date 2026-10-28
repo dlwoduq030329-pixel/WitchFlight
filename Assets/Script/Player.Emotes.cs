@@ -23,6 +23,7 @@ public partial class Player
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
             table == null || !table.TryGet(emoteId, out _) || TimerIsActive(emoteRepeatTimer)) return;
         emoteRepeatTimer = TickTimer.CreateFromSeconds(Runner, table.MinimumInterval);
+        CatTutorialDirector.NotifyPracticeEmote(this);
         RPC_PresentEmote(emoteId);
     }
 

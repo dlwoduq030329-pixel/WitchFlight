@@ -11,12 +11,20 @@ public sealed class IslandAtmosphere : MonoBehaviour
     [SerializeField] private Vector3 center;
     [SerializeField] private int seed = 173;
     [Header("Cloud banks around the island")]
+    [Tooltip("Optional material for the generated cloud batch. Empty uses the original prefab material.")]
+    [SerializeField] private Material cloudMaterial;
     [SerializeField, Range(12, 64)] private int cloudCount = 36;
     [SerializeField] private Vector2 cloudRadius = new Vector2(440f, 440f);
     [SerializeField] private Vector2 cloudHeights = new Vector2(-30f, 55f);
     [SerializeField] private Vector2 cloudSize = new Vector2(145f, 205f);
+    [SerializeField, Range(0.5f, 3f)] private float cloudAspect = 1f;
+    [SerializeField, Range(0f, 180f)] private float cloudRotationRange = 180f;
     [SerializeField, Range(0f, 1f)] private float cloudOpacity = 0.42f;
     [SerializeField, Min(0f)] private float cloudDrift = 8f;
+    [Tooltip("Group clouds into uneven banks with open sky between them, instead of a continuous ring.")]
+    [SerializeField] private bool clusteredClouds;
+    [SerializeField, Range(3, 8)] private int cloudBankCount = 4;
+    [SerializeField, Range(10f, 70f)] private float cloudBankSpread = 42f;
     [Header("Small flocks gliding around the island")]
     [SerializeField, Range(0, 48)] private int birdCount = 18;
     [SerializeField, Range(1, 6)] private int flockCount = 3;
@@ -40,7 +48,9 @@ public sealed class IslandAtmosphere : MonoBehaviour
         if (originalSystems.Length == 0) return;
         // Keep the material assigned in the Battle scene, including prefab overrides.
         var source = originalSystems[0].GetComponent<ParticleSystemRenderer>();
-        if (source == null || source.sharedMaterial == null) return;
+        Material material = kind == AtmosphereKind.Clouds && cloudMaterial != null
+            ? cloudMaterial : source != null ? source.sharedMaterial : null;
+        if (material == null) return;
         originalActive = new bool[originalSystems.Length];
         originalRenderers = new bool[originalSystems.Length];
         for (int i = 0; i < originalSystems.Length; i++)
@@ -66,12 +76,13 @@ public sealed class IslandAtmosphere : MonoBehaviour
         main.simulationSpace = ParticleSystemSimulationSpace.Local;
         main.scalingMode = ParticleSystemScalingMode.Local;
         main.startSpeed = 0f;
+        main.startSize3D = kind == AtmosphereKind.Clouds;
         main.startLifetime = 1000f;
         main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
         var emission = particles.emission; emission.enabled = false;
         var shape = particles.shape; shape.enabled = false;
         var output = particles.GetComponent<ParticleSystemRenderer>();
-        output.sharedMaterial = source.sharedMaterial;
+        output.sharedMaterial = material;
         output.shadowCastingMode = ShadowCastingMode.Off;
         output.receiveShadows = false;
         output.lightProbeUsage = LightProbeUsage.Off;
@@ -115,10 +126,11 @@ public sealed class IslandAtmosphere : MonoBehaviour
             Vector3 velocity = Vector3.zero;
             if (kind == AtmosphereKind.Clouds)
             {
-                position = CloudPosition(i, count, time, cloudRadius, cloudHeights, cloudDrift, seed);
-                buffer[i].startSize = Mathf.Lerp(cloudSize.x, cloudSize.y, variation);
+                position = GetCloudPosition(i, count, time);
+                float size = Mathf.Lerp(cloudSize.x, cloudSize.y, variation);
+                buffer[i].startSize3D = new Vector3(size * cloudAspect, size, size);
                 buffer[i].startColor = new Color(1f, 1f, 1f, cloudOpacity * Mathf.Lerp(0.8f, 1f, variation));
-                buffer[i].rotation = variation * 360f + Mathf.Sin(time * 0.015f + i) * 3f;
+                buffer[i].rotation = (variation * 2f - 1f) * cloudRotationRange + Mathf.Sin(time * 0.015f + i) * 3f;
             }
             else
             {
@@ -147,6 +159,25 @@ public sealed class IslandAtmosphere : MonoBehaviour
         return new Vector3(Mathf.Cos(angle) * (radius.x + bank * 35f + offset),
             (bank == 0 ? heights.x : heights.y) + Mathf.Sin(time * 0.012f + index) * 5f,
             Mathf.Sin(angle) * (radius.y + bank * 35f + offset));
+    }
+
+    private Vector3 GetCloudPosition(int index, int count, float time)
+    {
+        if (!clusteredClouds)
+            return CloudPosition(index, count, time, cloudRadius, cloudHeights, cloudDrift, seed);
+        int groups = Mathf.Clamp(cloudBankCount, 3, 8);
+        int bank = index % groups;
+        float bankVariation = Variation(bank + 211, seed);
+        float v = Variation(index, seed);
+        float angle = (bank * 360f / groups + 17f + (bankVariation - 0.5f) * 22f
+            + (v - 0.5f) * cloudBankSpread) * Mathf.Deg2Rad;
+        float radiusScale = Mathf.Lerp(1f, 1.18f, Variation(index + 61, seed));
+        float drift = Mathf.Sin(time * 0.018f + v * Mathf.PI * 2f) * cloudDrift;
+        float height = Mathf.Lerp(cloudHeights.x, cloudHeights.y,
+            Mathf.Clamp01(bankVariation * 0.6f + Variation(index + 113, seed) * 0.4f));
+        return new Vector3(Mathf.Cos(angle) * (cloudRadius.x * radiusScale + drift),
+            height + Mathf.Sin(time * 0.012f + index) * 5f,
+            Mathf.Sin(angle) * (cloudRadius.y * radiusScale + drift));
     }
 
     public static Vector3 BirdPosition(int index, int count, int groups, float time, float radius, Vector2 heights, Vector2 periods, float bob, int seed)
@@ -199,7 +230,7 @@ public sealed class IslandAtmosphere : MonoBehaviour
         if (kind == AtmosphereKind.Clouds)
         {
             for (int i = 0; i < cloudCount; i++)
-                Gizmos.DrawWireSphere(center + CloudPosition(i, cloudCount, 0, cloudRadius, cloudHeights, cloudDrift, seed), Mathf.Min(cloudSize.x, cloudSize.y) * 0.5f);
+                Gizmos.DrawWireSphere(center + GetCloudPosition(i, cloudCount, 0), Mathf.Min(cloudSize.x, cloudSize.y) * 0.5f);
         }
         else
         {

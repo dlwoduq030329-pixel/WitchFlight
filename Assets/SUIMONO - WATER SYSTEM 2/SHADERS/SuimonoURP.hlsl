@@ -63,7 +63,10 @@ half4 SuimonoFragment(Varyings i):SV_Target {
     #else
     half4 col=LightingSuimonoLight(s,lightTS,viewTS,light.shadowAttenuation);
     #endif
-    col.rgb=MixFog(col.rgb,i.fog); return col;
+    // The infinite-ocean mesh has very large triangles. Clamping fog at its
+    // vertices makes the horizon a flat band; evaluate depth at the actual pixel.
+    float fog = ComputeFogFactor(TransformWorldToHClip(i.positionWS).z);
+    col.rgb=MixFog(col.rgb,fog); return col;
 }
 #ifdef SUIMONO_TESSELLATION
 Attributes SuimonoControlPoint(Attributes v) { return v; }

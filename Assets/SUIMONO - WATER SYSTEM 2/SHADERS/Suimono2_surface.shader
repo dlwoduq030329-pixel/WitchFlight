@@ -19,6 +19,7 @@ Properties {
 	_NormalTexR ("Rolling Wave Normal Texture Large", 2D) = "white" {}
 	_ReflectionTex ("reflections", 2D) = "white" {}
 	_CubeTex ("Cubemap reflections", CUBE) = "white" {}
+	_CubeReflectionMip ("Cubemap Reflection Blur Mip", Range(0,12)) = 0
 	_FoamTex ("Foam Texture", 2D) = "white" {}
 	_MaskTex ("Mask Texture", 2D) = "white" {}
 

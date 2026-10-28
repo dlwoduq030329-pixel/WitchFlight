@@ -479,6 +479,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void Awake()
     {
+        BindSceneMenu();
         ValidateStatusEffectViews();
         offscreenThreatFilter = IsOffscreenThreat;
         damageSlots = new DamageSlot[damageLabels.Length];
@@ -1264,12 +1265,15 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void SetMenuOpen(bool open)
     {
+        bool wasOpen = MenuOpen;
         BattleManager battle = BattleManager.Instance;
         if (open && menuPanel == null && battle != null) EnsureTrainingMenu();
         if (!open) CloseSettings();
         MenuOpen = open && menuPanel != null && battle != null &&
             (battle.IsGameplayActive || battle.IsBattleEnded);
         Visible(menuPanel, MenuOpen);
+        if (MenuOpen && !wasOpen) RestartMenuEntrance();
+        else if (!MenuOpen) PauseMenuEntrance();
         bool flight = battle != null && battle.IsGameplayActive && !MenuOpen;
         Cursor.lockState = flight ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !flight;
@@ -1553,6 +1557,8 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void OnDisable()
     {
+        PauseMenuEntrance();
+        CloseSettings();
         HideParryWindow();
         parryWindowOwner = null;
         ResetManaFeedback();

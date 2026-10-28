@@ -23,7 +23,7 @@ public partial class Player
     private bool TickDrowning()
     {
         if (!Object.HasStateAuthority) return false;
-        if (!IsBelowWaterSurface() || (testBot != null && testBot.Immortal))
+        if (CatTutorialDirector.TrainingSessionActive || !IsBelowWaterSurface() || (testBot != null && testBot.Immortal))
         { SubmergedSeconds = 0f; return false; }
         SubmergedSeconds = Mathf.Min(WaterDeathSeconds,SubmergedSeconds + Runner.DeltaTime);
         if (SubmergedSeconds < WaterDeathSeconds) return false;

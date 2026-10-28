@@ -41,7 +41,8 @@ public class BotObject {public bool activeSelf;public int Activations;public voi
 public class MagicTestBot {public BotObject gameObject=new();}
 public class NetworkGameManager {
  public static NetworkGameManager Instance;
- public bool IsTraining,IsRandomMatch,CanBegin=true,PreviewReady;
+ public bool IsTraining,IsRandomMatch,IsBotMatch,CanBegin=true,PreviewReady;
+ bool FillBotSeats()=>true;
  public bool isGameStarting;public float randomPlayersReadyAt=-1;public int Loads,PreviewChecks;
  public class Session {public bool IsOpen=true,IsVisible=true;}
  public class Runner {public Session SessionInfo=new();}

@@ -27,7 +27,7 @@ public sealed class MagicTestBot : MonoBehaviour
     private int seenHitSequence;
     private Player aimedPlayer;
 
-    public bool Immortal => immortal;
+    public bool Immortal => immortal || CatTutorialDirector.TrainingSessionActive;
     public float MaximumHealth => maximumHealth;
     public float ResolveMagicDamage(float tableDamage) => Mathf.Max(0f,
         overrideMagicDamage ? magicDamage : tableDamage) * Mathf.Max(0f, magicDamageMultiplier);
@@ -48,9 +48,11 @@ public sealed class MagicTestBot : MonoBehaviour
             self.RestoreHealth(self.MaxHp);
             healthResetTimer = TickTimer.None;
         }
-        if (!attacks || !isActiveAndEnabled) { ResetAim(self); return; }
+        bool guided = CatTutorialDirector.TrainingSessionActive;
+        if (!isActiveAndEnabled || (guided ? !CatTutorialDirector.CanTrainingBotAttack(this) : !attacks))
+        { ResetAim(self); return; }
         Player nearest = null;
-        float distance = attackDistance * attackDistance;
+        float distance = guided ? 10000f : attackDistance * attackDistance;
         foreach (Player candidate in Player.ActiveCombatants)
         {
             if (candidate == null || candidate.IsTestBot || candidate.Runner != self.Runner ||
@@ -63,13 +65,14 @@ public sealed class MagicTestBot : MonoBehaviour
         if (nearest == null) { ResetAim(self); return; }
         // Wait a full interval on first approach; never shoot an initial surprise burst.
         if (aimedPlayer != nearest) { ResetAim(self); aimedPlayer = nearest; }
-        float interval = Mathf.Max(0.1f, attackInterval);
+        float interval = guided ? 3f : Mathf.Max(0.1f, attackInterval);
         if (!shotTimer.IsRunning)
             shotTimer = TickTimer.CreateFromSeconds(self.Runner, interval);
         float progress = 1f - (shotTimer.RemainingTime(self.Runner) ?? 0f) / interval;
-        if (!self.UpdateTestBotAim(AttackMagic, nearest, progress)) { ResetAim(self); return; }
+        MagicType magic = guided ? MagicType.Fire : AttackMagic;
+        if (!self.UpdateTestBotAim(magic, nearest, progress)) { ResetAim(self); return; }
         if (!shotTimer.Expired(self.Runner)) return;
-        if (self.FireTestBotMagic(AttackMagic, nearest))
+        if (self.FireTestBotMagic(magic, nearest))
         {
             self.UpdateTestBotAim(AttackMagic, null, 0f);
             shotTimer = TickTimer.CreateFromSeconds(self.Runner, interval);
@@ -81,5 +84,11 @@ public sealed class MagicTestBot : MonoBehaviour
         shotTimer = TickTimer.None;
         aimedPlayer = null;
         self.UpdateTestBotAim(AttackMagic, null, 0f);
+    }
+
+    public void ResetTrainingAttack()
+    {
+        var self = GetComponent<Player>();
+        if (self != null && self.Object != null && self.Object.IsValid && self.Object.HasStateAuthority) ResetAim(self);
     }
 }
