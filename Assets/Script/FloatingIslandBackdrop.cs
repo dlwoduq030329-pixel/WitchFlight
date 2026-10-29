@@ -42,15 +42,21 @@ public sealed class FloatingIslandBackdrop : MonoBehaviour
     [Header("Clouds between the mountain groups")]
     [SerializeField, Range(0f, 1f)] private float cloudOpacity = .48f;
     [SerializeField, Range(0f, 2f)] private float cloudSizeMultiplier = 1f;
-    [SerializeField] private Color rockColor = new(.43f, .48f, .48f);
-    [SerializeField] private Color summitColor = new(.33f, .51f, .32f);
-    [SerializeField] private Color distantColor = new(.66f, .79f, .87f);
+    [SerializeField] private Color rockColor = new(.18f, .26f, .24f);
+    [SerializeField] private Color summitColor = new(.1f, .28f, .12f);
+    [SerializeField] private Color distantColor = new(.4f, .57f, .66f);
 
     [NonSerialized] private GameObject generated;
     private readonly List<Mesh> meshes = new();
     private bool rebuild;
     private static readonly float[] Heights = { -1f, -.86f, -.68f, -.46f, -.24f, -.09f, 0f };
-    private static readonly float[] Widths = { .055f, .24f, .48f, .61f, .87f, 1f, .83f };
+    private static readonly float[][] Profiles =
+    {
+        new[] { .4f, .72f, .83f, .78f, .93f, 1f, .85f },
+        new[] { .32f, .57f, .92f, 1f, .87f, .97f, .8f },
+        new[] { .28f, .66f, .93f, 1f, .97f, .9f, .74f },
+        new[] { .38f, .68f, .76f, .93f, .72f, 1f, .84f }
+    };
 
     private void OnEnable() => rebuild = true;
     private void OnValidate() => rebuild = true;
@@ -64,6 +70,7 @@ public sealed class FloatingIslandBackdrop : MonoBehaviour
     [ContextMenu("Rebuild Floating Islands")]
     public void Rebuild()
     {
+        rebuild = false;
         Clear();
         if (islandMaterial == null || belts == null) return;
         generated = new GameObject("Floating mountains (generated)") { hideFlags = HideFlags.DontSave, layer = 2 };
@@ -88,7 +95,7 @@ public sealed class FloatingIslandBackdrop : MonoBehaviour
                 float angle = (bearings[i % clusters] + Range(random, -23f, 23f) + tier * 9f) * Mathf.Deg2Rad;
                 float width = Mathf.Max(12f, Range(random, belt.width.x, belt.width.y));
                 float height = Mathf.Max(20f, Range(random, belt.height.x, belt.height.y));
-                float radius = Mathf.Max(clearRadius + width, Range(random, belt.radius.x, belt.radius.y));
+                float radius = Mathf.Max(Mathf.Max(380f, clearRadius) + width, Range(random, belt.radius.x, belt.radius.y));
                 float top = Range(random, belt.topHeight.x, belt.topHeight.y);
                 // Keep floating tips above the sea instead of creating submerged pillars.
                 top = Mathf.Max(top, height - 8f);
@@ -140,20 +147,21 @@ public sealed class FloatingIslandBackdrop : MonoBehaviour
         float phase = Range(random, 0, Mathf.PI * 2);
         float aspect = Range(random, .6f, .95f);
         float lean = Range(random, -.16f, .16f) * width;
+        float[] profile = Profiles[random.Next(Profiles.Length)];
         var angular = new float[sides];
         for (int side = 0; side < sides; side++) angular[side] = Range(random, .77f, 1.15f);
         for (int ring = 0; ring < Heights.Length; ring++)
         {
             float h = Heights[ring];
-            float ringWidth = Widths[ring] * Range(random, .88f, 1.12f);
+            float ringWidth = profile[ring] * Range(random, .85f, 1.14f);
             for (int side = 0; side < sides; side++)
             {
                 float a = side * Mathf.PI * 2 / sides;
-                float r = width * .5f * ringWidth * angular[side];
+                float r = width * .5f * ringWidth * angular[side] * Range(random, .88f, 1.12f);
                 float x = Mathf.Cos(a) * r, z = Mathf.Sin(a) * r * aspect;
-                float y = h * height + Mathf.Sin(a * 3 + phase) * height * .018f;
-                vertices.Add(position + new Vector3(Mathf.Cos(rotation) * x - Mathf.Sin(rotation) * z + lean * h,
-                    y, Mathf.Sin(rotation) * x + Mathf.Cos(rotation) * z));
+                float y = h * height + Mathf.Sin(a * 3 + phase) * height * (ring == 0 ? .07f : .028f);
+                vertices.Add(position + new Vector3(Mathf.Cos(rotation) * x - Mathf.Sin(rotation) * z + lean * Mathf.Sin(h * 2),
+                    y, Mathf.Sin(rotation) * x + Mathf.Cos(rotation) * z + lean * .5f * h));
                 Color color = ring == Heights.Length - 1 ? summit : cliff * Range(random, .88f, 1.08f);
                 color.a = 1; colors.Add(color);
                 if (ring == 0) continue;
@@ -164,7 +172,7 @@ public sealed class FloatingIslandBackdrop : MonoBehaviour
             }
         }
         int cap = vertices.Count;
-        vertices.Add(position + Vector3.up * height * .025f); colors.Add(summit);
+        vertices.Add(position + Vector3.up * height * .07f); colors.Add(summit);
         for (int side = 0; side < sides; side++)
         {
             int top = first + (Heights.Length - 1) * sides;
