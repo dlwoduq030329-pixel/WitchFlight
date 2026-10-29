@@ -18,6 +18,7 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
             TEXTURE2D_X(_SpeedSceneDepth);
             float4 _PeripheralBlur; // strength, clear central radius, maximum UV distance
             float4 _BackgroundBlur; // intensity, max UV distance, quality
+            float4 _LockOnBlur; // focus weight, clear radius, full blur radius
             float4 _PlayerTrail; // viewport translation xy, radial scale delta, strength
             float4 _PlayerAnchor; // viewport center xy, eye-depth offset, body preservation
             float4 _PlayerRect;
@@ -28,16 +29,26 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
                 return SAMPLE_TEXTURE2D_X(_PlayerMotionMask, sampler_LinearClamp, uv).rg;
             }
 
+            float FocusBlurMask(float2 uv)
+            {
+                float radius = length((uv - 0.5) * 2.0);
+                return lerp(1.0, smoothstep(_LockOnBlur.y, _LockOnBlur.z, radius), _LockOnBlur.x);
+            }
+
             half3 BackgroundBlur(float2 uv, half3 original, half playerMask)
             {
                 // Both center pixels AND every background sample exclude the player's silhouette.
                 if (playerMask > 0.001) return original;
+                float focusMask = FocusBlurMask(uv);
+                if (focusMask < 0.001) return original;
                 float2 velocity = SAMPLE_TEXTURE2D_X(_SpeedMotionTexture, sampler_PointClamp, uv).xy;
                 float speed = length(velocity);
                 if (speed < 0.00001) return original;
                 float edge = smoothstep(_PeripheralBlur.y, 1.0, length((uv - 0.5) * 2.0));
                 float mainDistance = min(speed * _BackgroundBlur.x, _BackgroundBlur.y);
                 float extraDistance = min(speed * _PeripheralBlur.x * edge, _PeripheralBlur.z);
+                mainDistance *= focusMask;
+                extraDistance *= focusMask;
                 if (mainDistance + extraDistance < 0.00001) return original;
                 float2 direction = -velocity / speed;
                 int samples = extraDistance > 0.00001 ? 12 : (_BackgroundBlur.z < 0.5 ? 4 : (_BackgroundBlur.z < 1.5 ? 6 : 8));
@@ -100,6 +111,7 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
                 }
                 float opacity = saturate(coverage / max(total, 0.0001) * _PlayerTrail.w);
                 opacity *= 1.0 - mask * _PlayerAnchor.w;
+                opacity *= FocusBlurMask(uv);
                 half3 trailColor = sum / max(coverage, 0.0001);
                 return half4(lerp(background, trailColor, opacity), original.a);
             }

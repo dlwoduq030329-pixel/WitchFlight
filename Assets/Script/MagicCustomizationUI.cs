@@ -9,7 +9,7 @@ using UnityEngine.UI;
 // Main scene customization only. Assign designer-owned UI; no windows are generated.
 // Place on the customization root, NOT on the detail panel or equip button we hide.
 [DisallowMultipleComponent]
-public sealed class MagicCustomizationUI : MonoBehaviour
+public sealed partial class MagicCustomizationUI : MonoBehaviour
 {
     public enum EquipmentCategory { Magic, Hat, Broom }
 
@@ -165,6 +165,9 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private void OnEnable()
     {
+        InitializeDescriptionPanels();
+        if (hatDescriptionUI != null) Bind(hatDescriptionUI.EquipButton, EquipSelectedItem);
+        if (broomDescriptionUI != null) Bind(broomDescriptionUI.EquipButton, EquipSelectedItem);
         if (magicTable == null) magicTable = MagicStatTable.Default;
         SelectedSlot = Mathf.Clamp(defaultSlot, 1, 2);
         SelectedCategory = EquipmentCategory.Magic;
@@ -242,6 +245,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
         // to the designer's OnClick when automatic panel management is disabled.
         RefreshEquippedSlots();
         RefreshSelectionUI();
+        PlayPendingDescriptionAnimation();
     }
 
     // Optional manual Button.OnClick entry point: slots are 1 and 2, not 0 and 1.
@@ -288,6 +292,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
             return;
         }
         SelectedMagic = magic;
+        descriptionAnimationPending = true;
         SelectedItemCategory = EquipmentCategory.Magic;
         selectionDetailsOpen = true;
         SetStatus(string.Empty);
@@ -304,6 +309,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
             return;
         }
         SelectedHat = hat;
+        descriptionAnimationPending = true;
         SelectedItemCategory = EquipmentCategory.Hat;
         selectionDetailsOpen = true;
         SetStatus(string.Empty);
@@ -320,6 +326,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
             return;
         }
         SelectedBroom = broom;
+        descriptionAnimationPending = true;
         SelectedItemCategory = EquipmentCategory.Broom;
         selectionDetailsOpen = true;
         SetStatus(string.Empty);
@@ -406,6 +413,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
 
     private void ClearPendingSelection()
     {
+        descriptionAnimationPending = false;
         selectionDetailsOpen = false;
         SelectedMagic = MagicType.None;
         SelectedHat = HatType.None;
@@ -461,7 +469,7 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     private void RefreshSelectionUI()
     {
         if (manageSelectionPanel)
-            SetVisible(selectionPanel, HasSelectedItem && selectionDetailsOpen);
+            RefreshDescriptionPanelVisibility();
         RefreshSelectionContent();
         RefreshEquipButton();
     }
@@ -470,6 +478,16 @@ public sealed class MagicCustomizationUI : MonoBehaviour
     {
         bool hasSelection = HasSelectedItem;
         bool hasMagic = hasSelection && SelectedItemCategory == EquipmentCategory.Magic;
+        if (hasSelection && SelectedItemCategory == EquipmentCategory.Hat && hatDescriptionUI != null)
+        {
+            hatDescriptionUI.ShowHat(SelectedHat, SelectedItemIcon(), SelectedItemName(), SelectedItemDescription());
+            return;
+        }
+        if (hasSelection && SelectedItemCategory == EquipmentCategory.Broom && broomDescriptionUI != null)
+        {
+            broomDescriptionUI.ShowBroom(SelectedBroom, SelectedItemIcon(), SelectedItemName(), SelectedItemDescription());
+            return;
+        }
         // Clear magic-only stats before writing the shared hat/broom text fields.
         if (!hasMagic && magicDescriptionUI != null) magicDescriptionUI.Clear();
         // Panel activation and content are independent. Existing OnClick may show
@@ -516,6 +534,11 @@ public sealed class MagicCustomizationUI : MonoBehaviour
             SetVisible(equipButton.gameObject, hasSelection);
             equipButton.interactable = CanEdit && HasValidTargetSlot && matchingCategory && hasSelection && !alreadyEquipped && !isEquipping;
         }
+        string caption = alreadyEquipped ? "장착 중" : hasSelection && !matchingCategory ?
+            "같은 종류의 슬롯을 선택해주세요" : $"{SelectedTargetName()}에 장착";
+        bool canEquip = CanEdit && HasValidTargetSlot && matchingCategory && hasSelection && !alreadyEquipped && !isEquipping;
+        if (hatDescriptionUI != null) hatDescriptionUI.SetEquipState(caption, canEquip && SelectedItemCategory == EquipmentCategory.Hat);
+        if (broomDescriptionUI != null) broomDescriptionUI.SetEquipState(caption, canEquip && SelectedItemCategory == EquipmentCategory.Broom);
     }
 
     private bool IsEquippedSlotImage(Image image) => image != null &&

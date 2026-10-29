@@ -17,6 +17,7 @@ namespace DirectionalBlurChecks {
   public static float Max(float a,float b)=>Math.Max(a,b);public static float Abs(float a)=>Math.Abs(a);public static float Exp(float a)=>(float)Math.Exp(a);
   public static float Clamp(float a,float b,float c)=>Math.Clamp(a,b,c);public static float Clamp01(float a)=>Clamp(a,0,1);
   public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);
+  public const float Deg2Rad=(float)Math.PI/180f;public static float Tan(float a)=>(float)Math.Tan(a);
  }
  public struct Vector2 {
   public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}public static Vector2 zero=>default;
@@ -39,18 +40,25 @@ namespace DirectionalBlurChecks {
  }
  public struct Vector4 {public float x,y,z,w;public Vector4(float x,float y,float z,float w){this.x=x;this.y=y;this.z=z;this.w=w;}public static Vector4 zero=>default;}
  public struct Bounds {public Vector3 center,extents;}
- public class Transform {public Vector3 position;}
+ public struct Quaternion {
+  public float yaw;public static Quaternion Inverse(Quaternion q)=>new(){yaw=-q.yaw};
+  public static Vector3 operator*(Quaternion q,Vector3 v){float c=(float)Math.Cos(q.yaw),s=(float)Math.Sin(q.yaw);return new(c*v.x+s*v.z,v.y,-s*v.x+c*v.z);}
+ }
+ public class Transform {public Vector3 position;public Quaternion rotation;}
  public class Player {public Transform transform=new();public int CurrentSpeedStage=3;public bool IsBoosting=true;public Vector3 LockAimPoint=>transform.position;}
  public class Renderer {public Player owner;public Bounds bounds=>new(){center=owner.transform.position,extents=new(.5f,.8f,.3f)};}
  public class Source {public Renderer renderer;}
  public class Camera {
   public Vector3 position=new(0,0,-3);public bool orthographic,lookingRight;public float nearClipPlane=.1f;
+  public float fieldOfView=90,aspect=1,orthographicSize=1;
+  public Transform transform=>new(){position=position,rotation=new(){yaw=lookingRight?(float)Math.PI/2:0}};
   public int scaledPixelWidth=1920,scaledPixelHeight=1080;
   public Vector3 WorldToViewportPoint(Vector3 p){var v=p-position;if(lookingRight)v=new(-v.z,v.y,v.x);float scale=orthographic?2:2*v.z;return new(.5f+v.x/scale,.5f+v.y/scale,v.z);}
  }
  public class PlayerDirectionalBlurSettings {public bool enabled=true,requireBoost=true;public float trailDistance=.18f,maximumPixels=24,strength=.45f,preserveBody=.7f,responseSpeed=10;}
  public class Probe {
   public Player owner;public float nextRefresh,weight;public bool hasPosition,ProtectPlayer;public Vector3 previousPosition,velocity;
+  public bool hasTrailFrame;public Quaternion trailWorldToView;public float lastMovingTime;
   public PlayerDirectionalBlurSettings settings;public Vector4 Trail,Anchor,ScreenRect;public List<Source> sources=new();
   public bool HasBlur=>weight>.001f&&settings!=null&&settings.enabled&&settings.trailDistance>0&&settings.maximumPixels>0&&settings.strength>0;
   void ReleaseSources(){sources.Clear();}void RefreshSources(){sources.Add(new(){renderer=new(){owner=owner}});}
@@ -73,10 +81,16 @@ $tests = @'
    Check(Math.Abs(b.Trail.x)<.0001f&&Math.Abs(b.Trail.y)<.0001f,"straight centered flight is radial, not an arbitrary sideways streak");
    Check(b.Trail.w>0&&b.Trail.w<=settings.strength,"strength eases in and remains bounded");
    Check(b.ScreenRect.x<b.ScreenRect.z&&b.ScreenRect.y<b.ScreenRect.w,"valid bounded character screen rectangle");
+   c.position=new(-3,0,.5f);c.lookingRight=true;b.Prepare(c);
+   Check(Math.Abs(b.Trail.x)<.0001f&&Math.Abs(b.Trail.y)<.0001f&&b.Trail.z>0,"camera-only 90 degree orbit keeps the existing forward radial trail");
+   b.velocity=new(1,0,0);b.Prepare(c);
+   Check(b.Trail.x<0&&Math.Abs(b.Trail.z)<.0001f,"actual world travel direction change still turns the trail");
    var side=new Player();var s=Moving(side,new(1,0,0),settings);c=new Camera{position=new(1,0,-3)};s.Prepare(c);
    Check(s.Trail.x<0&&Math.Abs(s.Trail.z)<.0001,"rightward travel smears only left, not forward");
    var orbit=new Player();var o=Moving(orbit,new(0,0,1),settings);c=new Camera{position=new(-3,0,1),lookingRight=true};o.Prepare(c);
-   Check(o.Trail.x>0&&Math.Abs(o.Trail.z)<.0001,"camera rotation reprojects world movement correctly");
+   Check(o.Trail.x>0&&Math.Abs(o.Trail.z)<.0001,"initial flight frame uses initial camera orientation");
+   c.position=new(0,0,-2);c.lookingRight=false;o.Prepare(c);
+   Check(o.Trail.x>0&&Math.Abs(o.Trail.z)<.0001,"camera orbit cannot reverse an existing side trail");
    c.orthographic=true;o.Prepare(c);Check(o.Trail.z==0,"orthographic projection never scales the silhouette");
    c.position=orbit.LockAimPoint;o.Prepare(c);Check(o.Trail.w==0,"near-plane/invalid projection disables trail safely");
    var limit=Probe.ProjectionLimit(new(.1f,0),.2f,new(.3f,.3f),new(1920,1080),24);
@@ -115,5 +129,6 @@ foreach ($old in @('Assets/Script/Camera/PlayerSpeedVisuals.cs','Assets/Resource
     if (Test-Path $old) { throw "Unwanted pose-ghost implementation remains: $old" }
 }
 $battle = Get-Content Assets/Scenes/Battle.unity -Raw
-if ($battle -notmatch 'playerMotionBlur:\s+enabled: 1\s+requireBoost: 1' -or $battle -match 'playerAfterimages:') { throw 'Battle camera must use directional blur, not pose afterimages' }
+# Require Boost is an Inspector preference; both boost-only and ordinary fast flight are supported.
+if ($battle -notmatch 'playerMotionBlur:\s+enabled: 1\s+requireBoost: [01]' -or $battle -match 'playerAfterimages:') { throw 'Battle camera must use directional blur, not pose afterimages' }
 'Directional sampling, depth/alpha masking, no duplicated characters, no double blur, cleanup and scene contracts passed.'

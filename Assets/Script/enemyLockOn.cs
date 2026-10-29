@@ -10,10 +10,14 @@ public class enemyLockOn : MonoBehaviour
 
     private Player owner;
     private Camera targetCamera;
+    private CameraFollow targetCameraFollow;
     private NetworkObject currentTarget;
     private float nextRefreshTime;
     private readonly RaycastHit[] obstructionHits = new RaycastHit[32];
     public Player CurrentTarget => currentTarget != null ? currentTarget.GetComponent<Player>() : null;
+    // Read-only camera presentation state; includes summon targets and requires no new search.
+    public bool HasSelectedTarget => wasHeld && currentTarget != null && currentTarget.IsValid &&
+        owner != null && owner.GetSelectedMagic() == sampledMagic;
 
     private void Awake() => owner = GetComponent<Player>();
 
@@ -78,7 +82,7 @@ public class enemyLockOn : MonoBehaviour
         {
             if (candidate == null || candidate.Runner != owner.Runner || !IsVisible(candidate.Object))
                 continue;
-            Vector3 point = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
+            Vector3 point = TargetingViewport(candidate.LockAimPoint);
             float score = owner.SelectedMagicStats.TargetsAllies
                 ? Vector3.Angle(targetCamera.transform.forward, candidate.LockAimPoint - targetCamera.transform.position)
                 : new Vector2(point.x - 0.5f, point.y - 0.5f).sqrMagnitude;
@@ -92,7 +96,7 @@ public class enemyLockOn : MonoBehaviour
         foreach (var candidate in MagicProjectile.ActiveProjectiles)
         {
             if (candidate == null || !candidate.IsSummonEnemyOf(owner) || !IsVisible(candidate.Object)) continue;
-            Vector3 point = targetCamera.WorldToViewportPoint(candidate.transform.position);
+            Vector3 point = TargetingViewport(candidate.transform.position);
             float score = new Vector2(point.x - .5f, point.y - .5f).sqrMagnitude;
             if (score < bestScore) { bestScore = score; best = candidate.Object; }
         }
@@ -123,6 +127,7 @@ public class enemyLockOn : MonoBehaviour
         if (targetCamera == null || !targetCamera.TryGetComponent(out CameraFollow follow) ||
             follow.IsBoundaryPresentationActive)
             return false;
+        targetCameraFollow = follow;
 
         Vector3 displayedDirection = (follow.GetDisplayedAimPoint() - owner.LockAimPoint).normalized;
         direction = follow.TryGetSteeringInput(out Vector3 desired, out _) ? desired : displayedDirection;
@@ -164,11 +169,17 @@ public class enemyLockOn : MonoBehaviour
         if (Vector3.Dot(owner.transform.forward, delta) < 0f) return false;
         if (stats.IsChanneled && (!TryGetAlignedAim(out Vector3 aim) ||
             Vector3.Angle(aim, delta) > stats.autoAimHalfAngle)) return false;
-        Vector3 point = targetCamera.WorldToViewportPoint(targetPoint);
+        Vector3 point = TargetingViewport(targetPoint);
         return point.z > 0f && point.x >= 0f && point.x <= 1f && point.y >= 0f && point.y <= 1f &&
-            (player != null ? HasLineOfSight(targetCamera.transform.position, player)
-                : MagicProjectile.HasSummonSight(targetCamera.transform.position, targetPoint));
+            (player != null ? HasLineOfSight(TargetingOrigin, player)
+                : MagicProjectile.HasSummonSight(TargetingOrigin, targetPoint));
     }
+
+    private Vector3 TargetingOrigin => targetCameraFollow != null
+        ? targetCameraFollow.TargetingCameraPosition : targetCamera.transform.position;
+
+    private Vector3 TargetingViewport(Vector3 point) => targetCameraFollow != null
+        ? targetCameraFollow.WorldToTargetingViewportPoint(point) : targetCamera.WorldToViewportPoint(point);
 
     private bool HasLineOfSight(Vector3 origin, Player candidate)
     {

@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $follow = Get-Content Assets/Script/Camera/CameraFollow.cs -Raw
 $effects = Get-Content Assets/Script/Camera/SpeedCameraEffects.cs -Raw
+$preview = Get-Content Assets/Script/Camera/CameraFollow.LockOnPreview.cs -Raw
 function Method([string]$source,[string]$name) {
     $m = [regex]::Match($source,'(?ms)^    private (?:static )?[\w<>]+ '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}')
     if (!$m.Success) { throw "Missing production method: $name" }
@@ -14,8 +15,11 @@ namespace CameraChecks {
  public static class Time {public static float unscaledTime,unscaledDeltaTime=.1f;public static int frameCount;}
  public static class Mathf {
   public static float Max(float a,float b)=>Math.Max(a,b);public static float Abs(float a)=>Math.Abs(a);public static float Exp(float a)=>(float)Math.Exp(a);
+  public static float Min(float a,float b)=>Math.Min(a,b);
+  public const float Deg2Rad=(float)Math.PI/180f;public static float Tan(float a)=>(float)Math.Tan(a);
   public static float Clamp(float a,float b,float c)=>Math.Clamp(a,b,c);public static float Clamp01(float a)=>Clamp(a,0,1);
   public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);
+  public static float InverseLerp(float a,float b,float v)=>a==b?0:Clamp01((v-a)/(b-a));
   public static float SmoothStep(float a,float b,float t){t=Clamp01(t);return a+(b-a)*t*t*(3-2*t);}
  }
  public struct Vector3 {
@@ -39,6 +43,7 @@ namespace CameraChecks {
  public static class CombatPresentation {public static bool MenuOpen;}
  public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
  public class FollowProbe {
+  public float LockOnPreviewFovReduction;
   public bool isActiveAndEnabled=true,enableTopSpeedKick=true,enableSpeedShake=true,IsBoundaryPresentationActive;
   public Player targetPlayer=new();public Camera viewCamera=new();public Transform transform=new();
   public int lastKickSpeedStage=int.MinValue,speedShakeUpdatedFrame=-1;
@@ -53,11 +58,15 @@ namespace CameraChecks {
 $followMethods = @('ShouldApplySpeedShake','ResetTopSpeedKick','UpdateTopSpeedKick','EvaluateTopSpeedKick',
     'BeginSpeedShakeRendering','EndSpeedShakeRendering','RestoreSpeedShakeView','ResetSpeedShake','GetExponentialBlend') |
     ForEach-Object { Method $follow $_ }
+$followMethods += Method $preview 'BlendLockOnPreview'
+$followMethods += Method $preview 'LockOnScreenOffset'
 $fovProbe = @'
  }
  public class FovProbe {
+  public FollowProbe cameraFollow;
   public Camera viewCamera=new();public float originalFieldOfView=60,fieldOfViewIncrease,stage1FieldOfViewIncrease=3,stage2FieldOfViewIncrease=6,extraFieldOfView=10,fieldOfViewTransitionSpeed=5;
-'@ + (Method $effects 'UpdateFieldOfView') + (Method $effects 'StageFieldOfViewIncrease') + '}'
+'@ + (Method $effects 'UpdateFieldOfView') + (Method $effects 'StageFieldOfViewIncrease') +
+    (Method $effects 'FastTurnWeight') + (Method $effects 'RecoverTurnBlur') + '}'
 $checks = @'
  public static class Tests {
   static int n;static void Check(bool ok,string msg){if(!ok)throw new Exception(msg);n++;}static bool Near(float a,float b)=>Math.Abs(a-b)<.001f;
@@ -142,6 +151,47 @@ $checks = @'
    var slowFrames=new FovProbe();var fastFrames=new FovProbe();Time.unscaledDeltaTime=1f/30;for(int i=0;i<30;i++)slowFrames.UpdateFieldOfView(3);
    Time.unscaledDeltaTime=1f/120;for(int i=0;i<120;i++)fastFrames.UpdateFieldOfView(3);
    Check(Near(slowFrames.viewCamera.fieldOfView,fastFrames.viewCamera.fieldOfView),"FOV smoothing independent of frame rate");
+   var preview = new FovProbe { cameraFollow = new FollowProbe { LockOnPreviewFovReduction = 7 } };
+   preview.UpdateFieldOfView(3,true);
+   preview.UpdateFieldOfView(3);
+   Check(Near(preview.viewCamera.fieldOfView,63),"lock-on zoom subtracts from speed-expanded FOV");
+   preview.UpdateFieldOfView(3);
+   Check(Near(preview.viewCamera.fieldOfView,63),"zoom cannot accumulate across frames");
+   preview.cameraFollow.LockOnPreviewFovReduction=0;
+   preview.UpdateFieldOfView(3);
+   Check(Near(preview.viewCamera.fieldOfView,70),"disabled preview restores previous speed FOV exactly");
+   preview.cameraFollow.LockOnPreviewFovReduction=7;
+   preview.UpdateFieldOfView(0,true);
+   Check(Near(preview.viewCamera.fieldOfView,60),"menu/death reset ignores lock-on zoom");
+   // Same left-third framing at normal/boost distances, FOVs and screen aspect ratios.
+   foreach(float depth in new[]{3.8f,5f,10f})foreach(float fov in new[]{53f,75f,100f})foreach(float aspect in new[]{1.3333f,1.7778f,2.3333f}){
+    float side=FollowProbe.LockOnScreenOffset(depth,fov,aspect,.2f);
+    float viewportX=.5f-side/(2f*depth*Mathf.Tan(fov*Mathf.Deg2Rad*.5f)*aspect);
+    Check(Near(viewportX,.3f),"shoulder framing stays at 30 percent across speed/FOV/aspect changes");
+   }
+   float low=0,high=0;for(int i=0;i<6;i++)low=FollowProbe.BlendLockOnPreview(low,1,1f/30,.2f);
+   for(int i=0;i<24;i++)high=FollowProbe.BlendLockOnPreview(high,1,1f/120,.2f);
+   Check(Near(low,high)&&low>.94f&&low<1,"preview reaches 95 percent in 0.2 seconds independent of FPS");
+   float boosted=FollowProbe.BlendLockOnPreview(7,3,1f/60,.2f);
+   Check(boosted>3&&boosted<7,"boost no longer jumps immediately from seven to three degrees zoom");
+   float released=FollowProbe.BlendLockOnPreview(1,0,1f/60,.2f);
+   Check(released>0&&released<1,"release smoothly returns from shoulder pose");
+   for(int i=0;i<150;i++)released=FollowProbe.BlendLockOnPreview(released,0,1f/60,.2f);
+   Check(released==0,"release settles to the exact original pose");
+   Check(FovProbe.FastTurnWeight(0,80,240)==0&&FovProbe.FastTurnWeight(80,80,240)==0,"straight flight and gentle turning retain full speed blur");
+   Check(Near(FovProbe.FastTurnWeight(160,80,240),.5f),"moderate rotation gradually reduces streaks");
+   Check(FovProbe.FastTurnWeight(240,80,240)==1&&FovProbe.FastTurnWeight(720,80,240)==1,"fast camera rotation caps blur reduction");
+   Check(FovProbe.FastTurnWeight(300,240,80)==1,"inverted Inspector thresholds remain safe");
+   float onset=FovProbe.RecoverTurnBlur(0,1,1f/120,.25f);
+   Check(onset>0&&onset<.5f,"fast turn onset does not snap from full blur to minimum in one frame");
+   float onset30=0,onset120=0;
+   for(int i=0;i<3;i++)onset30=FovProbe.RecoverTurnBlur(onset30,1,1f/30,.25f);
+   for(int i=0;i<12;i++)onset120=FovProbe.RecoverTurnBlur(onset120,1,1f/120,.25f);
+   Check(Near(onset30,onset120)&&onset30>.99f,"rapid suppression remains frame-rate independent");
+   float recover30=1,recover120=1;
+   for(int i=0;i<9;i++)recover30=FovProbe.RecoverTurnBlur(recover30,0,1f/30,.25f);
+   for(int i=0;i<36;i++)recover120=FovProbe.RecoverTurnBlur(recover120,0,1f/120,.25f);
+   Check(Near(recover30,recover120)&&recover30>0&&recover30<.05f,"blur smoothly recovers at matching rates across FPS");
    return n;
   }
  }
@@ -162,3 +212,6 @@ foreach ($setting in @('topSpeedKickDistance','boostKickDistance','topSpeedKickO
     if ($scene -notmatch ('(?m)^  ' + $setting + ':')) { throw "Scene setting missing: $setting" }
 }
 "Battle scene settings, stable steering, non-accumulating dolly and independent FOV verified."
+if ($preview -match 'LockProgress|InverseLerp|GetDisplayedLockTarget') { throw 'Preview must not depend on replicated progress or suppress close-target framing' }
+$selector = Get-Content Assets/Script/enemyLockOn.cs -Raw
+if ($selector -notmatch 'TargetingViewport\(targetPoint\)' -or $selector -notmatch 'HasLineOfSight\(TargetingOrigin, player\)') { throw 'Presentation must not feed back into targeting frustum/visibility' }

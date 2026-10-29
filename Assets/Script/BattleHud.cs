@@ -204,7 +204,7 @@ public sealed partial class BattleHud : MonoBehaviour
     [Tooltip("작은 원의 Image. 비워두면 Forward Aim Marker 자체의 Image를 사용합니다.")]
     [SerializeField] private Image forwardAimImage;
     [SerializeField] private TMP_Text aimAlignmentText;
-    [Tooltip("완료 표식. 비워 두면 초록색 원을 생성합니다.")]
+    [Tooltip("완료 표식. 비워 두면 Lock Complete Color 색상의 원을 생성합니다.")]
     [SerializeField] private RectTransform lockMarker;
     [Tooltip("충전 중 줄어드는 원. 비워 두면 기본 원을 생성합니다.")]
     [SerializeField] private RectTransform lockChargeMarker;
@@ -212,8 +212,16 @@ public sealed partial class BattleHud : MonoBehaviour
     [SerializeField] private Sprite lockChargeSprite;
     [Tooltip("자동 생성할 록온 완료 표식 Sprite. 비우면 기본 초록 원을 사용합니다. Lock Marker를 직접 연결했다면 해당 UI가 우선합니다.")]
     [SerializeField] private Sprite lockCompleteSprite;
-    [SerializeField, Min(1f)] private float lockChargeStartSize = 100f;
+    [SerializeField, Min(1f)] private float lockChargeStartSize = 300f;
     [SerializeField, Min(1f)] private float lockChargeEndSize = 28f;
+    [Tooltip("록온 진행 중 원의 색상입니다. 알파는 아래 Start/End Alpha와 곱해집니다.")]
+    [SerializeField] private Color lockChargeColor = Color.white;
+    [Tooltip("록온 완료 시 변경되는 색상입니다. 스프라이트에도 이 색상을 적용합니다.")]
+    [SerializeField] private Color lockCompleteColor = Color.green;
+    [SerializeField, Range(0f, 1f)] private float lockChargeStartAlpha = 0.25f;
+    [SerializeField, Range(0f, 1f)] private float lockChargeEndAlpha = 1f;
+    private Graphic lockChargeGraphic;
+    private Graphic lockCompleteGraphic;
     [Header("Incoming magic / parry warning")]
     // Keep the old reference only to hide a previously authored full-screen red overlay.
     [SerializeField, HideInInspector] private Image incomingMagicWarning;
@@ -276,7 +284,10 @@ public sealed partial class BattleHud : MonoBehaviour
     [Header("Confirmed hit marker (attacker only)")]
     [Tooltip("Hit Marker (Overwatch)의 bl_HitMarker. 비우면 현재 씬에서 같은 이름의 오브젝트를 자동으로 찾습니다. default=Marker, letal=Marker (letal).")]
     [SerializeField] private Lovatto.Crosshair.bl_HitMarker animatedHitMarker;
+    [Tooltip("적중/처치 표시의 재생 시간 배율입니다. 1은 원본, 1.5는 1.5배 오래 재생합니다.")]
+    [SerializeField, Min(0.1f)] private float hitMarkerDurationMultiplier = 1.5f;
     private Lovatto.Crosshair.bl_MarkerRig playingHitRig;
+    private float playingHitOriginalSpeed = 1f;
     private bool playingLethalMarker;
     [Tooltip("선택 사항: 네 방향 전체 모양을 가진 독립 UI Image. 지정하면 이 Image를 표시/페이드합니다. Dot 자체를 넣지 마세요. 비우면 얇은 마름모 4개를 생성합니다.")]
     [SerializeField] private Image hitMarkerImage;
@@ -721,7 +732,16 @@ public sealed partial class BattleHud : MonoBehaviour
         if (charging && lockChargeMarker != null)
         {
             charging = Place(lockChargeMarker, lockPoint);
-            lockChargeMarker.sizeDelta = Vector2.one * Mathf.Lerp(lockChargeStartSize, lockChargeEndSize, owner.LockProgress);
+            float progress = Mathf.Clamp01(owner.LockProgress);
+            lockChargeMarker.sizeDelta = Vector2.one * Mathf.Lerp(lockChargeStartSize, lockChargeEndSize, progress);
+            Color color = lockChargeColor;
+            color.a *= Mathf.Lerp(lockChargeStartAlpha, lockChargeEndAlpha, progress);
+            ApplyLockMarkerStyle(lockChargeMarker, ref lockChargeGraphic, color);
+        }
+        if (completed && lockMarker != null)
+        {
+            lockMarker.sizeDelta = Vector2.one * lockChargeEndSize;
+            ApplyLockMarkerStyle(lockMarker, ref lockCompleteGraphic, lockCompleteColor);
         }
         Visible(lockMarker != null ? lockMarker.gameObject : null, completed);
         Visible(lockChargeMarker != null ? lockChargeMarker.gameObject : null, charging);
@@ -769,8 +789,16 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void EnsureLockFeedback()
     {
-        if (lockChargeMarker == null) lockChargeMarker = CreateFeedbackRing("Lock charge", Color.white, lockChargeStartSize, lockChargeSprite);
-        if (lockMarker == null) lockMarker = CreateFeedbackRing("Locked", Color.green, lockChargeEndSize, lockCompleteSprite);
+        if (lockChargeMarker == null) lockChargeMarker = CreateFeedbackRing("Lock charge", lockChargeColor, lockChargeStartSize, lockChargeSprite);
+        if (lockMarker == null) lockMarker = CreateFeedbackRing("Locked", lockCompleteColor, lockChargeEndSize, lockCompleteSprite);
+    }
+
+    private static void ApplyLockMarkerStyle(RectTransform marker, ref Graphic graphic, Color color)
+    {
+        // Works with both generated rings and user-assigned UI Images.
+        if (graphic == null || !graphic.transform.IsChildOf(marker))
+            graphic = marker.GetComponentInChildren<Graphic>(true);
+        if (graphic != null) graphic.color = color;
     }
 
     private TMP_Text CreateCentralPrompt(string title, float y, float fontSize)
@@ -1310,6 +1338,8 @@ public sealed partial class BattleHud : MonoBehaviour
         animatedHitMarker.gameObject.SetActive(true);
         selected.animator.enabled = true;
         selected.animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+        playingHitOriginalSpeed = selected.animator.speed;
+        selected.animator.speed = playingHitOriginalSpeed / Mathf.Max(0.1f, hitMarkerDurationMultiplier);
         animatedHitMarker.OnHit(key);
         // Even prefabs configured to crossfade must restart at frame zero on each accepted hit.
         selected.animator.Play(selected.AnimationName, 0, 0f);
@@ -1378,7 +1408,8 @@ public sealed partial class BattleHud : MonoBehaviour
             return; // The authored Animator owns opacity, scale and position.
         }
         if (activeHitMarker == null) return;
-        float alpha = HitMarkerAlpha(Time.unscaledTime - hitMarkerStarted, hitMarkerHoldSeconds, hitMarkerFadeSeconds);
+        float alpha = HitMarkerAlpha((Time.unscaledTime - hitMarkerStarted) / Mathf.Max(0.1f, hitMarkerDurationMultiplier),
+            hitMarkerHoldSeconds, hitMarkerFadeSeconds);
         if (alpha <= 0f) { ClearHitMarker(); return; }
         Color tint = hitMarkerBaseColor;
         tint.a *= alpha;
@@ -1405,6 +1436,9 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void ClearHitMarker()
     {
+        // Restore before replaying so repeated hits never compound the slowdown.
+        if (playingHitRig != null && playingHitRig.animator != null)
+            playingHitRig.animator.speed = playingHitOriginalSpeed;
         if (animatedHitMarker != null) animatedHitMarker.SetActiveChild(false);
         playingHitRig = null;
         playingLethalMarker = false;

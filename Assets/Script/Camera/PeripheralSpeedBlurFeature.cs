@@ -54,7 +54,7 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
         {
             public TextureHandle source, motion, mask, depth;
             public Material material;
-            public Vector4 peripheral, background, trail, anchor, rect;
+            public Vector4 peripheral, background, trail, anchor, rect, focus;
         }
 
         public void Setup(Material value, SpeedCameraEffects source)
@@ -66,10 +66,11 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
         }
 
         private void SetParameters(Material value, Vector4 peripheral, Vector4 background,
-            Vector4 trail, Vector4 anchor, Vector4 rect)
+            Vector4 trail, Vector4 anchor, Vector4 rect, Vector4 focus)
         {
             value.SetVector("_PeripheralBlur", peripheral);
             value.SetVector("_BackgroundBlur", background);
+            value.SetVector("_LockOnBlur", focus);
             value.SetVector("_PlayerTrail", trail);
             value.SetVector("_PlayerAnchor", anchor);
             value.SetVector("_PlayerRect", rect);
@@ -113,6 +114,7 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
                 data.material = material;
                 data.peripheral = effects.HasPeripheralBlur ? effects.PeripheralBlurParameters : Vector4.zero;
                 data.background = effects.BackgroundBlurParameters;
+                data.focus = effects.LockOnBlurParameters;
                 data.trail = effects.PlayerBlur?.Trail ?? Vector4.zero;
                 data.anchor = effects.PlayerBlur?.Anchor ?? Vector4.zero;
                 data.rect = effects.PlayerBlur?.ScreenRect ?? Vector4.zero;
@@ -121,7 +123,7 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
                 builder.SetRenderAttachment(destination, 0);
                 builder.SetRenderFunc((PassData d, RasterGraphContext context) =>
                 {
-                    SetParameters(d.material, d.peripheral, d.background, d.trail, d.anchor, d.rect);
+                    SetParameters(d.material, d.peripheral, d.background, d.trail, d.anchor, d.rect, d.focus);
                     d.material.SetTexture("_SpeedMotionTexture", (RTHandle)d.motion);
                     d.material.SetTexture("_PlayerMotionMask", (RTHandle)d.mask);
                     d.material.SetTexture("_SpeedSceneDepth", (RTHandle)d.depth);
@@ -154,7 +156,8 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
                 effects.PlayerBlur.DrawMask(CommandBufferHelpers.GetRasterCommandBuffer(cmd), renderingData.cameraData.camera, depth);
             SetParameters(material, effects.HasPeripheralBlur ? effects.PeripheralBlurParameters : Vector4.zero,
                 effects.BackgroundBlurParameters, effects.PlayerBlur?.Trail ?? Vector4.zero,
-                effects.PlayerBlur?.Anchor ?? Vector4.zero, effects.PlayerBlur?.ScreenRect ?? Vector4.zero);
+                effects.PlayerBlur?.Anchor ?? Vector4.zero, effects.PlayerBlur?.ScreenRect ?? Vector4.zero,
+                effects.LockOnBlurParameters);
             material.SetTexture("_SpeedMotionTexture", Shader.GetGlobalTexture("_MotionVectorTexture"));
             material.SetTexture("_PlayerMotionMask", mask);
             material.SetTexture("_SpeedSceneDepth", depth);

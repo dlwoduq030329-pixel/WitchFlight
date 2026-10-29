@@ -4,6 +4,15 @@ using UnityEngine;
 [Serializable]
 public struct HatStatEntry
 {
+    [Header("Customization display (slider values 0..1, separate from combat stats)")]
+    public string displayName;
+    [TextArea] public string description;
+    [Range(0f, 1f)] public float displayMaxAp;
+    [Range(0f, 1f)] public float displayApRecovery;
+    [Tooltip("슬라이더 옆 등급 문구: 높음 / 중간 / 낮음")]
+    public string displayMaxApLabel;
+    public string displayApRecoveryLabel;
+
     [Tooltip("PlayerData.hat과 연결되는 모자 종류입니다.")]
     public HatType hat;
 
@@ -19,6 +28,20 @@ public struct HatStatEntry
 [Serializable]
 public struct BroomStatEntry
 {
+    [Header("Customization display (slider values 0..1, separate from combat stats)")]
+    public string displayName;
+    [TextArea] public string description;
+    [Range(0f, 1f)] public float displayMaxHp;
+    [Range(0f, 1f)] public float displaySpeed;
+    [Range(0f, 1f)] public float displayTurnSpeed;
+    [Range(0f, 1f)] public float displayBoostCost;
+    [Tooltip("슬라이더 옆 등급 문구. 속도·선회력은 빠름 / 중간 / 느림")]
+    public string displaySpeedLabel;
+    public string displayTurnSpeedLabel;
+    [Tooltip("체력·마나 소모는 높음 / 중간 / 낮음")]
+    public string displayMaxHpLabel;
+    public string displayBoostCostLabel;
+
     [Tooltip("PlayerData.broom과 연결되는 빗자루 종류입니다.")]
     public BroomType broom;
 

@@ -409,11 +409,11 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         camera.useOcclusionCulling = false;
         camera.depth = -100f;
         UniversalAdditionalCameraData cameraData = cameraObject.AddComponent<UniversalAdditionalCameraData>();
-        cameraData.renderPostProcessing = false;
+        cameraData.renderPostProcessing = true;
         cameraData.renderShadows = false;
         cameraData.requiresColorOption = CameraOverrideOption.Off;
         cameraData.requiresDepthOption = CameraOverrideOption.Off;
-        cameraData.antialiasing = AntialiasingMode.None;
+        cameraData.antialiasing = AntialiasingMode.FastApproximateAntialiasing;
         cameraData.allowXRRendering = false;
         cameraData.volumeLayerMask = 0;
 

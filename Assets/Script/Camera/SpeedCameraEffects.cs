@@ -26,6 +26,23 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [SerializeField] private MotionBlurQuality motionBlurQuality = MotionBlurQuality.High;
     [SerializeField, Range(0f, 0.2f)] private float motionBlurClamp = 0.12f;
     [SerializeField, Min(0.01f)] private float transitionSpeed = 5f;
+    [Header("Fast camera turn comfort")]
+    [Tooltip("빠르게 시점을 돌리는 동안만 배경 잔상의 강도와 길이를 줄입니다. 직진 속도 연출은 유지됩니다.")]
+    [SerializeField] private bool reduceBlurDuringFastTurns = true;
+    [SerializeField, Min(0f)] private float turnBlurStartDegreesPerSecond = 80f;
+    [SerializeField, Min(1f)] private float turnBlurFullDegreesPerSecond = 240f;
+    [Tooltip("빠른 회전 중 남길 배경 모션 블러 비율입니다.")]
+    [SerializeField, Range(0f, 1f)] private float fastTurnMotionBlurRetention = 0.15f;
+    [Tooltip("빠른 회전 중 남길 가장자리 블러 비율입니다.")]
+    [SerializeField, Range(0f, 1f)] private float fastTurnPeripheralBlurRetention = 0.35f;
+    [SerializeField, Min(0.01f)] private float turnBlurRecoverySeconds = 0.25f;
+    [Header("Lock-on focus (blur only at screen edges)")]
+    [SerializeField] private bool lockOnPeripheralOnly = true;
+    [Tooltip("록온 중 선명하게 유지할 중앙 영역입니다. 1은 화면 상하/좌우 끝이며 값이 클수록 외곽에만 블러가 남습니다.")]
+    [SerializeField, Range(0f, 0.95f)] private float lockOnClearRadius = 0.65f;
+    [Tooltip("중앙 보호 영역 밖에서 기존 블러에 도달할 반경입니다. 두 반경 사이를 부드럽게 연결합니다.")]
+    [SerializeField, Range(0.05f, 1.5f)] private float lockOnFullBlurRadius = 1f;
+    [SerializeField, Min(0.01f)] private float lockOnBlurBlendSeconds = 0.2f;
     [Header("Stage-based field of view (added to the camera's base FOV)")]
     [Tooltip("전진 단계별 FOV 증가 상한입니다. Flight Sensation을 켜면 실제 이동속도에 따라 증가하며, 정지/후진은 기본 FOV로 돌아갑니다.")]
     [SerializeField, Range(0f, 30f)] private float stage1FieldOfViewIncrease = 10f;
@@ -82,14 +99,28 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private CameraFollow cameraFollow;
     private float effectWeight;
     private float peripheralWeight;
+    private Quaternion previousBlurRotation;
+    private Vector3 previousBlurPosition;
+    private bool hasBlurPose;
+    private float turnBlurWeight;
+    private float lockOnFocusWeight;
+    private Player focusPlayer;
+    private enemyLockOn focusSelector;
+    internal Vector4 LockOnBlurParameters => new Vector4(lockOnPeripheralOnly ? lockOnFocusWeight : 0f,
+        Mathf.Clamp(lockOnClearRadius, 0f, 0.95f),
+        Mathf.Max(Mathf.Clamp(lockOnClearRadius, 0f, 0.95f) + 0.01f, lockOnFullBlurRadius), 0f);
+    private float TurnMotionScale => reduceBlurDuringFastTurns
+        ? Mathf.Lerp(1f, Mathf.Clamp01(fastTurnMotionBlurRetention), turnBlurWeight) : 1f;
+    private float TurnPeripheralScale => reduceBlurDuringFastTurns
+        ? Mathf.Lerp(1f, Mathf.Clamp01(fastTurnPeripheralBlurRetention), turnBlurWeight) : 1f;
     private float currentInnerRadius;
     private bool hasInnerRadius;
     public bool HasPeripheralBlur => isActiveAndEnabled && enablePeripheralBlur &&
         peripheralWeight > 0.001f && peripheralBlurStrength > 0f;
     public Vector4 PeripheralBlurParameters => new Vector4(
-        Mathf.Clamp(peripheralBlurStrength, 0f, 4f) * peripheralWeight,
+        Mathf.Clamp(peripheralBlurStrength, 0f, 4f) * peripheralWeight * TurnPeripheralScale,
         Mathf.Clamp(currentInnerRadius, 0f, 0.9f),
-        Mathf.Clamp(peripheralBlurMaxDistance, 0.01f, 0.2f), 0f);
+        Mathf.Clamp(peripheralBlurMaxDistance, 0.01f, 0.2f) * TurnPeripheralScale, 0f);
     private VolumeProfile previousProfile;
     private VolumeProfile runtimeProfile;
     private MotionBlur motionBlur;
@@ -107,10 +138,10 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private const float MaxExtendedBlurIntensity = 3f;
     private PlayerDirectionalBlur playerBlur;
     internal PlayerDirectionalBlur PlayerBlur => playerBlur;
-    private bool UsesMaskedBackgroundBlur => keepLocalPlayerSharp || playerMotionBlur.enabled;
+    private bool UsesMaskedBackgroundBlur => keepLocalPlayerSharp || playerMotionBlur.enabled || lockOnPeripheralOnly;
     internal Vector4 BackgroundBlurParameters => new Vector4(UsesMaskedBackgroundBlur ?
-        Mathf.Clamp01(motionBlurIntensity) * Mathf.Clamp(motionBlurDistanceMultiplier, 1f, MaxExtendedBlurIntensity) * effectWeight : 0f,
-        Mathf.Clamp(motionBlurClamp, 0f, 0.2f), (int)motionBlurQuality, 0f);
+        Mathf.Clamp01(motionBlurIntensity) * Mathf.Clamp(motionBlurDistanceMultiplier, 1f, MaxExtendedBlurIntensity) * effectWeight * TurnMotionScale : 0f,
+        Mathf.Clamp(motionBlurClamp, 0f, 0.2f) * TurnMotionScale, (int)motionBlurQuality, 0f);
     internal bool HasCustomBlur => HasPeripheralBlur || BackgroundBlurParameters.x > 0.001f ||
         (playerBlur != null && playerBlur.HasBlur);
 
@@ -119,6 +150,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnEnable()
     {
+        ResetTurnBlur();
         playerBlur = new PlayerDirectionalBlur();
         hasInnerRadius = false;
         currentInnerRadius = Mathf.Clamp(peripheralBlurInnerRadius, 0f, 0.9f);
@@ -194,6 +226,8 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
         bool boundaryView = player != null && player.Object != null && player.Object.IsValid &&
             (player.IsReturningToMap || (cameraFollow != null && cameraFollow.IsBoundaryPresentationActive));
+        UpdateTurnBlur(canShow && !boundaryView);
+        UpdateLockOnFocus(player, canShow && !boundaryView);
         flightSensation.Update(player, transform, canShow && !boundaryView);
         playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur, playerMotionBlur, !boundaryView);
 
@@ -235,6 +269,33 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         ApplyWeight(weight);
     }
 
+    private void UpdateLockOnFocus(Player player, bool allowed)
+    {
+        if (!allowed || !lockOnPeripheralOnly)
+        {
+            lockOnFocusWeight = 0f;
+            focusPlayer = null;
+            focusSelector = null;
+            return;
+        }
+        if (focusPlayer != player)
+        {
+            focusPlayer = player;
+            focusSelector = player.GetComponent<enemyLockOn>();
+            lockOnFocusWeight = 0f;
+        }
+        // Read the existing local selection; no extra target search or physics query.
+        // Independent of the optional shoulder-camera experiment.
+        bool charging = ControlSettings.Held(ControlAction.LockOn) &&
+            !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput &&
+            focusSelector != null && focusSelector.HasSelectedTarget &&
+            player.SelectedMagicStats.requiresTarget && player.CanAcquireMagicTarget();
+        float target = charging ? 1f : 0f;
+        lockOnFocusWeight = Mathf.Lerp(lockOnFocusWeight, target,
+            1f - Mathf.Exp(-3f * Time.unscaledDeltaTime / Mathf.Max(0.01f, lockOnBlurBlendSeconds)));
+        if (Mathf.Abs(lockOnFocusWeight - target) < 0.001f) lockOnFocusWeight = target;
+    }
+
     private void UpdateInnerRadius(int speedStage, bool isBoosting)
     {
         float targetRadius = peripheralBlurInnerRadius;
@@ -269,9 +330,9 @@ public sealed class SpeedCameraEffects : MonoBehaviour
             float distanceScale = Mathf.Clamp(motionBlurDistanceMultiplier, 1f, MaxExtendedBlurIntensity);
             // The masked renderer feature handles background blur when protecting the player.
             // A second URP full-screen blur would smear the isolated character trail again.
-            motionBlur.intensity.Override(UsesMaskedBackgroundBlur ? 0f : Mathf.Clamp01(motionBlurIntensity) * distanceScale * weight);
+            motionBlur.intensity.Override(UsesMaskedBackgroundBlur ? 0f : Mathf.Clamp01(motionBlurIntensity) * distanceScale * weight * TurnMotionScale);
             motionBlur.quality.Override(motionBlurQuality);
-            motionBlur.clamp.Override(motionBlurClamp);
+            motionBlur.clamp.Override(motionBlurClamp * TurnMotionScale);
         }
         if (windLines != null)
             windLines.SetPresentation(showWindLines ?
@@ -286,7 +347,54 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         fieldOfViewIncrease = immediate ? target : Mathf.Lerp(fieldOfViewIncrease, target,
             1f - Mathf.Exp(-Mathf.Max(0.01f, fieldOfViewTransitionSpeed) * Time.unscaledDeltaTime));
         if (Mathf.Abs(fieldOfViewIncrease - target) < 0.001f) fieldOfViewIncrease = target;
-        viewCamera.fieldOfView = Mathf.Clamp(originalFieldOfView + fieldOfViewIncrease, 1f, 179f);
+        float lockOnReduction = !immediate && cameraFollow != null ? cameraFollow.LockOnPreviewFovReduction : 0f;
+        viewCamera.fieldOfView = Mathf.Clamp(originalFieldOfView + fieldOfViewIncrease - lockOnReduction, 1f, 179f);
+    }
+
+    private void ResetTurnBlur()
+    {
+        hasBlurPose = false;
+        turnBlurWeight = 0f;
+    }
+
+    private static float FastTurnWeight(float degreesPerSecond, float start, float full)
+    {
+        start = Mathf.Max(0f, start);
+        return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(start, Mathf.Max(start + 1f, full), degreesPerSecond));
+    }
+
+    private static float RecoverTurnBlur(float current, float desired, float deltaTime, float seconds)
+    {
+        // A binary first-frame drop made fast left/right mouse sweeps look like stutters.
+        // Fade out quickly but continuously; recover more slowly to avoid pumping.
+        float duration = desired > current ? Mathf.Min(0.06f, seconds) : seconds;
+        float value = Mathf.Lerp(current, desired,
+            1f - Mathf.Exp(-3f * Mathf.Max(0f, deltaTime) / Mathf.Max(0.01f, duration)));
+        return Mathf.Abs(value - desired) < 0.0001f ? desired : value;
+    }
+
+    private void UpdateTurnBlur(bool allowed)
+    {
+        if (!allowed || !reduceBlurDuringFastTurns) { ResetTurnBlur(); return; }
+        Quaternion rotation = transform.rotation;
+        Vector3 position = transform.position;
+        if (!hasBlurPose)
+        {
+            previousBlurRotation = rotation;
+            previousBlurPosition = position;
+            hasBlurPose = true;
+            return;
+        }
+        float dt = Time.unscaledDeltaTime;
+        if (dt <= 0f) return;
+        float angularSpeed = Quaternion.Angle(previousBlurRotation, rotation) / dt;
+        // Portal/respawn cuts must not generate a full-screen velocity smear either.
+        bool cut = (position - previousBlurPosition).sqrMagnitude > 144f;
+        float desired = cut ? 1f : FastTurnWeight(angularSpeed,
+            turnBlurStartDegreesPerSecond, turnBlurFullDegreesPerSecond);
+        turnBlurWeight = cut ? 1f : RecoverTurnBlur(turnBlurWeight, desired, dt, turnBlurRecoverySeconds);
+        previousBlurRotation = rotation;
+        previousBlurPosition = position;
     }
 
     private static float StageFieldOfViewIncrease(int stage, float stage1, float stage2, float stage3)
@@ -404,6 +512,10 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnDisable()
     {
+        ResetTurnBlur();
+        lockOnFocusWeight = 0f;
+        focusPlayer = null;
+        focusSelector = null;
         flightSensation.Dispose();
         playerBlur?.Dispose();
         playerBlur = null;

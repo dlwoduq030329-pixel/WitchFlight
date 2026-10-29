@@ -10,7 +10,8 @@ public enum BattleSound
     Emote, KillNotice, FlagPickup, FlagDrop, MatchIntro, Countdown, RoundStart,
     RoundWin, RoundLose, MatchVictory, MatchDefeat, Binding, Slow, HitStun, Burn,
     WallCrash, UIClick, UIConfirm, UICancel, BodyRam, Cobra, HurtVoice, WaterEnter, WaterExit,
-    CatPetPurr, CatVictory, CatDefeat, CatAnnoyed, CatYawn, DrowningWarning
+    CatPetPurr, CatVictory, CatDefeat, CatAnnoyed, CatYawn, DrowningWarning,
+    KillConfirmed
 }
 
 public enum MagicSound { LockComplete, Cast, ProjectileLoop, Impact, ChannelLoop, ChannelEnd, FollowUp, AreaWarning, SummonAttack, EffectLoop }
@@ -69,6 +70,9 @@ public sealed class BattleAudioTable : ScriptableObject
 {
     [Range(0f, 1f)] public float masterVolume = 1f;
     public AudioMixerGroup outputMixer;
+    [Header("처치 확정 SFX (처치한 본인에게만 재생)")]
+    [Tooltip("처치 시 띵! 효과음입니다. Clip을 교체하여 변경하고, 비우면 재생하지 않습니다.")]
+    public BattleSoundCue killConfirmed = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .7f, minimumInterval = 0f };
     [Header("고양이 SFX (쓰다듬기 / 승리 인사 / 패배 인사)")]
     public BattleSoundCue catPetPurr = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .6f };
     public BattleSoundCue catVictory = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
@@ -96,6 +100,7 @@ public sealed class BattleAudioTable : ScriptableObject
 
     public BattleSoundCue Get(BattleSound sound)
     {
+        if (sound == BattleSound.KillConfirmed) return killConfirmed;
         if (sound == BattleSound.CatPetPurr) return catPetPurr;
         if (sound == BattleSound.CatVictory) return catVictory;
         if (sound == BattleSound.CatDefeat) return catDefeat;

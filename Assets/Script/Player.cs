@@ -1796,6 +1796,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void RPC_ConfirmedMagicHit(bool lethal)
     {
         if (Object == null || !Object.IsValid || !Object.HasInputAuthority) return;
+        // Confirmed by authority, played only on the killer's client. Independent
+        // of HUD visibility/alive state so a delayed projectile kill still rings.
+        if (lethal) BattleAudio.Play(BattleSound.KillConfirmed, local: true);
         BattleHud.ShowHitMarker(this, lethal);
     }
 

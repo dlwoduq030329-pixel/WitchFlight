@@ -15,7 +15,7 @@ public sealed class PlayerDirectionalBlurSettings
     [Range(0f, 80f)] public float maximumPixels = 24f;
     [Range(0f, 1f)] public float strength = 0.45f;
     [Tooltip("본체 선명함 유지 정도. 1이면 본체는 유지하고 뒤쪽만 번집니다.")]
-    [Range(0f, 1f)] public float preserveBody = 0.7f;
+    [Range(0f, 1f)] public float preserveBody = 1f;
     [Min(0.01f)] public float responseSpeed = 10f;
 }
 
@@ -38,6 +38,9 @@ internal sealed class PlayerDirectionalBlur : IDisposable
     private Shader shader;
     private float nextRefresh, weight;
     private bool hasPosition;
+    private bool hasTrailFrame;
+    private Quaternion trailWorldToView;
+    private float lastMovingTime;
     private Vector3 previousPosition, velocity;
     private PlayerDirectionalBlurSettings settings;
     public bool ProtectPlayer { get; private set; }
@@ -66,6 +69,9 @@ internal sealed class PlayerDirectionalBlur : IDisposable
         Vector3 travelled = hasPosition ? position - previousPosition : Vector3.zero;
         previousPosition = position;
         bool continuous = hasPosition && travelled.sqrMagnitude < 144f;
+        if (travelled.sqrMagnitude > 0.000001f) lastMovingTime = Time.unscaledTime;
+        // A single unchanged network/interpolation frame must not recapture a rotated camera.
+        if (!continuous || Time.unscaledTime - lastMovingTime > 0.25f) hasTrailFrame = false;
         hasPosition = true;
         float dt = Mathf.Max(0.0001f, Time.unscaledDeltaTime);
         // Actual displacement rather than requested speed: a blocked player cannot smear.
@@ -82,6 +88,7 @@ internal sealed class PlayerDirectionalBlur : IDisposable
     private void ResetMotion()
     {
         hasPosition = false; velocity = Vector3.zero; weight = 0f; Trail = Vector4.zero;
+        hasTrailFrame = false;
     }
 
     public void Prepare(Camera camera)
@@ -91,12 +98,22 @@ internal sealed class PlayerDirectionalBlur : IDisposable
         if (!HasBlur || owner == null) return;
         Vector3 center = camera.WorldToViewportPoint(owner.LockAimPoint);
         if (center.z <= camera.nearClipPlane) return;
-        Vector3 back = camera.WorldToViewportPoint(owner.LockAimPoint - velocity.normalized * settings.trailDistance);
-        if (back.z <= camera.nearClipPlane) return;
-        // SAME camera for both projections: follow-camera movement cannot cancel the trail.
-        // Perspective scaling handles straight-ahead flight as well as sideways movement.
-        float scale = camera.orthographic ? 0f : center.z / back.z - 1f;
-        Vector2 shift = new Vector2(back.x - center.x, back.y - center.y);
+        // Capture an orientation for this continuous flight segment. Camera orbit,
+        // shoulder dolly and camera shake cannot turn a forward tail into a side tail.
+        // Actual changes to world travel direction still change the trail direction.
+        if (!hasTrailFrame)
+        {
+            trailWorldToView = Quaternion.Inverse(camera.transform.rotation);
+            hasTrailFrame = true;
+        }
+        Vector3 localTravel = trailWorldToView * velocity.normalized * settings.trailDistance;
+        float backDepth = center.z - localTravel.z;
+        if (backDepth <= camera.nearClipPlane) return;
+        float scale = camera.orthographic ? 0f : center.z / backDepth - 1f;
+        float halfHeight = camera.orthographic ? camera.orthographicSize :
+            backDepth * Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
+        Vector2 shift = new Vector2(-localTravel.x / (2f * halfHeight * camera.aspect),
+            -localTravel.y / (2f * halfHeight));
         Vector2 min = new Vector2(1f, 1f), max = Vector2.zero;
         foreach (Source source in sources)
         {
@@ -118,7 +135,7 @@ internal sealed class PlayerDirectionalBlur : IDisposable
         float pixels = Mathf.Clamp(settings.maximumPixels, 0f, 80f) * size.y / 1080f;
         float limit = ProjectionLimit(shift, scale, radius, size, pixels);
         Trail = new Vector4(shift.x * limit, shift.y * limit, scale * limit, Mathf.Clamp01(settings.strength) * weight);
-        Anchor = new Vector4(center.x, center.y, (back.z - center.z) * limit, Mathf.Clamp01(settings.preserveBody));
+        Anchor = new Vector4(center.x, center.y, (backDepth - center.z) * limit, Mathf.Clamp01(settings.preserveBody));
         ScreenRect = new Vector4(min.x - pixels / size.x, min.y - pixels / size.y, max.x + pixels / size.x, max.y + pixels / size.y);
     }
 

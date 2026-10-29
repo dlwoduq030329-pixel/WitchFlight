@@ -144,6 +144,7 @@ public partial class CameraFollow : MonoBehaviour
 
     private void OnDisable()
     {
+        ResetLockOnCameraPreview();
         ClearDeathObservation();
         DisableOcclusionFade();
         RenderPipelineManager.beginCameraRendering -= BeginSpeedShakeRendering;
@@ -159,6 +160,7 @@ public partial class CameraFollow : MonoBehaviour
 
     public void SetTarget(GameObject targetObject)
     {
+        ResetLockOnCameraPreview();
         bool newLife = target != targetObject || deathObserving;
         ClearDeathObservation();
         ClearOcclusionFade();
@@ -169,6 +171,7 @@ public partial class CameraFollow : MonoBehaviour
         boundaryReturnBlending = false;
         target = targetObject;
         targetPlayer = targetObject != null ? targetObject.GetComponent<Player>() : null;
+        lockOnPreviewSelector = targetObject != null ? targetObject.GetComponent<enemyLockOn>() : null;
         observedPortalExitSequence = targetPlayer != null && targetPlayer.Object != null && targetPlayer.Object.IsValid
             ? targetPlayer.PortalExitSequence : 0;
         mouseAimRotation = targetObject != null ? targetObject.transform.rotation : Quaternion.identity;
@@ -388,13 +391,14 @@ public partial class CameraFollow : MonoBehaviour
     private void UpdateCamera(bool forceSnap)
     {
         // Fusion's render callback must not overwrite the separate falling-body view.
-        if (deathObserving) return;
+        if (deathObserving) { ResetLockOnCameraPreview(); return; }
         SynchronizePortalExit();
         bool returning = targetPlayer != null && targetPlayer.Object != null && targetPlayer.Object.IsValid &&
             targetPlayer.IsAlive && targetPlayer.IsReturningToMap &&
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
         if (returning)
         {
+            ResetLockOnCameraPreview();
             ResetTopSpeedKick();
             if (!boundaryCameraFrozen)
             {
@@ -426,6 +430,7 @@ public partial class CameraFollow : MonoBehaviour
         Transform targetTransform = target.transform;
         if (IsFaceView())
         {
+            ResetLockOnCameraPreview();
             ResetTopSpeedKick();
             mouseOrbitYaw = 0f;
             mouseAimRotation = targetTransform.rotation;
@@ -487,6 +492,9 @@ public partial class CameraFollow : MonoBehaviour
         // dolly only to the displayed camera pose, so it cannot accumulate or drift.
         float flightDistance = canKick && speedEffects != null ? speedEffects.FlightCameraDistance : 0f;
         Vector3 displayOffset = currentLocalOffset + Vector3.back * (kickDistance + flightDistance);
+        lockOnPreviewBaselinePosition = rawPosition + rawRotation * displayOffset;
+        displayOffset = ApplyLockOnPreviewOffset(displayOffset, !boundaryReturnBlending &&
+            BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive);
         Vector3 desiredPosition = rawPosition + rawRotation * displayOffset;
         if (boundaryReturnBlending)
         {
