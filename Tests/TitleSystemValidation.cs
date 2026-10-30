@@ -19,7 +19,7 @@ public static class TitleSystemValidation
     private static TMP_Text Text(string name,Transform parent)=>Node(name,parent).AddComponent<TextMeshProUGUI>();
     public static void Run()
     {
-        try {RunCore();RunUI();Debug.Log("TITLE_SYSTEM_OK checks="+count);}
+        try {RunCore();RunUnlockEvents();RunUI();Debug.Log("TITLE_SYSTEM_OK checks="+count);}
         catch(Exception e) {Debug.LogException(e);UnityEditor.EditorApplication.Exit(1);}
     }
     private static void RunCore()
@@ -73,6 +73,24 @@ public static class TitleSystemValidation
         Check(!progress.Apply(new TitleMatchSnapshot{id="a",deaths=1}),"stale watermark rejected");
         progress.Apply(new TitleMatchSnapshot{id="a",deaths=5});Check(progress.deaths==5,"no extra deaths from stale snapshot");
         Check(TitleCatalog.Find(10).required==30&&TitleCatalog.Find(13).required==20,"ice and vision middle tiers retain requested thresholds");
+    }
+    private static void RunUnlockEvents()
+    {
+        var received=new System.Collections.Generic.List<int>();
+        Action<int> listener=id=>received.Add(id);
+        TitleProgression.TitleUnlocked+=listener;
+        try {
+            TitleValidationRuntime.DataConfig.titleProgressJson="{}";
+            TitleProgression.OnProfileLoaded();
+            Check(received.Count==0,"login restoration never announces battle unlocks");
+            var data=new TitleValidationRuntime.PlayerData();
+            data.snapshot.magicKills[1]=30;
+            TitleProgression.Observe(data,true);
+            Check(received.SequenceEqual(new[]{6,7}),"simultaneous battle unlocks emit each new title in order");
+            TitleProgression.Observe(data,true);
+            TitleProgression.OnProfileLoaded();
+            Check(received.Count==2,"snapshot replay and account reload do not repeat notices");
+        } finally {TitleProgression.TitleUnlocked-=listener;}
     }
     private static void RunUI()
     {

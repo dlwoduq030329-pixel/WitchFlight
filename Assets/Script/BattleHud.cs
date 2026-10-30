@@ -512,6 +512,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void Awake()
     {
+        if (GetComponent<BattleTitleNotificationUI>() == null) gameObject.AddComponent<BattleTitleNotificationUI>();
         BindSceneMenu();
         ValidateStatusEffectViews();
         offscreenThreatFilter = IsOffscreenThreat;

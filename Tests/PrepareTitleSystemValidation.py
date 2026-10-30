@@ -36,7 +36,7 @@ namespace TitleValidationRuntime {
  }
  public class NetObject {public bool IsValid=true,HasInputAuthority=true;}
  public class PlayerData {public static PlayerData Local;public NetObject Object=new();public bool IsMatchBot,TitleMatchCompleted;public string TitleMatchId="test";public int playerprofile;
-  public void SetPlayerProfile(int id){playerprofile=id;} public void SetEquippedTitle(int id){} public TitleMatchSnapshot GetTitleSnapshot()=>new(){id=TitleMatchId};}
+  public TitleMatchSnapshot snapshot=new(){id="test"};public void SetPlayerProfile(int id){playerprofile=id;} public void SetEquippedTitle(int id){} public TitleMatchSnapshot GetTitleSnapshot()=>snapshot;}
 }
 ''',encoding='utf-8')
 print(out)

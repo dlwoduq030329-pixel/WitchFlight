@@ -63,9 +63,14 @@ public sealed class GameAudioContext : MonoBehaviour
         // Include inactive dropdown templates so their dynamically cloned Toggle items
         // already have input sounds on their first frame.
         foreach (Selectable control in FindObjectsByType<Selectable>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
             if ((control is Toggle || control is TMPro.TMP_Dropdown || control is Dropdown) &&
                 control.GetComponent<GameUIInteractionSound>() == null)
                 control.gameObject.AddComponent<GameUIInteractionSound>();
+            if ((control is TMPro.TMP_InputField || control is InputField) &&
+                control.GetComponent<GameUITypingSound>() == null)
+                control.gameObject.AddComponent<GameUITypingSound>();
+        }
         for (int i = buttons.Count - 1; i >= 0; i--)
             if (buttons[i].button == null)
             {
