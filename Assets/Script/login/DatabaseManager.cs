@@ -37,6 +37,8 @@ public class DatabaseManager : MonoBehaviour
         public int magic1Index = (int)MagicType.Fire;
         public int magic2Index = (int)MagicType.Ice;
         public int playerprofile;
+        public int equippedTitleId;
+        public string titleProgressJson = "{}";
         // Stable one-based IDs. Zero means this account has not received a cat yet.
         public int catBodyIndex;
         public int catEyeIndex;
@@ -415,8 +417,20 @@ public class DatabaseManager : MonoBehaviour
     {
         if (!HasLoadedProfile)
             return Fail("LoginPlayerData의 저장 데이터 또는 nickname이 없습니다. 회원가입 시 저장 경로를 확인해주세요.");
+        // Returning to Main may happen before the last battle auto-save response.
+        // Never replace newer title progress with the older acknowledged snapshot.
+        bool preserveTitles = IsAutoSavePending;
+        int pendingTitle = DataConfig.equippedTitleId;
+        string pendingProgress = DataConfig.titleProgressJson;
         ApplyToDataConfig(currentPlayerSetting);
+        if (preserveTitles)
+        {
+            using var silent = DataConfig.BeginChangeBatch(false);
+            DataConfig.equippedTitleId = pendingTitle;
+            DataConfig.titleProgressJson = pendingProgress;
+        }
         IsDataConfigReady = true;
+        TitleProgression.OnProfileLoaded();
         LastError = string.Empty;
         return true;
     }
@@ -625,6 +639,8 @@ public class DatabaseManager : MonoBehaviour
             setting.magic1Index = currentPlayerSetting.magic1Index;
             setting.magic2Index = currentPlayerSetting.magic2Index;
             setting.catTutorialCompleted = currentPlayerSetting.catTutorialCompleted;
+            setting.equippedTitleId = currentPlayerSetting.equippedTitleId;
+            setting.titleProgressJson = currentPlayerSetting.titleProgressJson;
         }
 
 
@@ -740,6 +756,8 @@ public class DatabaseManager : MonoBehaviour
         );
         PlayerConfig config = setting.GetPlayerConfig();
         param.Add("playerprofile", setting.playerprofile);
+        param.Add("equippedTitleId", setting.equippedTitleId);
+        param.Add("titleProgressJson", setting.titleProgressJson ?? "{}");
         param.Add("catBodyIndex", setting.catBodyIndex);
         param.Add("catEyeIndex", setting.catEyeIndex);
         param.Add("catTutorialCompleted", setting.catTutorialCompleted);
@@ -786,6 +804,8 @@ public class DatabaseManager : MonoBehaviour
             DataConfig.magic2Index;
         setting.SetPlayerConfig(DataConfig.GetPlayerConfig());
         setting.playerprofile = Mathf.Max(0, DataConfig.playerprofile);
+        setting.equippedTitleId = DataConfig.equippedTitleId;
+        setting.titleProgressJson = DataConfig.titleProgressJson;
         // Cosmetic UI / nickname saves must never reroll or clear the account's cat.
         setting.catBodyIndex = currentPlayerSetting?.catBodyIndex ?? 0;
         setting.catEyeIndex = currentPlayerSetting?.catEyeIndex ?? 0;
@@ -819,6 +839,8 @@ public class DatabaseManager : MonoBehaviour
             magic1Index = NormalizeMagicIndex(ReadInt(row, "magic1Index", (int)MagicType.Fire), (int)MagicType.Fire),
             magic2Index = NormalizeMagicIndex(ReadInt(row, "magic2Index", (int)MagicType.Ice), (int)MagicType.Ice),
             playerprofile = Mathf.Max(0, ReadInt(row, "playerprofile", 0)),
+            equippedTitleId = ReadInt(row, "equippedTitleId", 0),
+            titleProgressJson = ReadString(row, "titleProgressJson", "{}"),
             catBodyIndex = ReadInt(row, "catBodyIndex", 0),
             catEyeIndex = ReadInt(row, "catEyeIndex", 0),
             catTutorialCompleted = ReadInt(row, "catTutorialCompleted", 0) == 1 ? 1 : 0,
@@ -877,6 +899,8 @@ public class DatabaseManager : MonoBehaviour
         using var batch = DataConfig.BeginChangeBatch(false);
         DataConfig.ApplyPlayerConfig(setting.GetPlayerConfig());
         DataConfig.catTutorialCompleted = setting.catTutorialCompleted;
+        DataConfig.equippedTitleId = setting.equippedTitleId;
+        DataConfig.titleProgressJson = setting.titleProgressJson;
         // Reuse the existing backend column; no duplicate playerName column is needed.
         DataConfig.playerName = (setting.nickname ?? string.Empty).Trim();
         DataConfig.playerprofile = setting.playerprofile;

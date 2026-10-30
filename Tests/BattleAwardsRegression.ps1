@@ -30,8 +30,10 @@ namespace Fusion {
  public class NetworkArray<T> {T[] data=new T[4];public int Length=>data.Length;public T this[int i]=>data[i];public void Set(int i,T value)=>data[i]=value;}
 }
 public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
+public enum MagicType {None}
 public class Player {public bool IsAlive=true,IsBoosting;public Transform transform=new();public static Dictionary<PlayerRef,Player> players=new();public static Player FindInRunner(NetworkRunner r,PlayerRef p)=>players.TryGetValue(p,out var player)?player:null;}
 public partial class PlayerData:MonoBehaviour {
+ private void ResetTitleMatch() {} private void RecordTitleHit(PlayerData source) {} private void RecordTitleDeath(PlayerData killer,MagicType magic,bool altitude) {}
  public NetworkObject Object=new();public NetworkRunner Runner;public PlayerRef ParticipantRef;public int teamIndex;public bool IsLoadoutInitialized=true,IsMatchBot;
  public NetworkString<_32> playerName;
  public static List<PlayerData> PerkPlayers=new();

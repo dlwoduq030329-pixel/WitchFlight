@@ -343,6 +343,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         if (view == null) return;
         bool ready = Ready(d);
         Text(view.playerName,ready ? d.playerName.ToString() : "정보를 불러오는 중…");
+        if (view.playerName != null) PlayerTitleLabel.Bind(view.playerName.transform.parent, ready ? d : null);
         SetIcon(view.profile,ready && profileTable != null ? profileTable.GetSprite(d.playerprofile) : null);
         Text(view.slot1Text,ready ? MagicName(d.magic1) : "—");
         Text(view.slot2Text,ready ? MagicName(d.magic2) : "—");

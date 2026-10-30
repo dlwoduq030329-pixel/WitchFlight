@@ -82,6 +82,7 @@ public sealed partial class BattleIntroPresentation
             if (view == null) continue;
             SetTeamMagicIcon(view.profile, teamProfileTable != null ? teamProfileTable.GetSprite(data.playerprofile) : null);
             if (view.playerName != null) { view.playerName.richText = false; view.playerName.text = data.playerName.ToString(); }
+            if (view.playerName != null) PlayerTitleLabel.Bind(view.playerName.transform.parent, data);
             if (view.magicNames != null) { view.magicNames.text = string.Empty; view.magicNames.enabled = false; }
             MagicStatTable table = player.MagicTable != null ? player.MagicTable : MagicStatTable.Default;
             SetTeamMagicIcon(view.magic1Icon, table != null ? table.GetIcon(data.magic1) : null);

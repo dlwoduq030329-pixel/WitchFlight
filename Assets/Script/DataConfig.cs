@@ -6,6 +6,10 @@ public static class DataConfig
 {
     // Keep the existing assignment API while notifying the account's save coordinator.
     public static event Action Changed;
+    private static int _equippedTitleId;
+    private static string _titleProgressJson = "{}";
+    public static int equippedTitleId { get => _equippedTitleId; set => SetValue(ref _equippedTitleId, value); }
+    public static string titleProgressJson { get => _titleProgressJson; set => SetValue(ref _titleProgressJson, value ?? "{}"); }
     private static string _playerName;
     private static int _catTutorialCompleted;
     public static int catTutorialCompleted { get => _catTutorialCompleted; set => SetValue(ref _catTutorialCompleted, value == 1 ? 1 : 0); }
@@ -108,6 +112,8 @@ public static class DataConfig
     {
         using var batch = BeginChangeBatch(false);
         playerName = string.Empty;
+        equippedTitleId = 0;
+        titleProgressJson = "{}";
         catTutorialCompleted = 0;
         playerprofile = 0;
         magic1Index = (int)MagicType.Fire;

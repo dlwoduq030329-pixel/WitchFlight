@@ -61,6 +61,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private float turnSpeed { get; set; }
     [Networked] private float flightMaxSpeed { get; set; }
     [Networked] private PlayerRef LastAttacker { get; set; }
+    public MagicType LastDamageMagic { get; private set; }
     [Networked] private HatType Hat { get; set; }
     [Networked] private BroomType Broom { get; set; }
     [Networked] private MagicType Magic1 { get; set; }
@@ -1737,6 +1738,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (CatTutorialDirector.TrainingSessionActive && !IsTestBot) return;
 
         LastAttacker = attacker;
+        LastDamageMagic = sourceMagic;
         LastReceivedDamage = damage;
         HitSequence++;
         NotifyDamageDirection(attacker, attackerId);

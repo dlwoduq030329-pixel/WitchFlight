@@ -24,6 +24,7 @@ public partial class Player
             table == null || !table.TryGet(emoteId, out _) || TimerIsActive(emoteRepeatTimer)) return;
         emoteRepeatTimer = TickTimer.CreateFromSeconds(Runner, table.MinimumInterval);
         CatTutorialDirector.NotifyPracticeEmote(this);
+        PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordTitleEmote();
         RPC_PresentEmote(emoteId);
     }
 

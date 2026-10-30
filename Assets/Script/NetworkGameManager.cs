@@ -570,6 +570,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // let Main create a fresh manager with its own live scene UI references.
     public async Task<bool> ReturnToMainMenuAsync()
     {
+        TitleProgression.Observe(PlayerData.Local, true);
         if (stopInProgress || startInProgress) return false;
         if (!Application.CanStreamedLevelBeLoaded(mainSceneIndex))
         {

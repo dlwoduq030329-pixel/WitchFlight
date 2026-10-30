@@ -134,6 +134,7 @@ public partial class PlayerData : NetworkBehaviour
         if (Object.HasInputAuthority)
         {
             Local = this;
+            SetEquippedTitle(DataConfig.equippedTitleId);
             int catBody = 1, catEyes = 1;
             if (DatabaseManager.Instance != null && DatabaseManager.Instance.TryGetCatAppearance(out int body, out int eyes))
             { catBody = body; catEyes = eyes; }
@@ -301,6 +302,7 @@ public partial class PlayerData : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        if (hasState && Object != null && Object.HasInputAuthority) TitleProgression.Observe(this, true);
         perkPlayers.Remove(this);
         if (Local == this) Local = null;
         NetworkGameManager.Instance?.UnregisterPlayerData(this);

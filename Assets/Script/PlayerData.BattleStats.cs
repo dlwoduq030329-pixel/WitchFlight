@@ -27,6 +27,7 @@ public partial class PlayerData
         BattleFlagSeconds = BattleBoostSeconds = BattleUnderwaterSeconds = 0f;
         BattleWallCrashes = 0;
         lastRecordedDeathObject = default;
+        ResetTitleMatch();
         BattleStatsRevision++;
     }
 
@@ -60,16 +61,18 @@ public partial class PlayerData
         BattleDamageTaken = Mathf.Min(100000000f, BattleDamageTaken + actualHpLost);
         BattleStatsRevision++;
         PlayerData source = attacker == PlayerRef.None ? null : FindPerkData(Runner, attacker);
+        RecordTitleHit(source);
         if (!IsEnemyForStats(source) || !source.CanRecordBattleStats) return;
         source.BattleDamageDealt = Mathf.Min(100000000f, source.BattleDamageDealt + actualHpLost);
         source.BattleStatsRevision++;
     }
 
-    public void RecordBattleDeath(NetworkId characterId, PlayerData killer)
+    public void RecordBattleDeath(NetworkId characterId, PlayerData killer, MagicType magic = MagicType.None, bool altitude = false)
     {
         if (!CanRecordBattleStats || characterId.Equals(default(NetworkId)) || characterId.Equals(lastRecordedDeathObject)) return;
         lastRecordedDeathObject = characterId;
         BattleDeaths++;
+        RecordTitleDeath(killer, magic, altitude);
         BattleStatsRevision++;
         if (!IsEnemyForStats(killer) || !killer.CanRecordBattleStats) return;
         killer.BattleKills++;

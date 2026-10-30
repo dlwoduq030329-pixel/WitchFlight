@@ -197,6 +197,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
             if (slot.occupiedRoot != null) slot.occupiedRoot.SetActive(occupied);
             if (slot.emptyRoot != null) slot.emptyRoot.SetActive(!occupied);
             ApplyProfile(slot.profileImage, data);
+            if (slot.slotRoot != null) PlayerTitleLabel.Bind(slot.slotRoot.transform, data);
             if (slot.playerLabel != null)
             {
                 slot.playerLabel.richText = false;
@@ -254,6 +255,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
     private void ApplyIntroCard(PlayerData data, TMP_Text nameText, Image first, Image second)
     {
         bool ready = IsReady(data);
+        if (nameText != null) PlayerTitleLabel.Bind(nameText.transform.parent, ready ? data : null);
         if (nameText != null)
         {
             // Names are user input, not TMP markup. Never use the local DataConfig for an opponent.

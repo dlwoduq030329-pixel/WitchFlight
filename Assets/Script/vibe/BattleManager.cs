@@ -359,7 +359,8 @@ public class BattleManager : MonoBehaviour
         Player deadPilot = deadObject.GetComponent<Player>();
         playerDatas.TryGetValue(deadPlayer, out PlayerData victim);
         playerDatas.TryGetValue(killerPlayer, out PlayerData killer);
-        victim?.RecordBattleDeath(deadObject.Id, killer);
+        victim?.RecordBattleDeath(deadObject.Id, killer, deadPilot != null ? deadPilot.LastDamageMagic : MagicType.None,
+            deadPilot != null && deadPilot.DiedFromAltitude);
         if (killer != null && killer != victim) killer.AwardPerkKill(deadPilot);
         battleFlag?.AnnounceKill(killer != null ? killer.playerName.ToString() : "환경 / 더미",
             killer != null ? killer.playerprofile : -1,
@@ -429,6 +430,8 @@ public class BattleManager : MonoBehaviour
         if (resultAnnounced)
             return;
         resultAnnounced = true;
+        if (playerDatas != null)
+            foreach (PlayerData data in playerDatas.Values) data?.CompleteTitleMatch();
         pendingRespawns.Clear();
         Debug.Log(winningTeam > 0 ? $"Flag match ended. Team {winningTeam} wins." : "Flag match ended in a draw.");
         BattleEnded?.Invoke(winningTeam);

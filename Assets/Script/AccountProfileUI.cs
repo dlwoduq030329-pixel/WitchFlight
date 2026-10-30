@@ -47,6 +47,13 @@ public sealed class AccountProfileUI : MonoBehaviour
     private int lastProfileIndex = -1;
     private int selectedProfileIndex = -1;
     private int disabledAtFrame = -1;
+    public Button SharedConfirmButton => confirmButton;
+    public Button ProfileCategoryButton => profileCategoryButton;
+    public Transform TitleChoicesRoot => titleChoicesRoot;
+    private void Awake()
+    {
+        if (GetComponent<AccountTitleUI>() == null) gameObject.AddComponent<AccountTitleUI>();
+    }
 
     private bool ProfileReady => DatabaseManager.Instance != null &&
         DatabaseManager.Instance.IsDataConfigReady && DatabaseManager.Instance.HasLoadedProfile;
@@ -106,6 +113,7 @@ public sealed class AccountProfileUI : MonoBehaviour
     // Image buttons only choose a pending profile. Authored OnClick opens the popup.
     public void SelectProfile(int profileIndex)
     {
+        GetComponent<AccountTitleUI>()?.CancelSelection();
         CancelSelection();
         if (!isActiveAndEnabled || !ValidateSelection(profileIndex)) return;
         selectedProfileIndex = profileIndex;
