@@ -11,7 +11,8 @@ public enum BattleSound
     RoundWin, RoundLose, MatchVictory, MatchDefeat, Binding, Slow, HitStun, Burn,
     WallCrash, UIClick, UIConfirm, UICancel, BodyRam, Cobra, HurtVoice, WaterEnter, WaterExit,
     CatPetPurr, CatVictory, CatDefeat, CatAnnoyed, CatYawn, DrowningWarning,
-    KillConfirmed
+    KillConfirmed,
+    AttackVoice, DeathVoice, HealVoice, GreetingVoice, VSVoice, HealOtherVoice, ParryVoice, LowHealthVoice, VictoryVoice, DefeatVoice, AllyHitVoice, CatAttackVoice, CatKillVoice, UIImportant, MatchFound, UIPopup, AttendanceSuccess, UITab, MagicSelected, MagicCast, LockCharging, LockFailed, ThunderExplosion
 }
 
 public enum MagicSound { LockComplete, Cast, ProjectileLoop, Impact, ChannelLoop, ChannelEnd, FollowUp, AreaWarning, SummonAttack, EffectLoop }
@@ -21,6 +22,19 @@ public sealed class BattleSoundCue
 {
     public GameAudioCategory category = GameAudioCategory.SFX;
     public AudioClip clip;
+    [Tooltip("Optional variants, including the default clip if desired. One is chosen per playback.")]
+    public AudioClip[] variations = Array.Empty<AudioClip>();
+    public AudioClip ChooseClip()
+    {
+        if (variations == null || variations.Length == 0) return clip;
+        int start = UnityEngine.Random.Range(0, variations.Length);
+        for (int i = 0; i < variations.Length; i++)
+        {
+            AudioClip candidate = variations[(start + i) % variations.Length];
+            if (candidate != null) return candidate;
+        }
+        return clip;
+    }
     [Range(0f, 1f)] public float volume = 1f;
     [Range(.25f, 3f)] public float pitch = 1f;
     [Tooltip("같은 소리의 최소 재생 간격. 패링 타이밍 알림은 여러 발이 동시에 들어와도 겹치지 않습니다.")]
@@ -64,6 +78,17 @@ public sealed class MagicSoundEntry
     };
 }
 
+public enum GameMusic { None, Intro, Lobby, Store, Customization, MagicSelection, WaitingRoom, BattleStart, Matching }
+
+[Serializable]
+public sealed class GameMusicEntry
+{
+    public GameMusic music;
+    public AudioClip clip;
+    [Range(0f, 1f)] public float volume = .45f;
+    public bool loop = true;
+}
+
 // Resources/BattleAudioTable is the single sound assignment point; empty clips stay silent.
 [CreateAssetMenu(menuName = "WitchFlight/Battle Audio Table")]
 public sealed class BattleAudioTable : ScriptableObject
@@ -73,12 +98,12 @@ public sealed class BattleAudioTable : ScriptableObject
     [Header("처치 확정 SFX (처치한 본인에게만 재생)")]
     [Tooltip("처치 시 띵! 효과음입니다. Clip을 교체하여 변경하고, 비우면 재생하지 않습니다.")]
     public BattleSoundCue killConfirmed = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .7f, minimumInterval = 0f };
-    [Header("고양이 SFX (쓰다듬기 / 승리 인사 / 패배 인사)")]
-    public BattleSoundCue catPetPurr = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .6f };
-    public BattleSoundCue catVictory = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
-    public BattleSoundCue catDefeat = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
-    public BattleSoundCue catAnnoyed = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
-    public BattleSoundCue catYawn = new() { category = GameAudioCategory.SFX, spatialBlend = 0f };
+    [Header("고양이 Voice (쓰다듬기 / 승리 인사 / 패배 인사)")]
+    public BattleSoundCue catPetPurr = new() { category = GameAudioCategory.Voice, spatialBlend = 0f, volume = .6f };
+    public BattleSoundCue catVictory = new() { category = GameAudioCategory.Voice, spatialBlend = 0f };
+    public BattleSoundCue catDefeat = new() { category = GameAudioCategory.Voice, spatialBlend = 0f };
+    public BattleSoundCue catAnnoyed = new() { category = GameAudioCategory.Voice, spatialBlend = 0f };
+    public BattleSoundCue catYawn = new() { category = GameAudioCategory.Voice, spatialBlend = 0f };
     [Header("잠수 5초 경고 (수면 위에서는 중지)")]
     public BattleSoundCue drowningWarning = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .65f };
     [Range(8, 128)] public int maxVoices = 48;
@@ -97,6 +122,14 @@ public sealed class BattleAudioTable : ScriptableObject
     [Range(0f, 1f)] public float flightPassVolume = .3f;
     public BattleSoundEntry[] commonSounds = Array.Empty<BattleSoundEntry>();
     public MagicSoundEntry[] magicSounds = Array.Empty<MagicSoundEntry>();
+    [Header("Scene / UI background music (BGM mixer)")]
+    public GameMusicEntry[] music = Array.Empty<GameMusicEntry>();
+    public GameMusicEntry GetMusic(GameMusic context)
+    {
+        foreach (var entry in music)
+            if (entry != null && entry.music == context) return entry;
+        return null;
+    }
 
     public BattleSoundCue Get(BattleSound sound)
     {

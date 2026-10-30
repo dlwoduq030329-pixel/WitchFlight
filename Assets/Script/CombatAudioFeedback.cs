@@ -5,10 +5,10 @@ using UnityEngine;
 public sealed class CombatAudioFeedback : MonoBehaviour
 {
     private Player owner;
-    private bool initialized, alive, boosting;
+    private bool initialized, alive, boosting, lowHealth, charging;
     private int hit, death, parryStart, parry, portal, slot;
     private MagicType channel;
-    private BattleAudio.Loop boostLoop, channelLoop;
+    private BattleAudio.Loop boostLoop, channelLoop, lockLoop;
     private readonly bool[] statuses = new bool[4];
     private static readonly StatusEffectType[] statusTypes = {
         StatusEffectType.Binding, StatusEffectType.Slow, StatusEffectType.HitStun, StatusEffectType.Burn };
@@ -25,6 +25,7 @@ public sealed class CombatAudioFeedback : MonoBehaviour
             hit = owner.HitSequence; death = owner.DeathSequence; parryStart = owner.ParryStartSequence;
             parry = owner.ParrySequence; portal = owner.PortalExitSequence; slot = owner.CurrentMagicSlot;
             alive = owner.IsAlive;
+            lowHealth = owner.NowHp <= owner.MaxHp * .25f;
             for (int i = 0; i < statuses.Length; i++) statuses[i] = owner.HasStatusEffect(statusTypes[i]);
             initialized = true;
         }
@@ -41,6 +42,20 @@ public sealed class CombatAudioFeedback : MonoBehaviour
             if (IsLocal) BattleAudio.Play(BattleSound.MagicSlotChanged, local: true);
         }
         bool gameplay = owner.IsAlive && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        if (!gameplay || owner.NowHp > owner.MaxHp * .35f) lowHealth = false;
+        if (gameplay && !lowHealth && owner.NowHp <= owner.MaxHp * .25f)
+        {
+            lowHealth = true;
+            if (IsLocal) Sound(BattleSound.LowHealthVoice);
+        }
+        bool nextCharge = gameplay && IsLocal && owner.SelectedMagicStats.requiresTarget &&
+            !owner.SelectedMagicStats.TargetsAllies && owner.LockProgress > 0f && !owner.IsFullyLocked;
+        if (charging != nextCharge)
+        {
+            charging = nextCharge;
+            lockLoop.Stop();
+            if (charging) lockLoop = BattleAudio.StartLoop(BattleSound.LockCharging, transform, true);
+        }
         bool nextBoost = gameplay && owner.IsBoosting;
         if (boosting != nextBoost)
         {
@@ -72,6 +87,6 @@ public sealed class CombatAudioFeedback : MonoBehaviour
         }
     }
     private void Sound(BattleSound sound) => BattleAudio.Play(sound, owner.LockAimPoint, transform, IsLocal);
-    private void StopLoops() { boostLoop.Stop(); channelLoop.Stop(); boosting = false; channel = MagicType.None; }
+    private void StopLoops() { boostLoop.Stop(); channelLoop.Stop(); lockLoop.Stop(); boosting = charging = false; channel = MagicType.None; }
     private void OnDisable() { StopLoops(); initialized = false; }
 }

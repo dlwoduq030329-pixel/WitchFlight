@@ -46,11 +46,28 @@ public sealed class BattleAudio : MonoBehaviour
     {
         Initialize();
         instance.StartVoice(instance.table != null ? instance.table.Get(sound) : null, position, follow, local, false);
+        BattleSound? voice = sound switch
+        {
+            BattleSound.Death => BattleSound.DeathVoice,
+            BattleSound.HealingReceived => BattleSound.HealVoice,
+            BattleSound.ParryStart => BattleSound.ParryVoice,
+            BattleSound.MatchIntro => BattleSound.VSVoice,
+            BattleSound.MatchVictory => BattleSound.VictoryVoice,
+            BattleSound.MatchDefeat => BattleSound.DefeatVoice,
+            _ => null
+        };
+        if (voice.HasValue) Play(voice.Value, position, follow, local);
     }
     public static void PlayMagic(MagicType magic, MagicSound sound, Vector3 position, Transform follow = null, bool local = false)
     {
         Initialize();
         instance.StartVoice(instance.table != null ? instance.table.Get(magic, sound) : null, position, follow, local, false);
+        if (sound == MagicSound.Cast)
+        {
+            Play(BattleSound.MagicCast, position, follow, local);
+            if (magic != MagicType.Healing) Play(BattleSound.AttackVoice, position, follow, local);
+        }
+        if (sound == MagicSound.SummonAttack) Play(BattleSound.CatAttackVoice, position, follow, local);
     }
     public static Loop StartLoop(BattleSound sound, Transform follow, bool local = false)
     {
@@ -66,10 +83,12 @@ public sealed class BattleAudio : MonoBehaviour
     }
     private Loop StartVoice(BattleSoundCue cue, Vector3 position, Transform follow, bool local, bool loop)
     {
-        if (cue == null || cue.clip == null || table == null || table.masterVolume <= 0f || cue.volume <= 0f)
+        if (cue == null || table == null || table.masterVolume <= 0f || cue.volume <= 0f)
             return default;
         var key = (cue, local || follow == null ? 0 : follow.GetInstanceID());
         if (!loop && nextAllowed.TryGetValue(key, out float next) && Time.unscaledTime < next) return default;
+        AudioClip clip = cue.ChooseClip();
+        if (clip == null) return default;
         int index = -1;
         for (int i = 0; i < voices.Count; i++)
             if (!voices[i].source.isPlaying) { index = i; break; }
@@ -98,7 +117,7 @@ public sealed class BattleAudio : MonoBehaviour
         voice.started = Time.unscaledTime;
         AudioSource audio = voice.source;
         audio.transform.position = position;
-        audio.clip = cue.clip;
+        audio.clip = clip;
         audio.volume = Mathf.Clamp01(cue.volume * table.masterVolume);
         audio.pitch = Mathf.Clamp(cue.pitch, .25f, 3f);
         audio.spatialBlend = local ? 0f : Mathf.Clamp01(cue.spatialBlend);
@@ -135,6 +154,7 @@ public sealed class BattleAudio : MonoBehaviour
         if (flag != current)
         {
             flag = current; phase = flag.Phase; carrier = flag.Carrier; countdown = -1;
+            if (phase == BattleStartPhase.Intro) Play(BattleSound.MatchIntro, local: true);
             return; // Never replay historical results when joining a running game.
         }
         if (phase != flag.Phase)

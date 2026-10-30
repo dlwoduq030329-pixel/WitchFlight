@@ -1005,7 +1005,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             if (held) UpdateLockCharge();
             if (released)
             {
+                int beforeCast = CastSequence;
                 TryCastSelectedMagic();
+                if (CastSequence == beforeCast && LockProgress > 0f)
+                    RPC_PlayBattleSound(BattleSound.LockFailed);
                 ClearLockTargetInternal();
             }
         }
@@ -1413,6 +1416,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             Player recipient = IsHealingAlly(target) ? target : this;
             recipient.ApplyPerkCleanse(stats);
             recipient.RestoreHealth(stats.healing);
+            if (recipient != this) RPC_PlayBattleSound(BattleSound.HealOtherVoice);
             RPC_PresentCast(stats.magic, recipient.LockAimPoint, recipient.LockAimPoint, 0f);
         }
         else LaunchMagic(stats, target, summon);
@@ -1782,10 +1786,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         else if (attacker != PlayerRef.None) source = FindPlayer(attacker);
         if (source == null || source == this || source.Object == null || !source.Object.IsValid ||
-            !source.Object.HasStateAuthority || source.IsMatchBot || source.ParticipantRef == PlayerRef.None) return;
+            !source.Object.HasStateAuthority || source.ParticipantRef == PlayerRef.None) return;
         bool enemy = TeamIndex > 0 && source.TeamIndex > 0
             ? TeamIndex != source.TeamIndex : ParticipantRef != source.ParticipantRef;
         if (!enemy || (!lethal && source.TimerIsActive(source.nextHitMarkerFeedback))) return;
+        source.NotifyAllyHitVoice();
+        if (source.IsMatchBot) return;
         // Coalesce same-tick AOE / very fast beam hits. No per-frame polling or broadcasts.
         source.nextHitMarkerFeedback = TickTimer.CreateFromSeconds(Runner, 0.05f);
         source.RecordCatAttack(lethal);

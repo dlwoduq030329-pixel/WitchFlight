@@ -326,6 +326,8 @@ public sealed partial class MagicProjectile : NetworkBehaviour
                 return;
             }
             directHit.ReceiveMagicHit(stats, Shooter, ShooterId, direction);
+            if (ConstructKind == MagicConstructKind.SummonBolt && !directHit.IsAlive)
+                RPC_CatKillSound(point);
         }
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
@@ -552,6 +554,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         {
             MagicStatEntry visualStats = PresentationStats;
             visualStats.radius = ConstructRadius;
+            BattleAudio.Play(BattleSound.ThunderExplosion, position);
             MagicAreaVisual.ThunderBurst(position, visualStats);
             return; // The expanding burst owns Impact VFX too; do not play it twice.
         }
@@ -589,6 +592,12 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         flightAudio.Stop();
         ClearConstructVisual();
         active.Remove(this);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_CatKillSound(Vector3 position)
+    {
+        BattleAudio.Play(BattleSound.CatKillVoice, position);
     }
 
     private void UpdateFlightAudio()
