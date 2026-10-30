@@ -10,6 +10,13 @@ public sealed class BattleAudio : MonoBehaviour
     {
         internal BattleAudio host;
         internal int slot, generation;
+        // A requested loop owns its slot while its clip is loading, even before
+        // AudioSource.isPlaying becomes true on the audio thread.
+        public bool IsActive => host != null && slot >= 0 && slot < host.voices.Count &&
+            host.voices[slot].generation == generation && host.voices[slot].active;
+        public bool IsPlaying => host != null && slot >= 0 && slot < host.voices.Count &&
+            host.voices[slot].generation == generation && host.voices[slot].source != null &&
+            host.voices[slot].source.isPlaying;
         public void Stop()
         {
             if (host != null) host.Stop(slot, generation);
@@ -20,13 +27,15 @@ public sealed class BattleAudio : MonoBehaviour
     {
         public AudioSource source;
         public Transform follow;
-        public bool following;
+        public bool following, active, pending;
+        public int startedFrame;
         public int generation;
         public float started;
     }
     private static BattleAudio instance;
     private BattleAudioTable table;
     private readonly List<Voice> voices = new();
+    private readonly HashSet<AudioClip> reportedLoadFailures = new();
     private readonly Dictionary<(BattleSoundCue, int), float> nextAllowed = new();
     private BattleFlag flag;
     private BattleStartPhase phase;
@@ -91,7 +100,9 @@ public sealed class BattleAudio : MonoBehaviour
         if (clip == null) return default;
         int index = -1;
         for (int i = 0; i < voices.Count; i++)
-            if (!voices[i].source.isPlaying) { index = i; break; }
+            if (!voices[i].active || (!voices[i].pending && !voices[i].source.loop &&
+                Time.frameCount > voices[i].startedFrame && !AudioListener.pause && !voices[i].source.isPlaying))
+            { index = i; break; }
         if (index < 0 && voices.Count < Mathf.Clamp(table.maxVoices, 8, 128))
         {
             var child = new GameObject("Sound");
@@ -105,13 +116,14 @@ public sealed class BattleAudio : MonoBehaviour
         {
             float oldest = float.MaxValue;
             for (int i = 0; i < voices.Count; i++)
-                if (!voices[i].source.loop && voices[i].started < oldest)
+                if (!voices[i].pending && !voices[i].source.loop && voices[i].started < oldest)
                 { index = i; oldest = voices[i].started; }
         }
         if (index < 0) return default;
         Voice voice = voices[index];
         voice.source.Stop();
         voice.generation++;
+        voice.active = voice.pending = true;
         voice.follow = follow;
         voice.following = follow != null;
         voice.started = Time.unscaledTime;
@@ -127,23 +139,51 @@ public sealed class BattleAudio : MonoBehaviour
         audio.dopplerLevel = 0f;
         audio.outputAudioMixerGroup = GameAudioSettings.Group(cue.category);
         audio.loop = loop;
-        audio.Play();
+        audio.ignoreListenerPause = local;
+        if (clip.loadState == AudioDataLoadState.Unloaded) clip.LoadAudioData();
+        StartLoadedVoice(voice);
         if (nextAllowed.Count > 4096) nextAllowed.Clear();
         if (!loop) nextAllowed[key] = Time.unscaledTime + Mathf.Max(0f, cue.minimumInterval);
         return new Loop { host = this, slot = index, generation = voice.generation };
     }
+    private void StartLoadedVoice(Voice voice)
+    {
+        AudioClip clip = voice.source.clip;
+        if (clip == null || clip.loadState == AudioDataLoadState.Failed)
+        {
+            if (clip != null && reportedLoadFailures.Add(clip))
+                Debug.LogWarning($"BattleAudio: could not load audio data for {clip.name}.", clip);
+            StopVoice(voice);
+            return;
+        }
+        if (clip.loadState != AudioDataLoadState.Loaded) return;
+        voice.pending = false;
+        voice.startedFrame = Time.frameCount;
+        voice.source.Play();
+    }
+    private static void StopVoice(Voice voice)
+    {
+        voice.active = voice.pending = false;
+        voice.source.Stop();
+    }
     private void Stop(int index, int generation)
     {
         if (index >= 0 && index < voices.Count && voices[index].generation == generation)
-            voices[index].source.Stop();
+            StopVoice(voices[index]);
     }
     private void LateUpdate()
     {
         foreach (Voice voice in voices)
         {
-            if (!voice.source.isPlaying || !voice.following) continue;
-            if (voice.follow == null || !voice.follow.gameObject.activeInHierarchy) voice.source.Stop();
-            else voice.source.transform.position = voice.follow.position;
+            if (!voice.active) continue;
+            if (voice.following)
+            {
+                if (voice.follow == null || !voice.follow.gameObject.activeInHierarchy) { StopVoice(voice); continue; }
+                voice.source.transform.position = voice.follow.position;
+            }
+            if (voice.pending) StartLoadedVoice(voice);
+            else if (!voice.source.isPlaying && Time.frameCount > voice.startedFrame &&
+                (!AudioListener.pause || voice.source.ignoreListenerPause)) voice.active = false;
         }
         UpdateMatchSounds();
     }

@@ -326,8 +326,9 @@ public sealed partial class MagicProjectile : NetworkBehaviour
                 return;
             }
             directHit.ReceiveMagicHit(stats, Shooter, ShooterId, direction);
-            if (ConstructKind == MagicConstructKind.SummonBolt && !directHit.IsAlive)
-                RPC_CatKillSound(point);
+            if (ConstructKind == MagicConstructKind.SummonBolt && !directHit.IsAlive &&
+                Runner.TryFindObject(ShooterId, out NetworkObject catOwner) && catOwner != null)
+                catOwner.GetComponent<Player>()?.NotifySummonKillAudio(point);
         }
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
@@ -592,12 +593,6 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         flightAudio.Stop();
         ClearConstructVisual();
         active.Remove(this);
-    }
-
-    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_CatKillSound(Vector3 position)
-    {
-        BattleAudio.Play(BattleSound.CatKillVoice, position);
     }
 
     private void UpdateFlightAudio()

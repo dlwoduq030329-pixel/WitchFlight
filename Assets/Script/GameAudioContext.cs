@@ -15,6 +15,14 @@ public sealed class GameAudioContext : MonoBehaviour
         public UnityAction callback;
         public Button.ButtonClickedEvent events;
     }
+    private sealed class AuthoredMusic
+    {
+        public AudioSource source;
+        public bool enabled, playOnAwake;
+    }
+    private readonly List<AuthoredMusic> authoredMusic = new();
+    private readonly HashSet<AudioSource> managedMusic = new();
+
     private sealed class Panel
     {
         public Transform transform;
@@ -51,6 +59,13 @@ public sealed class GameAudioContext : MonoBehaviour
     {
         nextScan = Time.unscaledTime + .5f;
         if (login == null) login = FindFirstObjectByType<LoginFlowController>();
+        ScanAuthoredMusic();
+        // Include inactive dropdown templates so their dynamically cloned Toggle items
+        // already have input sounds on their first frame.
+        foreach (Selectable control in FindObjectsByType<Selectable>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if ((control is Toggle || control is TMPro.TMP_Dropdown || control is Dropdown) &&
+                control.GetComponent<GameUIInteractionSound>() == null)
+                control.gameObject.AddComponent<GameUIInteractionSound>();
         for (int i = buttons.Count - 1; i >= 0; i--)
             if (buttons[i].button == null)
             {
@@ -87,7 +102,7 @@ public sealed class GameAudioContext : MonoBehaviour
             string name = CleanName(t);
             bool popup = IsPopup(name);
             bool attendance = name == "SuccessPopup" && HasAncestor(t, "ChoolsukUI");
-            if (!popup && !attendance && name != "StoreUI" && name != "CustumUI" && name != "IntroUI" && name != "RobbyUI") continue;
+            if (!popup && !attendance && name != "StoreUI" && name != "CustumUI" && name != "IntroUI" && name != "RobbyUI" && name != "WatingRoomUI" && name != "WaitingRoomUI" && name != "MatchingWaitingUI") continue;
             if (!knownPanels.Add(t)) continue;
             // A nested popup container must not replay its parent's opening sound.
             bool nestedPopup = false;
@@ -97,6 +112,43 @@ public sealed class GameAudioContext : MonoBehaviour
                 openSound = attendance ? BattleSound.AttendanceSuccess : popup && !nestedPopup ? BattleSound.UIPopup : null });
         }
         scanned = true;
+    }
+
+    private void ScanAuthoredMusic()
+    {
+        for (int i = authoredMusic.Count - 1; i >= 0; i--)
+            if (authoredMusic[i].source == null)
+            {
+                managedMusic.Remove(authoredMusic[i].source);
+                authoredMusic.RemoveAt(i);
+            }
+        if (table == null) return;
+        foreach (AudioSource source in FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (source == music || source.clip == null || managedMusic.Contains(source)) continue;
+            foreach (GameMusicEntry entry in table.music)
+            {
+                if (entry == null || entry.clip == null || source.clip != entry.clip) continue;
+                authoredMusic.Add(new AuthoredMusic { source = source, enabled = source.enabled, playOnAwake = source.playOnAwake });
+                managedMusic.Add(source);
+                source.Stop();
+                source.playOnAwake = false;
+                source.enabled = false;
+                break;
+            }
+        }
+    }
+
+    private void LateUpdate()
+    {
+        // Designer SetActive / Play events must not restart a second copy of a managed BGM.
+        foreach (AuthoredMusic binding in authoredMusic)
+            if (binding.source != null)
+            {
+                if (binding.source.isPlaying) binding.source.Stop();
+                binding.source.playOnAwake = false;
+                binding.source.enabled = false;
+            }
     }
 
     private static string CleanName(Transform t) => t.name.Replace("(Clone)", "").Trim();
@@ -194,8 +246,12 @@ public sealed class GameAudioContext : MonoBehaviour
             }
         }
         NetworkGameManager manager = NetworkGameManager.Instance;
+        if (manager != null && manager.IsMatching && manager.IsRandomMatch) return GameMusic.Matching;
+        // The authored waiting UI can be entered before creating/joining a network room.
+        if (Visible("WatingRoomUI") || Visible("WaitingRoomUI")) return GameMusic.WaitingRoom;
         if (manager != null && manager.IsMatching)
             return manager.IsWaitingInCodeRoom ? GameMusic.WaitingRoom : GameMusic.Matching;
+        if (Visible("MatchingWaitingUI")) return GameMusic.Matching;
         if (Visible("StoreUI")) return GameMusic.Store;
         if (Visible("CustumUI")) return GameMusic.Customization;
         if (login != null) return login.IsLobbyReady ? GameMusic.Lobby : GameMusic.Intro;
@@ -207,6 +263,12 @@ public sealed class GameAudioContext : MonoBehaviour
     private void OnDestroy()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
+        foreach (AuthoredMusic binding in authoredMusic)
+            if (binding.source != null)
+            {
+                binding.source.playOnAwake = binding.playOnAwake;
+                binding.source.enabled = binding.enabled;
+            }
         foreach (ButtonBinding binding in buttons)
             binding.events.RemoveListener(binding.callback);
     }

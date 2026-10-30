@@ -3,6 +3,20 @@ using Fusion;
 public partial class Player
 {
     private TickTimer nextAllyHitVoice;
+    [Networked] public int LockFailureSequence { get; private set; }
+    private int lockAudioCastSequence, lockAudioSlot;
+
+    // Send from the persistent shooter, not the short-lived/distant projectile.
+    public void NotifySummonKillAudio(UnityEngine.Vector3 position)
+    {
+        if (Object != null && Object.IsValid && Object.HasStateAuthority) RPC_SummonKillAudio(position);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_SummonKillAudio(UnityEngine.Vector3 position)
+    {
+        BattleAudio.Play(BattleSound.CatKillVoice, position, local: Object.HasInputAuthority);
+    }
 
     // Only successful authoritative gameplay invokes this. Audio clips stay local to each client.
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

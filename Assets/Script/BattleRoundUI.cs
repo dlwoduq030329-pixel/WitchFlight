@@ -283,6 +283,7 @@ public sealed partial class BattleRoundUI : MonoBehaviour
             if (closeDescriptionOnAccept && requestedDescriptionRevision == descriptionRevision)
                 SetDescriptionVisible(false);
             Status("장착 완료. 이 경기에서만 적용됩니다.");
+            BattleAudio.Play(BattleSound.MagicSelected, local: true);
         }
         else if (Time.unscaledTime - requestStarted > 5f)
         {
