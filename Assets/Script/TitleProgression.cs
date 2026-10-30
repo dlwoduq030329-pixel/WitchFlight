@@ -41,6 +41,8 @@ public static class TitleProgression
     }
     public static void Observe(PlayerData data, bool flush = false)
     {
+        // Training never contributes lifetime progress, even on forced saves/scene exit.
+        if(NetworkGameManager.Instance!=null && NetworkGameManager.Instance.IsTraining)return;
         if(!Ready || data==null || data.Object==null || !data.Object.IsValid || !data.Object.HasInputAuthority || data.IsMatchBot)return;
         if(string.IsNullOrEmpty(data.TitleMatchId.ToString()))return;
         var p=Read(); if(p==null)return;

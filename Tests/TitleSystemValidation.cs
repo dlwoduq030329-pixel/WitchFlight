@@ -85,6 +85,12 @@ public static class TitleSystemValidation
             Check(received.Count==0,"login restoration never announces battle unlocks");
             var data=new TitleValidationRuntime.PlayerData();
             data.snapshot.magicKills[1]=30;
+            string beforeTraining=TitleValidationRuntime.DataConfig.titleProgressJson;
+            TitleValidationRuntime.NetworkGameManager.Instance.IsTraining=true;
+            TitleProgression.Observe(data,true);
+            Check(TitleValidationRuntime.DataConfig.titleProgressJson==beforeTraining && received.Count==0,
+                "training forced save cannot grant titles, accumulate progress or emit notices");
+            TitleValidationRuntime.NetworkGameManager.Instance.IsTraining=false;
             TitleProgression.Observe(data,true);
             Check(received.SequenceEqual(new[]{6,7}),"simultaneous battle unlocks emit each new title in order");
             TitleProgression.Observe(data,true);

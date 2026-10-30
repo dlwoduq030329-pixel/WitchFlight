@@ -38,6 +38,7 @@ public partial class PlayerData
     }
     public void CompleteTitleMatch()
     {
+        if(NetworkGameManager.Instance!=null && NetworkGameManager.Instance.IsTraining)return;
         if(Object!=null && Object.IsValid && Object.HasStateAuthority && !string.IsNullOrEmpty(TitleMatchId.ToString()))TitleMatchCompleted=true;
     }
     public void RecordTitleEmote() { if(CanRecordTitles)TitleEmotes++; }
