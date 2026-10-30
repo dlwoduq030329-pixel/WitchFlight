@@ -2,6 +2,8 @@ using UnityEngine;
 
 public static class TitleProgression
 {
+    // Emitted only for newly earned battle titles, never for login/load restoration.
+    public static event System.Action<int> TitleUnlocked;
     private static float nextProgressSave;
     public static bool Ready => DatabaseManager.Instance != null && DatabaseManager.Instance.HasLoadedProfile && DatabaseManager.Instance.IsDataConfigReady;
     public static TitleProgress Read()
@@ -47,6 +49,7 @@ public static class TitleProgression
             (flush || p.unlocked.Count!=owned || data.TitleMatchCompleted || Time.unscaledTime>=nextProgressSave)) {
             nextProgressSave=Time.unscaledTime+10f;
             DataConfig.titleProgressJson=JsonUtility.ToJson(p);
+            for(int i=owned;i<p.unlocked.Count;i++)TitleUnlocked?.Invoke(p.unlocked[i]);
         }
     }
 }
