@@ -22,6 +22,51 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
             float4 _PlayerTrail; // viewport translation xy, radial scale delta, strength
             float4 _PlayerAnchor; // viewport center xy, eye-depth offset, body preservation
             float4 _PlayerRect;
+            float4 _FlightMotion; // player world displacement xyz, translation-only enabled
+            float4 _BlurSampling; // fast-turn weight, max adjacent tap spacing in pixels
+            float4 _PlayerClearRect; // current rendered character bounds, bottom-left viewport coordinates
+
+            float PlayerClearArea(float2 uv)
+            {
+                float4 rect = _PlayerClearRect;
+                if (any(rect.xy >= rect.zw)) return 0;
+                #if UNITY_UV_STARTS_AT_TOP
+                    uv.y = 1.0 - uv.y;
+                #endif
+                float2 outside = max(max(rect.xy - uv, uv - rect.zw), 0);
+                // Almost every pixel is wholly inside or well outside the guard.
+                // Preserve the exact feather, but only evaluate sqrt in its 8px border.
+                float2 pixels = outside / max(_BlitTexture_TexelSize.xy, float2(1e-6, 1e-6));
+                float distanceSquared = dot(pixels, pixels);
+                if (distanceSquared >= 64.0) return 0;
+                if (distanceSquared <= 0.0) return 1;
+                return 1.0 - smoothstep(0.0, 8.0, sqrt(distanceSquared));
+            }
+
+            float2 BackgroundVelocity(float2 uv)
+            {
+                if (_FlightMotion.w < 0.5)
+                    return SAMPLE_TEXTURE2D_X(_SpeedMotionTexture, sampler_PointClamp, uv).xy;
+                if (dot(_FlightMotion.xyz, _FlightMotion.xyz) < 1e-10) return 0;
+                float depth = SAMPLE_TEXTURE2D_X(_SpeedSceneDepth, sampler_PointClamp, uv).r;
+                #if UNITY_REVERSED_Z
+                    if (depth < 1e-6) return 0; // sky has no finite translation parallax
+                #else
+                    if (depth > 0.999999) return 0;
+                    depth = lerp(UNITY_NEAR_CLIP_VALUE, 1.0, depth);
+                #endif
+                float3 world = ComputeWorldSpacePosition(uv, depth, UNITY_MATRIX_I_VP);
+                // Same current projection/orientation for BOTH positions: rotation and
+                // FOV changes cannot produce sideways building afterimages.
+                float4 now = mul(UNITY_MATRIX_VP, float4(world, 1));
+                float4 before = mul(UNITY_MATRIX_VP, float4(world + _FlightMotion.xyz, 1));
+                if (now.w <= 1e-5 || before.w <= 1e-5) return 0;
+                float2 velocity = (now.xy / now.w - before.xy / before.w) * 0.5;
+                #if UNITY_UV_STARTS_AT_TOP
+                    velocity.y = -velocity.y;
+                #endif
+                return velocity;
+            }
 
             half2 PlayerMask(float2 uv)
             {
@@ -31,6 +76,8 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
 
             float FocusBlurMask(float2 uv)
             {
+                // With no lock-on blend the result is exactly 1; no radial calculation needed.
+                if (_LockOnBlur.x == 0.0) return 1.0;
                 float radius = length((uv - 0.5) * 2.0);
                 return lerp(1.0, smoothstep(_LockOnBlur.y, _LockOnBlur.z, radius), _LockOnBlur.x);
             }
@@ -39,9 +86,9 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
             {
                 // Both center pixels AND every background sample exclude the player's silhouette.
                 if (playerMask > 0.001) return original;
-                float focusMask = FocusBlurMask(uv);
+                float focusMask = FocusBlurMask(uv) * (1.0 - PlayerClearArea(uv));
                 if (focusMask < 0.001) return original;
-                float2 velocity = SAMPLE_TEXTURE2D_X(_SpeedMotionTexture, sampler_PointClamp, uv).xy;
+                float2 velocity = BackgroundVelocity(uv);
                 float speed = length(velocity);
                 if (speed < 0.00001) return original;
                 float edge = smoothstep(_PeripheralBlur.y, 1.0, length((uv - 0.5) * 2.0));
@@ -52,6 +99,12 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
                 if (mainDistance + extraDistance < 0.00001) return original;
                 float2 direction = -velocity / speed;
                 int samples = extraDistance > 0.00001 ? 12 : (_BackgroundBlur.z < 0.5 ? 4 : (_BackgroundBlur.z < 1.5 ? 6 : 8));
+                float span = 2.0 * mainDistance + extraDistance;
+                float pixelSpan = length(direction * span / max(_BlitTexture_TexelSize.xy, float2(1e-6, 1e-6)));
+                float denseScale = min(1.0, samples * _BlurSampling.y / max(pixelSpan, 1e-5));
+                float turnScale = lerp(1.0, denseScale, saturate(_BlurSampling.x));
+                mainDistance *= turnScale;
+                extraDistance *= turnScale;
                 half3 sum = original;
                 float total = 1.0;
                 [loop]
@@ -59,7 +112,7 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
                 {
                     float t = (i + 0.5) / samples;
                     float2 sampleUV = saturate(uv + direction * lerp(-mainDistance, mainDistance + extraDistance, t));
-                    float valid = 1.0 - step(0.001, PlayerMask(sampleUV).r);
+                    float valid = (1.0 - step(0.001, PlayerMask(sampleUV).r)) * (1.0 - PlayerClearArea(sampleUV));
                     float weight = valid * (1.0 - 0.5 * abs(t * 2.0 - 1.0));
                     sum += SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, sampleUV).rgb * weight;
                     total += weight;
@@ -110,7 +163,9 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
                     total += kernel;
                 }
                 float opacity = saturate(coverage / max(total, 0.0001) * _PlayerTrail.w);
-                opacity *= 1.0 - mask * _PlayerAnchor.w;
+                // Partial-alpha hair still belongs to the visible player. Preserving
+                // the body must not blend another silhouette over those pixels.
+                opacity *= 1.0 - step(0.001, mask) * _PlayerAnchor.w;
                 opacity *= FocusBlurMask(uv);
                 half3 trailColor = sum / max(coverage, 0.0001);
                 return half4(lerp(background, trailColor, opacity), original.a);

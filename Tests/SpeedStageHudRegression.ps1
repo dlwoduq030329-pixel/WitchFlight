@@ -79,9 +79,9 @@ $expected = @(
     @('forwardSpeed1Image','2027782595','2230668527161844054','01'),
     @('forwardSpeed2Image','2027782596','3954472720755499855','02'),
     @('forwardSpeed3Image','2027782597','5963320822151465258','03'),
-    @('reverseSpeed1Image','861538116','','01 (1)'),
-    @('reverseSpeed2Image','1904546676','','02 (1)'),
-    @('reverseSpeed3Image','540987163','','03 (1)')
+    @('reverseSpeed1Image','861538116','2862311575762553372','01 (1)'),
+    @('reverseSpeed2Image','1904546676','1975222438664020540','02 (1)'),
+    @('reverseSpeed3Image','540987163','8338453518938648268','03 (1)')
 )
 foreach ($entry in $expected) {
     if (!$hudBlock.Contains("$($entry[0]): {fileID: $($entry[1])}")) { throw "Unbound $($entry[0])" }

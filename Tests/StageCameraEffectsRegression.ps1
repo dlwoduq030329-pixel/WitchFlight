@@ -60,6 +60,7 @@ $followMethods = @('ShouldApplySpeedShake','ResetTopSpeedKick','UpdateTopSpeedKi
     ForEach-Object { Method $follow $_ }
 $followMethods += Method $preview 'BlendLockOnPreview'
 $followMethods += Method $preview 'LockOnScreenOffset'
+$followMethods += Method $preview 'LockOnPreviewProgress'
 $fovProbe = @'
  }
  public class FovProbe {
@@ -168,6 +169,18 @@ $checks = @'
     float side=FollowProbe.LockOnScreenOffset(depth,fov,aspect,.2f);
     float viewportX=.5f-side/(2f*depth*Mathf.Tan(fov*Mathf.Deg2Rad*.5f)*aspect);
     Check(Near(viewportX,.3f),"shoulder framing stays at 30 percent across speed/FOV/aspect changes");
+   }
+   Check(FollowProbe.LockOnPreviewProgress(0)==0,"new target starts at original framing");
+   Check(Near(FollowProbe.LockOnPreviewProgress(.5f),.5f),"half lock drives half camera transition");
+   Check(FollowProbe.LockOnPreviewProgress(1)==1,"completed lock reaches full framing");
+   Check(FollowProbe.LockOnPreviewProgress(-1)==0&&FollowProbe.LockOnPreviewProgress(2)==1,"progress safely clamps");
+   foreach(float fps in new[]{30f,60f,120f}) {
+    float pose=0;
+    for(int i=1;i<=(int)fps;i++) {
+     float charge=i/fps;float goal=FollowProbe.LockOnPreviewProgress(charge);
+     float next=FollowProbe.BlendLockOnPreview(pose,goal,1/fps,.2f);
+     Check(next>=pose&&next<=goal,"camera cannot jump ahead of the charge ring");pose=next;
+    }
    }
    float low=0,high=0;for(int i=0;i<6;i++)low=FollowProbe.BlendLockOnPreview(low,1,1f/30,.2f);
    for(int i=0;i<24;i++)high=FollowProbe.BlendLockOnPreview(high,1,1f/120,.2f);

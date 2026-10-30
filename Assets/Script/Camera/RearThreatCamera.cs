@@ -24,16 +24,23 @@ public sealed class RearThreatCamera : MonoBehaviour
     [SerializeField] private int overlaySortingOrder = 100;
     private Camera main;
     private readonly List<Threat> candidates = new();
+    private readonly List<Threat> threatPool = new();
     private readonly List<Vector3> shardPositions = new(8);
     private readonly RaycastHit[] sightHits = new RaycastHit[32];
     private readonly Collider[] sightOverlaps = new Collider[16];
+    private bool sightOriginChecked, sightOriginBlocked;
+    private Vector3 sightOrigin;
     private View left, right;
     private readonly UniversalRenderPipeline.SingleCameraRequest request = new();
     private readonly List<Renderer> renderers = new();
     private readonly List<Renderer> temporarilyHidden = new();
+    private readonly List<Renderer> localVisuals = new();
+    private bool localVisualsCollected;
     private static readonly Dictionary<GameObject, Player> localEffects = new();
     private readonly List<GameObject> expiredEffects = new();
     private SpeedCameraEffects speedEffects;
+    private static readonly Unity.Profiling.ProfilerMarker ThreatDetectionMarker = new("WitchFlight.RearThreats");
+    private static readonly Unity.Profiling.ProfilerMarker ThreatRenderMarker = new("WitchFlight.RearThreatRender");
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetEffects() => localEffects.Clear();
@@ -61,6 +68,8 @@ public sealed class RearThreatCamera : MonoBehaviour
         public RectTransform panel;
         public CanvasGroup group;
         public TMP_Text caption;
+        public int captionDistance = int.MinValue, captionKind = -1;
+        public TMP_FontAsset captionFont;
         public Texture oldTexture;
         public bool visible;
         public float reveal, nextFrame;
@@ -86,6 +95,11 @@ public sealed class RearThreatCamera : MonoBehaviour
             local != null && local.Object != null && local.Object.IsValid && local.TeamIndex > 0 &&
             local.IsAlive && !local.IsReturningToMap;
         if (!active) { SetVisible(left, false); SetVisible(right, false); return; }
+        using var profile = ThreatDetectionMarker.Auto();
+        // Physics/visual membership is shared only within this detection/render pass.
+        // Never carry it across simulation frames, respawns or pooled-effect reuse.
+        sightOriginChecked = false;
+        localVisualsCollected = false;
         candidates.Clear();
         foreach (Player enemy in Player.ActiveCombatants)
         {
@@ -102,7 +116,7 @@ public sealed class RearThreatCamera : MonoBehaviour
             bool locking = settings.showLockingThreats && !enemy.SelectedMagicStats.TargetsAllies &&
                 enemy.HasLockTarget(local.Object);
             if ((nearby || locking) && HasClearSight(main.transform.position, enemy.LockAimPoint))
-                candidates.Add(new Threat { side = side, point = enemy.LockAimPoint, locking = locking, distanceSquared = delta.sqrMagnitude });
+                AddThreat(side, enemy.LockAimPoint, delta.sqrMagnitude, locking, false);
         }
         // Releasing a lock to fire must not close the view while its shot approaches.
         // Classify each shot by its CURRENT position, even if its caster turns or dies.
@@ -117,7 +131,7 @@ public sealed class RearThreatCamera : MonoBehaviour
                 int side = RearSector(main.transform.InverseTransformDirection(delta));
                 if (side == 0 || (!shot.TargetId.Equals(local.Object.Id) && !shot.TryGetImpactTime(local, out _))) continue;
                 if (!HasClearSight(main.transform.position, shot.transform.position)) continue;
-                candidates.Add(new Threat { side = side, point = shot.transform.position, projectile = true, distanceSquared = delta.sqrMagnitude });
+                AddThreat(side, shot.transform.position, delta.sqrMagnitude, false, true);
             }
             // Ice follow-up shards outlive their networked core projectile.
             foreach (IceImpactFollowUpVisual batch in IceImpactFollowUpVisual.ActiveVisuals)
@@ -132,7 +146,7 @@ public sealed class RearThreatCamera : MonoBehaviour
                     Vector3 delta = point - main.transform.position;
                     int side = RearSector(main.transform.InverseTransformDirection(delta));
                     if (side != 0 && HasClearSight(main.transform.position, point))
-                        candidates.Add(new Threat { side = side, point = point, projectile = true, distanceSquared = delta.sqrMagnitude });
+                        AddThreat(side, point, delta.sqrMagnitude, false, true);
                 }
             }
         }
@@ -147,6 +161,16 @@ public sealed class RearThreatCamera : MonoBehaviour
         if (image == null) return;
         root = root != null ? root : image.gameObject;
         if (!transform.IsChildOf(root.transform)) root.SetActive(false);
+    }
+
+    private void AddThreat(int side, Vector3 point, float distanceSquared, bool locking, bool projectile)
+    {
+        int index = candidates.Count;
+        if (index == threatPool.Count) threatPool.Add(new Threat());
+        Threat threat = threatPool[index];
+        threat.side = side; threat.point = point; threat.distanceSquared = distanceSquared;
+        threat.locking = locking; threat.projectile = projectile;
+        candidates.Add(threat);
     }
 
     private void SelectThreats(out Threat first, out Threat second)
@@ -181,20 +205,30 @@ public sealed class RearThreatCamera : MonoBehaviour
 
     private bool HasClearSight(Vector3 origin, Vector3 point)
     {
-        // Rays can miss a solid wall enclosing their origin.
-        int count = Physics.OverlapSphereNonAlloc(origin, .01f, sightOverlaps, ~0, QueryTriggerInteraction.Ignore);
-        Collider[] overlaps = count == sightOverlaps.Length
-            ? Physics.OverlapSphere(origin, .01f, ~0, QueryTriggerInteraction.Ignore) : sightOverlaps;
-        if (overlaps != sightOverlaps) count = overlaps.Length;
-        for (int i = 0; i < count; i++) if (IsSightBlocker(overlaps[i])) return false;
-
+        if (IsSightOriginBlocked(origin)) return false;
         Vector3 delta = point - origin;
-        count = Physics.RaycastNonAlloc(origin, delta.normalized, sightHits, delta.magnitude, ~0, QueryTriggerInteraction.Ignore);
+        int count = Physics.RaycastNonAlloc(origin, delta.normalized, sightHits, delta.magnitude, ~0, QueryTriggerInteraction.Ignore);
         RaycastHit[] hits = count == sightHits.Length
             ? Physics.RaycastAll(origin, delta.normalized, delta.magnitude, ~0, QueryTriggerInteraction.Ignore) : sightHits;
         if (hits != sightHits) count = hits.Length;
         for (int i = 0; i < count; i++) if (IsSightBlocker(hits[i].collider)) return false;
         return true;
+    }
+
+    private bool IsSightOriginBlocked(Vector3 origin)
+    {
+        if (sightOriginChecked && sightOrigin.Equals(origin)) return sightOriginBlocked;
+        sightOrigin = origin;
+        sightOriginChecked = true;
+        sightOriginBlocked = false;
+        // Rays can miss a solid wall enclosing their origin.
+        int count = Physics.OverlapSphereNonAlloc(origin, .01f, sightOverlaps, ~0, QueryTriggerInteraction.Ignore);
+        Collider[] overlaps = count == sightOverlaps.Length
+            ? Physics.OverlapSphere(origin, .01f, ~0, QueryTriggerInteraction.Ignore) : sightOverlaps;
+        if (overlaps != sightOverlaps) count = overlaps.Length;
+        for (int i = 0; i < count; i++)
+            if (IsSightBlocker(overlaps[i])) { sightOriginBlocked = true; break; }
+        return sightOriginBlocked;
     }
 
     internal static float NextRenderTime(float now, float previousDeadline, int fps)
@@ -233,11 +267,17 @@ public sealed class RearThreatCamera : MonoBehaviour
         {
             bool locking = threat != null && threat.locking;
             bool incoming = threat != null && threat.projectile;
-            string label = (isRight ? "우후방" : "좌후방") + (incoming ? " · 투사체" : locking ? " · 록온" : "");
-            if (view.caption.font == null || !view.caption.font.HasCharacters(label))
-                label = (isRight ? "REAR RIGHT" : "REAR LEFT") + (incoming ? " · INCOMING" : locking ? " · LOCK" : "");
-            view.caption.text = threat != null ? $"{label}  ·  {Mathf.Sqrt(threat.distanceSquared):0}m" : label;
-            view.caption.color = locking || incoming ? new Color(1f, .65f, .5f) : Color.white;
+            int distance = threat != null ? Mathf.RoundToInt(Mathf.Sqrt(threat.distanceSquared)) : -1;
+            int kind = (isRight ? 4 : 0) + (incoming ? 2 : locking ? 1 : 0);
+            if (view.captionDistance != distance || view.captionKind != kind || view.captionFont != view.caption.font)
+            {
+                string label = (isRight ? "우후방" : "좌후방") + (incoming ? " · 투사체" : locking ? " · 록온" : "");
+                if (view.caption.font == null || !view.caption.font.HasCharacters(label))
+                    label = (isRight ? "REAR RIGHT" : "REAR LEFT") + (incoming ? " · INCOMING" : locking ? " · LOCK" : "");
+                view.caption.text = threat != null ? $"{label}  ·  {distance}m" : label;
+                view.caption.color = locking || incoming ? new Color(1f, .65f, .5f) : Color.white;
+                view.captionDistance = distance; view.captionKind = kind; view.captionFont = view.caption.font;
+            }
         }
         if (Time.unscaledTime + .0001f < view.nextFrame) return;
         view.nextFrame = NextRenderTime(Time.unscaledTime, view.nextFrame, framesPerSecond);
@@ -262,8 +302,8 @@ public sealed class RearThreatCamera : MonoBehaviour
         request.destination = view.texture;
         try
         {
+            using var renderProfile = ThreatRenderMarker.Auto();
             HideLocalMagic(local);
-            HideRenderers(local.gameObject);
             if (GraphicsSettings.currentRenderPipeline != null) RenderPipeline.SubmitRenderRequest(view.camera, request);
             else { view.camera.targetTexture = view.texture; view.camera.Render(); }
         }
@@ -283,10 +323,22 @@ public sealed class RearThreatCamera : MonoBehaviour
 
     private void HideLocalMagic(Player local)
     {
+        if (!localVisualsCollected)
+        {
+            CollectLocalVisuals(local);
+            localVisualsCollected = true;
+        }
+        HideCollectedRenderers();
+    }
+
+    private void CollectLocalVisuals(Player local)
+    {
+        localVisuals.Clear();
+        CollectRenderers(local.gameObject);
         foreach (var effect in localEffects)
         {
             if (effect.Key == null || effect.Value == null) { expiredEffects.Add(effect.Key); continue; }
-            if (effect.Value == local) HideRenderers(effect.Key);
+            if (effect.Value == local) CollectRenderers(effect.Key);
         }
         foreach (GameObject expired in expiredEffects) localEffects.Remove(expired);
         expiredEffects.Clear();
@@ -294,20 +346,25 @@ public sealed class RearThreatCamera : MonoBehaviour
         {
             if (projectile == null || projectile.Object == null || !projectile.Object.IsValid ||
                 projectile.Runner != local.Runner || !projectile.ShooterId.Equals(local.Object.Id)) continue;
-            HideRenderers(projectile.gameObject);
+            CollectRenderers(projectile.gameObject);
         }
         foreach (IceImpactFollowUpVisual shards in IceImpactFollowUpVisual.ActiveVisuals)
         {
-            if (shards != null && shards.Caster == local) HideRenderers(shards.gameObject);
+            if (shards != null && shards.Caster == local) CollectRenderers(shards.gameObject);
         }
         renderers.Clear();
     }
 
-    private void HideRenderers(GameObject root)
+    private void CollectRenderers(GameObject root)
     {
         renderers.Clear();
         root.GetComponentsInChildren<Renderer>(false, renderers);
-        foreach (Renderer renderer in renderers)
+        localVisuals.AddRange(renderers);
+    }
+
+    private void HideCollectedRenderers()
+    {
+        foreach (Renderer renderer in localVisuals)
         {
             if (renderer == null || !renderer.enabled || renderer.forceRenderingOff) continue;
             temporarilyHidden.Add(renderer);
@@ -436,5 +493,10 @@ public sealed class RearThreatCamera : MonoBehaviour
         if (view.texture != null) { view.texture.Release(); Destroy(view.texture); }
         view = null;
     }
-    private void OnDisable() { Release(ref left); Release(ref right); candidates.Clear(); }
+    private void OnDisable()
+    {
+        RestoreLocalMagic();
+        Release(ref left); Release(ref right); candidates.Clear(); threatPool.Clear();
+        localVisuals.Clear(); renderers.Clear(); localVisualsCollected = false; sightOriginChecked = false;
+    }
 }

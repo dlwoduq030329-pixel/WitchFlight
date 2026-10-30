@@ -12,7 +12,7 @@ using UnityEngine.InputSystem.UI;
 // Place on the always-active battlemanager, not inside either managed panel.
 [DefaultExecutionOrder(120)]
 [DisallowMultipleComponent]
-public sealed class BattleRoundUI : MonoBehaviour
+public sealed partial class BattleRoundUI : MonoBehaviour
 {
     [Header("Style / data")]
     [SerializeField] private TMP_FontAsset uiFont;
@@ -82,7 +82,8 @@ public sealed class BattleRoundUI : MonoBehaviour
     private bool CanEdit => HasLocalData && !returning && BattleManager.Instance != null &&
         BattleManager.Instance.Phase == BattleStartPhase.Intermission &&
         BattleManager.Instance.PhaseRemainingSeconds > 0f &&
-        localData.MagicChangeRound == BattleManager.Instance.RoundNumber;
+        localData.MagicChangeRound == BattleManager.Instance.RoundNumber &&
+        !localData.RoundSwapReady && !readyRequestPending;
 
     private void BindLocalData()
     {
@@ -122,12 +123,14 @@ public sealed class BattleRoundUI : MonoBehaviour
                 SetDescriptionVisible(false);
                 descriptionRevision++;
                 requestPending = false;
-                Status("슬롯과 마법을 선택한 뒤 장착하세요. 시간 종료 시 마지막 승인된 장비로 시작합니다.");
+                readyRequestPending = false;
+                Status("마법을 장착한 뒤 준비 완료를 누르세요. 전원이 준비하면 다음 라운드를 시작합니다.");
             }
             UpdatePendingRequest();
             RefreshSwap(battle);
+            RefreshReadyUI(battle);
         }
-        else requestPending = false;
+        else { requestPending = readyRequestPending = false; SetSwapEditingLocked(false); }
         Show(magicSwapPanel, swapping);
         if (resultLatched && !resultsPresentation.OwnsFinalUI)
         {
@@ -188,9 +191,10 @@ public sealed class BattleRoundUI : MonoBehaviour
     }
 
     // Unity Button.OnClick APIs. Slot selection does NOT erase the chosen magic.
-    public void SelectSlot(int slot) { if (slot >= 1 && slot <= 2) selectedSlot = slot; }
+    public void SelectSlot(int slot) { if (CanEdit && !requestPending && slot >= 1 && slot <= 2) selectedSlot = slot; }
     public void SelectMagic(int magicId)
     {
+        if (!CanEdit || requestPending) return;
         if (magicId < (int)MagicType.Fire || magicId > (int)MagicType.Smoke) return;
         selectedMagic = (MagicType)magicId;
         descriptionOpen = true;
@@ -243,7 +247,7 @@ public sealed class BattleRoundUI : MonoBehaviour
         if (!resetInitial && !BattleRoundRules.IsAllowedLoadout(localData.MagicChangeBase1, localData.MagicChangeBase2,
             first, second, battle.AllowedMagicChanges))
         {
-            Status($"최대 {battle.AllowedMagicChanges}슬롯만 변경할 수 있습니다. 다른 슬롯을 바꾸려면 변경 초기화를 누르세요.");
+            Status($"최대 {battle.AllowedMagicChanges}슬롯만 변경할 수 있습니다. 다른 슬롯을 바꾸려면 먼저 기존 마법으로 되돌려주세요.");
             return;
         }
         requestPending = true;
@@ -446,7 +450,8 @@ public sealed class BattleRoundUI : MonoBehaviour
         slot2Text = Label(second.transform, "Slot 2", "", new Vector2(40, 0), new Vector2(350, 75), 24);
         selectedMagicNameText = Label(root, "Selection", "", new Vector2(0, -260), new Vector2(1100, 45), 25);
         equipButton = Button(root, "선택한 슬롯에 장착", new Vector2(170, -330), new Vector2(360, 64), EquipSelectedMagic);
-        Button(root, "변경 초기화", new Vector2(-200, -330), new Vector2(280, 64), ResetRoundChanges);
+        resetMagicButton = Button(root, "준비 완료", new Vector2(-200, -330), new Vector2(280, 64), ToggleRoundReady);
+        resetButtonBound = true;
         swapStatusText = Label(root, "Status", "", new Vector2(0, -405), new Vector2(1500, 60), 23);
     }
 
@@ -465,6 +470,8 @@ public sealed class BattleRoundUI : MonoBehaviour
     {
         if (localData != null) localData.RoundMagicChangeResult -= OnMagicChangeResult;
         localData = null;
+        readyRequestPending = false;
+        SetSwapEditingLocked(false);
         SetDescriptionVisible(false);
         Show(magicSwapPanel, false);
         Show(finalResultPanel, false);
@@ -472,7 +479,7 @@ public sealed class BattleRoundUI : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (resetMagicButton != null) resetMagicButton.onClick.RemoveListener(ResetRoundChanges);
+        if (resetMagicButton != null) resetMagicButton.onClick.RemoveListener(ToggleRoundReady);
         if (equipButton != null) equipButton.onClick.RemoveListener(EquipSelectedMagic);
         if (returnToMainButton != null) returnToMainButton.onClick.RemoveListener(ReturnToMain);
     }
@@ -490,11 +497,20 @@ public sealed class BattleRoundUI : MonoBehaviour
                     (label != null && label.text.Contains("초기화"))) { resetMagicButton = button; break; }
             }
         if (resetMagicButton == null) return;
+        var readyBackground = resetMagicButton.GetComponent<Image>();
+        if (readyBackground != null) resetMagicButton.targetGraphic = readyBackground;
+        bool alreadyBound = false;
         for (int i = 0; i < resetMagicButton.onClick.GetPersistentEventCount(); i++)
+        {
             if (resetMagicButton.onClick.GetPersistentTarget(i) == this &&
                 resetMagicButton.onClick.GetPersistentMethodName(i) == nameof(ResetRoundChanges))
-            { resetButtonBound = true; return; }
-        resetMagicButton.onClick.AddListener(ResetRoundChanges);
+                resetMagicButton.onClick.SetPersistentListenerState(i, UnityEventCallState.Off);
+            if (resetMagicButton.onClick.GetPersistentTarget(i) == this &&
+                resetMagicButton.onClick.GetPersistentMethodName(i) == nameof(ToggleRoundReady) &&
+                resetMagicButton.onClick.GetPersistentListenerState(i) != UnityEventCallState.Off) alreadyBound = true;
+        }
+        resetMagicButton.onClick.RemoveListener(ResetRoundChanges);
+        if (!alreadyBound) resetMagicButton.onClick.AddListener(ToggleRoundReady);
         resetButtonBound = true;
     }
 }

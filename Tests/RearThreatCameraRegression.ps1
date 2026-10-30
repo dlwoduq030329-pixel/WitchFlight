@@ -44,44 +44,62 @@ namespace RearChecks {
  public struct RaycastHit {public Collider collider;}
  public enum QueryTriggerInteraction {Ignore}
  public static class Physics {
-  public static Collider[] overlaps=Array.Empty<Collider>();
+  public static Collider[] overlaps=Array.Empty<Collider>();public static int overlapQueries;
   public static RaycastHit[] hits=Array.Empty<RaycastHit>();
-  public static int OverlapSphereNonAlloc(Vector3 o,float r,Collider[] buffer,int mask,QueryTriggerInteraction q){int n=Math.Min(buffer.Length,overlaps.Length);Array.Copy(overlaps,buffer,n);return n;}
+  public static int OverlapSphereNonAlloc(Vector3 o,float r,Collider[] buffer,int mask,QueryTriggerInteraction q){overlapQueries++;int n=Math.Min(buffer.Length,overlaps.Length);Array.Copy(overlaps,buffer,n);return n;}
   public static Collider[] OverlapSphere(Vector3 o,float r,int mask,QueryTriggerInteraction q)=>overlaps;
   public static int RaycastNonAlloc(Vector3 o,Vector3 d,RaycastHit[] buffer,float distance,int mask,QueryTriggerInteraction q){int n=Math.Min(buffer.Length,hits.Length);Array.Copy(hits,buffer,n);return n;}
   public static RaycastHit[] RaycastAll(Vector3 o,Vector3 d,float distance,int mask,QueryTriggerInteraction q)=>hits;
  }
- public class Threat {public int side;public bool locking,projectile;public float distanceSquared;}
+ public class Threat {public int side;public bool locking,projectile;public float distanceSquared;public Vector3 point;}
  public class View {public bool visible;public float nextFrame=5,reveal=1;public RawImage image=new();public GameObject root=new();}
  public class Probe {
-  public Transform transform=new();public List<Threat> candidates=new();
-  public List<Renderer> renderers=new(),temporarilyHidden=new();
+  public Transform transform=new();public List<Threat> candidates=new(),threatPool=new();
+  public List<Renderer> renderers=new(),temporarilyHidden=new(),localVisuals=new();
+  public bool sightOriginChecked,sightOriginBlocked;public Vector3 sightOrigin;
   public RaycastHit[] sightHits=new RaycastHit[32];public Collider[] sightOverlaps=new Collider[16];
 '@
 $source += $priority + (Method $rear 'RearSector') + (Method $rear 'NextRenderTime') + (Method $rear 'SelectThreats') + (Method $rear 'Nearest') + (Method $rear 'SetVisible')
-$source += (Method $rear 'HideRenderers') + (Method $rear 'RestoreLocalMagic')
-$source += (Method $rear 'IsSightBlocker') + (Method $rear 'HasClearSight')
+$source += (Method $rear 'CollectRenderers') + (Method $rear 'HideCollectedRenderers') + (Method $rear 'RestoreLocalMagic')
+$source += (Method $rear 'AddThreat')
+$source += (Method $rear 'IsSightBlocker') + (Method $rear 'IsSightOriginBlocked') + (Method $rear 'HasClearSight')
 $source += (Method $bubble 'BuildOutline') + (Method $bubble 'Curve') + $cross + (Method $bubble 'Triangulate')
 $source+=@'
  }
  public static class Tests {
   static int n;static void Check(bool ok,string label){if(!ok)throw new Exception(label);n++;}
   public static int Run(){
+   var pool=new Probe();pool.AddThreat(-1,new(1,2,3),49,true,false);
+   var first=pool.candidates[0];pool.candidates.Clear();
+   pool.AddThreat(1,new(4,5,6),25,false,true);
+   Check(ReferenceEquals(first,pool.candidates[0]),"Reuse threat object across frames");
+   Check(first.side==1&&!first.locking&&first.projectile&&first.point.x==4&&first.distanceSquared==25,"Pooled threat resets all previous enemy fields");
+   pool.AddThreat(-1,new(),1,true,false);
+   Check(!ReferenceEquals(pool.candidates[0],pool.candidates[1]),"Simultaneous left and right threats remain independent");
+   long before=GC.GetAllocatedBytesForCurrentThread();
+   for(int frame=0;frame<10000;frame++){pool.candidates.Clear();pool.AddThreat(-1,new(),49,false,true);pool.AddThreat(1,new(),25,true,false);}
+   Check(GC.GetAllocatedBytesForCurrentThread()==before,"No threat allocations after warm-up across 10000 frames");
    var sight=new Probe();var wall=new Collider();var actor=new Collider{owner=new Player()};var missile=new Collider{owner=new MagicProjectile()};
    Check(sight.HasClearSight(new(),new(0,0,49)),"unobstructed enemy visible");
+   int originQueries=Physics.overlapQueries;
+   sight.HasClearSight(new(),new(-30,0,-40));sight.HasClearSight(new(),new(30,0,-40));
+   Check(Physics.overlapQueries==originQueries,"Many enemies and shots share one camera-origin overlap query");
+   sight.HasClearSight(new(1,0,0),new(30,0,-40));
+   Check(Physics.overlapQueries==originQueries+1,"Changed camera origin is never stale");
    Physics.hits=new[]{new RaycastHit{collider=wall}};
    Check(!sight.HasClearSight(new(),new(0,0,49)),"building blocks preview activation");
    Physics.hits=new[]{new RaycastHit{collider=actor},new RaycastHit{collider=missile}};
    Check(sight.HasClearSight(new(),new(0,0,49)),"actors and spells do not falsely block sight");
-   Physics.overlaps=new[]{wall};
+   Physics.overlaps=new[]{wall};sight.sightOriginChecked=false;
    Check(!sight.HasClearSight(new(),new(0,0,49)),"camera embedded in wall rejected");
-   Physics.overlaps=Array.Empty<Collider>();Physics.hits=new RaycastHit[33];
+   Physics.overlaps=Array.Empty<Collider>();sight.sightOriginChecked=false;Physics.hits=new RaycastHit[33];
    for(int i=0;i<32;i++)Physics.hits[i]=new RaycastHit{collider=actor};Physics.hits[32]=new RaycastHit{collider=wall};
    Check(!sight.HasClearSight(new(),new(0,0,49)),"full hit buffer cannot hide a wall");
-   Physics.hits=Array.Empty<RaycastHit>();Physics.overlaps=new Collider[17];
+   Physics.hits=Array.Empty<RaycastHit>();Physics.overlaps=new Collider[17];sight.sightOriginChecked=false;
    for(int i=0;i<16;i++)Physics.overlaps[i]=actor;Physics.overlaps[16]=wall;
    Check(!sight.HasClearSight(new(),new(0,0,49)),"full overlap buffer cannot hide a wall");
-   Physics.overlaps=Array.Empty<Collider>();
+   Physics.overlaps=Array.Empty<Collider>();sight.sightOriginChecked=false;
+   Check(sight.HasClearSight(new(),new(0,0,49)),"Next detection pass observes a removed wall");
    Check(Probe.RearSector(new(-10,0,-10))==-1,"rear-left routes left");
    Check(Probe.RearSector(new(10,0,-10))==1,"rear-right routes right");
    Check(Probe.RearSector(new(-100,0,1))==0,"entire front-left excluded even outside main camera FOV");
@@ -107,13 +125,18 @@ $source+=@'
    }
    var rendering=new Probe();var effect=new GameObject();var own=new Renderer();var hidden=new Renderer{forceRenderingOff=true};var disabled=new Renderer{enabled=false};var world=new Renderer();
    effect.visuals.Add(own);effect.visuals.Add(hidden);effect.visuals.Add(disabled);
-   try {rendering.HideRenderers(effect);rendering.HideRenderers(effect);
+   rendering.CollectRenderers(effect);rendering.CollectRenderers(effect);
+   try {rendering.HideCollectedRenderers();rendering.HideCollectedRenderers();
     Check(own.forceRenderingOff,"own magic hidden in secondary camera");
     Check(!world.forceRenderingOff&&!disabled.forceRenderingOff,"environment/enemy and disabled renderers untouched");
     throw new InvalidOperationException("simulated rendering failure");
    } catch(InvalidOperationException) {} finally {rendering.RestoreLocalMagic();}
    Check(!own.forceRenderingOff&&hidden.forceRenderingOff,"restores main-camera visibility while preserving existing concealment");
    Check(rendering.temporarilyHidden.Count==0,"render state cleared after failure");
+   own.enabled=false;hidden.forceRenderingOff=false;rendering.HideCollectedRenderers();
+   Check(!own.forceRenderingOff&&hidden.forceRenderingOff,"Second view checks current visibility rather than cached flags");
+   rendering.RestoreLocalMagic();
+   Check(!hidden.forceRenderingOff,"Second view restores its own snapshot");
    var p=new Probe();var v=new View();p.SetVisible(v,true);
    Check(v.image.enabled&&v.root.activeSelf&&v.visible&&v.nextFrame==0&&v.reveal==0,"open forces render and shows root");
    v.reveal=.5f;v.nextFrame=10;p.SetVisible(v,true);

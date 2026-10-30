@@ -18,6 +18,10 @@ public class enemyLockOn : MonoBehaviour
     // Read-only camera presentation state; includes summon targets and requires no new search.
     public bool HasSelectedTarget => wasHeld && currentTarget != null && currentTarget.IsValid &&
         owner != null && owner.GetSelectedMagic() == sampledMagic;
+    // Use the same predicted progress as the lock ring, and reject progress belonging
+    // to the previous target while a newly selected target reaches the simulation.
+    public float SelectedTargetProgress => HasSelectedTarget && owner.HasLockTarget(currentTarget)
+        ? Mathf.Clamp01(owner.LockProgress) : 0f;
 
     private void Awake() => owner = GetComponent<Player>();
 

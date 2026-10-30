@@ -21,6 +21,8 @@ public sealed class BattleResultsPresentation : MonoBehaviour
         public RawImage character;
         public Button praiseButton;
         public GameObject thumbsupAnimation;
+        public Image votePanel;
+        public TMP_Text voteText;
         [NonSerialized] public BattleMvpPortrait portrait;
         [NonSerialized] public int lastPraise;
         [NonSerialized] public float hideThumbAt;
@@ -28,6 +30,7 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     [SerializeField] private AwardPanel[] panels = new AwardPanel[4];
     public bool OwnsFinalUI { get; private set; }
     private bool showingMvp, bound, awardsBound;
+    private bool praiseSubmitted;
     private float roundStarted;
     private int shownRound = -1;
     private TMP_FontAsset font;
@@ -96,12 +99,14 @@ public sealed class BattleResultsPresentation : MonoBehaviour
         if (!showingMvp) return;
         BindAwards();
         var flag = BattleFlag.Instance;
-        bool canPraise = flag != null && flag.Object != null && flag.Object.IsValid && flag.AwardsReady;
+        bool synced = flag != null && flag.Object != null && flag.Object.IsValid && flag.AwardsReady;
+        bool canPraise = synced && !praiseSubmitted && !flag.HasPraised(flag.Runner.LocalPlayer);
         for (int i = 0; i < panels.Length; i++)
         {
             var panel = panels[i]; if (panel == null) continue;
             if (panel.praiseButton != null) panel.praiseButton.interactable = canPraise;
-            int sequence = canPraise ? flag.PraiseSequences[i] : panel.lastPraise;
+            int sequence = synced ? flag.PraiseSequences[i] : panel.lastPraise;
+            Set(panel.voteText, sequence.ToString());
             if (sequence != panel.lastPraise)
             {
                 panel.lastPraise = sequence;
@@ -202,6 +207,16 @@ public sealed class BattleResultsPresentation : MonoBehaviour
 
     public void ReturnToMain() => GetComponent<BattleRoundUI>()?.ReturnToMain();
 
+    public void PraisePanel(int panelIndex)
+    {
+        if (!showingMvp || praiseSubmitted) return;
+        var flag = BattleFlag.Instance;
+        if (flag == null || !flag.RequestPraise(panelIndex)) return;
+        praiseSubmitted = true; // Block rapid local clicks before the networked vote arrives.
+        foreach (var panel in panels)
+            if (panel?.praiseButton != null) panel.praiseButton.interactable = false;
+    }
+
     private void BindAwards()
     {
         CaptureAwards();
@@ -219,6 +234,12 @@ public sealed class BattleResultsPresentation : MonoBehaviour
                     ? new Color(1f,.2f,.2f) : Color.white;
             }
             Set(panel.count, BattleAwardRules.Count(result.Category, result.Value)); Set(panel.what, BattleAwardRules.Unit(result.Category));
+            if (panel.votePanel != null)
+            {
+                int team = PlayerData.Local != null ? PlayerData.Local.teamIndex : 0;
+                panel.votePanel.color = team > 0 && result.Team != team
+                    ? new Color32(0xE7, 0x43, 0x57, 255) : new Color32(0x44, 0xDC, 0xCC, 255);
+            }
             panel.lastPraise = flag != null && flag.Object != null && flag.Object.IsValid ? flag.PraiseSequences[i] : 0;
             if (characterCache.TryGetValue(result.Winner.RawEncoded, out GameObject template))
             {
@@ -277,8 +298,11 @@ public sealed class BattleResultsPresentation : MonoBehaviour
             if (panel.character == null) panel.character = Find(panel.root.transform, "RawImage")?.GetComponent<RawImage>();
             if (panel.praiseButton == null) panel.praiseButton = Find(panel.root.transform, "PraiseButton")?.GetComponent<Button>();
             if (panel.thumbsupAnimation == null) panel.thumbsupAnimation = Find(panel.root.transform, "ThumbsupAnimation")?.gameObject;
+            var voteRoot = Find(panel.root.transform, "VotePanel", "VotePenel");
+            if (panel.votePanel == null && voteRoot != null) panel.votePanel = voteRoot.GetComponent<Image>();
+            if (panel.voteText == null && voteRoot != null) panel.voteText = Find(voteRoot, "VoteText")?.GetComponent<TMP_Text>();
             if (panel.thumbsupAnimation != null) panel.thumbsupAnimation.SetActive(false);
-            int slot = i; Bind(panel.praiseButton, () => BattleFlag.Instance?.RequestPraise(slot));
+            int slot = i; Bind(panel.praiseButton, () => PraisePanel(slot));
         }
         if (mainButton == null) mainButton = Find(mvpUI.transform, "ToMainButton")?.GetComponent<Button>();
         Bind(mainButton, ReturnToMain);
@@ -397,6 +421,12 @@ public sealed class BattleResultsPresentation : MonoBehaviour
             var image = new GameObject("RawImage", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>(); image.transform.SetParent(root.transform, false);
             image.rectTransform.sizeDelta = new Vector2(380, 430); image.rectTransform.anchoredPosition = new Vector2(0, 80);
             var button = MakeButton(root.transform, "칭찬", new Vector2(0, -300), () => { }); button.name = "PraiseButton";
+            var votes = new GameObject("VotePanel", typeof(RectTransform), typeof(Image));
+            votes.transform.SetParent(root.transform, false);
+            var voteRect = votes.GetComponent<RectTransform>();
+            voteRect.anchoredPosition = new Vector2(0, -360); voteRect.sizeDelta = new Vector2(80, 40);
+            votes.GetComponent<Image>().raycastTarget = false;
+            Label(votes.transform, "VoteText", Vector2.zero, new Vector2(80, 40), 24, "0");
             var thumbs = Label(root.transform, "ThumbsupAnimation", new Vector2(0, 220), new Vector2(340, 70), 42, "좋아요!"); thumbs.gameObject.SetActive(false);
         }
         mainButton = MakeButton(mvpUI.transform, "메인으로", new Vector2(0, -450), ReturnToMain);

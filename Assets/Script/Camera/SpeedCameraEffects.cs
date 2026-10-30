@@ -26,6 +26,8 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [SerializeField] private MotionBlurQuality motionBlurQuality = MotionBlurQuality.High;
     [SerializeField, Range(0f, 0.2f)] private float motionBlurClamp = 0.12f;
     [SerializeField, Min(0.01f)] private float transitionSpeed = 5f;
+    [Tooltip("배경 잔상을 실제 플레이어 이동으로만 계산합니다. 마우스 회전, 카메라 궤도 이동, FOV 변화는 잔상을 만들지 않습니다.")]
+    [SerializeField] private bool flightMotionOnly = true;
     [Header("Fast camera turn comfort")]
     [Tooltip("빠르게 시점을 돌리는 동안만 배경 잔상의 강도와 길이를 줄입니다. 직진 속도 연출은 유지됩니다.")]
     [SerializeField] private bool reduceBlurDuringFastTurns = true;
@@ -50,8 +52,10 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [InspectorName("Stage 3 Field Of View Increase")]
     [SerializeField, Range(0f, 30f)] private float extraFieldOfView = 30f;
     [SerializeField, Min(0.01f)] private float fieldOfViewTransitionSpeed = 5f;
-    [Header("Player directional motion blur (separate from background)")]
-    [SerializeField] private PlayerDirectionalBlurSettings playerMotionBlur = new();
+    // Retain serialized legacy values for rollback; character afterimages are replaced by a world-space trail.
+    [SerializeField, HideInInspector] private PlayerDirectionalBlurSettings playerMotionBlur = new();
+    [Header("Player flight trail (world-space path)")]
+    [SerializeField] private PlayerFlightTrail flightTrail = new();
     [Header("Top speed peripheral blur")]
     [SerializeField] private bool enablePeripheralBlur = true;
     [Tooltip("빗자루 기본 최고속도 대비 추가 블러가 시작되는 실제 전진 속도 비율입니다.")]
@@ -103,6 +107,14 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private Vector3 previousBlurPosition;
     private bool hasBlurPose;
     private float turnBlurWeight;
+    private Player flightMotionPlayer;
+    private Vector3 previousFlightPosition;
+    private int flightMotionFrame = -1;
+    internal Vector4 FlightMotion { get; private set; }
+    internal bool NeedsBackgroundMotionVectors => !flightMotionOnly;
+    // During fast sweeps, keep adjacent taps close enough to avoid separated copies
+    // of building edges. Straight-flight blur retains its authored length.
+    internal Vector4 BlurSamplingParameters => new Vector4(turnBlurWeight, 2f, 0f, 0f);
     private float lockOnFocusWeight;
     private Player focusPlayer;
     private enemyLockOn focusSelector;
@@ -150,6 +162,8 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnEnable()
     {
+        RenderPipelineManager.beginCameraRendering += UpdateFlightTrail;
+        ResetFlightMotion();
         ResetTurnBlur();
         playerBlur = new PlayerDirectionalBlur();
         hasInnerRadius = false;
@@ -229,7 +243,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         UpdateTurnBlur(canShow && !boundaryView);
         UpdateLockOnFocus(player, canShow && !boundaryView);
         flightSensation.Update(player, transform, canShow && !boundaryView);
-        playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur, playerMotionBlur, !boundaryView);
+        playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur, playerMotionBlur, false);
 
         if (!canShow)
         {
@@ -355,6 +369,43 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     {
         hasBlurPose = false;
         turnBlurWeight = 0f;
+    }
+
+    private void ResetFlightMotion()
+    {
+        flightMotionFrame = -1;
+        flightMotionPlayer = null;
+        FlightMotion = Vector4.zero;
+    }
+
+    internal void PrepareFlightMotion()
+    {
+        // Called by the render pass after Fusion's interpolated pose and the camera
+        // follow callback. Camera position differences would include mouse orbit/dolly.
+        if (flightMotionFrame == Time.frameCount) return;
+        Player player = Player.LocalPlayer;
+        bool valid = player != null && player.Object != null && player.Object.IsValid &&
+            player.Object.HasInputAuthority && player.IsAlive && !player.IsReturningToMap &&
+            BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
+            !CombatPresentation.MenuOpen;
+        Vector3 travel = Vector3.zero;
+        if (valid)
+        {
+            Vector3 position = player.transform.position;
+            if (flightMotionPlayer == player && flightMotionFrame == Time.frameCount - 1)
+                travel = ContinuousFlightDisplacement(previousFlightPosition, position);
+            previousFlightPosition = position;
+        }
+        flightMotionPlayer = valid ? player : null;
+        flightMotionFrame = Time.frameCount;
+        FlightMotion = new Vector4(travel.x, travel.y, travel.z, flightMotionOnly ? 1f : 0f);
+    }
+
+    internal static Vector3 ContinuousFlightDisplacement(Vector3 previous, Vector3 current)
+    {
+        Vector3 delta = current - previous;
+        // Do not turn portal/respawn camera cuts into a full-screen smear.
+        return delta.sqrMagnitude < 144f ? delta : Vector3.zero;
     }
 
     private static float FastTurnWeight(float degreesPerSecond, float start, float full)
@@ -512,6 +563,9 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnDisable()
     {
+        RenderPipelineManager.beginCameraRendering -= UpdateFlightTrail;
+        flightTrail?.Dispose();
+        ResetFlightMotion();
         ResetTurnBlur();
         lockOnFocusWeight = 0f;
         focusPlayer = null;
@@ -557,5 +611,16 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         originalAltitudeColor = null;
         altitudeVignette = null;
         altitudeColor = null;
+    }
+
+    private void UpdateFlightTrail(ScriptableRenderContext context, Camera renderingCamera)
+    {
+        if (renderingCamera != viewCamera) return;
+        Player player = Player.LocalPlayer;
+        bool allowed = isActiveAndEnabled && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
+            !CombatPresentation.MenuOpen && player != null && player.Object != null && player.Object.IsValid &&
+            player.Object.HasInputAuthority && player.IsAlive && !player.IsReturningToMap &&
+            (cameraFollow == null || !cameraFollow.IsBoundaryPresentationActive);
+        flightTrail?.Update(player, allowed);
     }
 }

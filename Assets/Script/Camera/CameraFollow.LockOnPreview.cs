@@ -45,20 +45,26 @@ public partial class CameraFollow
         if (lockOnPreviewUpdatedFrame != Time.frameCount)
         {
             lockOnPreviewUpdatedFrame = Time.frameCount;
-            // Read the local selector instead of waiting for replicated charge progress.
-            // Do not run another target search/raycast from the camera render callback.
+            // Selection gates presentation; the predicted charge shown by the lock
+            // ring drives its amount. No extra target search/raycast from rendering.
             bool charging = ControlSettings.Held(ControlAction.LockOn) &&
                 !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput &&
                 lockOnPreviewSelector != null && lockOnPreviewSelector.HasSelectedTarget &&
                 targetPlayer.SelectedMagicStats.requiresTarget && targetPlayer.CanAcquireMagicTarget();
             float zoom = targetPlayer.CurrentSpeedStage == 3 || targetPlayer.IsBoosting
                 ? lockOnPreviewFastFovReduction : lockOnPreviewFovReduction;
-            lockOnPreviewWeight = BlendLockOnPreview(lockOnPreviewWeight, charging ? 1f : 0f,
+            float progress = charging ? LockOnPreviewProgress(lockOnPreviewSelector.SelectedTargetProgress) : 0f;
+            lockOnPreviewWeight = BlendLockOnPreview(lockOnPreviewWeight, progress,
                 Time.unscaledDeltaTime, lockOnPreviewBlendSeconds);
-            lockOnPreviewZoom = BlendLockOnPreview(lockOnPreviewZoom, charging ? Mathf.Max(0f, zoom) : 0f,
+            lockOnPreviewZoom = BlendLockOnPreview(lockOnPreviewZoom, progress * Mathf.Max(0f, zoom),
                 Time.unscaledDeltaTime, lockOnPreviewBlendSeconds);
         }
         return lockOnPreviewWeight * Mathf.Max(0f, lockOnPreviewSideOffset);
+    }
+
+    private static float LockOnPreviewProgress(float progress)
+    {
+        return Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(progress));
     }
 
     private static float BlendLockOnPreview(float current, float desired, float deltaTime, float seconds)

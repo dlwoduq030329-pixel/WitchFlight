@@ -9,6 +9,7 @@ $source=@'
 using System;
 using System.Collections.Generic;
 public class Material {public bool destroyed;}
+public static class ModularShadowProxy {public static void EndSourceFade(Renderer r) {}}
 public class MaterialPropertyBlock {public bool isEmpty;public string color;}
 public class Renderer {
  public Material[] sharedMaterials;public MaterialPropertyBlock global=new(){color="global original"};

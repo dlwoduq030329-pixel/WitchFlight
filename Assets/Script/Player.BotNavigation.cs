@@ -13,6 +13,7 @@ public partial class Player
     private int botPortalSequence;
     private readonly System.Collections.Generic.List<Vector3> botPortalEntries = new(), botPortalExits = new();
     private readonly System.Collections.Generic.List<Portal> botPortals = new();
+    private float[] botPortalCosts = System.Array.Empty<float>();
 
     private bool TryBotPortalRoute(Vector3 goal, MatchBotSettings settings, out Vector3 entry)
     {
@@ -39,7 +40,8 @@ public partial class Player
             int n = botPortals.Count;
             // Distance-to-goal relaxation also permits useful chains of portals.
             // Positive traversal costs prevent zero-cost loops between linked pairs.
-            float[] costs = new float[n];
+            if (botPortalCosts.Length < n) System.Array.Resize(ref botPortalCosts, Mathf.NextPowerOfTwo(n));
+            float[] costs = botPortalCosts;
             for (int i = 0; i < n; i++) costs[i] = Vector3.Distance(botPortalExits[i], goal);
             float transit = Mathf.Max(.1f, settings.portalTraversalCost);
             for (int pass = 0; pass < n; pass++)

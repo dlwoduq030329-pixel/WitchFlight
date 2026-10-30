@@ -16,6 +16,7 @@ namespace UnityEngine {
  public class RangeAttribute:System.Attribute {public RangeAttribute(float a,float b){}}
  public class TooltipAttribute:System.Attribute {public TooltipAttribute(string s){}}
  public struct Color {}
+ public struct Vector2 {public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}}
  public static class Resources {public static T Load<T>(string path) where T:class=>null;}
  public static class Random {public static float value=>.5f;public static int Range(int a,int b)=>a; public static Color ColorHSV(float a,float b,float c,float d,float e,float f)=>default;}
 }
@@ -33,7 +34,7 @@ public struct Participant {public int RawEncoded;}
 public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;}
 public class PlayerData {
  public static List<PlayerData> PerkPlayers=new();
- public bool IsMatchBot,IsLoadoutInitialized=true;public object Runner;
+ public bool IsMatchBot,RoundSwapReady,IsLoadoutInitialized=true;public object Runner;
  public Participant ParticipantRef;public int teamIndex,MagicChangeRound;
  public NetworkObject Object=new();public MagicType magic1,magic2,MagicChangeBase1,MagicChangeBase2;
 '@

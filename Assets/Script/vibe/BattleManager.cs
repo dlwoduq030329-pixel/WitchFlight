@@ -287,6 +287,20 @@ public class BattleManager : MonoBehaviour
         // Snapshot every participant first: bots must not counter the new intermission choices.
         foreach (PlayerData data in playerDatas.Values)
             if (data != null && data.IsMatchBot) data.ChooseBotCounters(true);
+        // Counter selection must finish before readiness locks the bot's loadout.
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null && data.IsMatchBot) TrySetRoundReady(data, RoundNumber, true);
+    }
+
+    public bool TrySetRoundReady(PlayerData data, int round, bool readyForRound)
+    {
+        if (runner == null || !runner.IsServer || !HasValidFlag || !battleFlag.CanChangeMagic(round) ||
+            data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner ||
+            !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.ParticipantRef) ||
+            !playerDatas.TryGetValue(data.ParticipantRef, out PlayerData registered) || registered != data ||
+            data.MagicChangeRound != round) return false;
+        data.SetRoundReadyFromHost(readyForRound);
+        return true;
     }
 
     public void ResetPlayersForNextRound()
@@ -310,6 +324,7 @@ public class BattleManager : MonoBehaviour
             !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.ParticipantRef) ||
             !playerDatas.TryGetValue(data.ParticipantRef, out PlayerData registered) || registered != data ||
             data.MagicChangeRound != round) return false;
+        if (data.RoundSwapReady) { error = "준비 완료를 취소한 뒤 마법을 교체해주세요."; return false; }
         // Reset is an explicit restore of the account snapshot, never arbitrary client values.
         if (resetInitial) { first = data.InitialMagic1; second = data.InitialMagic2; }
         if (!resetInitial && !BattleRoundRules.IsAllowedLoadout(data.MagicChangeBase1, data.MagicChangeBase2,

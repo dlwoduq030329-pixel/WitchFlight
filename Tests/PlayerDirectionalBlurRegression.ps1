@@ -48,6 +48,14 @@ namespace DirectionalBlurChecks {
  public class Player {public Transform transform=new();public int CurrentSpeedStage=3;public bool IsBoosting=true;public Vector3 LockAimPoint=>transform.position;}
  public class Renderer {public Player owner;public Bounds bounds=>new(){center=owner.transform.position,extents=new(.5f,.8f,.3f)};}
  public class Source {public Renderer renderer;}
+ public enum RenderQueue { GeometryLast=2500 }
+ public class Material {
+  public string renderType="Opaque"; public int renderQueue=2000; public bool alphaTest; public float alphaClip;
+  public string GetTag(string key,bool fallback,string otherwise)=>renderType;
+  public bool IsKeywordEnabled(string key)=>alphaTest;
+  public bool HasProperty(string key)=>key=="_AlphaClip";
+  public float GetFloat(string key)=>alphaClip;
+ }
  public class Camera {
   public Vector3 position=new(0,0,-3);public bool orthographic,lookingRight;public float nearClipPlane=.1f;
   public float fieldOfView=90,aspect=1,orthographicSize=1;
@@ -59,18 +67,25 @@ namespace DirectionalBlurChecks {
  public class Probe {
   public Player owner;public float nextRefresh,weight;public bool hasPosition,ProtectPlayer;public Vector3 previousPosition,velocity;
   public bool hasTrailFrame;public Quaternion trailWorldToView;public float lastMovingTime;
-  public PlayerDirectionalBlurSettings settings;public Vector4 Trail,Anchor,ScreenRect;public List<Source> sources=new();
+  public PlayerDirectionalBlurSettings settings;public Vector4 Trail,Anchor,ScreenRect,ClearRect;public List<Source> sources=new();
+  public bool NeedsMask=>ProtectPlayer||HasBlur;
   public bool HasBlur=>weight>.001f&&settings!=null&&settings.enabled&&settings.trailDistance>0&&settings.maximumPixels>0&&settings.strength>0;
   void ReleaseSources(){sources.Clear();}void RefreshSources(){sources.Add(new(){renderer=new(){owner=owner}});}
   bool IsVisible(Source s,Camera c)=>true;
 '@
-$methods = @('Update','ResetMotion','Prepare','ProjectionLimit') | ForEach-Object { Method $_ }
+$methods = @('Update','ResetMotion','Prepare','ProjectionLimit','UsesSourceAlpha') | ForEach-Object { Method $_ }
 $tests = @'
  }
  public static class Tests {
   static int n;static void Check(bool ok,string why){if(!ok)throw new Exception(why);n++;}
   static Probe Moving(Player p,Vector3 delta,PlayerDirectionalBlurSettings s){var b=new Probe();b.Update(p,true,true,s);p.transform.position+=delta;Time.unscaledTime+=.016f;b.Update(p,true,true,s);return b;}
   public static int Run(){
+   Check(!Probe.UsesSourceAlpha(new Material()),"opaque body must ignore unused texture alpha");
+   Check(Probe.UsesSourceAlpha(new Material{renderType="TransparentCutout"}),"cutout hair keeps alpha holes");
+   Check(Probe.UsesSourceAlpha(new Material{renderType="Transparent"}),"transparent hair keeps source alpha");
+   Check(Probe.UsesSourceAlpha(new Material{renderQueue=3000}),"transparent render queue respects alpha");
+   Check(Probe.UsesSourceAlpha(new Material{alphaTest=true}),"alpha-test keyword keeps cutouts");
+   Check(Probe.UsesSourceAlpha(new Material{alphaClip=1}),"URP alpha clipping keeps cutouts");
    foreach(int stage in new[]{-3,-2,-1,0,1,2,3})foreach(bool boost in new[]{false,true})
     Check(Probe.ShouldBlur(true,stage,boost,true)==(stage==3&&boost),"stage/boost gate "+stage+" "+boost);
    Check(Probe.ShouldBlur(true,3,false,false)&&!Probe.ShouldBlur(false,3,true,false),"optional boost and master toggles");
@@ -129,6 +144,6 @@ foreach ($old in @('Assets/Script/Camera/PlayerSpeedVisuals.cs','Assets/Resource
     if (Test-Path $old) { throw "Unwanted pose-ghost implementation remains: $old" }
 }
 $battle = Get-Content Assets/Scenes/Battle.unity -Raw
-# Require Boost is an Inspector preference; both boost-only and ordinary fast flight are supported.
-if ($battle -notmatch 'playerMotionBlur:\s+enabled: 1\s+requireBoost: [01]' -or $battle -match 'playerAfterimages:') { throw 'Battle camera must use directional blur, not pose afterimages' }
+# Character trails can be disabled independently of background blur and player protection.
+if ($battle -notmatch 'playerMotionBlur:\s+enabled: [01]\s+requireBoost: [01]' -or $battle -match 'playerAfterimages:') { throw 'Battle camera must retain configurable directional blur, not pose afterimages' }
 'Directional sampling, depth/alpha masking, no duplicated characters, no double blur, cleanup and scene contracts passed.'

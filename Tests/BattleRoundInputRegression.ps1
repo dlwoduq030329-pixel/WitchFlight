@@ -44,7 +44,8 @@ public class Controller {
  public CanvasGroup generatedResultGroup;
  public TMPText swapCountdownText,roundScoreText,slot1Text,slot2Text,selectedMagicNameText,swapStatusText,resultTitleText,resultScoreText;
  public Image slot1Icon,slot2Icon;public Button equipButton,returnToMainButton;
- public int generatedPanels,buttons;
+ public int generatedPanels,buttons;public Button resetMagicButton;public bool resetButtonBound;
+ public void BindResetButton(){} public void ToggleRoundReady(){}
  public GameObject Panel(string name){generatedPanels++;return new GameObject(name);}
  public Button Button(Transform parent,string caption,Vector2 position,Vector2 size,Action action){buttons++;return new GameObject(caption).AddComponent<Button>();}
  public TMPText Label(Transform parent,string name,string value,Vector2 position,Vector2 size,float fontSize)=>new();

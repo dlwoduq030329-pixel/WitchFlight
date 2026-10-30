@@ -410,6 +410,8 @@ namespace Suimono.Core
 
 
 		        static bool renderingUrpCapture;
+        private readonly UnityEngine.Rendering.Universal.UniversalRenderPipeline.SingleCameraRequest urpRequest = new();
+        private static readonly Unity.Profiling.ProfilerMarker CaptureMarker = new("WitchFlight.WaterCapture");
         WaterCaptureSettings captureSettings;
         SuimonoModule settingsModule;
         bool captureInitialized;
@@ -506,9 +508,9 @@ namespace Suimono.Core
                     cam.cullingMask=1 << (cameraType==suiCamToolType.shorelineCapture ? module.layerDepthNum : module.layerScreenFXNum);
                 }
                 cam.enabled=false; cam.targetTexture=renderTexDiff;
-                var request=new UnityEngine.Rendering.Universal.UniversalRenderPipeline.SingleCameraRequest {destination=renderTexDiff};
-                if (!RenderPipeline.SupportsRenderRequest(cam,request)) return;
-                RenderPipeline.SubmitRenderRequest(cam,request);
+                urpRequest.destination=renderTexDiff;
+                if (!RenderPipeline.SupportsRenderRequest(cam,urpRequest)) return;
+                using (CaptureMarker.Auto()) RenderPipeline.SubmitRenderRequest(cam,urpRequest);
                 RememberUrpCapture();
                 switch(cameraType) {
                     case suiCamToolType.transparent:

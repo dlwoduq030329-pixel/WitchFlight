@@ -18,7 +18,11 @@ public partial class CameraFollow
     private readonly RaycastHit[] obstructionHits = new RaycastHit[48];
     private readonly Collider[] obstructionOverlaps = new Collider[32];
     private readonly Dictionary<Collider, Renderer[]> obstructionRenderers = new();
+    private readonly List<Material> obstructionMaterialScratch = new();
+    private Collider[] currentObstructionOverlaps;
+    private int currentObstructionOverlapCount;
     private int obstructionFrame = -1;
+    private static readonly Unity.Profiling.ProfilerMarker ObstructionMarker = new("WitchFlight.CameraObstructions");
     private static readonly int BaseColorProperty = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
@@ -68,10 +72,18 @@ public partial class CameraFollow
         // Restore even if another camera starts before an expected end callback.
         RestoreOcclusionMaterials();
         if (camera != viewCamera || !isActiveAndEnabled) return;
+        using var profile = ObstructionMarker.Auto();
         if (!TryOcclusionFocus(out Vector3 focus)) { ClearOcclusionFade(); return; }
         if (obstructionFrame != Time.frameCount)
         {
             obstructionFrame = Time.frameCount;
+            // All three focus probes start at the same camera position.
+            currentObstructionOverlapCount = Physics.OverlapSphereNonAlloc(transform.position,
+                Mathf.Max(.01f, obstructionProbeRadius), obstructionOverlaps, obstructionFadeLayers, QueryTriggerInteraction.Ignore);
+            currentObstructionOverlaps = currentObstructionOverlapCount == obstructionOverlaps.Length
+                ? Physics.OverlapSphere(transform.position, Mathf.Max(.01f, obstructionProbeRadius),
+                    obstructionFadeLayers, QueryTriggerInteraction.Ignore) : obstructionOverlaps;
+            if (currentObstructionOverlaps != obstructionOverlaps) currentObstructionOverlapCount = currentObstructionOverlaps.Length;
             ProbeObstructions(focus);
             ProbeObstructions(focus + Vector3.up * .45f);
             ProbeObstructions(focus - Vector3.up * .45f);
@@ -82,7 +94,10 @@ public partial class CameraFollow
                 float goal = Time.unscaledTime - state.seen <= obstructionReleaseDelay ? obstructedMapOpacity : 1f;
                 state.alpha = Mathf.MoveTowards(state.alpha, goal, Time.unscaledDeltaTime /
                     Mathf.Max(.01f, goal < state.alpha ? obstructionFadeInSeconds : obstructionFadeOutSeconds));
-                if (state.renderer == null || (goal >= 1f && state.alpha >= .999f))
+                // Keep recently used materials warm when circling the same pillars.
+                // Bounded retention still releases distant/removed map objects.
+                if (state.renderer == null || (goal >= 1f && state.alpha >= .999f &&
+                    (Time.unscaledTime - state.seen > 8f || obstructionFades.Count > 256)))
                     clearedObstructions.Add(pair.Key);
             }
             foreach (Renderer renderer in clearedObstructions)
@@ -95,12 +110,13 @@ public partial class CameraFollow
         {
             foreach (ObstructionFade state in obstructionFades.Values)
             {
-                if (state.renderer == null || !state.renderer.enabled) continue;
+                if (state.renderer == null || !state.renderer.enabled || state.alpha >= .999f) continue;
                 PrepareOcclusionMaterials(state);
                 for (int i = 0; i < state.originals.Length; i++)
                     state.renderer.GetPropertyBlock(state.saved[i], i);
                 // Snapshot every slot before mutation, including exception/disable cleanup.
                 appliedObstructions.Add(state);
+                ModularShadowProxy.BeginSourceFade(state.renderer);
                 for (int i = 0; i < state.originals.Length; i++)
                 {
                     if (state.transparent[i] == state.originals[i]) continue;
@@ -145,11 +161,7 @@ public partial class CameraFollow
         if (hits != obstructionHits) count = hits.Length;
         for (int i = 0; i < count; i++) AddObstruction(hits[i].collider, from, focus);
         // Sphere casts alone miss a camera already inside a solid wall.
-        count = Physics.OverlapSphereNonAlloc(from, radius, obstructionOverlaps, obstructionFadeLayers, QueryTriggerInteraction.Ignore);
-        Collider[] overlaps = count == obstructionOverlaps.Length ? Physics.OverlapSphere(from, radius,
-            obstructionFadeLayers, QueryTriggerInteraction.Ignore) : obstructionOverlaps;
-        if (overlaps != obstructionOverlaps) count = overlaps.Length;
-        for (int i = 0; i < count; i++) AddObstruction(overlaps[i], from, focus);
+        for (int i = 0; i < currentObstructionOverlapCount; i++) AddObstruction(currentObstructionOverlaps[i], from, focus);
     }
 
     private void AddObstruction(Collider collider, Vector3 from, Vector3 focus)
@@ -195,12 +207,14 @@ public partial class CameraFollow
         return material.HasProperty(property) ? material.GetColor(property) : Color.white;
     }
 
-    private static void PrepareOcclusionMaterials(ObstructionFade state)
+    private void PrepareOcclusionMaterials(ObstructionFade state)
     {
-        Material[] current = state.renderer.sharedMaterials;
-        bool same = state.originals != null && state.originals.Length == current.Length;
-        if (same) for (int i = 0; i < current.Length; i++) if (current[i] != state.originals[i]) { same = false; break; }
+        state.renderer.GetSharedMaterials(obstructionMaterialScratch);
+        bool same = state.originals != null && state.originals.Length == obstructionMaterialScratch.Count;
+        if (same) for (int i = 0; i < obstructionMaterialScratch.Count; i++)
+            if (obstructionMaterialScratch[i] != state.originals[i]) { same = false; break; }
         if (same) return;
+        Material[] current = obstructionMaterialScratch.ToArray();
         DisposeOcclusionMaterials(state);
         state.originals = current;
         state.transparent = new Material[current.Length];
@@ -259,6 +273,7 @@ public partial class CameraFollow
             state.renderer.sharedMaterials = state.originals;
             for (int i = 0; i < state.saved.Length; i++)
                 state.renderer.SetPropertyBlock(state.saved[i].isEmpty ? null : state.saved[i], i);
+            ModularShadowProxy.EndSourceFade(state.renderer);
         }
         appliedObstructions.Clear();
     }

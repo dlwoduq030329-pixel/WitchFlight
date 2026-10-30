@@ -292,7 +292,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         }
         if (Phase == BattleStartPhase.Intermission)
         {
-            if (PhaseTimer.Expired(Runner)) PrepareNextRound();
+            if (PhaseTimer.Expired(Runner) || AreAllRoundPlayersReady()) PrepareNextRound();
             return;
         }
         if (Phase != BattleStartPhase.Playing)
@@ -345,7 +345,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     private void PrepareNextRound()
     {
         if (!Object.HasStateAuthority || Phase != BattleStartPhase.Intermission ||
-            !PhaseTimer.Expired(Runner)) return;
+            (!PhaseTimer.Expired(Runner) && !AreAllRoundPlayersReady())) return;
         RoundNumber++;
         WorldPosition = roundFlagPosition;
         transform.position = roundFlagPosition;
@@ -366,6 +366,19 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     public bool CanChangeMagic(int round) => Object != null && Object.IsValid &&
         Object.HasStateAuthority && !HasEnded && Phase == BattleStartPhase.Intermission &&
         round == RoundNumber && PhaseTimer.IsRunning && !PhaseTimer.Expired(Runner);
+
+    private bool AreAllRoundPlayersReady()
+    {
+        int count = 0;
+        foreach (PlayerRef participant in BattleParticipants.Refs(Runner))
+        {
+            var data = PlayerData.FindPerkData(Runner, participant);
+            if (data == null || data.Object == null || !data.Object.IsValid || !data.IsLoadoutInitialized ||
+                data.MagicChangeRound != RoundNumber || !data.RoundSwapReady) return false;
+            count++;
+        }
+        return count >= ExpectedPlayerCount && count > 0;
+    }
 
     public void EndSeriesByForfeit(int team)
     {

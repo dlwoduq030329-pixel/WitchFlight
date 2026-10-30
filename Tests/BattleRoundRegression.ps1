@@ -19,9 +19,10 @@ $stubs = @'
 using System;
 using System.Collections.Generic;
 namespace RoundChecks {
-public enum PlayerRef {None,A,B}
+public enum PlayerRef {None,A,B,C,D}
 public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;public PlayerRef InputAuthority=PlayerRef.A;}
-public class NetworkRunner {public bool IsServer=true;public float Time;}
+public class NetworkRunner {public bool IsServer=true;public float Time;public List<PlayerRef> Participants=new(){PlayerRef.A,PlayerRef.B};}
+public static class BattleParticipants {public static IEnumerable<PlayerRef> Refs(NetworkRunner r)=>r.Participants;}
 public struct TickTimer {
  public float End;public bool IsRunning;public static TickTimer None=>default;
  public static TickTimer CreateFromSeconds(NetworkRunner r,float seconds)=>new(){End=r.Time+seconds,IsRunning=true};
@@ -38,6 +39,9 @@ public static class Mathf {
 }
 public class Player {public bool IsAlive=true,DiedFromAltitude;public int TeamIndex=1;public Transform transform=new();}
 public class PlayerData {
+ public bool RoundSwapReady,IsMatchBot;
+ public void SetRoundReadyFromHost(bool v){if(Object.HasStateAuthority)RoundSwapReady=v;}
+ public static PlayerData FindPerkData(NetworkRunner r,PlayerRef p)=>BattleManager.Instance.runner==r&&BattleManager.Instance.playerDatas.TryGetValue(p,out var d)?d:null;
  public void PerkLoadoutChanged(){}
  public NetworkRunner Runner;public NetworkObject Object=new();public bool IsLoadoutInitialized=true;
  public int MagicChangeRound=1;public MagicType MagicChangeBase1=MagicType.Fire,MagicChangeBase2=MagicType.Ice;
@@ -69,7 +73,7 @@ public class BattleFlag {
  public void CheckPickupAndRecordPositions(){if(PickupTeam>0){LastCarrierTeam=PickupTeam;Carrier=PlayerRef.B;CurrentHolder=new Player{TeamIndex=PickupTeam};PickupTeam=0;}}
 '@
 $flagMethods = @('PrepareMatch','RequestStart','ResetPreparation','TickPreparation','BeginTrainingGuideOrCountdown','BeginMatch','FixedUpdateNetwork',
-    'FinishRound','PrepareNextRound','EndSeriesByForfeit','EndSeries','ClearRoundSmoke') | ForEach-Object { Method $flag $_ }
+    'FinishRound','PrepareNextRound','AreAllRoundPlayersReady','EndSeriesByForfeit','EndSeries','ClearRoundSmoke') | ForEach-Object { Method $flag $_ }
 $flagMethods += [regex]::Match($flag,'    public float TourDuration =>[^;]+;').Value
 $managerStub = @'
 }
@@ -117,6 +121,7 @@ public static class Tests {
     Check(f.SmokeClouds[0]==0,"old round smoke cleared");
     int total=f.Team1Wins+f.Team2Wins;f.FixedUpdateNetwork();Check(f.Team1Wins+f.Team2Wins==total,"result cannot score twice");
     if(i==outcomes.Length-1){
+     Check(f.Phase==BattleStartPhase.RoundResult,"final win also presents round result");f.Runner.Time=f.PhaseTimer.End;f.FixedUpdateNetwork();
      Check(f.HasEnded&&f.WinningTeam==outcomes[i]&&f.Phase==BattleStartPhase.Ended,"2 wins ends series");
      Check(f.RoundNumber==outcomes.Length&&BattleManager.Instance.Results==1,"correct round count and one result event");
      Check(!f.CanChangeMagic(f.RoundNumber),"no changes after final result");
@@ -160,8 +165,25 @@ public static class Tests {
   limited.AllowedMagicChanges=2;Check(manager.TryChangeRoundMagic(data,1,MagicType.Flare,MagicType.Smoke,out _),"two-slot setting accepts both choices");
   limited.AllowedMagicChanges=1;
   Check(manager.TryChangeRoundMagic(data,1,(MagicType)99,(MagicType)99,out _,true)&&data.magic1==MagicType.Binding&&data.magic2==MagicType.Healing,"reset restores server account snapshot even after both slots changed; ignores supplied values");
+  Check(manager.TrySetRoundReady(data,1,true)&&data.RoundSwapReady,"owner becomes ready during intermission");
+  Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _,true),"ready owner cannot bypass lock through reset");
+  Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _),"ready owner cannot change magic");
+  Check(manager.TrySetRoundReady(data,1,false)&&!data.RoundSwapReady,"readiness can be cancelled");
+  Check(!manager.TrySetRoundReady(data,0,true)&&!data.RoundSwapReady,"stale round readiness request is rejected");
   manager.Connected=false;Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _),"disconnected owner rejected");manager.Connected=true;
   limited.Runner.Time=limited.PhaseTimer.End;Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _),"late packets cannot equip after deadline");
+  Check(!manager.TrySetRoundReady(data,1,true),"late readiness cannot mutate an expired round");
+  foreach(int count in new[]{2,4}){
+   var f=New();Start(f);Win(f,1);f.Runner.Time=f.PhaseTimer.End;f.FixedUpdateNetwork();
+   var m=BattleManager.Instance;f.ExpectedPlayerCount=count;f.Runner.Participants.Clear();
+   for(int i=1;i<=count;i++){var id=(PlayerRef)i;f.Runner.Participants.Add(id);m.playerDatas[id]=new PlayerData{Runner=f.Runner,ParticipantRef=id,RoundSwapReady=i>1,IsMatchBot=i>1};}
+   Check(!f.AreAllRoundPlayersReady(),"ready bots still wait for the human");
+   var human=m.playerDatas[PlayerRef.A];m.TrySetRoundReady(human,1,true);m.TrySetRoundReady(human,1,false);
+   f.FixedUpdateNetwork();Check(f.Phase==BattleStartPhase.Intermission,"cancelling before tick prevents early advance");
+   m.TrySetRoundReady(human,1,true);Check(f.AreAllRoundPlayersReady(),"every participant is ready");
+   f.FixedUpdateNetwork();Check(f.RoundNumber==2&&f.Phase==BattleStartPhase.WaitingForPlayers&&m.Resets==1,"all-ready skips remaining time exactly once");
+   Check(!m.TrySetRoundReady(human,1,false),"readiness cannot cancel a round already advanced");
+  }
   var start=KillAnimation.EvaluateAnimation(0,.12f,.75f,.75f,1.2f,.6f);
   var peak=KillAnimation.EvaluateAnimation(.12f,.12f,.75f,.75f,1.2f,.6f);
   var mid=KillAnimation.EvaluateAnimation(.495f,.12f,.75f,.75f,1.2f,.6f);
@@ -180,7 +202,7 @@ public static class Tests {
 }}
 '@
 Add-Type -TypeDefinition ($stubs + $canChange + ($flagMethods -join "`n") + $managerStub +
-    (Method $manager 'TryChangeRoundMagic') + $tests + (Method $kill 'EvaluateAnimation') + (Method $kill 'EvaluateNoticeAnimation') + $run +
+    (Method $manager 'TryChangeRoundMagic') + (Method $manager 'TrySetRoundReady') + $tests + (Method $kill 'EvaluateAnimation') + (Method $kill 'EvaluateNoticeAnimation') + $run +
     "`nnamespace RoundChecks {`n$enums`n$rules`n}")
 "Round state, loadout authority and kill animation checks passed: $([RoundChecks.Tests]::Run())"
 if ($StateOnly) { return }

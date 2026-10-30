@@ -12,6 +12,7 @@ public partial class PlayerData : NetworkBehaviour
 {
     public static PlayerData Local { get; private set; }
     [Networked] public int MagicChangeRound { get; private set; }
+    [Networked] public NetworkBool RoundSwapReady { get; private set; }
     [Networked] public MagicType MagicChangeBase1 { get; private set; }
     [Networked] public MagicType MagicChangeBase2 { get; private set; }
     [Networked] public MagicType InitialMagic1 { get; private set; }
@@ -240,6 +241,23 @@ public partial class PlayerData : NetworkBehaviour
         MagicChangeBase1 = magic1;
         MagicChangeBase2 = magic2;
         MagicChangeRound = round;
+        RoundSwapReady = false;
+    }
+
+    public bool RequestRoundReady(int round, bool readyForRound)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasInputAuthority || !IsLoadoutInitialized) return false;
+        RPC_SetRoundReady(round, readyForRound);
+        return true;
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_SetRoundReady(int round, bool readyForRound)
+        => BattleManager.Instance?.TrySetRoundReady(this, round, readyForRound);
+
+    public void SetRoundReadyFromHost(bool value)
+    {
+        if (Object != null && Object.IsValid && Object.HasStateAuthority) RoundSwapReady = value;
     }
 
     public bool RequestRoundMagicChange(int round, MagicType first, MagicType second, int requestId, bool resetInitial = false)

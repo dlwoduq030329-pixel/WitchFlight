@@ -26,8 +26,10 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
         Camera camera = renderingData.cameraData.camera;
         if (!GameGraphicsSettings.PostProcessing || material == null || camera.cameraType != CameraType.Game ||
             renderingData.cameraData.renderType != CameraRenderType.Base ||
-            !camera.TryGetComponent(out SpeedCameraEffects effects) || !effects.isActiveAndEnabled || !effects.HasCustomBlur)
+            !camera.TryGetComponent(out SpeedCameraEffects effects) || !effects.isActiveAndEnabled)
             return;
+        effects.PrepareFlightMotion();
+        if (!effects.HasCustomBlur) return;
         effects.PlayerBlur?.Prepare(camera);
         pass.Setup(material, effects);
         renderer.EnqueuePass(pass);
@@ -54,7 +56,8 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
         {
             public TextureHandle source, motion, mask, depth;
             public Material material;
-            public Vector4 peripheral, background, trail, anchor, rect, focus;
+            public Vector4 peripheral, background, trail, anchor, rect, focus, flight, sampling, clearRect;
+            public bool needsMotion;
         }
 
         public void Setup(Material value, SpeedCameraEffects source)
@@ -62,11 +65,12 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
             material = value;
             effects = source;
             requiresIntermediateTexture = true;
-            ConfigureInput(ScriptableRenderPassInput.Motion | ScriptableRenderPassInput.Depth);
+            ConfigureInput(ScriptableRenderPassInput.Depth | (effects.NeedsBackgroundMotionVectors
+                ? ScriptableRenderPassInput.Motion : ScriptableRenderPassInput.None));
         }
 
         private void SetParameters(Material value, Vector4 peripheral, Vector4 background,
-            Vector4 trail, Vector4 anchor, Vector4 rect, Vector4 focus)
+            Vector4 trail, Vector4 anchor, Vector4 rect, Vector4 focus, Vector4 flight, Vector4 sampling, Vector4 clearRect)
         {
             value.SetVector("_PeripheralBlur", peripheral);
             value.SetVector("_BackgroundBlur", background);
@@ -74,12 +78,16 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
             value.SetVector("_PlayerTrail", trail);
             value.SetVector("_PlayerAnchor", anchor);
             value.SetVector("_PlayerRect", rect);
+            value.SetVector("_FlightMotion", flight);
+            value.SetVector("_BlurSampling", sampling);
+            value.SetVector("_PlayerClearRect", clearRect);
         }
 
         public override void RecordRenderGraph(RenderGraph graph, ContextContainer frameData)
         {
             var resources = frameData.Get<UniversalResourceData>();
-            if (resources.isActiveTargetBackBuffer || !resources.motionVectorColor.IsValid() || !resources.cameraDepthTexture.IsValid()) return;
+            if (resources.isActiveTargetBackBuffer || !resources.cameraDepthTexture.IsValid() ||
+                (effects.NeedsBackgroundMotionVectors && !resources.motionVectorColor.IsValid())) return;
             var desc = graph.GetTextureDesc(resources.activeColorTexture);
             desc.name = "Player motion silhouette";
             desc.colorFormat = GraphicsFormat.R16G16_SFloat;
@@ -115,16 +123,21 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
                 data.peripheral = effects.HasPeripheralBlur ? effects.PeripheralBlurParameters : Vector4.zero;
                 data.background = effects.BackgroundBlurParameters;
                 data.focus = effects.LockOnBlurParameters;
+                data.flight = effects.FlightMotion;
+                data.sampling = effects.BlurSamplingParameters;
+                data.needsMotion = effects.NeedsBackgroundMotionVectors;
                 data.trail = effects.PlayerBlur?.Trail ?? Vector4.zero;
                 data.anchor = effects.PlayerBlur?.Anchor ?? Vector4.zero;
                 data.rect = effects.PlayerBlur?.ScreenRect ?? Vector4.zero;
-                builder.UseTexture(data.source); builder.UseTexture(data.motion);
+                data.clearRect = effects.PlayerBlur?.ClearRect ?? new Vector4(1, 1, 0, 0);
+                builder.UseTexture(data.source);
+                if (data.needsMotion) builder.UseTexture(data.motion);
                 builder.UseTexture(data.mask); builder.UseTexture(data.depth);
                 builder.SetRenderAttachment(destination, 0);
                 builder.SetRenderFunc((PassData d, RasterGraphContext context) =>
                 {
-                    SetParameters(d.material, d.peripheral, d.background, d.trail, d.anchor, d.rect, d.focus);
-                    d.material.SetTexture("_SpeedMotionTexture", (RTHandle)d.motion);
+                    SetParameters(d.material, d.peripheral, d.background, d.trail, d.anchor, d.rect, d.focus, d.flight, d.sampling, d.clearRect);
+                    if (d.needsMotion) d.material.SetTexture("_SpeedMotionTexture", (RTHandle)d.motion);
                     d.material.SetTexture("_PlayerMotionMask", (RTHandle)d.mask);
                     d.material.SetTexture("_SpeedSceneDepth", (RTHandle)d.depth);
                     Blitter.BlitTexture(context.cmd, d.source, new Vector4(1, 1, 0, 0), d.material, 0);
@@ -157,8 +170,10 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
             SetParameters(material, effects.HasPeripheralBlur ? effects.PeripheralBlurParameters : Vector4.zero,
                 effects.BackgroundBlurParameters, effects.PlayerBlur?.Trail ?? Vector4.zero,
                 effects.PlayerBlur?.Anchor ?? Vector4.zero, effects.PlayerBlur?.ScreenRect ?? Vector4.zero,
-                effects.LockOnBlurParameters);
-            material.SetTexture("_SpeedMotionTexture", Shader.GetGlobalTexture("_MotionVectorTexture"));
+                effects.LockOnBlurParameters, effects.FlightMotion, effects.BlurSamplingParameters,
+                effects.PlayerBlur?.ClearRect ?? new Vector4(1, 1, 0, 0));
+            if (effects.NeedsBackgroundMotionVectors)
+                material.SetTexture("_SpeedMotionTexture", Shader.GetGlobalTexture("_MotionVectorTexture"));
             material.SetTexture("_PlayerMotionMask", mask);
             material.SetTexture("_SpeedSceneDepth", depth);
             Blitter.BlitCameraTexture(cmd, source, temporary, material, 0);

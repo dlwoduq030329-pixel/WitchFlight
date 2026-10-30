@@ -27,6 +27,7 @@ public class Outline : MonoBehaviour {
   public Mode OutlineMode {
     get { return outlineMode; }
     set {
+      if (outlineMode == value) return;
       outlineMode = value;
       needsUpdate = true;
     }
@@ -35,6 +36,7 @@ public class Outline : MonoBehaviour {
   public Color OutlineColor {
     get { return outlineColor; }
     set {
+      if (outlineColor.Equals(value)) return;
       outlineColor = value;
       needsUpdate = true;
     }
@@ -43,6 +45,7 @@ public class Outline : MonoBehaviour {
   public float OutlineWidth {
     get { return outlineWidth; }
     set {
+      if (outlineWidth.Equals(value)) return;
       outlineWidth = value;
       needsUpdate = true;
     }

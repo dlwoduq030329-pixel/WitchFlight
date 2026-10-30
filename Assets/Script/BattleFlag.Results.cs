@@ -97,7 +97,14 @@ public partial class BattleFlag
     [Networked, Capacity(4)] public NetworkArray<BattleAwardResult> Awards => default;
     [Networked] public bool AwardsReady { get; private set; }
     [Networked, Capacity(4)] public NetworkArray<int> PraiseSequences => default;
-    private readonly Dictionary<PlayerRef, double> praiseTimes = new();
+    [Networked, Capacity(4)] public NetworkArray<PlayerRef> PraiseVoters => default;
+
+    public bool HasPraised(PlayerRef voter)
+    {
+        if (voter == PlayerRef.None) return false;
+        for (int i = 0; i < PraiseVoters.Length; i++) if (PraiseVoters[i] == voter) return true;
+        return false;
+    }
 
     private void SelectMatchAwards()
     {
@@ -114,11 +121,13 @@ public partial class BattleFlag
         AwardsReady = true;
     }
 
-    // The local owner requests a panel; the host validates sender, phase and rate.
-    public void RequestPraise(int panel)
+    // One vote per human per match. The host owns the ledger, including duplicate RPC rejection.
+    public bool RequestPraise(int panel)
     {
-        if (Object == null || !Object.IsValid || !HasEnded || !AwardsReady || panel < 0 || panel >= 4) return;
+        if (Object == null || !Object.IsValid || !HasEnded || !AwardsReady || panel < 0 || panel >= 4 ||
+            HasPraised(Runner.LocalPlayer)) return false;
         RPC_RequestPraise(panel);
+        return true;
     }
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -128,9 +137,15 @@ public partial class BattleFlag
         PlayerRef sender = info.Source == PlayerRef.None ? Runner.LocalPlayer : info.Source;
         var data = PlayerData.FindPerkData(Runner, sender);
         if (data == null || data.IsMatchBot || !data.IsLoadoutInitialized) return;
-        double now = Runner.SimulationTime;
-        if (praiseTimes.TryGetValue(sender, out double last) && now - last < 1f) return;
-        praiseTimes[sender] = now;
-        PraiseSequences.Set(panel, PraiseSequences[panel] + 1);
+        if (HasPraised(sender) || Awards[panel].Winner == PlayerRef.None) return;
+        int empty = -1;
+        for (int i = 0; i < PraiseVoters.Length; i++)
+            if (PraiseVoters[i] == PlayerRef.None) { empty = i; break; }
+        if (empty < 0) return;
+        PraiseVoters.Set(empty, sender);
+        PlayerRef winner = Awards[panel].Winner;
+        // A player can win several categories; every card shows that player's total votes.
+        for (int i = 0; i < 4; i++)
+            if (Awards[i].Winner == winner) PraiseSequences.Set(i, PraiseSequences[i] + 1);
     }
 }

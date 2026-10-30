@@ -8,6 +8,28 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed partial class BattleHud : MonoBehaviour
 {
+    // Cache display formatting, not gameplay values. Bars and feedback still update every frame.
+    private NetworkString<_32> cachedPlayerName;
+    private string cachedPlayerNameText = string.Empty;
+    private long cachedMatchSecond = long.MinValue;
+    private string cachedMatchTimeText;
+    private int cachedManaPercent = -1;
+    private string cachedManaPercentText, cachedManaPercentWithSymbol;
+    private MagicType cachedMagicNameType;
+    private string cachedMagicNameText;
+
+    private string FormatMatchTime(float seconds)
+    {
+        TimeSpan time = TimeSpan.FromSeconds(Mathf.Max(0f, seconds));
+        long second = time.Ticks / TimeSpan.TicksPerSecond;
+        if (second != cachedMatchSecond)
+        {
+            cachedMatchSecond = second;
+            cachedMatchTimeText = time.ToString(@"mm\:ss");
+        }
+        return cachedMatchTimeText;
+    }
+
     [Header("Active parry window (actual block timer)")]
     [SerializeField] private bool showParryWindow = true;
     [Tooltip("선택 사항: 원형 스프라이트 Image. Filled/Radial360으로 설정됩니다. 비우면 조준점 주변에 자동 생성합니다. 직접 할당한 UI의 위치/크기는 유지합니다.")]
@@ -556,7 +578,7 @@ public sealed partial class BattleHud : MonoBehaviour
         Visible(hudRoot, true);
         Visible(playerPanel, valid);
         if (matchTimeText != null)
-            SetText(matchTimeText, battle.IsTraining ? "훈련장" : battle.IsOvertime ? "연장전" : TimeSpan.FromSeconds(Mathf.Max(0f, battle.RemainingSeconds)).ToString(@"mm\:ss"));
+            SetText(matchTimeText, battle.IsTraining ? "훈련장" : battle.IsOvertime ? "연장전" : FormatMatchTime(battle.RemainingSeconds));
         BattleFlag flag = BattleFlag.Instance;
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null) SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
@@ -613,8 +635,14 @@ public sealed partial class BattleHud : MonoBehaviour
         {
             PlayerData data = PlayerData.Local;
             playerNameText.richText = false;
-            SetText(playerNameText, data != null && data.Object != null && data.Object.IsValid &&
-                data.IsLoadoutInitialized ? data.playerName.ToString() : string.Empty);
+            NetworkString<_32> name = data != null && data.Object != null && data.Object.IsValid &&
+                data.IsLoadoutInitialized ? data.playerName : default;
+            if (!cachedPlayerName.Equals(name))
+            {
+                cachedPlayerName = name;
+                cachedPlayerNameText = name.ToString();
+            }
+            SetText(playerNameText, cachedPlayerNameText);
         }
         float manaFraction = valid ? Mathf.Clamp01(owner.NowAp / Mathf.Max(1f, owner.MaxAp)) : 0f;
         SetBar(apSlider, apFill, manaFraction);
@@ -623,7 +651,13 @@ public sealed partial class BattleHud : MonoBehaviour
         if (manaPercentText != null)
         {
             int percent = ManaPercent(valid ? owner.NowAp : 0f, valid ? owner.MaxAp : 0f);
-            SetText(manaPercentText, manaPercentIncludeSymbol ? $"{percent}%" : percent.ToString());
+            if (cachedManaPercent != percent)
+            {
+                cachedManaPercent = percent;
+                cachedManaPercentText = percent.ToString();
+                cachedManaPercentWithSymbol = cachedManaPercentText + "%";
+            }
+            SetText(manaPercentText, manaPercentIncludeSymbol ? cachedManaPercentWithSymbol : cachedManaPercentText);
         }
         if (teamText != null) SetText(teamText, valid ? owner.TeamIndex.ToString() : "");
         if (speedStageText != null) SetText(speedStageText, valid ? owner.CurrentSpeedStage.ToString("+0;-0;0") : "");
@@ -1551,7 +1585,15 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private static void SetText(TMP_Text target, string value) { if (target != null) target.text = value; }
     private static void Visible(GameObject target, bool value) { if (target != null && target.activeSelf != value) target.SetActive(value); }
-    private static string MagicName(MagicType magic) => magic.ToString();
+    private string MagicName(MagicType magic)
+    {
+        if (cachedMagicNameText == null || cachedMagicNameType != magic)
+        {
+            cachedMagicNameType = magic;
+            cachedMagicNameText = magic.ToString();
+        }
+        return cachedMagicNameText;
+    }
     private static void SetBar(Slider slider, Image fill, float fraction)
     {
         fraction = Mathf.Clamp01(fraction);

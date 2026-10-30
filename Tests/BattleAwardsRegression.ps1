@@ -27,7 +27,7 @@ namespace Fusion {
  public struct NetworkId {public int Value;}
  public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;}
  public class NetworkRunner {public double SimulationTime;public float DeltaTime=.25f;public PlayerRef LocalPlayer=1;}
- public class NetworkArray<T> {T[] data=new T[4];public T this[int i]=>data[i];public void Set(int i,T value)=>data[i]=value;}
+ public class NetworkArray<T> {T[] data=new T[4];public int Length=>data.Length;public T this[int i]=>data[i];public void Set(int i,T value)=>data[i]=value;}
 }
 public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
 public class Player {public bool IsAlive=true,IsBoosting;public Transform transform=new();public static Dictionary<PlayerRef,Player> players=new();public static Player FindInRunner(NetworkRunner r,PlayerRef p)=>players.TryGetValue(p,out var player)?player:null;}
@@ -46,6 +46,7 @@ foreach ($path in 'Assets/Script/PlayerData.BattleStats.cs','Assets/Script/Battl
     $code = (Get-Content $path -Raw) -replace '(?m)^using [^;]+;\r?\n',''
     $code = $code.Replace('private void TickBattleActivity()', 'public void TickBattleActivity()').Replace('private void SelectMatchAwards()', 'public void SelectMatchAwards()').Replace('private void RPC_RequestPraise(', 'public void RPC_RequestPraise(')
     $code = $code.Replace('Awards => default;', 'Awards {get;} = new();').Replace('PraiseSequences => default;', 'PraiseSequences {get;} = new();')
+    $code = $code.Replace('PraiseVoters => default;', 'PraiseVoters {get;} = new();')
     $source += "`n" + $code
 }
 $source += @'
@@ -76,11 +77,16 @@ public static class Checks {
    Check(distinct.Count==4,"four distinct categories");var saved=flag.Awards[0];flag.SelectMatchAwards();Check(flag.Awards[0].Category==saved.Category&&flag.Awards[0].Winner==saved.Winner,"results freeze after one draw");
   }
   Check(seen.Count==8,"all eight categories can be selected");
-  flag.HasEnded=true;flag.RPC_RequestPraise(0,new RpcInfo{Source=1});Check(flag.PraiseSequences[0]==1,"valid participant praise is published");
-  flag.RPC_RequestPraise(0,new RpcInfo{Source=1});Check(flag.PraiseSequences[0]==1,"spam ignored");
-  flag.RPC_RequestPraise(1,new RpcInfo{Source=99});Check(flag.PraiseSequences[1]==0,"spectator cannot praise");
-  runner.SimulationTime=2;flag.RPC_RequestPraise(1,new RpcInfo{Source=1});Check(flag.PraiseSequences[1]==1,"another valid panel can be praised after cooldown");
-  flag.HasEnded=false;runner.SimulationTime=4;flag.RPC_RequestPraise(2,new RpcInfo{Source=1});Check(flag.PraiseSequences[2]==0,"praise unavailable before final result");
+  flag.HasEnded=true;
+  for(int i=0;i<4;i++)flag.Awards.Set(i,new BattleAwardResult{Winner=i<2?1:2});
+  flag.RPC_RequestPraise(0,new RpcInfo{Source=1});
+  Check(flag.PraiseSequences[0]==1&&flag.PraiseSequences[1]==1&&flag.HasPraised(1),"vote is replicated on every card of its recipient");
+  flag.RPC_RequestPraise(0,new RpcInfo{Source=1});Check(flag.PraiseSequences[0]==1,"rapid duplicate ignored");
+  flag.RPC_RequestPraise(2,new RpcInfo{Source=99});Check(flag.PraiseSequences[2]==0,"spectator cannot praise");
+  runner.SimulationTime=200;flag.RPC_RequestPraise(2,new RpcInfo{Source=1});Check(flag.PraiseSequences[2]==0,"same voter cannot vote on another panel later");
+  flag.RPC_RequestPraise(-1,new RpcInfo{Source=2});Check(!flag.HasPraised(2),"invalid panel does not consume a vote");
+  flag.RPC_RequestPraise(1,new RpcInfo{Source=2});Check(flag.PraiseSequences[0]==2&&flag.PraiseSequences[1]==2,"distinct voters accumulate on the same player");
+  flag.HasEnded=false;runner.SimulationTime=400;flag.RPC_RequestPraise(2,new RpcInfo{Source=1});Check(flag.PraiseSequences[2]==0,"praise unavailable before final result");
   Check(BattleAwardRules.Count(BattleAward.Seal,125.99f)=="02:05"&&BattleAwardRules.Unit(BattleAward.Seal)=="초","duration mm:ss and requested seconds unit");
   a.ResetBattleStats();b.ResetBattleStats();flag=new BattleFlag{Runner=runner};flag.SelectMatchAwards();
   int aSeats=0;for(int i=0;i<4;i++)if(flag.Awards[i].Winner==a.ParticipantRef)aSeats++;
@@ -89,6 +95,8 @@ public static class Checks {
   var d=new PlayerData{Runner=runner,ParticipantRef=4,teamIndex=2,playerName="Bot D",IsMatchBot=true};
   PlayerData.PerkPlayers.AddRange(new[]{c,d});
   flag=new BattleFlag{Runner=runner};flag.SelectMatchAwards();var seats=new HashSet<PlayerRef>();
+  Check(!flag.HasPraised(1)&&!flag.HasPraised(2),"a new match has no previous votes");
+  flag.HasEnded=true;flag.RPC_RequestPraise(0,new RpcInfo{Source=3});Check(!flag.HasPraised(3),"bots cannot cast votes");
   for(int i=0;i<4;i++)seats.Add(flag.Awards[i].Winner);
   Check(seats.Count==4&&seats.Contains(c.ParticipantRef)&&seats.Contains(d.ParticipantRef),"tied humans and bots all get one seat when possible");
   Check(a.BattleFlagSeconds==0&&a.BattleUnderwaterSeconds==0&&a.BattleBoostSeconds==0&&a.BattleWallCrashes==0&&a.BattleKills==0,"new match clears every total");

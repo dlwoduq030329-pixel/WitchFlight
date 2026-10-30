@@ -11,6 +11,7 @@ Shader "Hidden/WitchFlight/PlayerMotionMask"
         _Cutoff ("Cutoff", Float) = 0.001
         _Cull ("Cull", Float) = 0
         _Invisible ("Invisible", Float) = 0
+        _UseAlpha ("Source uses alpha clipping or transparency", Float) = 1
     }
     SubShader
     {
@@ -29,7 +30,7 @@ Shader "Hidden/WitchFlight/PlayerMotionMask"
             TEXTURE2D_X(_SpeedSceneDepth);
             CBUFFER_START(UnityPerMaterial)
             float4 _MainTex_ST, _Color;
-            float _AlphaMaskMode, _AlphaMaskScale, _AlphaMaskValue, _Cutoff, _Invisible;
+            float _AlphaMaskMode, _AlphaMaskScale, _AlphaMaskValue, _Cutoff, _Invisible, _UseAlpha;
             CBUFFER_END
             struct Attributes { float4 positionOS : POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_OUTPUT_STEREO };
@@ -52,7 +53,10 @@ Shader "Hidden/WitchFlight/PlayerMotionMask"
                 else if (_AlphaMaskMode == 2) alpha *= mask;
                 else if (_AlphaMaskMode == 3) alpha = saturate(alpha + mask);
                 else if (_AlphaMaskMode == 4) alpha = saturate(alpha - mask);
-                clip(alpha - max(0.001, _Cutoff));
+                // Opaque shaders ignore texture/color alpha. Their protection must do
+                // the same or a fully visible body can disappear from the blur mask.
+                alpha = _UseAlpha > 0.5 ? alpha : 1;
+                clip(alpha - (_UseAlpha > 0.5 ? max(0.001, _Cutoff) : 0.001));
                 float2 screenUV = input.positionCS.xy / _ScaledScreenParams.xy;
                 float sceneZ = SAMPLE_TEXTURE2D_X(_SpeedSceneDepth, sampler_PointClamp, screenUV).r;
                 float sceneEye = unity_OrthoParams.w > 0.5 ? LinearDepthToEyeDepth(sceneZ) : LinearEyeDepth(sceneZ, _ZBufferParams);

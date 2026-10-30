@@ -50,6 +50,7 @@ internal sealed class PlayerDirectionalBlur : IDisposable
     public Vector4 Trail { get; private set; }
     public Vector4 Anchor { get; private set; }
     public Vector4 ScreenRect { get; private set; }
+    public Vector4 ClearRect { get; private set; }
 
     public void Update(Player player, bool canShow, bool protect, PlayerDirectionalBlurSettings options, bool allowDirectional = true)
     {
@@ -95,25 +96,10 @@ internal sealed class PlayerDirectionalBlur : IDisposable
     {
         Trail = Vector4.zero;
         ScreenRect = new Vector4(1f, 1f, 0f, 0f);
-        if (!HasBlur || owner == null) return;
+        ClearRect = new Vector4(1f, 1f, 0f, 0f);
+        if (!NeedsMask || owner == null) return;
         Vector3 center = camera.WorldToViewportPoint(owner.LockAimPoint);
         if (center.z <= camera.nearClipPlane) return;
-        // Capture an orientation for this continuous flight segment. Camera orbit,
-        // shoulder dolly and camera shake cannot turn a forward tail into a side tail.
-        // Actual changes to world travel direction still change the trail direction.
-        if (!hasTrailFrame)
-        {
-            trailWorldToView = Quaternion.Inverse(camera.transform.rotation);
-            hasTrailFrame = true;
-        }
-        Vector3 localTravel = trailWorldToView * velocity.normalized * settings.trailDistance;
-        float backDepth = center.z - localTravel.z;
-        if (backDepth <= camera.nearClipPlane) return;
-        float scale = camera.orthographic ? 0f : center.z / backDepth - 1f;
-        float halfHeight = camera.orthographic ? camera.orthographicSize :
-            backDepth * Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
-        Vector2 shift = new Vector2(-localTravel.x / (2f * halfHeight * camera.aspect),
-            -localTravel.y / (2f * halfHeight));
         Vector2 min = new Vector2(1f, 1f), max = Vector2.zero;
         foreach (Source source in sources)
         {
@@ -130,6 +116,28 @@ internal sealed class PlayerDirectionalBlur : IDisposable
         }
         if (min.x > max.x || min.y > max.y) return;
         Vector2 size = new Vector2(Mathf.Max(1, camera.scaledPixelWidth), Mathf.Max(1, camera.scaledPixelHeight));
+        // A small conservative guard also protects vertex-deformed / transparent
+        // character surfaces when their auxiliary silhouette differs from the color pass.
+        if (ProtectPlayer)
+            ClearRect = new Vector4(min.x - 3f / size.x, min.y - 3f / size.y,
+                max.x + 3f / size.x, max.y + 3f / size.y);
+        if (!HasBlur) return;
+        // Capture an orientation for this continuous flight segment. Camera orbit,
+        // shoulder dolly and camera shake cannot turn a forward tail into a side tail.
+        // Actual changes to world travel direction still change the trail direction.
+        if (!hasTrailFrame)
+        {
+            trailWorldToView = Quaternion.Inverse(camera.transform.rotation);
+            hasTrailFrame = true;
+        }
+        Vector3 localTravel = trailWorldToView * velocity.normalized * settings.trailDistance;
+        float backDepth = center.z - localTravel.z;
+        if (backDepth <= camera.nearClipPlane) return;
+        float scale = camera.orthographic ? 0f : center.z / backDepth - 1f;
+        float halfHeight = camera.orthographic ? camera.orthographicSize :
+            backDepth * Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
+        Vector2 shift = new Vector2(-localTravel.x / (2f * halfHeight * camera.aspect),
+            -localTravel.y / (2f * halfHeight));
         Vector2 radius = Vector2.Max(new Vector2(Mathf.Abs(min.x - center.x), Mathf.Abs(min.y - center.y)),
             new Vector2(Mathf.Abs(max.x - center.x), Mathf.Abs(max.y - center.y)));
         float pixels = Mathf.Clamp(settings.maximumPixels, 0f, 80f) * size.y / 1080f;
@@ -192,6 +200,7 @@ internal sealed class PlayerDirectionalBlur : IDisposable
             {
                 Material mask = source.masks[i], original = source.originals[i];
                 if (mask == null || original == null) continue;
+                mask.SetFloat("_UseAlpha", UsesSourceAlpha(original) ? 1f : 0f);
                 source.renderer.GetPropertyBlock(properties, i);
                 string texture = original.HasProperty("_MainTex") ? "_MainTex" : "_BaseMap";
                 if (original.HasProperty(texture))
@@ -210,6 +219,13 @@ internal sealed class PlayerDirectionalBlur : IDisposable
                 cmd.DrawRenderer(source.renderer, mask, i, 0);
             }
         }
+    }
+    private static bool UsesSourceAlpha(Material material)
+    {
+        string renderType = material.GetTag("RenderType", false, "Opaque");
+        return renderType == "Transparent" || renderType == "TransparentCutout" ||
+            material.renderQueue > (int)RenderQueue.GeometryLast || material.IsKeywordEnabled("_ALPHATEST_ON") ||
+            (material.HasProperty("_AlphaClip") && material.GetFloat("_AlphaClip") > 0.5f);
     }
     private static void CopyFloat(Material from, Material to, string property)
     {
