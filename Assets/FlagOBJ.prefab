@@ -100,6 +100,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _AwardsReady: 0
   _PraiseSequences: 
+  _PraiseVoters: []
   pickupRadius: 0.85
   dropClearance: 1.2
   carryOffset: {x: 0, y: 1.3, z: -0.5}
@@ -140,8 +141,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.85
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Radius: 2.17
+  m_Center: {x: -0.04, y: 0.92, z: 0}
 --- !u!1001 &6416242155430888755
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -250,6 +251,8 @@ MonoBehaviour:
   cloth: {fileID: 534566411697961618}
   flutterClip: {fileID: 8300000, guid: 9228ca72edc337e419914c0cf4b47222, type: 3}
   fullWindSpeed: 60
+  airDrag: 1.2
+  shapeStiffness: 25
 --- !u!82 &4301245161443745132
 AudioSource:
   m_ObjectHideFlags: 0
