@@ -100,6 +100,15 @@ public sealed class MagicVfxLease : MonoBehaviour
             if (particles[i] != null && playOnAwake[i] && particles[i].gameObject.activeInHierarchy) particles[i].Play(false);
     }
 
+    // Held visuals can stop their reveal animation after Restart has sampled frame zero.
+    // Recover the prefab scale, not the animated (potentially invisible) current scale.
+    public void RestoreAuthoredScale(Transform node)
+    {
+        if (node == null) return;
+        for (int i = 0; i < nodes.Length; i++)
+            if (nodes[i] == node) { node.localScale = scales[i]; return; }
+    }
+
     public void Stop()
     {
         foreach (var particle in particles) if (particle != null) particle.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);

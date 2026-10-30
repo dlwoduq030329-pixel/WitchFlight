@@ -61,6 +61,16 @@ namespace Suimono.Core
 		// our actual stagger value 
 		private float stagger;
 
+        private readonly List<ParticleSystem> screenCaptureParticles = new();
+        private bool screenCaptureParticlesReady;
+
+        public bool HasLiveScreenEffects() {
+            if (!screenCaptureParticlesReady) return true;
+            foreach (var system in screenCaptureParticles)
+                if (system != null && system.gameObject.activeInHierarchy && system.particleCount > 0) return true;
+            return false;
+        }
+
 
 
 
@@ -85,14 +95,18 @@ namespace Suimono.Core
 					fxParticles[fx] = fxObjectPrefab.gameObject.GetComponent<ParticleSystem>();
                     if (moduleObject != null) foreach (var renderer in fxObjectPrefab.GetComponentsInChildren<Renderer>(true)) {
                         var material = renderer.sharedMaterial;
-                        if (material != null && (material.shader.name == "Suimono2/EffectNormalBlend" || material.shader.name == "Suimono2/EffectWakeMask"))
+                        if (material != null && (material.shader.name == "Suimono2/EffectNormalBlend" || material.shader.name == "Suimono2/EffectWakeMask")) {
                             renderer.gameObject.layer = moduleObject.layerScreenFXNum;
+                            if (renderer.TryGetComponent<ParticleSystem>(out var screenParticles))
+                                screenCaptureParticles.Add(screenParticles);
+                        }
                     }
 				}
 			}
 			}
 			
 			//do clamp checks at 6fps
+            screenCaptureParticlesReady = moduleObject != null && fxParticles != null;
 		    staggerOffset++;
 		    stagger = (staggerOffset+0f) * 0.05f  ;
 		    staggerOffset = staggerOffset % staggerModulus;

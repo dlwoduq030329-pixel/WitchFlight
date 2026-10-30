@@ -100,17 +100,26 @@ public sealed class CombatMagicVisual : MonoBehaviour
         GameObject view = CombatPresentation.InstantiateVfx(prefab, position, rotation, root.transform);
         if (view != null)
         {
-            // The bundled Shield_03 Animator scales to zero on its own timeline.
-            // The accepted parry deadline owns this held shield's lifetime instead.
-            if (holdForParry)
-                foreach (Animator animator in view.GetComponentsInChildren<Animator>(true))
-                    if (animator.gameObject.name == "Shield_03") animator.enabled = false;
+            // Hold the authored shield size for the accepted block window. Pool startup
+            // samples the animation's zero-scale first frame before this call.
+            if (holdForParry) HoldShieldPose(view);
             effect.InitializeShieldDissolve(view, opacity);
         }
         if (holdForParry || view == null)
             effect.CreateShieldRim(rimRadius, rimWidth, rimColor ?? new Color(.35f, .95f, 1f, .9f), view == null);
         RearThreatCamera.ExcludeLocalEffect(root, player);
         return effect;
+    }
+
+    internal static void HoldShieldPose(GameObject view)
+    {
+        var lease = view.GetComponent<MagicVfxLease>();
+        foreach (Animator animator in view.GetComponentsInChildren<Animator>(true))
+        {
+            if (animator.gameObject.name != "Shield_03") continue;
+            animator.enabled = false;
+            if (lease != null) lease.RestoreAuthoredScale(animator.transform);
+        }
     }
 
     public static CombatMagicVisual SpawnShield(Player player, GameObject prefab, float phase, float opacity, float rimRadius)

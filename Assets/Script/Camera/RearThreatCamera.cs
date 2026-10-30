@@ -23,6 +23,7 @@ public sealed class RearThreatCamera : MonoBehaviour
     [SerializeField, Range(5, 120)] private int framesPerSecond = 60;
     [SerializeField] private int overlaySortingOrder = 100;
     private Camera main;
+    private UniversalAdditionalCameraData mainCameraData;
     private readonly List<Threat> candidates = new();
     private readonly List<Threat> threatPool = new();
     private readonly List<Vector3> shardPositions = new(8);
@@ -62,6 +63,8 @@ public sealed class RearThreatCamera : MonoBehaviour
     private sealed class View
     {
         public Camera camera;
+        public UniversalAdditionalCameraData cameraData;
+        public Canvas overlayCanvas;
         public RenderTexture texture;
         public RawImage image, custom;
         public GameObject root, canvas;
@@ -78,6 +81,7 @@ public sealed class RearThreatCamera : MonoBehaviour
     private void Awake()
     {
         main = GetComponent<Camera>();
+        mainCameraData = main.GetUniversalAdditionalCameraData();
         speedEffects = GetComponent<SpeedCameraEffects>();
         if (customView != null) customView.enabled = false;
         if (rightCustomView != null) rightCustomView.enabled = false;
@@ -249,7 +253,7 @@ public sealed class RearThreatCamera : MonoBehaviour
         SetVisible(view, true);
         if (view.canvas != null)
         {
-            Canvas canvas = view.canvas.GetComponent<Canvas>();
+            Canvas canvas = view.overlayCanvas;
             Canvas wind = speedEffects != null ? speedEffects.WindCanvas : null;
             canvas.sortingLayerID = wind != null ? wind.sortingLayerID : 0;
             canvas.sortingOrder = Mathf.Clamp(Mathf.Max(overlaySortingOrder, wind != null ? wind.sortingOrder + 1 : 0), -32768, 32767);
@@ -298,7 +302,8 @@ public sealed class RearThreatCamera : MonoBehaviour
         if (ui >= 0) mask &= ~(1 << ui);
         if (portraits >= 0) mask &= ~(1 << portraits);
         view.camera.cullingMask = mask;
-        SyncRenderSettings(main, view.camera);
+        SyncRenderSettings(main, view.camera, mainCameraData, view.cameraData);
+        PreparePostProcessing(view.camera, view.cameraData);
         request.destination = view.texture;
         try
         {
@@ -398,8 +403,9 @@ public sealed class RearThreatCamera : MonoBehaviour
         view.camera.clearFlags = CameraClearFlags.Skybox;
         view.camera.allowMSAA = false;
         var data = view.camera.GetUniversalAdditionalCameraData();
+        view.cameraData = data;
         data.renderShadows = false;
-        SyncRenderSettings(main, view.camera);
+        SyncRenderSettings(main, view.camera, mainCameraData, data);
         view.custom = isRight ? rightCustomView : customView;
         view.caption = isRight ? rightCustomCaption : customCaption;
         if (view.custom != null)
@@ -415,20 +421,45 @@ public sealed class RearThreatCamera : MonoBehaviour
     }
 
     internal static void SyncRenderSettings(Camera source, Camera destination)
+        => SyncRenderSettings(source, destination, source.GetUniversalAdditionalCameraData(), destination.GetUniversalAdditionalCameraData());
+
+    private static void SyncRenderSettings(Camera source, Camera destination,
+        UniversalAdditionalCameraData sourceData, UniversalAdditionalCameraData data)
     {
         destination.allowHDR = source.allowHDR;
         destination.backgroundColor = source.backgroundColor;
-        var sourceData = source.GetUniversalAdditionalCameraData();
-        var data = destination.GetUniversalAdditionalCameraData();
         data.renderPostProcessing = sourceData.renderPostProcessing;
         data.volumeLayerMask = sourceData.volumeLayerMask;
         // Evaluate the same local volumes as the viewer, not at the offset threat camera.
         data.volumeTrigger = sourceData.volumeTrigger != null ? sourceData.volumeTrigger : source.transform;
-        destination.SetVolumeFrameworkUpdateMode(VolumeFrameworkUpdateMode.EveryFrame);
+        if (VolumeManager.instance.isInitialized)
+            destination.SetVolumeFrameworkUpdateMode(VolumeFrameworkUpdateMode.ViaScripting);
         // Distortion/soft particles need textures belonging to THIS camera. Missing
         // textures can sample black or stale data from another camera's render.
         data.requiresColorOption = CameraOverrideOption.On;
         data.requiresDepthOption = CameraOverrideOption.On;
+    }
+
+    private static void PreparePostProcessing(Camera camera, UniversalAdditionalCameraData data)
+    {
+        if (!data.renderPostProcessing || !VolumeManager.instance.isInitialized) return;
+        // An independent stack keeps main-camera blur and authored Volume profiles untouched.
+        camera.UpdateVolumeStack(data);
+        RemoveThreatBlur(data.volumeStack);
+    }
+
+    internal static void RemoveThreatBlur(VolumeStack stack)
+    {
+        if (stack == null) return;
+        var motion = stack.GetComponent<MotionBlur>();
+        if (motion != null) motion.intensity.value = 0f;
+        var focus = stack.GetComponent<DepthOfField>();
+        if (focus != null) focus.mode.value = DepthOfFieldMode.Off;
+        var grain = stack.GetComponent<FilmGrain>();
+        if (grain != null) grain.intensity.value = 0f;
+        var chromatic = stack.GetComponent<ChromaticAberration>();
+        if (chromatic != null) chromatic.intensity.value = 0f;
+        // Bloom, tonemapping, color grading and the camera's own color/depth copies remain.
     }
 
     private static void Stretch(RectTransform rect, float inset = 0f)
@@ -455,6 +486,7 @@ public sealed class RearThreatCamera : MonoBehaviour
     {
         view.canvas = new GameObject(isRight ? "Right threat HUD" : "Left rear HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
         var canvas = view.canvas.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 30;
+        view.overlayCanvas = canvas;
         var scaler = view.canvas.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f); scaler.matchWidthOrHeight = .5f;
         view.root = view.canvas;

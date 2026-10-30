@@ -32,8 +32,13 @@ $source+=@'
    Check(Logic.NeedsRefresh(false,0,30,0,.25f,0,.5f,false),"first capture renders immediately");
    Check(!Logic.NeedsRefresh(true,.01f,30,0,.25f,0,.5f,false),"stationary duplicate frame reuses texture");
    Check(Logic.NeedsRefresh(true,.034f,30,0,.25f,0,.5f,false),"animated water refreshes on schedule even while stationary");
-   Check(Logic.NeedsRefresh(true,.001f,30,.25f*.25f,.25f,0,.5f,false),"translation forces immediate refresh");
-   Check(Logic.NeedsRefresh(true,.001f,30,0,.25f,.6f,.5f,false),"turning refreshes screen-aligned textures");
+   Check(!Logic.NeedsRefresh(true,.001f,30,.25f*.25f,.25f,0,.5f,false),"translation cannot bypass motion rate cap");
+   Check(!Logic.NeedsRefresh(true,.001f,30,0,.25f,.6f,.5f,false),"turning cannot bypass motion rate cap");
+   Check(Logic.NeedsRefresh(true,.017f,30,0,.25f,.6f,.5f,false),"moving capture refreshes at 60Hz");
+   Check(!Logic.NeedsRefresh(true,.017f,30,100,2,90,3,false,30),"reflection retains independent 30Hz cap");
+   int captures=0; float last=0;
+   for(int i=1;i<=600;i++){float now=i/600f; if(Logic.NeedsRefresh(true,now-last,30,100,.25f,90,.5f,false)){captures++;last=now;}}
+   Check(captures==60,"600 FPS turning cannot create more than 60 captures per second");
    Check(Logic.NeedsRefresh(true,0,30,0,.25f,0,.5f,true),"camera/projection/size/underwater changes invalidate cache");
    Check(!Logic.NeedsRefresh(true,.01f,30,1f,2f,2f,3f,false),"reflection uses independent relaxed motion threshold");
    Check(Logic.TryWake(new(0,0,3),.1f,1,10,2,30,out var forward,out float near),"low forward flight emits wake");
