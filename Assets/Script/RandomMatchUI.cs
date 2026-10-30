@@ -169,6 +169,7 @@ public sealed class RandomMatchUI : MonoBehaviour
             previewLocal = localData;
             previewRosterKey = rosterKey;
             previewStartedAt = Time.unscaledTime;
+            BattleAudio.Play(BattleSound.MatchFound, local: true);
         }
         if (!previewConfirmed && Time.unscaledTime - previewStartedAt >= 1f)
         {

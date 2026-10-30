@@ -64,6 +64,7 @@ public sealed class GameAudioRouting : MonoBehaviour
         var root = new GameObject("Game Audio Settings");
         DontDestroyOnLoad(root);
         root.AddComponent<GameAudioRouting>();
+        root.AddComponent<GameAudioContext>();
     }
     private void Start() { GameAudioSettings.Apply(); Scan(); }
     private void Update()
@@ -78,7 +79,11 @@ public sealed class GameAudioRouting : MonoBehaviour
         {
             if (source.outputAudioMixerGroup != null) continue;
             var tag = source.GetComponentInParent<AudioCategory>();
-            source.outputAudioMixerGroup = GameAudioSettings.Group(tag != null ? tag.Category : GameAudioCategory.SFX);
+            string clipName = source.clip != null ? source.clip.name : "";
+            GameAudioCategory inferred = clipName.StartsWith("SFX_Voice_", StringComparison.OrdinalIgnoreCase)
+                ? GameAudioCategory.Voice : clipName.StartsWith("BGM_", StringComparison.OrdinalIgnoreCase)
+                ? GameAudioCategory.BGM : GameAudioCategory.SFX;
+            source.outputAudioMixerGroup = GameAudioSettings.Group(tag != null ? tag.Category : inferred);
         }
     }
     private void OnApplicationPause(bool paused) { if (paused) PlayerPrefs.Save(); }
