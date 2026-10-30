@@ -163,3 +163,36 @@ if ($ui -notmatch 'ready && !cancelling' -or $ui -notmatch 'data.Runner != manag
 $shutdown = Method $network 'private async Task ShutdownSession(NetworkRunner sessionRunner)'
 if ($shutdown -match 'DataConfig\.|Logout|ResetToDefaults') {throw 'Cancelling must not clear account profile/login'}
 'Main bindings, optional fallback fields, callback preservation and account isolation checks passed.'
+
+# Loading Main (including returning from Battle) must hide an authored panel
+# that was saved active, without interrupting an ongoing random match.
+$idleProbe = @'
+namespace RandomMatchIdleChecks {
+ public class Session {public bool IsRandomMatch,IsMatching;}
+ public class Panel {public bool active=true;}
+ public class Probe {
+  public Session manager=new();public Panel matchingPanel;public Panel authored=new();
+  public int binds;
+  void ValidatePanel(){}
+  void BindAuthoredPanel(){binds++;matchingPanel=authored;}
+  void Show(Panel panel,bool active){if(panel!=null)panel.active=active;}
+'@
+Add-Type -TypeDefinition ($idleProbe + (Method $ui 'private void PrepareIdlePanel()') + "`n}}")
+$idle = [RandomMatchIdleChecks.Probe]::new()
+$idle.PrepareIdlePanel()
+if ($idle.authored.active -or $idle.binds -ne 1) {throw 'Opening battle menu must not reveal the waiting panel'}
+$idle.authored = [RandomMatchIdleChecks.Panel]::new()
+$idle.PrepareIdlePanel()
+if ($idle.authored.active -or $idle.binds -ne 2) {throw 'Returning to Main must bind and hide the new scene panel'}
+$idle.manager.IsMatching = $true
+$idle.authored.active = $true
+$idle.PrepareIdlePanel()
+if ($idle.authored.active) {throw 'Code-room sessions must not show random matchmaking UI'}
+$idle.manager.IsRandomMatch = $true
+$idle.authored.active = $true
+$idle.PrepareIdlePanel()
+if (!$idle.authored.active -or $idle.binds -ne 3) {throw 'Active random matchmaking must remain visible'}
+if ($main -notmatch '(?s)target: \{fileID: 5496104990952788036, guid: b0fa21d2f98732245bed505eaa601452, type: 3\}\s+propertyPath: m_IsActive\s+value: 0') {
+    throw 'Authored matchmaking panel must start inactive in Main'
+}
+'Idle lobby, Main re-entry, code room, active matchmaking and saved-panel visibility checks passed: 5'
