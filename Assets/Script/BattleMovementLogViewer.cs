@@ -66,18 +66,6 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
             time=Mathf.Min(log.duration,time+Time.unscaledDeltaTime*speed);
             if(time>=log.duration) playing=false;
         }
-        if(Input.mousePosition.x>Sidebar)
-        {
-            distance=Mathf.Clamp(distance*Mathf.Exp(-Input.mouseScrollDelta.y*.12f),5,8000);
-            if(Input.GetMouseButton(1))
-            {
-                yaw+=Input.GetAxisRaw("Mouse X")*3;
-                pitch=Mathf.Clamp(pitch-Input.GetAxisRaw("Mouse Y")*3,-85,89);
-                top=false;
-            }
-            if(Input.GetMouseButton(2))
-                focus+=(-viewCamera.transform.right*Input.GetAxisRaw("Mouse X")-viewCamera.transform.up*Input.GetAxisRaw("Mouse Y"))*distance*.003f;
-        }
         viewCamera.rect=new Rect(Sidebar/Screen.width,0,Mathf.Max(.1f,1-Sidebar/Screen.width),1);
         Quaternion rotation=Quaternion.Euler(top?90:pitch,yaw,0);
         viewCamera.transform.SetPositionAndRotation(focus-rotation*Vector3.forward*distance,rotation);
@@ -192,12 +180,40 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
     }
     private void OnGUI()
     {
+        // IMGUI pointer events work with either project input backend, without gameplay bindings.
+        var pointer=Event.current;
+        if(viewCamera!=null && pointer.mousePosition.x>Sidebar)
+        {
+            if(pointer.type==EventType.ScrollWheel)
+            {
+                distance=Mathf.Clamp(distance*Mathf.Exp(pointer.delta.y*.04f),5,8000);
+                pointer.Use();
+            }
+            else if(pointer.type==EventType.MouseDrag && pointer.button==1)
+            {
+                yaw+=pointer.delta.x*.3f;
+                pitch=Mathf.Clamp(pitch+pointer.delta.y*.3f,-85,89);top=false;
+                pointer.Use();
+            }
+            else if(pointer.type==EventType.MouseDrag && pointer.button==2)
+            {
+                focus+=(-viewCamera.transform.right*pointer.delta.x+viewCamera.transform.up*pointer.delta.y)*distance*.001f;
+                pointer.Use();
+            }
+        }
         if(font!=null) GUI.skin.font=font;
         GUI.Box(new Rect(0,0,Sidebar,Screen.height),GUIContent.none);
         GUILayout.BeginArea(new Rect(10,10,Sidebar-20,Screen.height-20));
         GUILayout.Label("전투 동선 기록");
         GUILayout.Label("서버 콘솔 CSV / JSON 또는 로컬 경기 JSON");
         importPath=GUILayout.TextField(importPath);
+#if UNITY_EDITOR
+        if(GUILayout.Button("찾아보기…"))
+        {
+            string chosen=UnityEditor.EditorUtility.OpenFilePanel("동선 기록 가져오기","","csv,json,jsonl");
+            if(!string.IsNullOrEmpty(chosen)) importPath=chosen;
+        }
+#endif
         if(GUILayout.Button("파일 가져오기"))
         {
             try {var imported=BattleMovementImport.Import(importPath.Trim().Trim('"'));RefreshFiles();Load(imported[0]);status+=$"\n{imported.Length}경기 가져옴";}

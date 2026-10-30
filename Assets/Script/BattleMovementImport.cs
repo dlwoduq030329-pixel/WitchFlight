@@ -41,6 +41,7 @@ public static class BattleMovementImport
             else if(node.IsString)
             {
                 string value=((string)node).Trim();
+                if(value.StartsWith("H4sI",StringComparison.Ordinal)) {Add(BattleMovementUpload.Decode(value));return;}
                 if(value.StartsWith("{") || value.StartsWith("["))
                 {
                     JsonData nested=null;
@@ -91,7 +92,7 @@ public static class BattleMovementImport
                 merged.players.Add(track);
             }
             // Unique export names prevent a partial re-export overwriting an earlier complete recording.
-            string output=Path.Combine(BattleMovementLogFiles.DirectoryPath,"server_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmssfff")+"_"+match.Key+".json");
+            string output=Path.Combine(BattleMovementLogFiles.DirectoryPath,"server_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmssfff")+"_"+match.Key+"_"+Guid.NewGuid().ToString("N").Substring(0,8)+".json");
             string json=JsonUtility.ToJson(merged);
             BattleMovementLogFiles.Parse(json);
             BattleMovementLogFiles.Write(output,json);
