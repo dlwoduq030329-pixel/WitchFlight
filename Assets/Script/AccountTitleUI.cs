@@ -12,11 +12,17 @@ public sealed class AccountTitleUI : MonoBehaviour
     [SerializeField] private GameObject popup;
     [SerializeField] private TMP_Text nameText, descriptionText, ownershipText, ownedCountText;
     [SerializeField] private Button equipButton;
+    [Header("Title button backgrounds")]
+    [SerializeField] private Sprite ownedTitleSprite;
+    [SerializeField] private Sprite equippedTitleSprite;
+    private readonly Dictionary<Button, Sprite> defaultSprites = new();
     private AccountProfileUI profile;
     private int selectedId, disabledFrame=-1;
     private readonly List<(Button button,UnityAction action)> listeners=new();
     private readonly List<(Button button,int id)> choices=new();
     private bool lastReady;
+    private int lastEquippedId;
+    private string lastProgressJson;
 
     private void OnEnable()
     {
@@ -49,7 +55,11 @@ public sealed class AccountTitleUI : MonoBehaviour
         foreach(var l in listeners)if(l.button!=null)l.button.onClick.RemoveListener(l.action);
         listeners.Clear();choices.Clear();
     }
-    private void Update() { if(lastReady!=TitleProgression.Ready)Refresh(); }
+    private void Update()
+    {
+        if(lastReady!=TitleProgression.Ready || lastEquippedId!=DataConfig.equippedTitleId ||
+            lastProgressJson!=DataConfig.titleProgressJson)Refresh();
+    }
     private void Bind(Button button,UnityAction action)
     { if(button==null)return;button.onClick.AddListener(action);listeners.Add((button,action)); }
     private void BuildChoices()
@@ -63,6 +73,8 @@ public sealed class AccountTitleUI : MonoBehaviour
         for(int i=0;i<buttons.Count;i++) {
             bool used=i<TitleCatalog.All.Count;buttons[i].gameObject.SetActive(used);if(!used)continue;
             var t=TitleCatalog.All[i];Button button=buttons[i];
+            Image background=button.targetGraphic as Image ?? button.GetComponent<Image>();
+            if(background!=null && !defaultSprites.ContainsKey(button))defaultSprites.Add(button,background.sprite);
             Set(button.GetComponentInChildren<TMP_Text>(true),t.name);
             int id=t.id;Bind(button,()=>SelectTitle(id));choices.Add((button,id));
         }
@@ -86,6 +98,7 @@ public sealed class AccountTitleUI : MonoBehaviour
         if(!isActiveAndEnabled && disabledFrame!=Time.frameCount || selectedId==0)return;
         if(!TitleProgression.Equip(selectedId)) {Refresh();return;}
         CancelSelection();
+        Refresh();
         if(popup!=null)popup.SetActive(false);
     }
     public void CancelSelection()
@@ -96,12 +109,22 @@ public sealed class AccountTitleUI : MonoBehaviour
     public void Refresh()
     {
         lastReady=TitleProgression.Ready;
+        lastEquippedId=DataConfig.equippedTitleId;
+        lastProgressJson=DataConfig.titleProgressJson;
         var p=lastReady?TitleProgression.Read():null;
         if(!lastReady)selectedId=0;
         Set(ownedCountText,$"{p?.unlocked.Count ?? 0}/{TitleCatalog.All.Count}");
         foreach(var c in choices) {
             if(c.button==null)continue;
             c.button.interactable=lastReady; // Locked titles remain inspectable.
+            Image background=c.button.targetGraphic as Image ?? c.button.GetComponent<Image>();
+            if(background!=null && defaultSprites.TryGetValue(c.button,out Sprite original))
+            {
+                bool unlocked=p?.Owns(c.id)??false;
+                Sprite sprite=unlocked && c.id==lastEquippedId && equippedTitleSprite!=null ? equippedTitleSprite :
+                    unlocked && ownedTitleSprite!=null ? ownedTitleSprite : original;
+                background.sprite=sprite;
+            }
         }
         if(selectedId==0)return;
         var t=TitleCatalog.Find(selectedId);bool owned=p?.Owns(selectedId)??false;

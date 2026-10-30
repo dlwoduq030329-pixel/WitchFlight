@@ -8021,6 +8021,7 @@ GameObject:
   - component: {fileID: 2341126580621865883}
   - component: {fileID: 4619057725064610266}
   - component: {fileID: 6270146558752014301}
+  - component: {fileID: 7391826374501905201}
   m_Layer: 5
   m_Name: AccountSetUI
   m_TagString: Untagged
@@ -8139,6 +8140,27 @@ MonoBehaviour:
   onSelectionFailed:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &7391826374501905201
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2851684271224730712}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90e26c29dd8045c0b1e4f4810260f227, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  titleChoicesRoot: {fileID: 8107975712417886532}
+  popup: {fileID: 0}
+  nameText: {fileID: 0}
+  descriptionText: {fileID: 0}
+  ownershipText: {fileID: 0}
+  ownedCountText: {fileID: 0}
+  equipButton: {fileID: 4769944793467028190}
+  ownedTitleSprite: {fileID: 21300000, guid: 8c4529c34ed5b18459a9991b0f0ea150, type: 3}
+  equippedTitleSprite: {fileID: 21300000, guid: 608e7f2d45f44c0438bfaa524768fcc3, type: 3}
 --- !u!1 &3179787846099209371
 GameObject:
   m_ObjectHideFlags: 0
