@@ -38,6 +38,6 @@ public partial class Player
         Player listener = LocalPlayer;
         if (listener == null || listener == this || listener.Object == null || !listener.Object.IsValid ||
             listener.Runner != Runner || !listener.IsAlive || listener.TeamIndex <= 0 || listener.TeamIndex != TeamIndex) return;
-        BattleAudio.Play(BattleSound.AllyHitVoice, local: true);
+        BattleAudio.Play(BattleSound.AllyHitVoice, LockAimPoint, transform, local: true);
     }
 }

@@ -26,8 +26,12 @@ public partial class NetworkGameManager
                         if (existing != null && existing.IsMatchBot && existing.teamIndex == team)
                             teammateAppearance.Add(existing.GetPlayerConfig());
                     var config = MatchBotSettings.RandomAppearance(teammateAppearance);
+                    var usedBotTitles = new List<int>();
+                    foreach (var existing in playerDatas.Values)
+                        if (existing != null && existing.IsMatchBot) usedBotTitles.Add(existing.EquippedTitleId);
+                    int botTitleId = TitleCatalog.ChooseBotTitle(usedBotTitles);
                     NetworkObject obj = _runner.Spawn(playerDataPrefab, Vector3.zero, Quaternion.identity, PlayerRef.None,
-                        onBeforeSpawned: (r,o) => o.GetComponent<PlayerData>().InitializeMatchBot(selectedSlot, selectedTeam, config));
+                        onBeforeSpawned: (r,o) => o.GetComponent<PlayerData>().InitializeMatchBot(selectedSlot, selectedTeam, config, botTitleId));
                     if (obj == null) throw new System.InvalidOperationException("Bot PlayerData spawn failed.");
                     created.Add(obj);
                     var data = obj.GetComponent<PlayerData>();

@@ -5,7 +5,7 @@ using LitJson;
 using System.Globalization;
 using System.Collections.Concurrent;
 
-public class DatabaseManager : MonoBehaviour
+public partial class DatabaseManager : MonoBehaviour
 {
     public static DatabaseManager Instance;
 
@@ -31,6 +31,8 @@ public class DatabaseManager : MonoBehaviour
     public class PlayerSetting
     {
         public string nickname;
+        public int money = DataConfig.InitialMoney;
+        public string itemInventoryJson = ItemInventory.InitialJson;
 
         public int hatIndex = (int)HatType.Classic;
         public int broomIndex = (int)BroomType.Standard;
@@ -148,6 +150,7 @@ public class DatabaseManager : MonoBehaviour
 
     private bool CanAutoSave => Backend.IsInitialized && Backend.IsLogin && IsDataConfigReady &&
         IsPlayerSettingLoaded && loadedUserInDate == Backend.UserInDate && HasPlayerSetting();
+    internal bool CanModifyAccountData => CanAutoSave;
 
     private void OnDataConfigChanged()
     {
@@ -343,6 +346,8 @@ public class DatabaseManager : MonoBehaviour
         }
 
         PlayerSetting setting = ReadPlayerSetting(row);
+        if (!EnsureMoneySaved(row, setting)) return false;
+        if (!EnsureDefaultVoiceSaved(row, setting)) return false;
         if (!EnsureCatAppearanceSaved(setting)) return false;
 
 
@@ -383,6 +388,7 @@ public class DatabaseManager : MonoBehaviour
         var setting = new PlayerSetting
         {
             nickname = string.IsNullOrWhiteSpace(defaults.nickname) ? "test" : defaults.nickname.Trim(),
+            money = DataConfig.InitialMoney,
             magic1Index = NormalizeMagicIndex(defaults.magic1Index, (int)MagicType.None),
             magic2Index = NormalizeMagicIndex(defaults.magic2Index, (int)MagicType.Fire),
             playerprofile = Mathf.Max(0, defaults.playerprofile)
@@ -422,12 +428,16 @@ public class DatabaseManager : MonoBehaviour
         bool preserveTitles = IsAutoSavePending;
         int pendingTitle = DataConfig.equippedTitleId;
         string pendingProgress = DataConfig.titleProgressJson;
+        int pendingMoney = DataConfig.money;
+        string pendingInventory = DataConfig.itemInventoryJson;
         ApplyToDataConfig(currentPlayerSetting);
         if (preserveTitles)
         {
             using var silent = DataConfig.BeginChangeBatch(false);
             DataConfig.equippedTitleId = pendingTitle;
             DataConfig.titleProgressJson = pendingProgress;
+            DataConfig.money = pendingMoney;
+            DataConfig.itemInventoryJson = pendingInventory;
         }
         IsDataConfigReady = true;
         TitleProgression.OnProfileLoaded();
@@ -641,6 +651,8 @@ public class DatabaseManager : MonoBehaviour
             setting.catTutorialCompleted = currentPlayerSetting.catTutorialCompleted;
             setting.equippedTitleId = currentPlayerSetting.equippedTitleId;
             setting.titleProgressJson = currentPlayerSetting.titleProgressJson;
+            setting.money = currentPlayerSetting.money;
+            setting.itemInventoryJson = currentPlayerSetting.itemInventoryJson;
         }
 
 
@@ -756,6 +768,8 @@ public class DatabaseManager : MonoBehaviour
         );
         PlayerConfig config = setting.GetPlayerConfig();
         param.Add("playerprofile", setting.playerprofile);
+        param.Add("money", setting.money);
+        param.Add("itemInventoryJson", setting.itemInventoryJson);
         param.Add("equippedTitleId", setting.equippedTitleId);
         param.Add("titleProgressJson", setting.titleProgressJson ?? "{}");
         param.Add("catBodyIndex", setting.catBodyIndex);
@@ -804,6 +818,9 @@ public class DatabaseManager : MonoBehaviour
             DataConfig.magic2Index;
         setting.SetPlayerConfig(DataConfig.GetPlayerConfig());
         setting.playerprofile = Mathf.Max(0, DataConfig.playerprofile);
+        setting.money = IsDataConfigReady ? DataConfig.money : currentPlayerSetting?.money ?? DataConfig.InitialMoney;
+        setting.itemInventoryJson = IsDataConfigReady ? DataConfig.itemInventoryJson :
+            currentPlayerSetting?.itemInventoryJson ?? ItemInventory.InitialJson;
         setting.equippedTitleId = DataConfig.equippedTitleId;
         setting.titleProgressJson = DataConfig.titleProgressJson;
         // Cosmetic UI / nickname saves must never reroll or clear the account's cat.
@@ -834,6 +851,8 @@ public class DatabaseManager : MonoBehaviour
         var setting = new PlayerSetting
         {
             nickname = ReadString(row, "nickname", string.Empty),
+            money = ReadMoney(row),
+            itemInventoryJson = ItemInventory.WithDefaultVoice(ReadString(row, "itemInventoryJson", ItemInventory.EmptyJson)),
             hatIndex = ReadInt(row, "hatIndex", (int)HatType.Classic),
             broomIndex = ReadInt(row, "broomIndex", (int)BroomType.Standard),
             magic1Index = NormalizeMagicIndex(ReadInt(row, "magic1Index", (int)MagicType.Fire), (int)MagicType.Fire),
@@ -856,6 +875,51 @@ public class DatabaseManager : MonoBehaviour
         };
         setting.SetPlayerConfig(setting.GetPlayerConfig());
         return setting;
+    }
+
+    private static int ReadMoney(JsonData row)
+    {
+        JsonData value = ReadValue(row, "money");
+        if (value == null) return DataConfig.InitialMoney;
+        if (!int.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int amount) || amount < 0)
+            throw new InvalidOperationException("LoginPlayerData.money는 0 이상의 int여야 합니다. 저장된 재화를 확인해주세요.");
+        return amount;
+    }
+
+    private bool EnsureDefaultVoiceSaved(JsonData row, PlayerSetting setting)
+    {
+        string before = JsonUtility.ToJson(ItemInventory.Parse(ReadString(row, "itemInventoryJson", ItemInventory.EmptyJson)));
+        if (before == setting.itemInventoryJson) return true;
+        var param = new Param(); param.Add("itemInventoryJson", setting.itemInventoryJson);
+        var result = Backend.GameData.UpdateV2(TABLE_NAME, currentPlayerSettingInDate, Backend.UserInDate, param);
+        return result.IsSuccess() || Fail("기본 목소리 보유 정보 저장 실패: " + result.GetMessage());
+    }
+
+    private bool EnsureMoneySaved(JsonData row, PlayerSetting setting)
+    {
+        if (ReadValue(row, "money") != null) return true; // Zero is a valid saved balance.
+        var param = new Param();
+        param.Add("money", setting.money);
+        var result = Backend.GameData.UpdateV2(TABLE_NAME, currentPlayerSettingInDate, Backend.UserInDate, param);
+        if (!result.IsSuccess())
+            return Fail($"초기 재화 저장 실패. LoginPlayerData에 money(int, 기본값 20000) 컬럼을 추가해주세요: {result.GetMessage()}");
+        return true;
+    }
+
+    // Local changes use the existing serialized auto-save queue and retry policy.
+    // True means accepted locally; LastSaveSucceeded / IsAutoSavePending report persistence.
+    public bool TryAddMoney(int amount)
+    {
+        if (!CanAutoSave || amount <= 0 || DataConfig.money > int.MaxValue - amount) return false;
+        DataConfig.money += amount;
+        return true;
+    }
+
+    public bool TrySpendMoney(int amount)
+    {
+        if (!CanAutoSave || amount <= 0 || DataConfig.money < amount) return false;
+        DataConfig.money -= amount;
+        return true;
     }
 
     public bool TryGetCatAppearance(out int bodyIndex, out int eyeIndex)
@@ -901,6 +965,8 @@ public class DatabaseManager : MonoBehaviour
         DataConfig.catTutorialCompleted = setting.catTutorialCompleted;
         DataConfig.equippedTitleId = setting.equippedTitleId;
         DataConfig.titleProgressJson = setting.titleProgressJson;
+        DataConfig.money = setting.money;
+        DataConfig.itemInventoryJson = setting.itemInventoryJson;
         // Reuse the existing backend column; no duplicate playerName column is needed.
         DataConfig.playerName = (setting.nickname ?? string.Empty).Trim();
         DataConfig.playerprofile = setting.playerprofile;

@@ -6,6 +6,34 @@ public static class DataConfig
 {
     // Keep the existing assignment API while notifying the account's save coordinator.
     public static event Action Changed;
+    public const int InitialMoney = 20000;
+    public static event Action MoneyChanged;
+    private static int _money;
+    private static string _itemInventoryJson = ItemInventory.EmptyJson;
+    public static event Action InventoryChanged;
+    public static string itemInventoryJson
+    {
+        get => _itemInventoryJson;
+        internal set
+        {
+            value ??= ItemInventory.EmptyJson;
+            if (_itemInventoryJson == value) return;
+            SetValue(ref _itemInventoryJson, value);
+            InventoryChanged?.Invoke();
+        }
+    }
+    public static int money
+    {
+        get => _money;
+        internal set
+        {
+            value = Mathf.Max(0, value);
+            if (_money == value) return;
+            SetValue(ref _money, value);
+            // UI must also refresh on silent server loads and logout resets.
+            MoneyChanged?.Invoke();
+        }
+    }
     private static int _equippedTitleId;
     private static string _titleProgressJson = "{}";
     public static int equippedTitleId { get => _equippedTitleId; set => SetValue(ref _equippedTitleId, value); }
@@ -112,6 +140,8 @@ public static class DataConfig
     {
         using var batch = BeginChangeBatch(false);
         playerName = string.Empty;
+        money = 0;
+        itemInventoryJson = ItemInventory.EmptyJson;
         equippedTitleId = 0;
         titleProgressJson = "{}";
         catTutorialCompleted = 0;

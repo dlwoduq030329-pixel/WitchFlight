@@ -6,9 +6,11 @@ public partial class PlayerData
     [Networked] public int MatchBotSlot { get; private set; }
     public bool IsMatchBot => MatchBotSlot > 0;
     public PlayerRef ParticipantRef => IsMatchBot ? BattleParticipants.BotRef(MatchBotSlot) : Object.InputAuthority;
-    public void InitializeMatchBot(int slot, int team, PlayerConfig config)
+    public void InitializeMatchBot(int slot, int team, PlayerConfig config, int botTitleId = 0)
     {
         MatchBotSlot = slot;
+        EquippedTitleId = TitleCatalog.IsBotTitle(botTitleId) ? botTitleId :
+            TitleCatalog.ChooseBotTitle(System.Array.Empty<int>());
         CatBodyIndex = Random.Range(1, 8);
         CatEyeIndex = Random.Range(1, 4);
         teamIndex = team; camp = team == 1 ? Camp.A : Camp.B;

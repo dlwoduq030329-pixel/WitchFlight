@@ -20,7 +20,24 @@ public static class TitleCatalog
 {
     public static readonly IReadOnlyList<TitleDefinition> All = Build();
     public static TitleDefinition Find(int id) { foreach(var title in All) if(title.id==id)return title; return null; }
-    public static string Name(int id) => Find(id)?.name ?? string.Empty;
+    // Negative IDs are host-assigned bot labels, never unlockable account titles.
+    public static bool IsBotTitle(int id) => id >= -3 && id <= -1;
+    public static string Name(int id) => id switch
+    {
+        -1 => "온화한 전투봇",
+        -2 => "상냥한 전투봇",
+        -3 => "공격적인 전투봇",
+        _ => Find(id)?.name ?? string.Empty
+    };
+    public static int ChooseBotTitle(IEnumerable<int> existing)
+    {
+        var counts = new int[3];
+        foreach (int id in existing) if (IsBotTitle(id)) counts[-id - 1]++;
+        int minimum = Math.Min(counts[0], Math.Min(counts[1], counts[2]));
+        var candidates = new List<int>(3);
+        for (int i = 0; i < 3; i++) if (counts[i] == minimum) candidates.Add(-i - 1);
+        return candidates[UnityEngine.Random.Range(0, candidates.Count)];
+    }
     private static List<TitleDefinition> Build()
     {
         var a = new List<TitleDefinition> {
