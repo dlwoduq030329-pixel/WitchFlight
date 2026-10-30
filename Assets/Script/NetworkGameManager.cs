@@ -566,6 +566,32 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         finally { stopInProgress = false; }
     }
 
+    // Account logout disconnects without triggering the authenticated lobby-return flow.
+    public async Task DisconnectForLogoutAsync()
+    {
+        cancelRequested = true;
+        matchCancellation?.Cancel();
+        float deadline = Time.realtimeSinceStartup + 20f;
+        while (startInProgress || stopInProgress)
+        {
+            if (Time.realtimeSinceStartup >= deadline)
+                throw new InvalidOperationException("네트워크 연결 정리가 지연되고 있습니다. 잠시 후 다시 로그아웃해주세요.");
+            await Task.Yield();
+            if (this == null) return;
+        }
+        stopInProgress = true;
+        try { await ShutdownSession(_runner); }
+        finally { if (this != null) stopInProgress = false; }
+    }
+
+    public void DisposeAfterLogout()
+    {
+        if (_runner != null || startInProgress || stopInProgress) return;
+        // Recreate scene-owned UI references on the next Main load.
+        if (instance == this) instance = null;
+        Destroy(gameObject);
+    }
+
     // A final-result UI calls this. Shutdown the session before reloading Main;
     // let Main create a fresh manager with its own live scene UI references.
     public async Task<bool> ReturnToMainMenuAsync()

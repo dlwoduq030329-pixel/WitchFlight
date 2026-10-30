@@ -4,7 +4,7 @@ using BackEnd;
 using UnityEngine.UI;
 using TMPro;
 
-public class LoginManager : MonoBehaviour
+public partial class LoginManager : MonoBehaviour
 {
     public static LoginManager Instance;
 
@@ -13,6 +13,7 @@ public class LoginManager : MonoBehaviour
     private System.Action<bool, string> initializationCompleted;
     public bool IsLoggedIn { get; private set; }
     public bool IsLoggingIn { get; private set; }
+    public bool IsLoggingOut { get; private set; }
     private int loginAttempt;
     private int initializationAttempt;
     private float initializationDeadline, loginDeadline;
@@ -160,7 +161,7 @@ public class LoginManager : MonoBehaviour
     // UI 로그인 버튼에서 호출
     public void Login(string id, string password)
     {
-        if (IsLoggingIn) return;
+        if (IsLoggingIn || IsLoggingOut) return;
         // After a profile-read failure, the existing Login button retries the data flow.
         if (IsLoggedIn) { OnLoginSuccess?.Invoke(); return; }
         if (string.IsNullOrWhiteSpace(id) ||
@@ -224,6 +225,7 @@ public class LoginManager : MonoBehaviour
     // UI 회원가입 버튼에서 호출
     public void SignUp(string id, string password)
     {
+        if (IsLoggingOut) return;
         if (!IsInitialized)
         {
             Debug.LogError("BACKND가 아직 초기화되지 않았습니다.");

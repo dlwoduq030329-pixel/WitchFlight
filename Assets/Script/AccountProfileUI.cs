@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -24,6 +25,11 @@ public sealed class AccountProfileUI : MonoBehaviour
     [SerializeField] private Image currentProfileImage;
     [Tooltip("비우면 Resources/ProfileImageTable을 사용합니다. 로비/VS와 같은 테이블을 사용하세요.")]
     [SerializeField] private ProfileImageTable profileTable;
+    [Header("Account nickname (auto-bound when empty)")]
+    [SerializeField] private TMP_Text informationNicknameText;
+    [SerializeField] private TMP_Text welcomeNicknameText;
+    [Header("Account session")]
+    [SerializeField] private Button logoutButton;
     [Header("Profile choices (selection only)")]
     [Tooltip("이미지 버튼은 변경할 번호만 선택합니다. 확정 전에는 현재 프로필이나 저장 데이터가 바뀌지 않습니다.")]
     [SerializeField] private ProfileChoice[] profileChoices = Array.Empty<ProfileChoice>();
@@ -45,6 +51,7 @@ public sealed class AccountProfileUI : MonoBehaviour
     private readonly List<(Button button, UnityAction action)> listeners = new List<(Button, UnityAction)>();
     private bool lastReady;
     private int lastProfileIndex = -1;
+    private string lastNickname;
     private int selectedProfileIndex = -1;
     private int disabledAtFrame = -1;
     public Button SharedConfirmButton => confirmButton;
@@ -60,6 +67,20 @@ public sealed class AccountProfileUI : MonoBehaviour
 
     private void OnEnable()
     {
+        if (informationNicknameText == null)
+            informationNicknameText = FindNicknameText("Information", "nickname");
+        if (welcomeNicknameText == null)
+            welcomeNicknameText = FindNicknameText("WelcomeText", "NicknameText");
+        if (logoutButton == null)
+            foreach (Button button in GetComponentsInChildren<Button>(true))
+                if (button.name.Equals("Button_LogOut", StringComparison.OrdinalIgnoreCase)) { logoutButton = button; break; }
+        if (logoutButton != null)
+        {
+            // This button was repurposed from AccountDelete; never open its old deletion popup.
+            for (int i = 0; i < logoutButton.onClick.GetPersistentEventCount(); i++)
+                logoutButton.onClick.SetPersistentListenerState(i, UnityEventCallState.Off);
+            Bind(logoutButton, LogoutAccount);
+        }
         selectedProfileIndex = -1;
         disabledAtFrame = -1;
         if (profileTable == null) profileTable = ProfileImageTable.Default;
@@ -99,8 +120,26 @@ public sealed class AccountProfileUI : MonoBehaviour
     private void LateUpdate()
     {
         // Login/logout snapshots can update DataConfig silently while this panel is open.
-        if (lastReady != ProfileReady || lastProfileIndex != DataConfig.playerprofile)
+        if (lastReady != ProfileReady || lastProfileIndex != DataConfig.playerprofile || lastNickname != DataConfig.playerName)
             RefreshFromDataConfig();
+    }
+
+    private TMP_Text FindNicknameText(string sectionName, string textName)
+    {
+        foreach (Transform section in transform)
+        {
+            if (!section.name.Equals(sectionName, StringComparison.OrdinalIgnoreCase)) continue;
+            foreach (TMP_Text text in section.GetComponentsInChildren<TMP_Text>(true))
+                if (text.name.Equals(textName, StringComparison.OrdinalIgnoreCase)) return text;
+        }
+        return null;
+    }
+
+    private static void SetNicknameText(TMP_Text text, string nickname)
+    {
+        if (text == null) return;
+        text.richText = false;
+        text.text = nickname;
     }
 
     private void Bind(Button button, UnityAction action)
@@ -108,6 +147,12 @@ public sealed class AccountProfileUI : MonoBehaviour
         if (button == null) return;
         button.onClick.AddListener(action);
         listeners.Add((button, action));
+    }
+
+    public void LogoutAccount()
+    {
+        if (LoginManager.Instance == null) { Fail("로그인 관리자를 찾을 수 없습니다."); return; }
+        LoginManager.Instance.LogoutAndReloadScene();
     }
 
     // Image buttons only choose a pending profile. Authored OnClick opens the popup.
@@ -179,6 +224,10 @@ public sealed class AccountProfileUI : MonoBehaviour
             selectedProfileIndex = -1;
         lastReady = ProfileReady;
         lastProfileIndex = DataConfig.playerprofile;
+        lastNickname = DataConfig.playerName;
+        string nickname = lastReady ? lastNickname ?? string.Empty : string.Empty;
+        SetNicknameText(informationNicknameText, nickname);
+        SetNicknameText(welcomeNicknameText, nickname);
         if (profileTable == null) profileTable = ProfileImageTable.Default;
         if (currentProfileImage != null)
         {

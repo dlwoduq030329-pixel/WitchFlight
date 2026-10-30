@@ -24,8 +24,9 @@ namespace DG.Tweening {
 namespace TitleValidationRuntime {
  public enum MagicType {None,Fire,Ice,Vision,Thunder,Healing,Binding,Dark,Curse,Mine,Razier,Flare,Smoke}
  public class DatabaseManager {public static DatabaseManager Instance=new();public bool HasLoadedProfile=true,IsDataConfigReady=true;}
+ public class LoginManager {public static LoginManager Instance;public void LogoutAndReloadScene(){}}
  public static class DataConfig {
-  public static event Action Changed;public static int equippedTitleId,playerprofile;public static string titleProgressJson="{}";
+  public static event Action Changed;public static int equippedTitleId,playerprofile;public static string titleProgressJson="{}",playerName;
   public static IDisposable BeginChangeBatch()=>new Batch();class Batch:IDisposable {public void Dispose()=>Changed?.Invoke();}
  }
  public class ProfileImageTable:ScriptableObject {
