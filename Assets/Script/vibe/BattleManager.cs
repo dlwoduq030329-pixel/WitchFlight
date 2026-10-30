@@ -8,6 +8,11 @@ using UnityEngine;
 [RequireComponent(typeof(BattleKillFeed))]
 public class BattleManager : MonoBehaviour
 {
+    [Header("Movement log collection (diagnostic builds only)")]
+    [Tooltip("수집 기간에만 체크한 상태로 빌드하세요. 방장이 참가자 전원(봇 포함)의 동선을 기록하고 뒤끝 게임 로그로 업로드합니다. 해제하면 기록기를 만들지 않습니다.")]
+    [SerializeField] private bool collectMovementLogs = false;
+    public bool CollectMovementLogs => collectMovementLogs;
+
     [Header("Network Prefab")]
     [SerializeField] private NetworkPrefabRef flagPrefab;
 
@@ -177,6 +182,8 @@ public class BattleManager : MonoBehaviour
         FindSpawnPoints();
         SpawnBattlePlayers(playerPrefab);
         SpawnFlag();
+        if (collectMovementLogs)
+            (GetComponent<BattleMovementRecorder>() ?? gameObject.AddComponent<BattleMovementRecorder>()).Begin(runner, this);
     }
 
     private void FindSpawnPoints()
@@ -430,6 +437,7 @@ public class BattleManager : MonoBehaviour
         if (resultAnnounced)
             return;
         resultAnnounced = true;
+        GetComponent<BattleMovementRecorder>()?.Finish("completed");
         if (playerDatas != null)
             foreach (PlayerData data in playerDatas.Values) data?.CompleteTitleMatch();
         pendingRespawns.Clear();
