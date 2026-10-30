@@ -47,7 +47,7 @@ public sealed class BattleMovementRecorder : MonoBehaviour
         uploadOwner = BattleMovementUpload.CurrentOwner;
         if(uploadToServer && !string.IsNullOrEmpty(uploadOwner)) BattleMovementUpload.Activate();
         else if(uploadToServer) Debug.LogWarning("뒤끝 로그인 세션이 없어 동선은 로컬 파일에만 기록합니다.");
-        string id = Guid.NewGuid().ToString("N");
+        string id = string.IsNullOrEmpty(manager.TelemetryMatchId) ? Guid.NewGuid().ToString("N") : manager.TelemetryMatchId;
         log = new BattleMovementLog { matchId=id, startedUtc=DateTime.UtcNow.ToString("O"),
             scenePath=gameObject.scene.path, gameVersion=Application.version,
             mode=NetworkGameManager.Instance != null ? NetworkGameManager.Instance.CurrentMatchMode.ToString() : "Unknown",

@@ -268,6 +268,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         HasEnded = false;
         HasStarted = true;
         Phase = BattleStartPhase.Playing;
+        BattleManager.Instance?.RecordRoundMagicPicks();
         PhaseTimer = TickTimer.None;
         MatchTimer = BattleManager.Instance != null && BattleManager.Instance.IsTraining
             ? TickTimer.None : TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, durationSeconds));
