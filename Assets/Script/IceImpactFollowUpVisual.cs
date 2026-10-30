@@ -68,7 +68,7 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
     {
         if (impactPlayed) return;
         if (table == null || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
-        { Destroy(gameObject); return; }
+        { MagicVfxPool.Release(gameObject); return; }
         if (caster != null && caster.Object != null && caster.Object.IsValid && caster.IsAlive)
         {
             bodyPoint = caster.LockAimPoint;
@@ -105,7 +105,7 @@ public sealed class IceImpactFollowUpVisual : MonoBehaviour
         if (impactPlayed) return;
         impactPlayed = true;
         CombatPresentation.ShowImpact(targetPoint, MagicType.Ice, caster);
-        Destroy(gameObject);
+        MagicVfxPool.Release(gameObject);
     }
 
     private void Launch(int index)

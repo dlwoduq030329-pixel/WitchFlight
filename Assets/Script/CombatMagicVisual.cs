@@ -271,7 +271,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
         if (follow == null || follow.Object == null || !follow.Object.IsValid || !follow.IsAlive ||
             follow.IsHiddenBySmokeFor(Player.LocalPlayer) || BattleManager.Instance == null ||
             !(BattleManager.Instance.IsGameplayActive || (spawnShield && follow.IsCountdownProtected)))
-        { Destroy(gameObject); return; }
+        { MagicVfxPool.Release(gameObject); return; }
         if (heldShield)
         {
             if (spawnShield)
@@ -293,7 +293,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
             }
         }
         UpdateShieldDissolve(heldShield && !shieldEnding ? 0f : Mathf.Clamp01(1f - (expires - Time.unscaledTime) / duration));
-        if (Time.unscaledTime >= expires) { Destroy(gameObject); return; }
+        if (Time.unscaledTime >= expires) { MagicVfxPool.Release(gameObject); return; }
         // Follow translation, but retain the world direction of the blocked attack during this flash.
         transform.position = follow.LockAimPoint + shieldFacing * shieldOffset;
         Vector3 up = Mathf.Abs(Vector3.Dot(shieldFacing, Vector3.up)) > .99f ? Vector3.forward : Vector3.up;

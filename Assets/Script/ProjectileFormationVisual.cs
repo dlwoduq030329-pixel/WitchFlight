@@ -128,7 +128,7 @@ internal sealed class ProjectileFormationVisual
     {
         SetVisible(false);
         if (core != null) core.localScale = coreScale;
-        if (root != null) Object.Destroy(root);
+        if (root != null) MagicVfxPool.Release(root);
         if (ownedMaterial != null) Object.Destroy(ownedMaterial);
     }
 

@@ -73,9 +73,9 @@ public sealed class MagicSummonVisual : MonoBehaviour
         {
             // The network object despawns after .2 s; keep only the non-colliding visual for the clip.
             transform.SetParent(null, true);
-            Destroy(gameObject, seconds);
+            MagicVfxPool.Release(gameObject, seconds);
         }
-        else Destroy(gameObject);
+        else MagicVfxPool.Release(gameObject);
     }
 
     private void LateUpdate()

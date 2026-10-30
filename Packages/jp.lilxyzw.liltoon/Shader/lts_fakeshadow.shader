@@ -65,7 +65,6 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_RIMSHADE
             #define LIL_FEATURE_EMISSION_1ST
             #define LIL_FEATURE_NORMAL_1ST
-            #define LIL_FEATURE_NORMAL_2ND
             #define LIL_FEATURE_ANISOTROPY
             #define LIL_FEATURE_REFLECTION
             #define LIL_FEATURE_MATCAP
@@ -85,12 +84,9 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_Main3rdBlendMask
             #define LIL_FEATURE_Main3rdDissolveNoiseMask
             #define LIL_FEATURE_BumpMap
-            #define LIL_FEATURE_Bump2ndMap
-            #define LIL_FEATURE_Bump2ndScaleMask
             #define LIL_FEATURE_AnisotropyTangentMap
             #define LIL_FEATURE_AnisotropyScaleMask
             #define LIL_FEATURE_AnisotropyShiftNoiseMask
-            #define LIL_FEATURE_ShadowBorderMask
             #define LIL_FEATURE_ShadowStrengthMask
             #define LIL_FEATURE_ShadowColorTex
             #define LIL_FEATURE_Shadow2ndColorTex
@@ -219,7 +215,6 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_RIMSHADE
             #define LIL_FEATURE_EMISSION_1ST
             #define LIL_FEATURE_NORMAL_1ST
-            #define LIL_FEATURE_NORMAL_2ND
             #define LIL_FEATURE_ANISOTROPY
             #define LIL_FEATURE_REFLECTION
             #define LIL_FEATURE_MATCAP
@@ -239,12 +234,9 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_Main3rdBlendMask
             #define LIL_FEATURE_Main3rdDissolveNoiseMask
             #define LIL_FEATURE_BumpMap
-            #define LIL_FEATURE_Bump2ndMap
-            #define LIL_FEATURE_Bump2ndScaleMask
             #define LIL_FEATURE_AnisotropyTangentMap
             #define LIL_FEATURE_AnisotropyScaleMask
             #define LIL_FEATURE_AnisotropyShiftNoiseMask
-            #define LIL_FEATURE_ShadowBorderMask
             #define LIL_FEATURE_ShadowStrengthMask
             #define LIL_FEATURE_ShadowColorTex
             #define LIL_FEATURE_Shadow2ndColorTex
