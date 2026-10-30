@@ -111,9 +111,9 @@ public sealed class MagicAreaVisual : MonoBehaviour
     {
         if (!burst) return;
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
-        { Destroy(gameObject); return; }
+        { MagicVfxPool.Release(gameObject); return; }
         float age = Time.time - burstStarted;
-        if (age >= burstLifetime) { Destroy(gameObject); return; }
+        if (age >= burstLifetime) { MagicVfxPool.Release(gameObject); return; }
         transform.localScale = Vector3.one * burstTargetScale * BurstScale(age, burstExpandSeconds, burstStartScale);
         if (material != null)
         {

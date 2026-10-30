@@ -414,7 +414,7 @@ public sealed class FallingDefeatVisual : MonoBehaviour
             if (water.playSounds && viewer != null && (viewer.transform.position - entry).sqrMagnitude <= 1600f)
                 BattleAudio.Play(BattleSound.WaterEnter, entry);
             GameObject splash = CombatPresentation.InstantiateVfx(settings.deathWaterSplashPrefab, entry, Quaternion.identity);
-            if (splash != null) Destroy(splash, 3f);
+            if (splash != null) MagicVfxPool.Release(splash, 3f);
             else EmitWaterRipple(entry);
         }
         underwater = below;

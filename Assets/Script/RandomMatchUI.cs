@@ -4,6 +4,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using DG.Tweening;
+using UnityEngine.SceneManagement;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem.UI;
 #endif
@@ -51,12 +53,29 @@ public sealed class RandomMatchUI : MonoBehaviour
     private string previewRosterKey;
     private float previewStartedAt = -1f;
     private bool previewConfirmed;
+    private readonly GameObject[] participantCards = new GameObject[4];
+    private readonly List<GameObject> activatedParents = new();
     private static readonly Color Teal = new Color(0.22f, 0.86f, 0.83f);
 
     private void Awake()
     {
         manager = GetComponent<NetworkGameManager>();
         ValidatePanel();
+        Show(matchingPanel, false);
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void Start() => PrepareIdlePanel();
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode) => PrepareIdlePanel();
+
+    private void PrepareIdlePanel()
+    {
+        if (manager != null && manager.IsRandomMatch && manager.IsMatching) return;
+        // Bind before the lobby's Battle button opens Multi, even when the panel
+        // was accidentally saved active. Rebind after returning from Battle too.
+        ValidatePanel();
+        BindAuthoredPanel();
         Show(matchingPanel, false);
     }
 
@@ -75,6 +94,7 @@ public sealed class RandomMatchUI : MonoBehaviour
             EnsureUI();
             showing = true;
             nextSnapshot = 0f;
+            ShowAuthoredPanel();
         }
         Show(matchingPanel, true);
         // Mouse input remains available in the lobby, including during connection startup.
@@ -100,8 +120,12 @@ public sealed class RandomMatchUI : MonoBehaviour
             ShowParticipant(teammateData, teammateProfileImage, teammateNameText, "팀원을 기다리는 중");
             ShowParticipant(opponentData, opponentProfileImage, opponentNameText, "상대를 기다리는 중");
             ShowParticipant(secondOpponentData, secondOpponentProfileImage, secondOpponentNameText, "상대를 기다리는 중");
+            Show(participantCards[0], true);
+            Show(participantCards[1], IsCurrentParticipant(teammateData) && teammateData.IsLoadoutInitialized);
+            Show(participantCards[2], IsCurrentParticipant(opponentData) && opponentData.IsLoadoutInitialized);
+            Show(participantCards[3], IsCurrentParticipant(secondOpponentData) && secondOpponentData.IsLoadoutInitialized);
         }
-        SetText(statusText, cancelling ? "매칭 취소 중..." : ready || manager.IsBattleTransitioning ? "매칭 완료" : "매칭 중");
+        SetText(statusText, cancelling ? "매칭 취소 중..." : ready || manager.IsBattleTransitioning ? "매칭 완료!" : "매칭중");
         Show(loadingObject, !ready && !manager.IsBattleTransitioning);
         if (loadingSpinner != null && loadingSpinner.gameObject.activeInHierarchy)
             loadingSpinner.Rotate(0f, 0f, -180f * Time.unscaledDeltaTime);
@@ -209,6 +233,8 @@ public sealed class RandomMatchUI : MonoBehaviour
     {
         ResetPreview();
         Show(matchingPanel, false);
+        foreach (GameObject parent in activatedParents) Show(parent, false);
+        activatedParents.Clear();
         if (generatedInput != null) Show(generatedInput, false);
         showing = false;
         localData = opponentData = teammateData = secondOpponentData = null;
@@ -220,6 +246,7 @@ public sealed class RandomMatchUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
         if (boundCancelButton != null) boundCancelButton.onClick.RemoveListener(CancelMatch);
         if (generatedCanvas != null) Destroy(generatedCanvas.gameObject);
         if (generatedInput != null) Destroy(generatedInput);
@@ -244,9 +271,96 @@ public sealed class RandomMatchUI : MonoBehaviour
         matchingPanel = null;
     }
 
+    private void BindAuthoredPanel()
+    {
+        bool generated = matchingPanel != null && generatedCanvas != null &&
+            matchingPanel.transform.IsChildOf(generatedCanvas.transform);
+        if (matchingPanel == null || generated)
+        {
+            Transform best = null;
+            int bestScore = -1;
+            // Only on opening/rebinding, including inactive scene UI. Never search each frame.
+            foreach (RectTransform candidate in FindObjectsByType<RectTransform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (candidate.name != "MatchingWaitingUI" || !candidate.gameObject.scene.isLoaded) continue;
+                Transform multi = candidate.parent;
+                while (multi != null && multi.name != "MultiUI" && multi.name != "Multi") multi = multi.parent;
+                if (multi == null) continue;
+                int count = MatchingCards(candidate).Count;
+                if (count < 4) continue; // Old two-card copies must not override the 2v2 panel.
+                int score = (multi.name == "MultiUI" ? 10 : 0) + (multi.gameObject.activeInHierarchy ? 1 : 0);
+                if (score > bestScore) { best = candidate; bestScore = score; }
+            }
+            if (best == null) return;
+            if (generated) Show(matchingPanel, false);
+            matchingPanel = best.gameObject;
+            statusText = null;
+            cancelButton = null;
+            loadingObject = null;
+            loadingSpinner = null;
+        }
+        Transform panel = matchingPanel.transform;
+        var cards = MatchingCards(panel);
+        if (cards.Count < 4) return; // Manually assigned layouts still use the existing Inspector fields.
+        // Old waiting-room bridges on this panel would overwrite the matchmaking roster.
+        foreach (linkuserinfo bridge in panel.GetComponentsInChildren<linkuserinfo>(true)) bridge.enabled = false;
+        Transform dialog = panel.Find("DIalogText") ?? panel.Find("DialogText");
+        if (dialog != null) statusText = dialog.GetComponent<TMP_Text>();
+        for (int i = 0; i < 4; i++) participantCards[i] = cards[i].gameObject;
+        localProfileImage = cards[0].Find("Profile").GetComponent<Image>();
+        teammateProfileImage = cards[1].Find("Profile").GetComponent<Image>();
+        opponentProfileImage = cards[2].Find("Profile").GetComponent<Image>();
+        secondOpponentProfileImage = cards[3].Find("Profile").GetComponent<Image>();
+        localNameText = cards[0].Find("Text").GetComponent<TMP_Text>();
+        teammateNameText = cards[1].Find("Text").GetComponent<TMP_Text>();
+        opponentNameText = cards[2].Find("Text").GetComponent<TMP_Text>();
+        secondOpponentNameText = cards[3].Find("Text").GetComponent<TMP_Text>();
+        foreach (Transform card in cards) card.Find("Text").GetComponent<TMP_Text>().richText = false;
+        Transform loading = panel.Find("LoadingImage");
+        if (loading != null) loadingObject = loading.gameObject;
+        Transform cancel = panel.Find("CancelButton") ?? panel.Find("Cancel Match");
+        if (cancel != null) cancelButton = cancel.GetComponent<Button>();
+    }
+
+    internal static List<Transform> MatchingCards(Transform panel)
+    {
+        var cards = new List<Transform>();
+        foreach (Transform child in panel)
+            if (child.name.StartsWith("Card", System.StringComparison.OrdinalIgnoreCase) &&
+                child.Find("Profile")?.GetComponent<Image>() != null && child.Find("Text")?.GetComponent<TMP_Text>() != null)
+                cards.Add(child);
+        // Card numbers in the authored asset are not in visual order.
+        cards.Sort((a, b) => a.localPosition.x.CompareTo(b.localPosition.x));
+        return cards;
+    }
+
+    private void ShowAuthoredPanel()
+    {
+        if (matchingPanel == null) return;
+        activatedParents.Clear();
+        for (Transform parent = matchingPanel.transform.parent; parent != null; parent = parent.parent)
+            if (!parent.gameObject.activeSelf) activatedParents.Add(parent.gameObject);
+        for (int i = activatedParents.Count - 1; i >= 0; i--)
+        {
+            Show(activatedParents[i], true);
+            foreach (DOTweenAnimation animation in activatedParents[i].GetComponents<DOTweenAnimation>()) ReplayTween(animation);
+        }
+        Show(matchingPanel, true);
+        foreach (DOTweenAnimation animation in matchingPanel.GetComponentsInChildren<DOTweenAnimation>(true)) ReplayTween(animation);
+    }
+
+    private static void ReplayTween(DOTweenAnimation animation)
+    {
+        if (animation == null || !animation.isActiveAndEnabled || !animation.isActive || !animation.isValid) return;
+        animation.CreateTween(false, false);
+        if (animation.tween != null && animation.tween.IsActive())
+            animation.tween.SetAutoKill(false).SetUpdate(true).Restart();
+    }
+
     private void EnsureUI()
     {
         ValidatePanel();
+        BindAuthoredPanel();
         if (matchingPanel == null)
         {
             if (generatedCanvas == null)
@@ -272,7 +386,7 @@ public sealed class RandomMatchUI : MonoBehaviour
             NewText("Versus", panel.transform, Vector2.zero, new Vector2(160, 90), "VS", 48, Teal);
         }
         Transform parent = matchingPanel.transform;
-        if (statusText == null) statusText = NewText("Status", parent, new Vector2(0, 225), new Vector2(900, 80), "매칭 중", 48, Color.white);
+        if (statusText == null) statusText = NewText("Status", parent, new Vector2(0, 225), new Vector2(900, 80), "매칭중", 48, Color.white);
         if (localProfileImage == null) localProfileImage = NewImage("My Profile", parent, new Vector2(-520, 0), new Vector2(190, 190), Color.white);
         if (opponentProfileImage == null) opponentProfileImage = NewImage("Opponent Profile", parent, new Vector2(270, 0), new Vector2(190, 190), Color.white);
         if (localNameText == null) localNameText = NewText("My Name", parent, new Vector2(-520, -135), new Vector2(240, 65), "", 24, Teal);

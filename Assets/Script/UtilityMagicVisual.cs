@@ -94,7 +94,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
         if (flareStopped)
         {
             if (Time.time < flareCleanupAt && HasLiveFlareParticles()) return;
-            Destroy(gameObject);
+            MagicVfxPool.Release(gameObject);
             return;
         }
         if (Time.time >= flareEmissionUntil || flareOwner == null || !flareOwner.isActiveAndEnabled ||

@@ -93,7 +93,7 @@ public sealed class FlightSpellPresentation : MonoBehaviour
 
     private void ClearCircle()
     {
-        if (circle != null) Destroy(circle);
+        if (circle != null) MagicVfxPool.Release(circle);
         if (circleMaterial != null) Destroy(circleMaterial);
         circle = null; circleMaterial = null;
         circleParticles = null;
@@ -127,7 +127,7 @@ public sealed class PortalPulse : MonoBehaviour
         float progress = Mathf.Clamp01(age / seconds);
         transform.localScale = Vector3.one * size * (authored ? 1f : Mathf.Lerp(.2f, 1.4f, progress));
         if (ownedMaterial != null) ownedMaterial.color = new Color(.4f, .85f, 1f, .8f * (1f - progress));
-        if (age >= seconds) Destroy(gameObject);
+        if (age >= seconds) MagicVfxPool.Release(gameObject);
     }
     private void OnDestroy() { if (ownedMaterial != null) Destroy(ownedMaterial); }
 }

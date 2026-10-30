@@ -132,7 +132,7 @@ public partial class Player
 
     private void ClearAreaAimPreview()
     {
-        if (areaPreview != null) Destroy(areaPreview.gameObject);
+        if (areaPreview != null) MagicVfxPool.Release(areaPreview.gameObject);
         areaPreview = null;
         areaAimDistance = 0f;
         previewNeedsRelease = false;

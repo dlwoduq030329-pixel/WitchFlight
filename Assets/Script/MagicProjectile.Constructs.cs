@@ -209,11 +209,11 @@ public sealed partial class MagicProjectile
 
     private void ClearConstructVisual(bool playSummonDeath = false)
     {
-        if (areaVisual != null) Destroy(areaVisual.gameObject);
+        if (areaVisual != null) MagicVfxPool.Release(areaVisual.gameObject);
         if (summonVisual != null)
         {
             if (playSummonDeath) summonVisual.Retire();
-            else Destroy(summonVisual.gameObject);
+            else MagicVfxPool.Release(summonVisual.gameObject);
         }
         areaVisual = null; summonVisual = null;
     }

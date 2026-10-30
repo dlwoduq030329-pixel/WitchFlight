@@ -22,6 +22,8 @@ using System.Threading.Tasks;
 namespace RandomMatchChecks {
  using PlayerRef = System.Int32;
  public static class Time {public static float unscaledTime;}
+ public enum BattleSound {MatchFound}
+ public static class BattleAudio {public static void Play(BattleSound sound,bool local){}}
  public static class Debug {public static void LogWarning(string value){}}
  public class GameObject {public bool Destroyed;}
  public enum FindObjectsInactive {Include}

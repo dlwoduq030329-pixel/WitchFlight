@@ -33003,9 +33003,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_RenderShadows: 1
-  m_RequiresDepthTextureOption: 2
-  m_RequiresOpaqueTextureOption: 2
+  m_RenderShadows: 0
+  m_RequiresDepthTextureOption: 0
+  m_RequiresOpaqueTextureOption: 0
   m_CameraType: 1
   m_Cameras: []
   m_RendererIndex: -1
@@ -50520,6 +50520,8 @@ MonoBehaviour:
   rendererIndex: 1
   reflectionFramesPerSecond: 30
   screenCaptureFramesPerSecond: 30
+  screenMotionFramesPerSecond: 60
+  skipIdleScreenEffects: 1
   screenMovementThreshold: 0.25
   reflectionMovementThreshold: 2
   screenRotationThreshold: 0.5

@@ -294,10 +294,10 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         for (int i = 0; i < spawnShields.Length; i++)
         {
-            if (spawnShields[i] != null) Destroy(spawnShields[i].gameObject);
+            if (spawnShields[i] != null) MagicVfxPool.Release(spawnShields[i].gameObject);
             spawnShields[i] = null;
         }
-        if (activeParryShield != null) Destroy(activeParryShield.gameObject);
+        if (activeParryShield != null) MagicVfxPool.Release(activeParryShield.gameObject);
         activeParryShield = null;
         ClearLockCompleteVfx();
         ClearStatusEffectVfx();
@@ -410,7 +410,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (view.instance != null)
         {
             view.instance.SetActive(false);
-            Destroy(view.instance);
+            MagicVfxPool.Release(view.instance);
         }
         view.instance = null;
         view.spawnAttempted = false;
@@ -475,7 +475,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (lockCompleteVfx != null)
         {
             lockCompleteVfx.SetActive(false);
-            Destroy(lockCompleteVfx);
+            MagicVfxPool.Release(lockCompleteVfx);
         }
         if (lockCompleteMaterial != null) Destroy(lockCompleteMaterial);
         lockCompleteVfx = null;
@@ -486,20 +486,7 @@ public sealed class CombatPresentation : MonoBehaviour
     // Author VFX here / in MagicStatTable. Prefabs must be visual-only, without NetworkObject.
     public static GameObject InstantiateVfx(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null)
     {
-        if (prefab == null) return null;
-        if (prefab.GetComponentInChildren<Fusion.NetworkObject>(true) != null)
-        {
-            Debug.LogWarning("Magic VFX must not contain a NetworkObject: " + prefab.name);
-            return null;
-        }
-        GameObject view = Instantiate(prefab, position, rotation, parent);
-        foreach (Collider collider in view.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
-        foreach (Rigidbody body in view.GetComponentsInChildren<Rigidbody>(true))
-        { body.detectCollisions = false; body.isKinematic = true; body.useGravity = false; }
-        foreach (ParticleSystem particles in view.GetComponentsInChildren<ParticleSystem>(true))
-        { var collision = particles.collision; collision.enabled = false; var trigger = particles.trigger; trigger.enabled = false; }
-        view.SetActive(true);
-        return view;
+        return MagicVfxPool.Rent(prefab, position, rotation, parent);
     }
 
     public void ShowCast(MagicType magic, Vector3 origin, Vector3 end)
@@ -526,7 +513,7 @@ public sealed class CombatPresentation : MonoBehaviour
             CombatMagicVisual beam = CombatMagicVisual.Beam(magic, stats.beamVfxPrefab, stats.beamMaterial);
             RearThreatCamera.ExcludeLocalEffect(beam.gameObject, owner);
             beam.SetEndpoints(origin, end);
-            Destroy(beam.gameObject, 0.2f);
+            MagicVfxPool.Release(beam.gameObject, 0.2f);
         }
         ShowImpact(end, magic, owner);
     }
@@ -535,7 +522,7 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
-        if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));
+        if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
         else SpawnPulse(origin, MagicColor(stats.magic), stats.effect == MagicEffectKind.Healing ? 2f : 0.7f, 0.25f, owner);
     }
 
@@ -545,7 +532,7 @@ public sealed class CombatPresentation : MonoBehaviour
             ? owner.ChannelMagic : MagicType.None;
         if (visualChannel != current)
         {
-            if (channelVisual != null) Destroy(channelVisual.gameObject);
+            if (channelVisual != null) MagicVfxPool.Release(channelVisual.gameObject);
             visualChannel = current;
             channelVisual = null;
             if (current != MagicType.None)
@@ -580,7 +567,7 @@ public sealed class CombatPresentation : MonoBehaviour
         MagicStatEntry stats = Stats(magic);
         GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
-        if (view != null) Destroy(view, Mathf.Max(0.05f, stats.vfxLifetime));
+        if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
         else SpawnPulse(position, MagicColor(magic), stats.radius > 0f ? stats.radius * 2f : 1.25f, 0.3f, owner);
     }
 
@@ -644,7 +631,7 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         ClearLockCompleteVfx();
         ClearStatusEffectVfx();
-        if (channelVisual != null) Destroy(channelVisual.gameObject);
+        if (channelVisual != null) MagicVfxPool.Release(channelVisual.gameObject);
         foreach (Visual visual in visuals)
         {
             if (visual.fading == null)

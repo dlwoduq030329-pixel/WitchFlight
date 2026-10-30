@@ -422,21 +422,26 @@ namespace Suimono.Core
         Camera lastCaptureCamera;
         bool lastCaptureUnderwater;
         int lastCaptureResolution;
+        Camera cachedCopyCamera;
+        UnityEngine.Rendering.Universal.UniversalAdditionalCameraData cachedCopyData, cachedCaptureData;
 
         bool CanReuseUrpCapture() {
             if (captureSettings == null || !captureSettings.isActiveAndEnabled ||
                 cameraType == suiCamToolType.shorelineObject) return false;
             bool reflectionCamera = cameraType == suiCamToolType.localReflection;
             bool changed = copyCam != lastCaptureCamera || resolution != lastCaptureResolution ||
-                copyCam.nonJitteredProjectionMatrix != lastCaptureProjection ||
                 suimonoModuleObject.isUnderwater != lastCaptureUnderwater || renderTexDiff == null ||
                 renderTexDiff.format != CaptureTextureFormat();
+            // Animated FOV is motion, not a resource invalidation: it must obey the rate cap too.
+            float rotationThreshold = reflectionCamera ? captureSettings.reflectionRotationThreshold : captureSettings.screenRotationThreshold;
+            float rotation = copyCam.nonJitteredProjectionMatrix != lastCaptureProjection ? rotationThreshold :
+                Quaternion.Angle(copyCam.transform.rotation,lastCaptureRotation);
             return !WaterCaptureSettings.NeedsRefresh(captureInitialized, Time.unscaledTime-lastCaptureTime,
                 reflectionCamera ? captureSettings.reflectionFramesPerSecond : captureSettings.screenCaptureFramesPerSecond,
                 (copyCam.transform.position-lastCapturePosition).sqrMagnitude,
                 reflectionCamera ? captureSettings.reflectionMovementThreshold : captureSettings.screenMovementThreshold,
-                Quaternion.Angle(copyCam.transform.rotation,lastCaptureRotation),
-                reflectionCamera ? captureSettings.reflectionRotationThreshold : captureSettings.screenRotationThreshold, changed);
+                rotation, rotationThreshold, changed,
+                reflectionCamera ? captureSettings.reflectionFramesPerSecond : captureSettings.screenMotionFramesPerSecond);
         }
 
         void RememberUrpCapture() {
@@ -461,7 +466,11 @@ namespace Suimono.Core
                 settingsModule=module; captureSettings=module.GetComponent<WaterCaptureSettings>();
                 captureInitialized=false;
             }
-            var mainData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(copyCam);
+            if (cachedCopyCamera != copyCam || cachedCopyData == null) {
+                cachedCopyCamera = copyCam;
+                cachedCopyData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(copyCam);
+            }
+            var mainData = cachedCopyData;
             mainData.requiresDepthTexture = true; mainData.requiresColorTexture = true;
             if (!Application.isPlaying && cameraType != suiCamToolType.shorelineObject) return;
             // Do not schedule even a first-frame reflection capture when the module
@@ -472,6 +481,16 @@ namespace Suimono.Core
             }
             if (cameraType == suiCamToolType.transparent && !module.enableTransparency) { Shader.SetGlobalFloat("_SuimonoCaptureValid",0); return; }
             if (cameraType == suiCamToolType.transparentCaustic && (!module.enableCaustics || !module.enableCausticsBlending)) return;
+            if ((cameraType == suiCamToolType.normals || cameraType == suiCamToolType.wakeEffects) &&
+                captureSettings != null && captureSettings.isActiveAndEnabled && captureSettings.skipIdleScreenEffects) {
+                var effects = module.suimonoModuleLibrary != null ? module.suimonoModuleLibrary.fxObject : null;
+                if (effects != null && !effects.HasLiveScreenEffects()) {
+                    // Invalidate the old image so the last ripple cannot remain frozen on the water.
+                    Shader.SetGlobalFloat(cameraType == suiCamToolType.normals ? "_SuimonoNormalsValid" : "_SuimonoWakeValid", 0);
+                    captureInitialized = false; // New particles are captured immediately on their first frame.
+                    return;
+                }
+            }
             if (CanReuseUrpCapture()) return;
             if (renderTexDiff == null || currResolution != resolution || renderTexDiff.format != CaptureTextureFormat())
                 { currResolution=resolution; UpdateRenderTex(); }
@@ -490,7 +509,9 @@ namespace Suimono.Core
                 }
                 if (cameraOffset != 0) {cam.transform.Translate(Vector3.forward*cameraOffset);cam.ResetWorldToCameraMatrix();}
             }
-            var cameraData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(cam);
+            if (cachedCaptureData == null)
+                cachedCaptureData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(cam);
+            var cameraData = cachedCaptureData;
             cameraData.renderPostProcessing=false; cameraData.requiresColorTexture=false; cameraData.requiresDepthTexture=true;
             if (captureSettings != null && captureSettings.isActiveAndEnabled) {
                 cameraData.SetRenderer(captureSettings.rendererIndex);
