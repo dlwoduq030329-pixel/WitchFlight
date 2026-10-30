@@ -50,8 +50,6 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
     private string account;
     private AudioSource audioSource;
     private BattleAudio.Loop petPurr;
-    private bool petPurrPlaying;
-    private float petPurrUntil;
     private CanvasGroup greetingGroup;
     private bool greeting, greetingClosing;
     private float greetingAt, greetingCloseAt;
@@ -340,7 +338,6 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
             }
         }
         EnsureAvatar();
-        if (petPurrPlaying && Time.unscaledTime >= petPurrUntil) StopPetPurr();
         if (greeting) { UpdateGreeting(); return; }
         if (trainingScene)
         {
@@ -380,7 +377,7 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
             (customizationUI == null || !customizationUI.gameObject.activeInHierarchy) &&
             lobbyUI != null && lobbyUI.gameObject.activeInHierarchy;
         if (!visible) { ResetLobbyReveal(); avatar.StopCursorLook(); avatar.SetVisible(false); return; }
-        if (!LobbySurfaceSettled()) { revealStarted = -1; avatar.StopCursorLook(); avatar.SetVisible(false); return; }
+        if (!LobbySurfaceSettled()) { EndPetting(); revealStarted = -1; avatar.StopCursorLook(); avatar.SetVisible(false); return; }
         if (revealStarted < 0) revealStarted = Time.unscaledTime;
         float reveal = Mathf.SmoothStep(0, 1, (Time.unscaledTime - revealStarted) / Mathf.Max(.05f, table.lobbyRevealSeconds));
         avatar.SetVisible(true);
@@ -417,6 +414,7 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
         if (avatar.Intersects(ray))
         {
             petting = true; petPointer = Input.mousePosition;
+            ContinuePetPurr();
             petStrokeTravel = 0; petStrokeDirection = lastPetStroke = 0; nextPetAt = 0;
         }
     }
@@ -448,6 +446,9 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
         Vector2 pointer = Input.mousePosition;
         Vector2 delta = (pointer - petPointer) * (1080f / Mathf.Max(1, Screen.height));
         petPointer = pointer;
+        // Purring responds to touching/stroking in either direction. Alternating
+        // vertical strokes below still control kneading and the annoyance counter.
+        ContinuePetPurr();
         if (Mathf.Abs(delta.y) < .5f || Mathf.Abs(delta.y) < Mathf.Abs(delta.x)) return;
         int direction = delta.y > 0 ? 1 : -1;
         if (direction != petStrokeDirection) { petStrokeDirection = direction; petStrokeTravel = 0; }
@@ -469,8 +470,7 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
             return;
         }
         avatar.Play(CatAnimation.Knead);
-        if (!petPurrPlaying) { petPurr = BattleAudio.StartLoop(BattleSound.CatPetPurr, avatar.transform, true); petPurrPlaying = true; }
-        petPurrUntil = Time.unscaledTime + 1f;
+        ContinuePetPurr();
         lastPetStroke = direction; nextPetAt = Time.unscaledTime + .7f;
     }
 
@@ -498,7 +498,18 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
         if (avatar != null) avatar.Play(CatAnimation.SittingIdle, false);
     }
 
-    private void StopPetPurr() { petPurr.Stop(); petPurrPlaying = false; }
+    private void ContinuePetPurr()
+    {
+        // Keep one uninterrupted 2D loop for the entire valid touch. The loading
+        // request counts as active; do not restart it every frame before playback.
+        if (!petPurr.IsActive)
+        {
+            petPurr.Stop();
+            petPurr = BattleAudio.StartLoop(BattleSound.CatPetPurr, null, true);
+        }
+    }
+
+    private void StopPetPurr() { petPurr.Stop(); }
 
     private bool LobbyReadyForGreeting() => lobbyUI != null && lobbyUI.gameObject.activeInHierarchy &&
         lobbyCharacter != null && lobbyCharacter.gameObject.activeInHierarchy && lobbyCamera != null && lobbyCamera.isActiveAndEnabled &&

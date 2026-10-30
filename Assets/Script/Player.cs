@@ -1001,15 +1001,16 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         StopChannel();
         if (stats.requiresTarget)
         {
+            int failuresBeforeInput = LockFailureSequence;
             if (held || released) SetInputLockTarget(data.lockTarget);
             if (held) UpdateLockCharge();
             if (released)
             {
                 int beforeCast = CastSequence;
                 TryCastSelectedMagic();
-                if (CastSequence == beforeCast && LockProgress > 0f)
-                    RPC_PlayBattleSound(BattleSound.LockFailed);
-                ClearLockTargetInternal();
+                if (CastSequence == beforeCast && LockFailureSequence == failuresBeforeInput)
+                    LockFailureSequence++;
+                ClearLockTargetInternal(false);
             }
         }
         else
@@ -1184,6 +1185,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
 
+        if (LockProgress <= 0f)
+        {
+            lockAudioCastSequence = CastSequence;
+            lockAudioSlot = CurrentMagicSlot;
+        }
         bool wasFullyLocked = IsFullyLocked;
         float chargeSeconds = Mathf.Max(0.01f, stats.lockChargeSeconds);
         LockProgress = Mathf.Clamp01(LockProgress + Runner.DeltaTime / chargeSeconds);
@@ -2197,8 +2203,15 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         return !nearestIsObstacle && (nearestPlayer == null || nearestPlayer == target);
     }
 
-    private void ClearLockTargetInternal()
+    private void ClearLockTargetInternal(bool notifyAudioFailure = true)
     {
+        // Includes loss of target/sight/range, not only an early button release.
+        // Successful casts and slot changes deliberately clear the lock without failure.
+        if (notifyAudioFailure && Object != null && Object.IsValid && Object.HasStateAuthority &&
+            IsAlive && LockProgress > 0f && CastSequence == lockAudioCastSequence && CurrentMagicSlot == lockAudioSlot &&
+            SelectedMagicStats.requiresTarget && !SelectedMagicStats.TargetsAllies &&
+            BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive)
+            LockFailureSequence++;
         bool wasFullyLocked = IsFullyLocked;
         LockTargetId = default;
         LockProgress = 0f;

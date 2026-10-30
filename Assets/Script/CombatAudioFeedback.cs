@@ -6,7 +6,7 @@ public sealed class CombatAudioFeedback : MonoBehaviour
 {
     private Player owner;
     private bool initialized, alive, boosting, lowHealth, charging;
-    private int hit, death, parryStart, parry, portal, slot;
+    private int hit, death, parryStart, parry, portal, slot, lockFailure;
     private MagicType channel;
     private BattleAudio.Loop boostLoop, channelLoop, lockLoop;
     private readonly bool[] statuses = new bool[4];
@@ -25,6 +25,7 @@ public sealed class CombatAudioFeedback : MonoBehaviour
             hit = owner.HitSequence; death = owner.DeathSequence; parryStart = owner.ParryStartSequence;
             parry = owner.ParrySequence; portal = owner.PortalExitSequence; slot = owner.CurrentMagicSlot;
             alive = owner.IsAlive;
+            lockFailure = owner.LockFailureSequence;
             lowHealth = owner.NowHp <= owner.MaxHp * .25f;
             for (int i = 0; i < statuses.Length; i++) statuses[i] = owner.HasStatusEffect(statusTypes[i]);
             initialized = true;
@@ -48,14 +49,16 @@ public sealed class CombatAudioFeedback : MonoBehaviour
             lowHealth = true;
             if (IsLocal) Sound(BattleSound.LowHealthVoice);
         }
-        bool nextCharge = gameplay && IsLocal && owner.SelectedMagicStats.requiresTarget &&
-            !owner.SelectedMagicStats.TargetsAllies && owner.LockProgress > 0f && !owner.IsFullyLocked;
-        if (charging != nextCharge)
+        if (lockFailure != owner.LockFailureSequence)
         {
-            charging = nextCharge;
-            lockLoop.Stop();
-            if (charging) lockLoop = BattleAudio.StartLoop(BattleSound.LockCharging, transform, true);
+            lockFailure = owner.LockFailureSequence;
+            if (IsLocal) BattleAudio.Play(BattleSound.LockFailed, local: true);
         }
+        bool nextCharge = gameplay && IsLocal && owner.SelectedMagicStats.requiresTarget &&
+            !owner.SelectedMagicStats.TargetsAllies && (owner.LockProgress > 0f || owner.IsFullyLocked);
+        if (!nextCharge) lockLoop.Stop();
+        else if (!lockLoop.IsActive) lockLoop = BattleAudio.StartLoop(BattleSound.LockCharging, null, true);
+        charging = nextCharge;
         bool nextBoost = gameplay && owner.IsBoosting;
         if (boosting != nextBoost)
         {

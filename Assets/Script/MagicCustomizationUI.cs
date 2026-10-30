@@ -386,6 +386,8 @@ public sealed partial class MagicCustomizationUI : MonoBehaviour
             selectionDetailsOpen = false;
             RefreshFromDataConfig();
             SetStatus($"{targetName}에 {itemName} 장착 완료");
+            BattleAudio.Play(category == EquipmentCategory.Hat || category == EquipmentCategory.Broom
+                ? BattleSound.UIConfirm : BattleSound.MagicSelected, local: true);
             if (category == EquipmentCategory.Hat) onHatEquipped.Invoke(index);
             else if (category == EquipmentCategory.Broom) onBroomEquipped.Invoke(index);
             else
