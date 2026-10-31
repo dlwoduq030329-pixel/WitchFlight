@@ -96,7 +96,7 @@ public sealed class BattleAudio : MonoBehaviour
             return default;
         var key = (cue, local || follow == null ? 0 : follow.GetInstanceID());
         if (!loop && nextAllowed.TryGetValue(key, out float next) && Time.unscaledTime < next) return default;
-        AudioClip clip = cue.ChooseClip();
+        AudioClip clip = CharacterVoice.Resolve(cue.ChooseClip(), follow, local);
         if (clip == null) return default;
         int index = -1;
         for (int i = 0; i < voices.Count; i++)

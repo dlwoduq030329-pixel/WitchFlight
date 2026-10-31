@@ -5552,6 +5552,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6aab7e08f334a45428600445ff5f2532, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _LockFailureSequence: 0
+  _CatHitSequence: 0
+  _CatKillSequence: 0
+  _CobraActive: 0
+  _PortalEntryPosition: {x: 0, y: 0, z: 0}
+  _MatchBotSlot: 0
+  _SubmergedSeconds: 0
   maxSpeed: 60
   enableMovementPrediction: 1
   mousePitchSensitivity: 2.5
@@ -5596,6 +5603,8 @@ MonoBehaviour:
     parryEndSeconds: 0.12
     alternateParryAnimations: 1
     speedTransitionSeconds: 0.35
+    fastPoseEnterSpeedRatio: 0.72
+    fastPoseExitSpeedRatio: 0.55
     hideStaffWhenDisarmed: 1
   _IsBoosting: 0
   _IsReturningToMap: 0
@@ -5752,15 +5761,15 @@ MonoBehaviour:
   - status: 1
     vfxPrefab: {fileID: 5310361573421146954, guid: 138510276a9931c4abde295e7d1cf0a2, type: 3}
     anchor: {fileID: 0}
-    localOffset: {x: 0, y: 1, z: 0}
+    localOffset: {x: 0, y: 0, z: 0}
     localEulerAngles: {x: 0, y: 0, z: 0}
-    scale: 1
+    scale: 2
   - status: 2
-    vfxPrefab: {fileID: 6402233944704474063, guid: 46501670152c14cfc8f02b308faa22af, type: 3}
+    vfxPrefab: {fileID: 4156653757180220842, guid: bc5a75b70fd75e342a9b07b9295d0db5, type: 3}
     anchor: {fileID: 0}
-    localOffset: {x: 0, y: 1, z: 0}
+    localOffset: {x: 0, y: -1, z: 0}
     localEulerAngles: {x: 0, y: 0, z: 0}
-    scale: 0.5
+    scale: 2
   - status: 3
     vfxPrefab: {fileID: 0}
     anchor: {fileID: 0}
@@ -5768,11 +5777,11 @@ MonoBehaviour:
     localEulerAngles: {x: 0, y: 0, z: 0}
     scale: 1
   - status: 4
-    vfxPrefab: {fileID: 8082686504469160570, guid: 86b771667e28b4719939c8689fb0a15d, type: 3}
+    vfxPrefab: {fileID: 0}
     anchor: {fileID: 0}
-    localOffset: {x: 0, y: 1, z: 0}
+    localOffset: {x: 0, y: 0, z: 0}
     localEulerAngles: {x: 0, y: 0, z: 0}
-    scale: 0.5
+    scale: 2
   - status: 5
     vfxPrefab: {fileID: 9017484664307500583, guid: 1245b8d2997d5b34fb1637be70a7eb05, type: 3}
     anchor: {fileID: 0}
@@ -5783,6 +5792,12 @@ MonoBehaviour:
   parryShieldDuration: 1
   parryShieldOpacity: 0.75
   parryShieldForwardOffset: 1
+  showActiveParryShield: 1
+  parryActiveOpacityMultiplier: 0.4
+  parryEndDissolveSeconds: 0.12
+  parryRimRadius: 2.2
+  parryRimWidth: 0.035
+  parryRimColor: {r: 0.35, g: 0.95, b: 1, a: 0.9}
 --- !u!143 &8619302157754221902
 CharacterController:
   m_ObjectHideFlags: 0
@@ -5866,9 +5881,9 @@ MonoBehaviour:
   idleAmplitude: 0.18
   idleFrequency: 0.25
   frequency: 0.4
-  highSpeedBobMultiplier: 0.8
   fullAmplitudeSpeed: 10
   blendSpeed: 4
+  highSpeedBobMultiplier: 0.8
   maxBankAngle: 25
   fullBankTurnSpeed: 120
   bankBlendSpeed: 5

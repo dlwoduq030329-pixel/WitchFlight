@@ -5,6 +5,9 @@ using UnityEngine.SceneManagement;
 [DisallowMultipleComponent]
 public sealed class PlayerTitleLabel : MonoBehaviour
 {
+    public static bool IsTitleObject(string name) =>
+        string.Equals(name?.Trim(), "chingho", System.StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name?.Trim(), "chinho", System.StringComparison.OrdinalIgnoreCase);
     [Tooltip("프로필 카드 등 다른 플레이어의 칭호라면 해당 PlayerData를 지정합니다.")]
     [SerializeField] private PlayerData player;
     [SerializeField] private bool useLocalAccount = true;
@@ -33,7 +36,7 @@ public sealed class PlayerTitleLabel : MonoBehaviour
     private static void InstallLabels()
     {
         foreach(var text in FindObjectsByType<TMP_Text>(FindObjectsInactive.Include,FindObjectsSortMode.None)) {
-            if(!text.gameObject.scene.isLoaded || !text.name.Equals("chingho",System.StringComparison.OrdinalIgnoreCase))continue;
+            if(!text.gameObject.scene.isLoaded || !IsTitleObject(text.name))continue;
             bool award=false,remote=false;
             for(Transform p=text.transform.parent;p!=null;p=p.parent) {
                 if(p.name=="MVPUI")award=true;
@@ -62,7 +65,7 @@ public sealed class PlayerTitleLabelGroup : MonoBehaviour
         if(labels==null) {
             var list=new System.Collections.Generic.List<PlayerTitleLabel>();
             foreach(var text in GetComponentsInChildren<TMP_Text>(true))
-                if(text.name.Equals("chingho",System.StringComparison.OrdinalIgnoreCase))
+                if(PlayerTitleLabel.IsTitleObject(text.name))
                     list.Add(text.GetComponent<PlayerTitleLabel>() ?? text.gameObject.AddComponent<PlayerTitleLabel>());
             labels=list.ToArray();
         }

@@ -135,6 +135,7 @@ public partial class PlayerData : NetworkBehaviour
         {
             Local = this;
             SetEquippedTitle(DataConfig.equippedTitleId);
+            SyncEquippedVoice();
             int catBody = 1, catEyes = 1;
             if (DatabaseManager.Instance != null && DatabaseManager.Instance.TryGetCatAppearance(out int body, out int eyes))
             { catBody = body; catEyes = eyes; }

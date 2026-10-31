@@ -10,6 +10,7 @@ public sealed class TeamIntroCard
     public RawImage portrait;
     public Image profile;
     public TMP_Text playerName;
+    public TMP_Text playerTitle;
     public TMP_Text magicNames;
     public Image magic1Icon;
     public Image magic2Icon;
@@ -83,6 +84,13 @@ public sealed partial class BattleIntroPresentation
             SetTeamMagicIcon(view.profile, teamProfileTable != null ? teamProfileTable.GetSprite(data.playerprofile) : null);
             if (view.playerName != null) { view.playerName.richText = false; view.playerName.text = data.playerName.ToString(); }
             if (view.playerName != null) PlayerTitleLabel.Bind(view.playerName.transform.parent, data);
+            if (view.playerTitle != null)
+            {
+                var title = view.playerTitle.GetComponent<PlayerTitleLabel>() ?? view.playerTitle.gameObject.AddComponent<PlayerTitleLabel>();
+                title.SetPlayer(data);
+                view.playerTitle.gameObject.SetActive(true);
+                view.playerTitle.enabled = true;
+            }
             if (view.magicNames != null) { view.magicNames.text = string.Empty; view.magicNames.enabled = false; }
             MagicStatTable table = player.MagicTable != null ? player.MagicTable : MagicStatTable.Default;
             SetTeamMagicIcon(view.magic1Icon, table != null ? table.GetIcon(data.magic1) : null);
@@ -146,6 +154,9 @@ public sealed partial class BattleIntroPresentation
         card ??= new TeamIntroCard();
         if (card.profile == null) card.profile = FindVSChild(root,"ProfileImage")?.GetComponent<Image>();
         if (card.playerName == null) card.playerName = FindVSChild(root,"Nickname")?.GetComponent<TMP_Text>();
+        if (card.playerTitle == null)
+            foreach (var text in root.GetComponentsInChildren<TMP_Text>(true))
+                if (PlayerTitleLabel.IsTitleObject(text.name)) { card.playerTitle = text; break; }
         if (card.magic1Icon == null) card.magic1Icon = FindVSChild(root,"MagicIcon01")?.GetComponent<Image>();
         if (card.magic2Icon == null) card.magic2Icon = FindVSChild(root,"MagicIcon02")?.GetComponent<Image>();
     }

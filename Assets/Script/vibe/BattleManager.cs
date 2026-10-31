@@ -8,6 +8,17 @@ using UnityEngine;
 [RequireComponent(typeof(BattleKillFeed))]
 public class BattleManager : MonoBehaviour
 {
+    [Header("Movement log collection (diagnostic builds only)")]
+    [Tooltip("수집 기간에만 체크한 상태로 빌드하세요. 방장이 참가자 전원(봇 포함)의 동선을 기록하고 뒤끝 게임 로그로 업로드합니다. 해제하면 기록기를 만들지 않습니다.")]
+    [SerializeField] private bool collectMovementLogs = false;
+    public bool CollectMovementLogs => collectMovementLogs;
+
+    [Tooltip("수집 기간에 체크하여 배포하세요. 각 라운드 시작 시 참가자 전원의 확정 마법을 magic_pick_v1 로그로 기록합니다. 훈련장은 제외합니다.")]
+    [SerializeField] private bool collectMagicPickLogs = false;
+    private readonly HashSet<int> recordedMagicPickRounds = new();
+    public string TelemetryMatchId { get; private set; }
+    private string telemetryStartedUtc;
+
     [Header("Network Prefab")]
     [SerializeField] private NetworkPrefabRef flagPrefab;
 
@@ -166,6 +177,10 @@ public class BattleManager : MonoBehaviour
             return;
 
         isInitialized = true;
+        TelemetryMatchId = Guid.NewGuid().ToString("N");
+        telemetryStartedUtc = DateTime.UtcNow.ToString("O");
+        recordedMagicPickRounds.Clear();
+        if (collectMagicPickLogs && !IsTraining) MagicPickTelemetry.Activate();
         this.runner = runner;
         this.playerDatas = playerDatas;
         this.playerPrefab = playerPrefab;
@@ -177,6 +192,28 @@ public class BattleManager : MonoBehaviour
         FindSpawnPoints();
         SpawnBattlePlayers(playerPrefab);
         SpawnFlag();
+        if (collectMovementLogs)
+            (GetComponent<BattleMovementRecorder>() ?? gameObject.AddComponent<BattleMovementRecorder>()).Begin(runner, this);
+    }
+
+    public void RecordRoundMagicPicks()
+    {
+        if (!collectMagicPickLogs || IsTraining || runner == null || !runner.IsServer ||
+            Phase != BattleStartPhase.Playing || string.IsNullOrEmpty(TelemetryMatchId) ||
+            recordedMagicPickRounds.Contains(RoundNumber) || playerDatas == null) return;
+        var snapshot = new MagicPickLog { matchId=TelemetryMatchId,startedUtc=telemetryStartedUtc,
+            recordedUtc=DateTime.UtcNow.ToString("O"),gameVersion=Application.version,round=RoundNumber,
+            mode=NetworkGameManager.Instance != null ? NetworkGameManager.Instance.CurrentMatchMode.ToString() : "Unknown" };
+        foreach (var data in playerDatas.Values)
+        {
+            if (data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner) continue;
+            snapshot.players.Add(new MagicPickPlayer { participant=data.ParticipantRef.RawEncoded,
+                nickname=data.playerName.ToString(),team=data.teamIndex,bot=data.IsMatchBot,
+                slot1=(int)data.magic1,slot2=(int)data.magic2 });
+        }
+        if (snapshot.players.Count == 0) return;
+        recordedMagicPickRounds.Add(RoundNumber);
+        MagicPickTelemetry.Record(snapshot);
     }
 
     private void FindSpawnPoints()
@@ -430,6 +467,7 @@ public class BattleManager : MonoBehaviour
         if (resultAnnounced)
             return;
         resultAnnounced = true;
+        GetComponent<BattleMovementRecorder>()?.Finish("completed");
         if (playerDatas != null)
             foreach (PlayerData data in playerDatas.Values) data?.CompleteTitleMatch();
         pendingRespawns.Clear();
