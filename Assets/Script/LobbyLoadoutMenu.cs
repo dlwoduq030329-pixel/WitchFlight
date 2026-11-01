@@ -28,6 +28,7 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     private EquipmentStatTable equipmentTable;
     private MagicStatTable magicTable;
     private bool expanded;
+    private (int hat, int broom, int magic1, int magic2, float hair, bool editable, bool accountReady)? displayedLoadout;
     private bool CanEdit => SceneManager.GetActiveScene().buildIndex == 0 && manager != null && !manager.IsMatching;
 
     private void Awake()
@@ -39,6 +40,7 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
 
     private void OnEnable()
     {
+        displayedLoadout = null;
         if (toggleButton != null) toggleButton.onClick.AddListener(TogglePanel);
         if (closeButton != null) closeButton.onClick.AddListener(ClosePanel);
         if (hatDropdown != null) hatDropdown.onValueChanged.AddListener(SetHat);
@@ -70,18 +72,22 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
         bool lobby = SceneManager.GetActiveScene().buildIndex == 0;
         SetVisible(lobbyUiRoot, lobby);
         SetVisible(loadoutPanel, lobby && expanded);
-        if (!lobby) return;
+        if (!lobby) { displayedLoadout = null; return; }
         bool canEdit = CanEdit;
         if (toggleButton != null) toggleButton.interactable = true;
         int hat = ValidHat(DataConfig.hatIndex);
         int broom = ValidBroom(DataConfig.broomIndex);
         int magic1 = ValidMagic(DataConfig.magic1Index, (int)MagicType.Fire);
         int magic2 = ValidMagic(DataConfig.magic2Index, (int)MagicType.Ice);
+        float hair = Mathf.Clamp01(DataConfig.bangsLength);
+        bool accountReady = DatabaseManager.Instance != null && DatabaseManager.Instance.IsDataConfigReady;
+        var current = (hat, broom, magic1, magic2, hair, canEdit, accountReady);
+        if (displayedLoadout == current) return;
+        displayedLoadout = current;
         BindDropdown(hatDropdown, hat - 1, canEdit);
         BindDropdown(broomDropdown, broom - 1, canEdit);
         BindDropdown(magic1Dropdown, magic1 - 1, canEdit);
         BindDropdown(magic2Dropdown, magic2 - 1, canEdit);
-        float hair = Mathf.Clamp01(DataConfig.bangsLength);
         if (hairLengthSlider != null)
         {
             hairLengthSlider.wholeNumbers = false;

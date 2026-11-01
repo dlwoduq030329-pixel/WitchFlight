@@ -94,7 +94,28 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     private CanvasGroup selectionGroup, acquiredGroup;
     private float openedAt, feedbackAt = -100f, requestedAt;
     private bool wasShowing, requestPending;
-    private string selectionKey, comparisonKey;
+    private (int revision, int earned, MagicType first, MagicType second, bool pending)? selectionKey;
+    private bool comparisonValid, comparisonTeams;
+    private readonly ComparisonSnapshot[] comparisonSnapshots = new ComparisonSnapshot[4];
+    private readonly struct ComparisonSnapshot : IEquatable<ComparisonSnapshot>
+    {
+        private readonly PlayerData player;
+        private readonly Fusion.NetworkId id;
+        private readonly Fusion.NetworkString<Fusion._32> name;
+        private readonly int revision, profile, stats;
+        private readonly MagicType first, second;
+        private readonly bool flag;
+
+        public ComparisonSnapshot(PlayerData data, bool carriesFlag)
+        {
+            player = data; id = data.Object.Id; name = data.playerName;
+            revision = data.PerkRevision; profile = data.playerprofile; stats = data.BattleStatsRevision;
+            first = data.magic1; second = data.magic2; flag = carriesFlag;
+        }
+        public bool Equals(ComparisonSnapshot other) => player == other.player && id.Equals(other.id) &&
+            name.Equals(other.name) && revision == other.revision && profile == other.profile &&
+            stats == other.stats && first == other.first && second == other.second && flag == other.flag;
+    }
     public static bool BlocksCombatInput
     {
         get { if (active == null) return false; active.SampleInput(); return active.gate.BlocksCombat; }
@@ -158,7 +179,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
             if (local != null) local.PerkSelectionResult -= OnResult;
             local = PlayerData.Local;
             if (local != null) local.PerkSelectionResult += OnResult;
-            requestPending = false; awaitedRevision = -1; selectionKey = comparisonKey = null;
+            requestPending = false; awaitedRevision = -1; selectionKey = null; comparisonValid = false;
             benefitDismissedAtChoices = benefitObservedChoices = -1;
         }
         if (Ready(local) && awaitedRevision >= 0 && local.PerkRevision >= awaitedRevision)
@@ -218,7 +239,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     }
     private void UpdateCandidates()
     {
-        string key = $"{local.PerkRevision}/{local.PerkChoicesEarned}/{local.magic1}/{local.magic2}/{requestPending}";
+        var key = (local.PerkRevision, local.PerkChoicesEarned, local.magic1, local.magic2, requestPending);
         if (selectionKey == key) return;
         selectionKey = key;
         Fill(leftCandidate,local.GetPerkCandidate(false),"좌클릭 · 슬롯 1",local);
@@ -302,10 +323,10 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         BattleMatchRules.CollectRoster(Ready(local) ? local.Runner : null, comparisonRoster);
         if (BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2)
         {
-            string teamKey = "team";
-            for (int i = 0; i < 4; i++) teamKey += "|" + SnapshotKey(TeamViewData(i));
-            if (comparisonKey == teamKey) return;
-            comparisonKey = teamKey;
+            bool changed = !comparisonValid || !comparisonTeams;
+            for (int i = 0; i < 4; i++) changed |= UpdateSnapshot(i, TeamViewData(i));
+            comparisonValid = true; comparisonTeams = true;
+            if (!changed) return;
             for (int i = 0; i < 4 && i < teamViews.Length; i++) FillPlayer(teamViews[i], TeamViewData(i));
             return;
         }
@@ -313,9 +334,12 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         if (Ready(local)) foreach (var data in comparisonRoster)
             if (data != local && data != null && data.Object != null && data.Object.IsValid && data.Runner == local.Runner && data.teamIndex != local.teamIndex)
             { opponent = data; break; }
-        string key = SnapshotKey(local)+"|"+SnapshotKey(opponent);
-        if (comparisonKey == key) return;
-        comparisonKey = key; FillPlayer(ownView,local); FillPlayer(opponentView,opponent);
+        bool singleChanged = !comparisonValid || comparisonTeams;
+        singleChanged |= UpdateSnapshot(0, local);
+        singleChanged |= UpdateSnapshot(1, opponent);
+        comparisonValid = true; comparisonTeams = false;
+        if (!singleChanged) return;
+        FillPlayer(ownView,local); FillPlayer(opponentView,opponent);
     }
     private PlayerData TeamViewData(int slot)
     {
@@ -330,7 +354,13 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         }
         return null;
     }
-    private string SnapshotKey(PlayerData d) => !Ready(d) ? "loading" : $"{d.Object.Id}/{d.PerkRevision}/{d.magic1}/{d.magic2}/{d.playerName}/{d.playerprofile}/{d.BattleStatsRevision}/{CarriesFlag(d)}";
+    private bool UpdateSnapshot(int index, PlayerData data)
+    {
+        ComparisonSnapshot snapshot = Ready(data) ? new ComparisonSnapshot(data, CarriesFlag(data)) : default;
+        bool changed = !comparisonSnapshots[index].Equals(snapshot);
+        comparisonSnapshots[index] = snapshot;
+        return changed;
+    }
     private bool CarriesFlag(PlayerData d)
     {
         BattleFlag flag = BattleFlag.Instance;
@@ -515,7 +545,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         authoredTeammateRow = ally.gameObject;
         authoredSecondOpponentRow = enemy2.gameObject;
         teamViews = new[] { ownView, BindAuthoredTeamRow(ally), opponentView, BindAuthoredTeamRow(enemy2) };
-        comparisonKey = null;
+        comparisonValid = false;
         ReadOnly(teamComparisonRoot);
         Show(authoredTeammateRow,false);
         Show(authoredSecondOpponentRow,false);

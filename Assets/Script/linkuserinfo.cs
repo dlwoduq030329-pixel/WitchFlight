@@ -6,11 +6,41 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.Serialization;
+using UnityEngine.SceneManagement;
 
 // Local UI bridge only. Fusion's existing PlayerData remains the source of truth.
 [DisallowMultipleComponent]
 public sealed partial class linkuserinfo : MonoBehaviour
 {
+    internal static readonly HashSet<linkuserinfo> LoadedBridges = new();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetLoadedBridges()
+    {
+        LoadedBridges.Clear();
+        SceneManager.sceneLoaded -= RegisterSceneBridges;
+        SceneManager.sceneUnloaded -= RemoveSceneBridges;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void TrackSceneBridges()
+    {
+        SceneManager.sceneLoaded += RegisterSceneBridges;
+        SceneManager.sceneUnloaded += RemoveSceneBridges;
+        RegisterSceneBridges(default, default);
+    }
+
+    private static void RegisterSceneBridges(Scene scene, LoadSceneMode mode)
+    {
+        // Inactive authored panels have not run Awake yet. Discover them once on scene load.
+        foreach (linkuserinfo bridge in FindObjectsByType<linkuserinfo>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            LoadedBridges.Add(bridge);
+    }
+
+    private static void RemoveSceneBridges(Scene scene) => LoadedBridges.RemoveWhere(bridge => bridge == null);
+    private void Awake() => LoadedBridges.Add(this);
+    private void OnDestroy() => LoadedBridges.Remove(this);
+
     [Serializable]
     public sealed class PlayerDataEvent : UnityEvent<PlayerData> { }
 
@@ -80,6 +110,13 @@ public sealed partial class linkuserinfo : MonoBehaviour
     public GameObject CodeWaitingRoomPanel => waitingRoomStartButton != null ? waitingRoomPanel : null;
     public event Action UsersChanged;
 
+    // VSUI resolves these by the authored Nickname objects, including renamed cards.
+    public void SetIntroNameTexts(TMP_Text local, TMP_Text opponent)
+    {
+        if (local != null) localNameText = local;
+        if (opponent != null) opponentNameText = opponent;
+    }
+
     private readonly List<PlayerData> players = new List<PlayerData>();
     private readonly List<PlayerRef> waitingParticipants = new List<PlayerRef>();
     private readonly List<UserState> states = new List<UserState>();
@@ -130,6 +167,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
 
     private void OnEnable()
     {
+        LoadedBridges.Add(this);
         if (waitingRoomStartButton != null)
             waitingRoomStartButton.onClick.AddListener(StartWaitingRoomGame);
         if (magicTable == null) magicTable = MagicStatTable.Default;
@@ -348,20 +386,14 @@ public sealed partial class linkuserinfo : MonoBehaviour
         NetworkRunner runner = network != null ? network.Runner : null;
         if (runner != null && runner.IsRunning)
         {
-            // The manager's dictionary is host-only. Search replicated objects on BOTH peers.
-            PlayerData[] candidates = FindObjectsByType<PlayerData>(FindObjectsSortMode.None);
+            // Spawned/Despawned maintain this registry on both host and clients, including bots.
             foreach (PlayerRef playerRef in BattleParticipants.Refs(runner))
             {
                 waitingParticipants.Add(playerRef);
-                foreach (PlayerData data in candidates)
-                {
-                    if (!IsReady(data) || data.Runner != runner || data.ParticipantRef != playerRef)
-                        continue;
-                    players.Add(data);
-                    if (playerRef == runner.LocalPlayer)
-                        localPlayerData = data;
-                    break;
-                }
+                PlayerData data = PlayerData.FindPerkData(runner, playerRef);
+                if (!IsReady(data)) continue;
+                players.Add(data);
+                if (playerRef == runner.LocalPlayer) localPlayerData = data;
             }
 
             // Host/client enumeration order is not a UI ordering contract.

@@ -29,7 +29,7 @@ public sealed partial class BattleIntroPresentation
     [SerializeField, Min(.1f)] private float teamCharacterSpacing = 1.6f;
     [SerializeField, Min(.1f)] private float teamPortraitMinimumHalfHeight = 1.5f;
     [SerializeField, Min(1f)] private float teamPortraitPadding = 1.1f;
-    private bool teamProfilesBound, restoreIntroUserInfo;
+    private bool teamProfilesBound, soloProfilesBound, restoreIntroUserInfo;
     private readonly PortraitSnapshot[] teamSnapshots = new PortraitSnapshot[2];
     private readonly List<PlayerData> teamRoster = new();
     private readonly Player[] teamPlayers = new Player[4];
@@ -82,15 +82,7 @@ public sealed partial class BattleIntroPresentation
             TeamIntroCard view = teamCards != null && i < teamCards.Length ? teamCards[i] : null;
             if (view == null) continue;
             SetTeamMagicIcon(view.profile, teamProfileTable != null ? teamProfileTable.GetSprite(data.playerprofile) : null);
-            if (view.playerName != null) { view.playerName.richText = false; view.playerName.text = data.playerName.ToString(); }
-            if (view.playerName != null) PlayerTitleLabel.Bind(view.playerName.transform.parent, data);
-            if (view.playerTitle != null)
-            {
-                var title = view.playerTitle.GetComponent<PlayerTitleLabel>() ?? view.playerTitle.gameObject.AddComponent<PlayerTitleLabel>();
-                title.SetPlayer(data);
-                view.playerTitle.gameObject.SetActive(true);
-                view.playerTitle.enabled = true;
-            }
+            ApplyIntroProfileLabels(view, data);
             if (view.magicNames != null) { view.magicNames.text = string.Empty; view.magicNames.enabled = false; }
             MagicStatTable table = player.MagicTable != null ? player.MagicTable : MagicStatTable.Default;
             SetTeamMagicIcon(view.magic1Icon, table != null ? table.GetIcon(data.magic1) : null);
@@ -153,12 +145,59 @@ public sealed partial class BattleIntroPresentation
         if (root == null) return;
         card ??= new TeamIntroCard();
         if (card.profile == null) card.profile = FindVSChild(root,"ProfileImage")?.GetComponent<Image>();
-        if (card.playerName == null) card.playerName = FindVSChild(root,"Nickname")?.GetComponent<TMP_Text>();
-        if (card.playerTitle == null)
+        // Authored names take priority over references saved before the labels were swapped.
+        TMP_Text nickname = FindVSChild(root, "Nickname")?.GetComponent<TMP_Text>();
+        TMP_Text title = FindVSChild(root, "Chingho")?.GetComponent<TMP_Text>();
+        if (title == null)
             foreach (var text in root.GetComponentsInChildren<TMP_Text>(true))
-                if (PlayerTitleLabel.IsTitleObject(text.name)) { card.playerTitle = text; break; }
+                if (PlayerTitleLabel.IsTitleObject(text.name)) { title = text; break; }
+        if (nickname != null) card.playerName = nickname;
+        if (title != null) card.playerTitle = title;
+        if (card.playerName == card.playerTitle) card.playerName = null;
         if (card.magic1Icon == null) card.magic1Icon = FindVSChild(root,"MagicIcon01")?.GetComponent<Image>();
         if (card.magic2Icon == null) card.magic2Icon = FindVSChild(root,"MagicIcon02")?.GetComponent<Image>();
+    }
+
+    private void ApplySoloProfileLabels(Player local, Player opponent)
+    {
+        if (introPanel == null) return;
+        if (!soloProfilesBound)
+        {
+            if (teamCards == null || teamCards.Length != 4) Array.Resize(ref teamCards, 4);
+            Transform own = FindVSChild(introPanel.transform, "PlayerProfile");
+            Transform enemy = FindVSChild(introPanel.transform, "EnemyProfile");
+            BindTeamProfile(ref teamCards[0], own);
+            BindTeamProfile(ref teamCards[2], enemy);
+            if (introUserInfo != null)
+                introUserInfo.SetIntroNameTexts(teamCards[0]?.playerName, teamCards[2]?.playerName);
+            soloProfilesBound = own != null && enemy != null;
+        }
+        ApplyIntroProfileLabels(teamCards[0], PlayerData.FindPerkData(local.Runner, local.ParticipantRef));
+        ApplyIntroProfileLabels(teamCards[2], opponent != null
+            ? PlayerData.FindPerkData(opponent.Runner, opponent.ParticipantRef) : null);
+    }
+
+    private static void ApplyIntroProfileLabels(TeamIntroCard view, PlayerData data)
+    {
+        if (view == null) return;
+        bool ready = data != null && data.Object != null && data.Object.IsValid && data.IsLoadoutInitialized;
+        if (view.playerName != null)
+        {
+            // A renamed object can still carry a title component from an older binding.
+            if (view.playerName.TryGetComponent(out PlayerTitleLabel oldTitle)) oldTitle.enabled = false;
+            view.playerName.richText = false;
+            view.playerName.text = ready ? data.playerName.ToString() : string.Empty;
+            view.playerName.enabled = true;
+            view.playerName.gameObject.SetActive(true);
+        }
+        if (view.playerTitle != null)
+        {
+            var title = view.playerTitle.GetComponent<PlayerTitleLabel>() ?? view.playerTitle.gameObject.AddComponent<PlayerTitleLabel>();
+            title.SetPlayer(ready ? data : null);
+            title.enabled = true;
+            view.playerTitle.enabled = true;
+            view.playerTitle.gameObject.SetActive(true);
+        }
     }
 
     private static void SetTeamMagicIcon(Image image, Sprite sprite)

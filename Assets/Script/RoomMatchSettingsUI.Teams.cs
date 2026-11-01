@@ -12,8 +12,12 @@ public sealed partial class RoomMatchSettingsUI
     private TMP_Dropdown boundTeamDropdown;
     private bool generatedTeamDropdown;
     private bool allowTeamA, allowTeamB;
-    private string teamOptionsKey;
+    private (int teamA, int teamB, int mine)? teamOptionsKey;
+    private readonly System.Collections.Generic.List<Toggle> teamOptionToggles = new();
     private linkuserinfo waitingRoomInfo;
+    private float nextWaitingRoomLookup;
+    private bool teamListWasExpanded;
+    private Toggle teamAOption, teamBOption;
     private readonly System.Collections.Generic.Dictionary<Fusion.PlayerRef, TMP_Dropdown> otherTeamDropdowns = new();
 
     private void LateUpdate()
@@ -26,14 +30,16 @@ public sealed partial class RoomMatchSettingsUI
         RectTransform anchor = teamDropdownAnchor;
         if (show && anchor == null)
         {
-            if (waitingRoomInfo == null || !waitingRoomInfo.isActiveAndEnabled)
+            if ((waitingRoomInfo == null || !waitingRoomInfo.isActiveAndEnabled) && Time.unscaledTime >= nextWaitingRoomLookup)
             {
+                nextWaitingRoomLookup = Time.unscaledTime + .5f;
                 waitingRoomInfo = null;
-                foreach (linkuserinfo info in FindObjectsByType<linkuserinfo>(FindObjectsSortMode.None))
-                    if (info.CodeWaitingRoomPanel != null && info.CodeWaitingRoomPanel.activeInHierarchy)
+                foreach (linkuserinfo info in linkuserinfo.LoadedBridges)
+                    if (info != null && info.isActiveAndEnabled && info.CodeWaitingRoomPanel != null && info.CodeWaitingRoomPanel.activeInHierarchy)
                     { waitingRoomInfo = info; break; }
             }
-            if (waitingRoomInfo != null) anchor = waitingRoomInfo.GetCodeWaitingRoomCard(local.ParticipantRef);
+            if (waitingRoomInfo != null && waitingRoomInfo.isActiveAndEnabled)
+                anchor = waitingRoomInfo.GetCodeWaitingRoomCard(local.ParticipantRef);
         }
         show &= anchor != null && anchor.gameObject.activeInHierarchy;
         if (show) EnsureTeamDropdown(anchor);
@@ -41,6 +47,8 @@ public sealed partial class RoomMatchSettingsUI
         if (teamDropdown == null) return;
         if (!show)
         {
+            teamListWasExpanded = false;
+            teamAOption = teamBOption = null;
             // TMP Hide() selects even an inactive dropdown, stealing input focus every frame.
             // OnDisable already destroys its open list and blocker without selecting it.
             if (teamDropdown.gameObject.activeSelf) teamDropdown.gameObject.SetActive(false);
@@ -57,7 +65,7 @@ public sealed partial class RoomMatchSettingsUI
         }
         allowTeamA = local.teamIndex == 1 || teamA < 2;
         allowTeamB = local.teamIndex == 2 || teamB < 2;
-        string key = $"{teamA}/{teamB}/{local.teamIndex}";
+        var key = (teamA, teamB, local.teamIndex);
         if (key != teamOptionsKey)
         {
             // Close a stale menu when another player's request claims its last free place.
@@ -71,11 +79,21 @@ public sealed partial class RoomMatchSettingsUI
         teamDropdown.interactable = true;
         // TMP creates its live toggles only when expanded; disable full-team choices too.
         // The owner-only RPC still revalidates capacity if two clients click simultaneously.
-        Transform list = teamDropdown.transform.Find("Dropdown List");
-        if (list != null)
-            foreach (Toggle option in list.GetComponentsInChildren<Toggle>())
-                if (option.name.StartsWith("Item 0:")) option.interactable = allowTeamA;
-                else if (option.name.StartsWith("Item 1:")) option.interactable = allowTeamB;
+        if (teamDropdown.IsExpanded && !teamListWasExpanded)
+        {
+            teamAOption = teamBOption = null;
+            Transform list = teamDropdown.transform.Find("Dropdown List");
+            if (list != null)
+            {
+                list.GetComponentsInChildren(false, teamOptionToggles);
+                foreach (Toggle option in teamOptionToggles)
+                    if (option.name.StartsWith("Item 0:")) teamAOption = option;
+                    else if (option.name.StartsWith("Item 1:")) teamBOption = option;
+            }
+        }
+        teamListWasExpanded = teamDropdown.IsExpanded;
+        if (teamAOption != null) teamAOption.interactable = allowTeamA;
+        if (teamBOption != null) teamBOption.interactable = allowTeamB;
     }
 
     // TMP_Dropdown values: 0 = A, 1 = B. Existing Inspector events are preserved.
@@ -113,6 +131,7 @@ public sealed partial class RoomMatchSettingsUI
         }
         if (boundTeamDropdown != teamDropdown)
         {
+            teamListWasExpanded = false;
             if (boundTeamDropdown != null) boundTeamDropdown.onValueChanged.RemoveListener(SelectTeam);
             boundTeamDropdown = teamDropdown;
             teamDropdown.ClearOptions();
@@ -124,6 +143,9 @@ public sealed partial class RoomMatchSettingsUI
 
     private void OnDisable()
     {
+        teamListWasExpanded = false;
+        teamAOption = teamBOption = null;
+        nextWaitingRoomLookup = nextModeLookup = 0f;
         foreach (var dropdown in otherTeamDropdowns.Values)
             if (dropdown != null) dropdown.gameObject.SetActive(false);
         if (teamDropdown != null && teamDropdown.gameObject.activeSelf)

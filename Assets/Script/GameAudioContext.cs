@@ -26,6 +26,7 @@ public sealed class GameAudioContext : MonoBehaviour
     private sealed class Panel
     {
         public Transform transform;
+        public string name;
         public bool wasVisible;
         public BattleSound? openSound;
     }
@@ -41,6 +42,9 @@ public sealed class GameAudioContext : MonoBehaviour
     private bool lobbyReady;
     private bool scanned;
     private float nextScan;
+    private readonly AudioSceneComponents<Selectable> controls = new();
+    private readonly AudioSceneComponents<RectTransform> rectangles = new();
+    private readonly AudioSceneComponents<AudioSource> sources = new();
 
     private void Awake()
     {
@@ -62,8 +66,10 @@ public sealed class GameAudioContext : MonoBehaviour
         ScanAuthoredMusic();
         // Include inactive dropdown templates so their dynamically cloned Toggle items
         // already have input sounds on their first frame.
-        foreach (Selectable control in FindObjectsByType<Selectable>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        List<Selectable> sceneControls = controls.Collect(gameObject.scene);
+        foreach (Selectable control in sceneControls)
         {
+            if (control == null) continue;
             if ((control is Toggle || control is TMPro.TMP_Dropdown || control is Dropdown) &&
                 control.GetComponent<GameUIInteractionSound>() == null)
                 control.gameObject.AddComponent<GameUIInteractionSound>();
@@ -84,8 +90,9 @@ public sealed class GameAudioContext : MonoBehaviour
                 binding.events = binding.button.onClick;
                 binding.events.AddListener(binding.callback);
             }
-        foreach (Button button in FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (Selectable control in sceneControls)
         {
+            if (control is not Button button) continue;
             if (!boundButtons.Add(button)) continue;
             bool explicitAudio = false;
             for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
@@ -102,8 +109,10 @@ public sealed class GameAudioContext : MonoBehaviour
                 knownPanels.Remove(panels[i].transform);
                 panels.RemoveAt(i);
             }
-        foreach (RectTransform t in FindObjectsByType<RectTransform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (Panel panel in panels) panel.name = CleanName(panel.transform);
+        foreach (RectTransform t in rectangles.Collect(gameObject.scene))
         {
+            if (t == null || knownPanels.Contains(t)) continue;
             string name = CleanName(t);
             bool popup = IsPopup(name);
             bool attendance = name == "SuccessPopup" && HasAncestor(t, "ChoolsukUI");
@@ -113,7 +122,7 @@ public sealed class GameAudioContext : MonoBehaviour
             bool nestedPopup = false;
             for (Transform p = t.parent; p != null; p = p.parent)
                 if (IsPopup(CleanName(p))) { nestedPopup = true; break; }
-            panels.Add(new Panel { transform = t, wasVisible = !scanned && t.gameObject.activeInHierarchy,
+            panels.Add(new Panel { transform = t, name = name, wasVisible = !scanned && t.gameObject.activeInHierarchy,
                 openSound = attendance ? BattleSound.AttendanceSuccess : popup && !nestedPopup ? BattleSound.UIPopup : null });
         }
         scanned = true;
@@ -128,9 +137,9 @@ public sealed class GameAudioContext : MonoBehaviour
                 authoredMusic.RemoveAt(i);
             }
         if (table == null) return;
-        foreach (AudioSource source in FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (AudioSource source in sources.Collect(gameObject.scene))
         {
-            if (source == music || source.clip == null || managedMusic.Contains(source)) continue;
+            if (source == null || source == music || source.clip == null || managedMusic.Contains(source)) continue;
             foreach (GameMusicEntry entry in table.music)
             {
                 if (entry == null || entry.clip == null || source.clip != entry.clip) continue;
@@ -230,7 +239,7 @@ public sealed class GameAudioContext : MonoBehaviour
     private bool Visible(string name)
     {
         foreach (Panel panel in panels)
-            if (panel.transform != null && panel.transform.gameObject.activeInHierarchy && CleanName(panel.transform) == name) return true;
+            if (panel.transform != null && panel.transform.gameObject.activeInHierarchy && panel.name == name) return true;
         return false;
     }
     private GameMusic ResolveMusic()

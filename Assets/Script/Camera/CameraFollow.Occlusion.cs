@@ -15,8 +15,8 @@ public partial class CameraFollow
     private readonly Dictionary<Renderer, ObstructionFade> obstructionFades = new();
     private readonly List<Renderer> clearedObstructions = new();
     private readonly List<ObstructionFade> appliedObstructions = new();
-    private readonly RaycastHit[] obstructionHits = new RaycastHit[48];
-    private readonly Collider[] obstructionOverlaps = new Collider[32];
+    private RaycastHit[] obstructionHits = new RaycastHit[48];
+    private Collider[] obstructionOverlaps = new Collider[32];
     private readonly Dictionary<Collider, Renderer[]> obstructionRenderers = new();
     private readonly List<Material> obstructionMaterialScratch = new();
     private Collider[] currentObstructionOverlaps;
@@ -78,12 +78,15 @@ public partial class CameraFollow
         {
             obstructionFrame = Time.frameCount;
             // All three focus probes start at the same camera position.
-            currentObstructionOverlapCount = Physics.OverlapSphereNonAlloc(transform.position,
-                Mathf.Max(.01f, obstructionProbeRadius), obstructionOverlaps, obstructionFadeLayers, QueryTriggerInteraction.Ignore);
-            currentObstructionOverlaps = currentObstructionOverlapCount == obstructionOverlaps.Length
-                ? Physics.OverlapSphere(transform.position, Mathf.Max(.01f, obstructionProbeRadius),
-                    obstructionFadeLayers, QueryTriggerInteraction.Ignore) : obstructionOverlaps;
-            if (currentObstructionOverlaps != obstructionOverlaps) currentObstructionOverlapCount = currentObstructionOverlaps.Length;
+            while (true)
+            {
+                currentObstructionOverlapCount = Physics.OverlapSphereNonAlloc(transform.position,
+                    Mathf.Max(.01f, obstructionProbeRadius), obstructionOverlaps, obstructionFadeLayers, QueryTriggerInteraction.Ignore);
+                if (currentObstructionOverlapCount < obstructionOverlaps.Length) break;
+                // Retry to retain every hit, then reuse the expanded buffer on subsequent frames.
+                obstructionOverlaps = new Collider[obstructionOverlaps.Length * 2];
+            }
+            currentObstructionOverlaps = obstructionOverlaps;
             ProbeObstructions(focus);
             ProbeObstructions(focus + Vector3.up * .45f);
             ProbeObstructions(focus - Vector3.up * .45f);
@@ -147,21 +150,24 @@ public partial class CameraFollow
         float distance = delta.magnitude;
         if (distance < .05f) return;
         float radius = Mathf.Max(.01f, obstructionProbeRadius);
-        int count = Physics.SphereCastNonAlloc(from, radius, delta / distance, obstructionHits,
-            Mathf.Max(0f, distance - .1f), obstructionFadeLayers, QueryTriggerInteraction.Ignore);
-        RaycastHit[] hits = count == obstructionHits.Length ? Physics.SphereCastAll(from, radius, delta / distance,
-            Mathf.Max(0f, distance - .1f), obstructionFadeLayers, QueryTriggerInteraction.Ignore) : obstructionHits;
-        if (hits != obstructionHits) count = hits.Length;
-        for (int i = 0; i < count; i++) AddObstruction(hits[i].collider, from, focus);
+        int count = CastObstructions(from, radius, delta / distance, Mathf.Max(0f, distance - .1f));
+        for (int i = 0; i < count; i++) AddObstruction(obstructionHits[i].collider, from, focus);
         // Reverse sweep also catches the exit face when the camera starts inside a concave map shell.
-        count = Physics.SphereCastNonAlloc(focus, radius, -delta / distance, obstructionHits,
-            distance, obstructionFadeLayers, QueryTriggerInteraction.Ignore);
-        hits = count == obstructionHits.Length ? Physics.SphereCastAll(focus, radius, -delta / distance,
-            distance, obstructionFadeLayers, QueryTriggerInteraction.Ignore) : obstructionHits;
-        if (hits != obstructionHits) count = hits.Length;
-        for (int i = 0; i < count; i++) AddObstruction(hits[i].collider, from, focus);
+        count = CastObstructions(focus, radius, -delta / distance, distance);
+        for (int i = 0; i < count; i++) AddObstruction(obstructionHits[i].collider, from, focus);
         // Sphere casts alone miss a camera already inside a solid wall.
         for (int i = 0; i < currentObstructionOverlapCount; i++) AddObstruction(currentObstructionOverlaps[i], from, focus);
+    }
+
+    private int CastObstructions(Vector3 origin, float radius, Vector3 direction, float distance)
+    {
+        while (true)
+        {
+            int count = Physics.SphereCastNonAlloc(origin, radius, direction, obstructionHits,
+                distance, obstructionFadeLayers, QueryTriggerInteraction.Ignore);
+            if (count < obstructionHits.Length) return count;
+            obstructionHits = new RaycastHit[obstructionHits.Length * 2];
+        }
     }
 
     private void AddObstruction(Collider collider, Vector3 from, Vector3 focus)

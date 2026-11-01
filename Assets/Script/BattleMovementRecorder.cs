@@ -22,6 +22,8 @@ public sealed class BattleMovementRecorder : MonoBehaviour
         public bool continuous;
         public Vector3 previous;
         public int uploaded;
+        public int saved;
+        public NetworkString<_32> nickname;
     }
     private readonly Dictionary<int, TrackState> tracks = new();
     private NetworkRunner runner;
@@ -35,6 +37,8 @@ public sealed class BattleMovementRecorder : MonoBehaviour
     private bool finished;
     private string path;
     private Task saveTask = Task.CompletedTask;
+    // Accessed only by the ordered save tasks. Gameplay owns the original log.
+    private readonly BattleMovementLog checkpoint = new();
     public string CurrentLogPath => path;
 
     public void Begin(NetworkRunner host, BattleManager manager)
@@ -94,7 +98,12 @@ public sealed class BattleMovementRecorder : MonoBehaviour
                 state = new TrackState { track=new BattleMovementTrack { participant=id } };
                 tracks.Add(id,state); log.players.Add(state.track);
             }
-            state.track.nickname=data.playerName.ToString(); state.track.team=data.teamIndex; state.track.bot=data.IsMatchBot;
+            if (state.track.nickname == null || !state.nickname.Equals(data.playerName))
+            {
+                state.nickname = data.playerName;
+                state.track.nickname = state.nickname.ToString();
+            }
+            state.track.team=data.teamIndex; state.track.bot=data.IsMatchBot;
             Player player=Player.FindInRunner(runner,data.ParticipantRef);
             if (player == null || player.Object == null || !player.Object.IsValid) { state.continuous=false; continue; }
             Vector3 position=player.transform.position;
@@ -150,13 +159,53 @@ public sealed class BattleMovementRecorder : MonoBehaviour
     private void Save(bool final)
     {
         if (!final && !saveTask.IsCompleted) return;
-        string json=JsonUtility.ToJson(log);
+        // Copy only new points. The worker never reads a collection that Capture can modify.
+        var delta = new BattleMovementLog { formatVersion = log.formatVersion, partIndex = log.partIndex,
+            matchId = log.matchId, startedUtc = log.startedUtc, scenePath = log.scenePath,
+            gameVersion = log.gameVersion, mode = log.mode, endReason = log.endReason,
+            training = log.training, sampleInterval = log.sampleInterval, duration = log.duration };
+        foreach (TrackState state in tracks.Values)
+        {
+            BattleMovementTrack source = state.track;
+            delta.players.Add(new BattleMovementTrack { participant = source.participant, team = source.team,
+                nickname = source.nickname, bot = source.bot,
+                points = source.points.GetRange(state.saved, source.points.Count - state.saved) });
+            state.saved = source.points.Count;
+        }
         string destination=path;
         Task previous=saveTask;
         saveTask=Task.Run(async () => {
-            try { await previous; BattleMovementLogFiles.Write(destination,json); }
+            try
+            {
+                await previous;
+                ApplyCheckpoint(delta);
+                BattleMovementLogFiles.WriteSnapshot(destination, checkpoint);
+            }
             catch(Exception exception) { Debug.LogWarning("동선 로그 저장 실패: "+exception.Message); }
         });
+    }
+
+    private void ApplyCheckpoint(BattleMovementLog delta)
+    {
+        checkpoint.formatVersion = delta.formatVersion; checkpoint.partIndex = delta.partIndex;
+        checkpoint.matchId = delta.matchId; checkpoint.startedUtc = delta.startedUtc;
+        checkpoint.scenePath = delta.scenePath; checkpoint.gameVersion = delta.gameVersion;
+        checkpoint.mode = delta.mode; checkpoint.endReason = delta.endReason;
+        checkpoint.training = delta.training; checkpoint.sampleInterval = delta.sampleInterval;
+        checkpoint.duration = delta.duration;
+        foreach (BattleMovementTrack update in delta.players)
+        {
+            BattleMovementTrack target = null;
+            foreach (BattleMovementTrack track in checkpoint.players)
+                if (track.participant == update.participant) { target = track; break; }
+            if (target == null)
+            {
+                target = new BattleMovementTrack { participant = update.participant };
+                checkpoint.players.Add(target);
+            }
+            target.team = update.team; target.nickname = update.nickname; target.bot = update.bot;
+            target.points.AddRange(update.points);
+        }
     }
     private void OnDestroy() => Finish("scene_closed");
     private void OnApplicationQuit()
