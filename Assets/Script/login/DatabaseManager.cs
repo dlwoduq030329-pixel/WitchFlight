@@ -86,6 +86,9 @@ public partial class DatabaseManager : MonoBehaviour
     // DB row의 inDate
     private string currentPlayerSettingInDate;
     private string loadedUserInDate;
+    // Console-managed role. Never include this in PlayerSetting/CreateParam autosaves.
+    private bool developerAccount;
+    public bool IsDeveloper => HasLoadedProfile && developerAccount;
     private bool registrationWaitingForInitialization;
     private int registrationRequestVersion;
     private bool autoSaveDirty, autoSaveInFlight;
@@ -115,6 +118,7 @@ public partial class DatabaseManager : MonoBehaviour
         currentPlayerSetting = null;
         currentPlayerSettingInDate = null;
         loadedUserInDate = null;
+        developerAccount = false;
         IsPlayerSettingLoaded = false;
         IsDataConfigReady = false;
         LastSaveSucceeded = false;
@@ -350,6 +354,9 @@ public partial class DatabaseManager : MonoBehaviour
         if (!EnsureDefaultVoiceSaved(row, setting)) return false;
         if (!EnsureCatAppearanceSaved(setting)) return false;
 
+        developerAccount = ReadDeveloperAccess(row);
+        InitializeMissingDeveloperAccess(row);
+
 
         currentPlayerSetting =
             setting;
@@ -397,7 +404,7 @@ public partial class DatabaseManager : MonoBehaviour
         AssignMissingCatAppearance(setting);
 
         // Called only after a successful GetMyData returned an empty array.
-        BackendReturnObject result = Backend.GameData.Insert(TABLE_NAME, CreateParam(setting));
+        BackendReturnObject result = Backend.GameData.Insert(TABLE_NAME, CreateInsertParam(setting));
         if (!result.IsSuccess())
         {
             IsPlayerSettingLoaded = false; // Retry must query again before inserting.
@@ -539,14 +546,10 @@ public partial class DatabaseManager : MonoBehaviour
             CreateCurrentSetting(nickname);
 
 
-        Param param =
-            CreateParam(setting);
-
-
         BackendReturnObject callback =
             Backend.GameData.Insert(
                 TABLE_NAME,
-                param
+                CreateInsertParam(setting)
             );
 
 
@@ -673,7 +676,7 @@ public partial class DatabaseManager : MonoBehaviour
             callback =
                 Backend.GameData.Insert(
                     TABLE_NAME,
-                    param
+                    CreateInsertParam(setting)
                 );
 
 
@@ -734,6 +737,31 @@ public partial class DatabaseManager : MonoBehaviour
     // =========================================================
     // PlayerSetting → Param
     // =========================================================
+
+    private Param CreateInsertParam(PlayerSetting setting)
+    {
+        Param param = CreateParam(setting);
+        param.Add("isDeveloper", false);
+        return param;
+    }
+
+    private void InitializeMissingDeveloperAccess(JsonData row)
+    {
+        // Existing true/false values are owned by the console, never by autosave.
+        if (ReadValue(row, "isDeveloper") != null) return;
+        try
+        {
+            var param = new Param();
+            param.Add("isDeveloper", false);
+            var result = Backend.GameData.UpdateV2(TABLE_NAME, currentPlayerSettingInDate, Backend.UserInDate, param);
+            if (result == null || !result.IsSuccess())
+                Debug.LogWarning("개발자 옵션 기본값 저장 실패. LoginPlayerData의 isDeveloper(bool) 컬럼을 확인해주세요. 일반 계정으로 계속합니다.");
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning("개발자 옵션 기본값 저장 실패. 일반 계정으로 계속합니다: " + exception.Message);
+        }
+    }
 
     private Param CreateParam(
         PlayerSetting setting)
@@ -981,6 +1009,12 @@ public partial class DatabaseManager : MonoBehaviour
     {
         JsonData value = ReadValue(row, key);
         return value != null && value.IsString ? (string)value : fallback;
+    }
+
+    internal static bool ReadDeveloperAccess(JsonData row)
+    {
+        JsonData value = ReadValue(row, "isDeveloper");
+        return value != null && value.IsBoolean && (bool)value;
     }
 
     private static int ReadInt(JsonData row, string key, int fallback)

@@ -309,8 +309,7 @@ public sealed class RearThreatCamera : MonoBehaviour
         {
             using var renderProfile = ThreatRenderMarker.Auto();
             HideLocalMagic(local);
-            if (GraphicsSettings.currentRenderPipeline != null) RenderPipeline.SubmitRenderRequest(view.camera, request);
-            else { view.camera.targetTexture = view.texture; view.camera.Render(); }
+            RenderPreparedView(view.camera, view.cameraData, request);
         }
         finally
         {
@@ -392,7 +391,10 @@ public sealed class RearThreatCamera : MonoBehaviour
         var view = new View();
         // URP uses an external target's format for its intermediate color buffer too.
         // An LDR target clamps spell brightness before bloom even with allowHDR enabled.
-        view.texture = new RenderTexture(640, 384, 24, RenderTextureFormat.DefaultHDR) { name = isRight ? "Right threat" : "Left rear threat", antiAliasing = 1 };
+        // This is a full camera feed. UI masks/fades own its transparency, not particle alpha.
+        RenderTextureFormat format = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGB111110Float)
+            ? RenderTextureFormat.RGB111110Float : RenderTextureFormat.DefaultHDR;
+        view.texture = new RenderTexture(640, 384, 24, format) { name = isRight ? "Right threat" : "Left rear threat", antiAliasing = 1 };
         view.texture.Create();
         var cameraObject = new GameObject(view.texture.name + " camera (local)", typeof(Camera));
         cameraObject.transform.SetParent(transform, false);
@@ -427,7 +429,9 @@ public sealed class RearThreatCamera : MonoBehaviour
         UniversalAdditionalCameraData sourceData, UniversalAdditionalCameraData data)
     {
         destination.allowHDR = source.allowHDR;
-        destination.backgroundColor = source.backgroundColor;
+        Color background = source.backgroundColor;
+        background.a = 1f;
+        destination.backgroundColor = background;
         data.renderPostProcessing = sourceData.renderPostProcessing;
         data.volumeLayerMask = sourceData.volumeLayerMask;
         // Evaluate the same local volumes as the viewer, not at the offset threat camera.
@@ -442,10 +446,35 @@ public sealed class RearThreatCamera : MonoBehaviour
 
     private static void PreparePostProcessing(Camera camera, UniversalAdditionalCameraData data)
     {
-        if (!data.renderPostProcessing || !VolumeManager.instance.isInitialized) return;
+        if (!VolumeManager.instance.isInitialized) return;
         // An independent stack keeps main-camera blur and authored Volume profiles untouched.
         camera.UpdateVolumeStack(data);
         RemoveThreatBlur(data.volumeStack);
+    }
+
+    internal static void RenderPreparedView(Camera camera, UniversalAdditionalCameraData data,
+        UniversalRenderPipeline.SingleCameraRequest renderRequest)
+    {
+        if (GraphicsSettings.currentRenderPipeline == null)
+        {
+            camera.targetTexture = renderRequest.destination;
+            camera.Render();
+            return;
+        }
+        // URP 17 SingleCameraRequest skips UpdateVolumeFramework. Its render passes
+        // read VolumeManager.stack, not the independent stack prepared on the camera.
+        // Select this view's stack only for its render and restore even on failure.
+        VolumeManager volumes = VolumeManager.instance;
+        VolumeStack previous = volumes.stack;
+        try
+        {
+            if (volumes.isInitialized && data.volumeStack != null) volumes.stack = data.volumeStack;
+            RenderPipeline.SubmitRenderRequest(camera, renderRequest);
+        }
+        finally
+        {
+            volumes.stack = previous;
+        }
     }
 
     internal static void RemoveThreatBlur(VolumeStack stack)

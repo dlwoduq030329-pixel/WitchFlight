@@ -19,6 +19,7 @@ public sealed class MagicPickViewer : MonoBehaviour
     private GUIStyle title,rowLabel;
     private void Awake()
     {
+        if (!DeveloperAnalyticsMenu.EnsureViewerAccess(this)) return;
         font=Font.CreateDynamicFontFromOSFont(new[]{"Malgun Gothic","Arial"},16);
         if(magicTable==null) magicTable=MagicStatTable.Default;
         for(int i=1;i<=12;i++)
@@ -43,12 +44,14 @@ public sealed class MagicPickViewer : MonoBehaviour
     }
     private void OnGUI()
     {
+        if (!DeveloperAnalyticsMenu.EnsureViewerAccess(this)) return;
         if(font!=null) GUI.skin.font=font;
         title??=new GUIStyle(GUI.skin.label){fontSize=24,fontStyle=FontStyle.Bold};
         rowLabel??=new GUIStyle(GUI.skin.label){alignment=TextAnchor.MiddleLeft,fontSize=16};
         GUI.Box(new Rect(0,0,Screen.width,Screen.height),GUIContent.none);
         GUILayout.BeginArea(new Rect(20,15,Mathf.Max(400,Screen.width-40),Mathf.Max(300,Screen.height-30)));
         scroll=GUILayout.BeginScrollView(scroll);
+        if (GUILayout.Button("← 메인으로 돌아가기", GUILayout.Height(32))) DeveloperAnalyticsMenu.ReturnToMain();
         GUILayout.Label("마법 픽률 · 누적 기록",title);
         GUILayout.Label("각 라운드 시작 시 장착한 두 슬롯 기준 · 시전 횟수 통계 아님");
         GUILayout.BeginHorizontal();path=GUILayout.TextField(path);
