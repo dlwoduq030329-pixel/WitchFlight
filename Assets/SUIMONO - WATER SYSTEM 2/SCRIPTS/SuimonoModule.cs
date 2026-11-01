@@ -66,6 +66,7 @@ namespace Suimono.Core
 		public bool enableTransition = true;
 		public float  transition_offset = 0.1f;
 		public GameObject fxRippleObject;
+        private float nextRippleLookup, nextTenkokuLookup;
 
 		//private ParticleSystem underwaterDebris;
 		private float underLightAmt = 0f;
@@ -643,10 +644,18 @@ namespace Suimono.Core
 				}
 
 				if (useTenkoku == 1.0f){
-					if (setLight == null) setLight = GameObject.Find("LIGHT_World").GetComponent<Light>();
-					if (tenkokuWindModule == null){
-						tenkokuWindModule = GameObject.Find("Tenkoku_WindZone").GetComponent<WindZone>();
-					} else {
+                    if ((setLight == null || tenkokuWindModule == null) && Time.realtimeSinceStartup >= nextTenkokuLookup) {
+                        nextTenkokuLookup = Time.realtimeSinceStartup + .5f;
+                        if (setLight == null) {
+                            var lightObject = GameObject.Find("LIGHT_World");
+                            if (lightObject != null) setLight = lightObject.GetComponent<Light>();
+                        }
+                        if (tenkokuWindModule == null) {
+                            var windObject = GameObject.Find("Tenkoku_WindZone");
+                            if (windObject != null) tenkokuWindModule = windObject.GetComponent<WindZone>();
+                        }
+                    }
+					if (tenkokuWindModule != null) {
 						tenkokuWindDir = tenkokuWindModule.transform.eulerAngles.y;
 						tenkokuWindAmt = tenkokuWindModule.windMain;
 					}
@@ -656,7 +665,8 @@ namespace Suimono.Core
 
 
 			//GET RIPPLE OBJECT REFERENCE AND LAYER
-			if (Application.isPlaying && fxRippleObject == null){
+			if (Application.isPlaying && fxRippleObject == null && Time.unscaledTime >= nextRippleLookup){
+                nextRippleLookup = Time.unscaledTime + .5f;
 				fxRippleObject = GameObject.Find("fx_rippleNormals(Clone)");
 			}
 			if (fxRippleObject != null){

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
+using UnityEngine.SceneManagement;
 
 public enum GameAudioCategory { SFX, BGM, Voice }
 
@@ -58,6 +60,7 @@ public static class GameAudioSettings
 public sealed class GameAudioRouting : MonoBehaviour
 {
     private float nextScan;
+    private readonly AudioSceneComponents<AudioSource> sources = new();
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Boot()
     {
@@ -73,10 +76,11 @@ public sealed class GameAudioRouting : MonoBehaviour
         nextScan = Time.unscaledTime + .5f;
         Scan();
     }
-    private static void Scan()
+    private void Scan()
     {
-        foreach (var source in FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var source in sources.Collect(gameObject.scene))
         {
+            if (source == null) continue;
             if (source.outputAudioMixerGroup != null) continue;
             var tag = source.GetComponentInParent<AudioCategory>();
             string clipName = source.clip != null ? source.clip.name : "";
@@ -88,4 +92,42 @@ public sealed class GameAudioRouting : MonoBehaviour
     }
     private void OnApplicationPause(bool paused) { if (paused) PlayerPrefs.Save(); }
     private void OnApplicationQuit() => PlayerPrefs.Save();
+}
+
+// Polling also discovers third-party/dynamically created objects. Reuse the result buffers
+// so this compatibility path does not allocate scene-wide arrays every half-second.
+internal sealed class AudioSceneComponents<T> where T : Component
+{
+    private readonly List<GameObject> roots = new();
+    private readonly List<T> scratch = new();
+    private readonly List<T> results = new();
+
+    public List<T> Collect(Scene persistentScene)
+    {
+        results.Clear();
+        bool includedPersistent = false;
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene scene = SceneManager.GetSceneAt(i);
+            Append(scene);
+            includedPersistent |= scene == persistentScene;
+        }
+        if (!includedPersistent) Append(persistentScene);
+        return results;
+    }
+
+    private void Append(Scene scene)
+    {
+        if (!scene.IsValid() || !scene.isLoaded) return;
+        // Unity requires capacity greater than rootCount for the allocation-free overload.
+        if (roots.Capacity <= scene.rootCount) roots.Capacity = scene.rootCount + 1;
+        scene.GetRootGameObjects(roots);
+        foreach (GameObject root in roots)
+        {
+            root.GetComponentsInChildren(true, scratch);
+            results.AddRange(scratch);
+        }
+        scratch.Clear();
+        roots.Clear();
+    }
 }

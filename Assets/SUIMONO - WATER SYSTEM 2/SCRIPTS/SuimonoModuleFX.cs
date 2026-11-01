@@ -93,6 +93,11 @@ namespace Suimono.Core
 					fxObjectPrefab.transform.parent = fxParentObject.transform;
 					fxObjects[fx] = (fxObjectPrefab);
 					fxParticles[fx] = fxObjectPrefab.gameObject.GetComponent<ParticleSystem>();
+                    // Register the generated ripple immediately; the module only polls for external/late objects.
+                    if (moduleObject != null && moduleObject.fxRippleObject == null && fxObjectPrefab.name == "fx_rippleNormals(Clone)") {
+                        moduleObject.fxRippleObject = fxObjectPrefab.gameObject;
+                        fxObjectPrefab.gameObject.layer = moduleObject.layerScreenFXNum;
+                    }
                     if (moduleObject != null) foreach (var renderer in fxObjectPrefab.GetComponentsInChildren<Renderer>(true)) {
                         var material = renderer.sharedMaterial;
                         if (material != null && (material.shader.name == "Suimono2/EffectNormalBlend" || material.shader.name == "Suimono2/EffectWakeMask")) {

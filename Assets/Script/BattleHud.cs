@@ -17,6 +17,64 @@ public sealed partial class BattleHud : MonoBehaviour
     private string cachedManaPercentText, cachedManaPercentWithSymbol;
     private MagicType cachedMagicNameType;
     private string cachedMagicNameText;
+    private PlayerRef cachedFlagCarrier;
+    private string cachedFlagCarrierText;
+    private string cachedRespawnPrefix, cachedRespawnFormat;
+    private sealed class NumericDisplay
+    {
+        public char[] characters = Array.Empty<char>();
+        public int length = -1;
+    }
+    private readonly System.Collections.Generic.Dictionary<TMP_Text, NumericDisplay> numericDisplays = new();
+    private char[] numericBuffer = new char[256];
+
+    private void SetNumericText(TMP_Text label, string format, float first, float second = 0f)
+    {
+        if (label == null) return;
+        if (numericBuffer.Length < format.Length + 128) numericBuffer = new char[format.Length + 128];
+        int written = 0;
+        // Keep the original .NET rounding/culture, including values such as 9.95f.
+        // TryFormat writes directly into reusable storage instead of constructing strings.
+        for (int i = 0; i < format.Length; i++)
+        {
+            if (format[i] == '{' && i + 2 < format.Length && (format[i + 1] == '0' || format[i + 1] == '1') &&
+                (format[i + 2] == ':' || format[i + 2] == '}'))
+            {
+                int end = format.IndexOf('}', i + 2);
+                if (end >= 0)
+                {
+                    float value = format[i + 1] == '0' ? first : second;
+                    ReadOnlySpan<char> specifier = format[i + 2] == ':' ? format.AsSpan(i + 3, end - i - 3) : default;
+                    if (!value.TryFormat(numericBuffer.AsSpan(written), out int length, specifier))
+                        throw new InvalidOperationException("HUD number exceeded its formatting buffer.");
+                    written += length;
+                    i = end;
+                    continue;
+                }
+            }
+            numericBuffer[written++] = format[i];
+        }
+        if (!numericDisplays.TryGetValue(label, out NumericDisplay display))
+        {
+            display = new NumericDisplay();
+            numericDisplays.Add(label, display);
+        }
+        if (display.length == written && numericBuffer.AsSpan(0, written).SequenceEqual(display.characters.AsSpan(0, written))) return;
+        if (display.characters.Length < written) display.characters = new char[Math.Max(32, written)];
+        Array.Copy(numericBuffer, display.characters, written);
+        display.length = written;
+        label.SetCharArray(display.characters, 0, written);
+    }
+
+    private string FlagCarrierText(PlayerRef carrier)
+    {
+        if (cachedFlagCarrierText == null || cachedFlagCarrier != carrier)
+        {
+            cachedFlagCarrier = carrier;
+            cachedFlagCarrierText = $"FLAG: {carrier}";
+        }
+        return cachedFlagCarrierText;
+    }
 
     private string FormatMatchTime(float seconds)
     {
@@ -583,10 +641,10 @@ public sealed partial class BattleHud : MonoBehaviour
         BattleFlag flag = BattleFlag.Instance;
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null) SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
-            valid && flag.Carrier == owner.ParticipantRef ? "YOU HAVE THE FLAG" : $"FLAG: {flag.Carrier}");
+            valid && flag.Carrier == owner.ParticipantRef ? "YOU HAVE THE FLAG" : FlagCarrierText(flag.Carrier));
         Visible(resultPanel, battle.IsBattleEnded);
         Visible(resultText != null ? resultText.gameObject : null, battle.IsBattleEnded);
-        if (resultText != null) SetText(resultText, battle.WinningTeam > 0 ? $"TEAM {battle.WinningTeam} WINS" : "DRAW - NO FLAG HOLDER");
+        SetNumericText(resultText, battle.WinningTeam > 0 ? "TEAM {0} WINS" : "DRAW - NO FLAG HOLDER", battle.WinningTeam);
         bool respawning = respawnAt > 0f && !battle.IsBattleEnded;
         if (respawning && respawnText == null)
         {
@@ -595,8 +653,16 @@ public sealed partial class BattleHud : MonoBehaviour
         }
         Visible(respawnPanel, respawning);
         Visible(respawnText != null ? respawnText.gameObject : null, respawning);
-        if (respawnText != null) SetText(respawnText, Time.unscaledTime < respawnAt
-            ? $"{respawnPrefix}  {Mathf.CeilToInt(respawnAt - Time.unscaledTime)}" : "부활 중...");
+        if (respawnText != null)
+        {
+            if (cachedRespawnFormat == null || cachedRespawnPrefix != respawnPrefix)
+            {
+                cachedRespawnPrefix = respawnPrefix;
+                cachedRespawnFormat = respawnPrefix + "  {0}";
+            }
+            SetNumericText(respawnText, Time.unscaledTime < respawnAt ? cachedRespawnFormat : "부활 중...",
+                Mathf.Max(0, Mathf.CeilToInt(respawnAt - Time.unscaledTime)));
+        }
         BindPlayer(valid);
         BindSpeedStageImages(valid && owner.IsAlive && battle.IsGameplayActive ? owner.CurrentSpeedStage : 0);
         BindStatusEffectViews(valid && battle.IsGameplayActive && !MenuOpen);
@@ -648,7 +714,7 @@ public sealed partial class BattleHud : MonoBehaviour
         float manaFraction = valid ? Mathf.Clamp01(owner.NowAp / Mathf.Max(1f, owner.MaxAp)) : 0f;
         SetBar(apSlider, apFill, manaFraction);
         BindManaTrail(valid, manaFraction);
-        if (apText != null) SetText(apText, valid ? $"{owner.NowAp:0} / {owner.MaxAp:0}" : "");
+        SetNumericText(apText, valid ? "{0:0} / {1:0}" : "", valid ? owner.NowAp : 0f, valid ? owner.MaxAp : 0f);
         if (manaPercentText != null)
         {
             int percent = ManaPercent(valid ? owner.NowAp : 0f, valid ? owner.MaxAp : 0f);
@@ -660,11 +726,15 @@ public sealed partial class BattleHud : MonoBehaviour
             }
             SetText(manaPercentText, manaPercentIncludeSymbol ? cachedManaPercentWithSymbol : cachedManaPercentText);
         }
-        if (teamText != null) SetText(teamText, valid ? owner.TeamIndex.ToString() : "");
-        if (speedStageText != null) SetText(speedStageText, valid ? owner.CurrentSpeedStage.ToString("+0;-0;0") : "");
-        if (speedText != null) SetText(speedText, valid ? $"{owner.CurrentSpeed:0.0} m/s" : "");
+        SetNumericText(teamText, valid ? "{0}" : "", valid ? owner.TeamIndex : 0);
+        if (speedStageText != null)
+        {
+            int stage = valid ? owner.CurrentSpeedStage : 0;
+            SetNumericText(speedStageText, !valid ? "" : stage > 0 ? "+{0}" : "{0}", stage);
+        }
+        SetNumericText(speedText, valid ? "{0:0.0} m/s" : "", valid ? owner.CurrentSpeed : 0f);
         if (selectedMagicText != null) SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
-        if (magicCostText != null) SetText(magicCostText, valid ? owner.SelectedMagicApCost.ToString("0") : "");
+        SetNumericText(magicCostText, valid ? "{0:0}" : "", valid ? owner.SelectedMagicApCost : 0f);
     }
 
     private void BindSpeedStageImages(int stage)
@@ -742,8 +812,8 @@ public sealed partial class BattleHud : MonoBehaviour
         float fraction = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 0f;
         if (hpGridBar != null) hpGridBar.UpdateHealth(hp, maxHp);
         SetBar(hpSlider, hpFill, fraction);
-        if (hpText != null) SetText(hpText, owner != null ? maxHpText != null ? $"{hp:0}" : $"{hp:0} / {maxHp:0}" : "");
-        if (maxHpText != null) SetText(maxHpText, owner != null ? $"/{maxHp:0}" : "");
+        SetNumericText(hpText, owner != null ? maxHpText != null ? "{0:0}" : "{0:0} / {1:0}" : "", hp, maxHp);
+        SetNumericText(maxHpText, owner != null ? "/{0:0}" : "", maxHp);
     }
 
     public static int ManaPercent(float current, float maximum)

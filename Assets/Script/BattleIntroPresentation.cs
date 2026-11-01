@@ -187,6 +187,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             return;
         }
 
+        ApplySoloProfileLabels(local, opponent);
+
         bool solo = battle.ExpectedPlayerCount <= 1;
         if (soloText != null)
             soloText.gameObject.SetActive(solo && phase == BattleStartPhase.Intro);

@@ -12,6 +12,8 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
     [SerializeField] private TMP_FontAsset uiFont;
     private NetworkGameManager manager;
     private TMP_Dropdown boundDropdown;
+    private float nextModeLookup;
+    private (int connected, int required, bool host)? displayedStatus;
 
     private void Update()
     {
@@ -26,9 +28,13 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
         if (!visible || modeDropdown == null) return;
         modeDropdown.SetValueWithoutNotify(BattleMatchRules.DropdownIndex(manager.CurrentMatchMode));
         modeDropdown.interactable = manager.IsRoomHost;
-        if (statusText != null)
+        var status = (manager.ConnectedPlayerCount, manager.RequiredPlayerCount, manager.IsRoomHost);
+        if (statusText != null && displayedStatus != status)
+        {
+            displayedStatus = status;
             statusText.text = $"참가자 {manager.ConnectedPlayerCount} / {manager.RequiredPlayerCount}\n" +
                 (manager.IsRoomHost ? (manager.ConnectedPlayerCount > 2 ? "1대1 변경은 2명 이하일 때 가능" : "방장만 대전 방식을 변경할 수 있어요") : "방장이 선택한 설정입니다");
+        }
     }
 
     public void SelectMode(int value)
@@ -41,13 +47,17 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
     private void EnsureUI()
     {
         if (modeDropdown == null)
-            foreach (linkuserinfo info in FindObjectsByType<linkuserinfo>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (Time.unscaledTime < nextModeLookup) return;
+            nextModeLookup = Time.unscaledTime + .5f;
+            foreach (linkuserinfo info in linkuserinfo.LoadedBridges)
             {
-                if (info.CodeWaitingRoomPanel == null) continue;
+                if (info == null || info.CodeWaitingRoomPanel == null) continue;
                 foreach (TMP_Dropdown dropdown in info.CodeWaitingRoomPanel.GetComponentsInChildren<TMP_Dropdown>(true))
                     if (dropdown.name == "Dropdown_mode") { modeDropdown = dropdown; break; }
                 if (modeDropdown != null) break;
             }
+        }
         if (modeDropdown == null || boundDropdown == modeDropdown) return;
         if (boundDropdown != null) boundDropdown.onValueChanged.RemoveListener(SelectMode);
         boundDropdown = modeDropdown;
