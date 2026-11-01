@@ -42,6 +42,7 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
 
     private void Awake()
     {
+        if (!DeveloperAnalyticsMenu.EnsureViewerAccess(this)) return;
         // The dedicated diagnostic scene contains no gameplay manager or network runner.
         var cameraObject=new GameObject("Movement log camera",typeof(Camera));
         viewCamera=cameraObject.GetComponent<Camera>();
@@ -61,6 +62,7 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
     }
     private void Update()
     {
+        if (!DeveloperAnalyticsMenu.EnsureViewerAccess(this)) return;
         if(log!=null && playing)
         {
             time=Mathf.Min(log.duration,time+Time.unscaledDeltaTime*speed);
@@ -180,6 +182,7 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
     }
     private void OnGUI()
     {
+        if (!DeveloperAnalyticsMenu.EnsureViewerAccess(this)) return;
         // IMGUI pointer events work with either project input backend, without gameplay bindings.
         var pointer=Event.current;
         if(viewCamera!=null && pointer.mousePosition.x>Sidebar)
@@ -204,6 +207,7 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
         if(font!=null) GUI.skin.font=font;
         GUI.Box(new Rect(0,0,Sidebar,Screen.height),GUIContent.none);
         GUILayout.BeginArea(new Rect(10,10,Sidebar-20,Screen.height-20));
+        if (GUILayout.Button("← 메인으로 돌아가기", GUILayout.Height(32))) DeveloperAnalyticsMenu.ReturnToMain();
         GUILayout.Label("전투 동선 기록");
         GUILayout.Label("서버 콘솔 CSV / JSON 또는 로컬 경기 JSON");
         importPath=GUILayout.TextField(importPath);
