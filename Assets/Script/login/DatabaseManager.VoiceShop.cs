@@ -12,7 +12,7 @@ public partial class DatabaseManager
     {
         message = string.Empty;
         if (!CanAutoSave) { message = "로그인 및 계정 데이터 불러오기를 완료해주세요."; return false; }
-        if (IsVoicePurchaseInProgress || IsAutoSavePending) { message = "계정 정보 저장 중입니다. 잠시 후 다시 눌러주세요."; return false; }
+        if (IsVoicePurchaseInProgress || IsAutoSavePending || IsOpenSpaceWriteInProgress || HasOpenSpacePending) { message = "계정 정보 저장 또는 광장 결과 확인 중입니다. 잠시 후 다시 눌러주세요."; return false; }
         if (ItemCatalog.Default == null || !ItemCatalog.Default.TryGet(itemId, out var item) ||
             item.category != ItemCategory.Voice || item.id.Length > 64 || item.voicePack == null || !item.voicePack.HasClips)
         { message = "목소리 상품 설정을 확인해주세요."; return false; }

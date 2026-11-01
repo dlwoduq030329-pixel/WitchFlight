@@ -33,6 +33,7 @@ public partial class DatabaseManager : MonoBehaviour
         public string nickname;
         public int money = DataConfig.InitialMoney;
         public string itemInventoryJson = ItemInventory.InitialJson;
+        public string openSpaceProgressJson = "{}";
 
         public int hatIndex = (int)HatType.Classic;
         public int broomIndex = (int)BroomType.Standard;
@@ -174,7 +175,7 @@ public partial class DatabaseManager : MonoBehaviour
     {
         // One snapshot per frame, and at most one request in flight. Further edits
         // are coalesced into the next snapshot instead of producing stale writes.
-        if (!autoSaveDirty || autoSaveInFlight || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
+        if (!autoSaveDirty || autoSaveInFlight || IsOpenSpaceWriteInProgress || HasOpenSpacePending || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
         if (string.IsNullOrWhiteSpace(DataConfig.playerName))
         {
             nextAutoSaveTime = Time.unscaledTime + Mathf.Max(0.5f, autoSaveRetryDelay);
@@ -798,6 +799,8 @@ public partial class DatabaseManager : MonoBehaviour
         param.Add("playerprofile", setting.playerprofile);
         param.Add("money", setting.money);
         param.Add("itemInventoryJson", setting.itemInventoryJson);
+        // Legacy accounts do not need this column until they first use the plaza.
+        if (setting.openSpaceProgressJson != "{}") param.Add("openSpaceProgressJson", setting.openSpaceProgressJson);
         param.Add("equippedTitleId", setting.equippedTitleId);
         param.Add("titleProgressJson", setting.titleProgressJson ?? "{}");
         param.Add("catBodyIndex", setting.catBodyIndex);
@@ -849,6 +852,7 @@ public partial class DatabaseManager : MonoBehaviour
         setting.money = IsDataConfigReady ? DataConfig.money : currentPlayerSetting?.money ?? DataConfig.InitialMoney;
         setting.itemInventoryJson = IsDataConfigReady ? DataConfig.itemInventoryJson :
             currentPlayerSetting?.itemInventoryJson ?? ItemInventory.InitialJson;
+        setting.openSpaceProgressJson = currentPlayerSetting?.openSpaceProgressJson ?? "{}";
         setting.equippedTitleId = DataConfig.equippedTitleId;
         setting.titleProgressJson = DataConfig.titleProgressJson;
         // Cosmetic UI / nickname saves must never reroll or clear the account's cat.
@@ -881,6 +885,7 @@ public partial class DatabaseManager : MonoBehaviour
             nickname = ReadString(row, "nickname", string.Empty),
             money = ReadMoney(row),
             itemInventoryJson = ItemInventory.WithDefaultVoice(ReadString(row, "itemInventoryJson", ItemInventory.EmptyJson)),
+            openSpaceProgressJson = ReadString(row, "openSpaceProgressJson", "{}"),
             hatIndex = ReadInt(row, "hatIndex", (int)HatType.Classic),
             broomIndex = ReadInt(row, "broomIndex", (int)BroomType.Standard),
             magic1Index = NormalizeMagicIndex(ReadInt(row, "magic1Index", (int)MagicType.Fire), (int)MagicType.Fire),
