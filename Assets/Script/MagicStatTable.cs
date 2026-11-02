@@ -5,7 +5,7 @@ public enum MagicEffectKind
 {
     DirectDamage = 0, SlowDamage = 1, AreaDamage = 2, Healing = 3,
     Binding = 4, LifeSteal = 5, GuidedChannel = 6, Mine = 7, BeamChannel = 8,
-    Flare = 9, Smoke = 10, DelayedArea = 11, PursuitSummon = 12, BladeVolley = 13, MagicStorm = 14, TimeField = 15
+    Flare = 9, Smoke = 10, DelayedArea = 11, PursuitSummon = 12, BladeVolley = 13, MagicStorm = 14, TimeField = 15, MeowFestival = 16, BladeRain = 17
 }
 
 [Serializable]
@@ -75,6 +75,18 @@ public struct MagicStatEntry
     [Min(0f)] public float placementDistance;
     public bool requiresTarget;
     public bool requiresFullLock;
+
+    [Header("Blade Rain")]
+    [Min(0f)] public float rainManaPerSecond;
+    [Min(1f)] public float rainManaPerCircle;
+    [Min(1f)] public float rainManaPerTarget;
+    [Range(2, 16)] public int rainMaxCircles;
+    [Min(.01f)] public float rainBladeInterval;
+    public GameObject rainCircleVfxPrefab;
+
+    [Header("Meow Festival")]
+    [Min(1f)] public float festivalRecoveryMultiplier;
+    [Min(0f)] public float festivalHealPerSecond;
 
     [Header("Time field")]
     public GameObject timeFieldVfxPrefab;
@@ -191,7 +203,7 @@ public struct MagicStatEntry
     [SerializeField, Min(0.1f)] public float flareVfxBrightness;
 
     public bool IsChanneled => effect == MagicEffectKind.GuidedChannel || effect == MagicEffectKind.BeamChannel;
-    public bool TargetsAllies => effect == MagicEffectKind.Healing;
+    public bool TargetsAllies => effect == MagicEffectKind.Healing || effect == MagicEffectKind.MeowFestival;
     public bool UsesLockIndicator => requiresTarget || TargetsAllies;
     public bool UsesAutoTarget => UsesLockIndicator || effect == MagicEffectKind.GuidedChannel;
     public float ChannelManaPerSecond(float maxAp) =>
@@ -214,7 +226,7 @@ public sealed class MagicStatTable : ScriptableObject
     // All magic UI uses this lookup. None/invalid IDs must never show a fallback spell.
     public Sprite GetIcon(MagicType magic)
     {
-        return magic >= MagicType.Fire && magic <= MagicType.TimeStop ? GetStats(magic).icon : null;
+        return magic >= MagicType.Fire && magic <= MagicType.BladeRain ? GetStats(magic).icon : null;
     }
 
     public GameObject GetSecondaryProjectileVfx(MagicStatEntry stats, bool iceFollowUp = false)
@@ -270,7 +282,7 @@ public sealed class MagicStatTable : ScriptableObject
 
     public static MagicStatEntry[] CreateDefaultEntries()
     {
-        var entries = new MagicStatEntry[(int)MagicType.TimeStop];
+        var entries = new MagicStatEntry[(int)MagicType.BladeRain];
         for (int i = 0; i < entries.Length; i++) entries[i] = DefaultEntry((MagicType)(i + 1));
         return entries;
     }
@@ -345,6 +357,24 @@ public sealed class MagicStatTable : ScriptableObject
                 e.flareVfxScale = 1.8f; e.flareVfxBrightness = 2f;
                 e.displayName = "플레어";
                 e.description = "자신을 추적 중인 유도탄의 추적을 끊습니다. 지속시간 동안 이동속도가 10% 증가하고, 자신을 조준하는 적의 록온 시간이 20% 증가합니다."; break;
+            case MagicType.BladeRain:
+                e.displayName = "칼날비";
+                e.description = "첫 록온은 무료입니다. 이후 누르는 동안 초당 마나 5를 충전하고, 놓으면 기본 마나 50을 소모해 발사합니다. 실제 소모 마나의 절반을 남은 대상들에게 나눕니다.";
+                e.effect = MagicEffectKind.BladeRain; e.range = 150f;
+                e.apCost = 50f; e.cooldownSeconds = 8f; e.lockChargeSeconds = .8f;
+                e.requiresTarget = e.requiresFullLock = true;
+                e.rainManaPerSecond = 5f; e.rainManaPerCircle = 25f; e.rainManaPerTarget = 50f;
+                e.rainMaxCircles = 16; e.rainBladeInterval = .06f;
+                e.projectileSpeed = 100f; e.projectileTurnSpeed = 240f;
+                e.projectileRadius = .25f; e.projectileLifetime = 3f;
+                break;
+            case MagicType.MeowFestival:
+                e.displayName = "먀오녀 대축제";
+                e.description = "자신 또는 아군의 체력·마력 회복량을 50% 증가시키고 초당 체력 5를 회복합니다. 대축제의 지속 회복은 자체 회복 증가 효과를 받지 않습니다. 재시전 시 지속시간만 갱신합니다.";
+                e.effect = MagicEffectKind.MeowFestival; e.range = 100f; e.effectDuration = 7f;
+                e.apCost = 70f; e.cooldownSeconds = 10f;
+                e.festivalRecoveryMultiplier = 1.5f; e.festivalHealPerSecond = 5f;
+                break;
             case MagicType.TimeStop:
                 e.displayName = "시간 마법";
                 e.description = "10초간 반지름 50의 시간 마법진을 펼칩니다. 적의 이동과 동작은 30% 느려지고 아군은 30% 빨라집니다. 비행 투사체는 진영과 관계없이 80% 느려집니다.";
@@ -387,6 +417,6 @@ public sealed class MagicStatTable : ScriptableObject
         if (magics != null)
             foreach (MagicStatEntry entry in magics)
                 if (entry.magic == magic) return entry;
-        return magic >= MagicType.Fire && magic <= MagicType.TimeStop ? DefaultEntry(magic) : fallback;
+        return magic >= MagicType.Fire && magic <= MagicType.BladeRain ? DefaultEntry(magic) : fallback;
     }
 }

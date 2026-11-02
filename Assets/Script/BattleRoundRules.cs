@@ -6,7 +6,7 @@ public static class BattleRoundRules
 
     public static bool IsAllowedLoadout(MagicType baseline1, MagicType baseline2,
         MagicType first, MagicType second, int limit)
-        => first >= MagicType.None && first <= MagicType.TimeStop &&
-           second >= MagicType.None && second <= MagicType.TimeStop && limit >= 1 && limit <= 2 &&
+        => first >= MagicType.None && first <= MagicType.BladeRain &&
+           second >= MagicType.None && second <= MagicType.BladeRain && limit >= 1 && limit <= 2 &&
            ChangedSlots(baseline1, baseline2, first, second) <= limit;
 }

@@ -1041,7 +1041,7 @@ public partial class DatabaseManager : MonoBehaviour
     }
 
     private static int NormalizeMagicIndex(int value, int fallback)
-        => value >= (int)MagicType.None && value <= (int)MagicType.TimeStop ? value : fallback;
+        => value >= (int)MagicType.None && value <= (int)MagicType.BladeRain ? value : fallback;
 
 
     // =========================================================

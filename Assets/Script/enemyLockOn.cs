@@ -77,7 +77,7 @@ public class enemyLockOn : MonoBehaviour
         return result;
     }
 
-    private NetworkObject FindClosestVisibleEnemy()
+    private NetworkObject FindClosestVisibleEnemy(bool excludeRainTargets = false)
     {
         NetworkObject best = null;
         float bestScore = float.PositiveInfinity;
@@ -86,6 +86,7 @@ public class enemyLockOn : MonoBehaviour
         {
             if (candidate == null || candidate.Runner != owner.Runner || !IsVisible(candidate.Object))
                 continue;
+            if (excludeRainTargets && owner.HasRainTarget(candidate.Object.Id)) continue;
             Vector3 point = TargetingViewport(candidate.LockAimPoint);
             float score = owner.SelectedMagicStats.TargetsAllies
                 ? Vector3.Angle(targetCamera.transform.forward, candidate.LockAimPoint - targetCamera.transform.position)
@@ -100,11 +101,29 @@ public class enemyLockOn : MonoBehaviour
         foreach (var candidate in MagicProjectile.ActiveProjectiles)
         {
             if (candidate == null || !candidate.IsSummonEnemyOf(owner) || !IsVisible(candidate.Object)) continue;
+            if (excludeRainTargets && owner.HasRainTarget(candidate.Object.Id)) continue;
             Vector3 point = TargetingViewport(candidate.transform.position);
             float score = new Vector2(point.x - .5f, point.y - .5f).sqrMagnitude;
             if (score < bestScore) { bestScore = score; best = candidate.Object; }
         }
         return best;
+    }
+
+    public void SampleBladeRain(ref NetworkInputData input)
+    {
+        if (owner == null || owner.GetSelectedMagic() != MagicType.BladeRain || !owner.IsRainCharging) return;
+        input.rainTargetRevision = owner.RainTargetRevision;
+        input.rainVisible0 = VisibleRainTarget(0);
+        input.rainVisible1 = VisibleRainTarget(1);
+        input.rainVisible2 = VisibleRainTarget(2);
+        input.rainVisible3 = VisibleRainTarget(3);
+        var candidate = FindClosestVisibleEnemy(true);
+        input.rainCandidate = candidate != null ? candidate.Id : default;
+    }
+    private NetworkId VisibleRainTarget(int index)
+    {
+        var id = owner.GetRainTarget(index);
+        return owner.Runner.TryFindObject(id, out var target) && IsVisible(target) ? id : default;
     }
 
     // Do not call a wall/behind-camera rejection a range failure.

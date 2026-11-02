@@ -71,7 +71,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private int LoadoutVersion { get; set; }
     [Networked] private NetworkId LockTargetId { get; set; }
     // Index = MagicType (0=None, 1..13=spells). Duplicate equipped spells share a timer.
-    [Networked, Capacity(16)] private NetworkArray<TickTimer> MagicCooldowns => default;
+    [Networked, Capacity(18)] private NetworkArray<TickTimer> MagicCooldowns => default;
     [Networked] private TickTimer ParryTimer { get; set; }
     [Networked] private TickTimer ParryCooldown { get; set; }
     [Networked] private TickTimer WallDamageTimer { get; set; }
@@ -265,7 +265,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     public float MaxLockDistance => maxLockDistance;
     // Keep the shared aiming point attached to the body during inverted flight.
     public Vector3 LockAimPoint => transform.TransformPoint(Vector3.up * lockAimHeight);
-    public float TimeFieldSpeed => MagicProjectile.TimeMovementMultiplier(Runner, transform.position, TeamIndex);
+    private bool networkSpawned;
+    public float TimeFieldSpeed => networkSpawned && Object != null && Object.IsValid
+        ? MagicProjectile.TimeMovementMultiplier(Runner, transform.position, TeamIndex) : 1f;
     public Vector3 MagicCastPosition => magicCastRoot != null ? magicCastRoot.position : LockAimPoint;
     // Reuse the authored MAGICROOT reference for attached presentation; no second Inspector binding.
     public Transform MagicCastAnchor => magicCastRoot != null ? magicCastRoot : transform;
@@ -364,6 +366,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         BindingTimer = TickTimer.None;
         HealingFeedbackTimer = TickTimer.None;
         ResetBladeState();
+        CancelBladeRain();
+        ResetMeowFestival();
         StopMagicStorm();
         ChannelMagic = MagicType.None;
         ChannelTargetId = default;
@@ -443,6 +447,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Spawned()
     {
+        networkSpawned = true;
         broomAnimation.Reset();
         combatants.Add(this);
         if (testBot != null && Object.HasStateAuthority) InitializeTestBot();
@@ -539,7 +544,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (Object.HasStateAuthority && (BattleManager.Instance == null ||
             !BattleManager.Instance.IsGameplayActive || !IsAlive || IsReturningToMap || IsHitStunned))
-        { StopChannel(); StopMagicStorm(); }
+        { StopChannel(); StopMagicStorm(); CancelBladeRain(); }
 
         // Every tick must receive a held input to sustain boost.
         IsBoosting = false;
@@ -590,7 +595,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         TickBladeAbility();
         TickPerkEffects();
+        TickMeowFestival();
         TickMagicStorm();
+        TickBladeRainVolley();
         if (CatTutorialDirector.TrainingSessionActive && !IsTestBot && Object.HasStateAuthority)
             RestoreAp(MaxAp);
         if (!IsAlive) return;
@@ -959,6 +966,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         if (CurrentMagicSlot == 3) return false;
         MagicStatEntry stats = SelectedMagicStats;
+        if (stats.magic == MagicType.BladeRain) return false;
         int index = (int)stats.magic;
         if (index <= 0 || index >= MagicCooldowns.Length || TimerIsActive(MagicCooldowns[index]))
             return false;
@@ -990,6 +998,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!held) channelNeedsRelease = false;
         if (IsHitStunned) { areaAimArmed = false; StopChannel(); ClearLockTargetInternal(); return; }
 
+        if (RainFiring) return;
+        if (stats.magic == MagicType.BladeRain && CurrentMagicSlot != 3)
+        {
+            StopChannel(); areaAimArmed = false;
+            ProcessBladeRain(data, held, released);
+            return;
+        }
         if (IsMagicStormActive) { StopChannel(); ClearLockTargetInternal(); areaAimArmed = false; return; }
         if (BladeCharges > 0 && CurrentMagicSlot != 3)
         {
@@ -1060,6 +1075,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 ProjectilePredictionView.Predict(this, null, GetMagicStats(MagicType.Blade), Runner.Tick.Raw, null, data.magicAimDirection);
             return;
         }
+        if (stats.magic == MagicType.BladeRain)
+        {
+            if (held && !RainCharging && !RainFiring) { SetInputLockTarget(data.lockTarget); UpdateLockCharge(); }
+            if (released) ClearLockTargetInternal(false);
+            return;
+        }
         if (stats.magic == MagicType.Blade || stats.magic == MagicType.MagicStorm || IsMagicStormActive) { ClearLockTargetInternal(); return; }
         if (IsHitStunned || CurrentMagicSlot == 3 || stats.IsChanneled ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
@@ -1115,7 +1136,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (CurrentMagicSlot == slot)
             return;
 
-        if (Object.HasStateAuthority) ClearBladeAbility();
+        if (Object.HasStateAuthority) { ClearBladeAbility(); CancelBladeRain(); }
         CurrentMagicSlot = slot;
         areaAimArmed = false;
         if (Object.HasStateAuthority)
@@ -1306,7 +1327,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (stats.TargetsAllies)
         {
             Player recipient = target != null ? target : this;
-            if (recipient.NowHp >= recipient.MaxHp && !recipient.CanCleanse(stats)) return;
+            if (stats.effect == MagicEffectKind.Healing && recipient.NowHp >= recipient.MaxHp && !recipient.CanCleanse(stats)) return;
         }
         if (stats.effect == MagicEffectKind.Smoke &&
             (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
@@ -1370,6 +1391,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return !channelNeedsRelease && (stats.ChannelManaPerSecond(MaxAp) <= 0f || NowAp > 0f);
 
         // Match the resource/configuration checks in TryCastSelectedMagic without spending anything.
+        if (stats.magic == MagicType.BladeRain) return !RainFiring;
         if (NowAp < Mathf.Max(0f, stats.apCost) || (stats.healthCost > 0f && NowHp <= stats.healthCost))
             return false;
         if (stats.projectileSpeed > 0f && !magicProjectilePrefab.IsValid) return false;
@@ -1469,6 +1491,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             // Persistent replicated area survives the caster's death/despawn.
             if (BattleFlag.Instance != null && BattleFlag.Instance.CreateSmoke(this, stats))
                 RPC_PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, 0f);
+        }
+        else if (stats.effect == MagicEffectKind.MeowFestival)
+        {
+            Player recipient = IsHealingAlly(target) ? target : this;
+            recipient.ApplyMeowFestival(this, stats);
         }
         else if (stats.effect == MagicEffectKind.Healing)
         {
@@ -1593,10 +1620,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         return end;
     }
 
-    public void RestoreHealth(float amount,PlayerRef healer=default)
+    public void RestoreHealth(float amount,PlayerRef healer=default, bool applyFestivalBonus = true)
     {
         if (!Object.HasStateAuthority || !IsAlive || amount <= 0f) return;
         float before = NowHp;
+        if (applyFestivalBonus) amount *= FestivalRecoveryBonus;
         if (TimerIsActive(WoundTimer)) amount *= Mathf.Clamp01(WoundHealingMultiplier);
         NowHp = Mathf.Min(MaxHp, NowHp + amount);
         if (NowHp > before)
@@ -2013,6 +2041,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ResetItemBoost();
         FlareProtection = TickTimer.None;
         ResetBladeState();
+        CancelBladeRain();
+        ResetMeowFestival();
         StopMagicStorm();
         RespawnTimer = testBot == null && BattleManager.Instance != null
             ? TickTimer.CreateFromSeconds(Runner, BattleManager.Instance.RespawnDelaySeconds)
@@ -2097,17 +2127,17 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!Object.HasStateAuthority || amount <= 0f)
             return;
 
-        NowAp = Mathf.Min(MaxAp, NowAp + amount);
+        NowAp = Mathf.Min(MaxAp, NowAp + amount * FestivalRecoveryBonus);
         SyncApToPlayerData();
     }
 
     private void RegenerateAp()
     {
-        if (IsChanneling || (SelectedMagicStats.IsChanneled && previousButtons.IsSet(PlayerInputButton.Lock)) ||
+        if (RainCharging || IsChanneling || (SelectedMagicStats.IsChanneled && previousButtons.IsSet(PlayerInputButton.Lock)) ||
             MaxAp <= 0f || NowAp >= MaxAp || ApRecoveryPerSecond <= 0f)
             return;
 
-        NowAp = Mathf.Min(MaxAp, NowAp + ApRecoveryPerSecond * Runner.DeltaTime);
+        NowAp = Mathf.Min(MaxAp, NowAp + ApRecoveryPerSecond * Runner.DeltaTime * FestivalRecoveryBonus);
     }
 
     public void ReportBattleSceneReady()
@@ -2448,6 +2478,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ApplyReplicatedLoadout();
         ApplyEquipmentSlot();
         ApplyCombatAnimation();
+        RenderMeowFestival();
+        RenderBladeRain();
     }
 
     private void Update()
@@ -2460,6 +2492,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void LateUpdate()
     {
+        if (!networkSpawned || Object == null || !Object.IsValid) return;
         UpdateAreaAimPreview();
         bool canLook = Object != null && Object.IsValid && IsAlive && !IsTestBot &&
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
@@ -2483,6 +2516,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void OnDisable()
     {
         ClearAreaAimPreview();
+        if (festivalVisual != null) festivalVisual.Hide();
+        if (rainVisual != null) rainVisual.Hide();
         headLook.Reset();
         bladeSwing.Reset();
         broomAnimation.Reset();
@@ -2553,7 +2588,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        networkSpawned = false;
         ClearAreaAimPreview();
+        if (festivalVisual != null) festivalVisual.Hide();
+        if (rainVisual != null) rainVisual.Hide();
         headLook.Reset();
         bladeSwing.Reset();
         broomAnimation.Reset();

@@ -1382,3 +1382,191 @@ MonoBehaviour:
     timeEnemySpeed: 0.7
     timeAllySpeed: 1.3
     timeProjectileSpeed: 0.2
+  - magic: 16
+    displayName: "먀오녀 대축제"
+    description: "자신 또는 아군의 체력·마력 회복량을 50% 증가시키고 초당 체력 5를 회복합니다. 지속 회복은 대축제의 회복 증가 효과를 받지 않습니다. 재시전 시 지속시간만 갱신합니다."
+    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 16
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "초당 회복 5"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "100"
+    displayManaCostLabel: "70"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 70
+    cooldownSeconds: 10
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 1.8
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 50
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 7
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+    bladeCharges: 0
+    bladeShotInterval: 0
+    woundHealingMultiplier: 1
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 24
+    stormSpreadAngle: 2.5
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0.7
+    timeAllySpeed: 1.3
+    timeProjectileSpeed: 0.2
+    festivalRecoveryMultiplier: 1.5
+    festivalHealPerSecond: 5
+  - magic: 17
+    displayName: "칼날비"
+    description: "첫 록온은 무료. 이후 초당 마나 5를 충전하고 놓으면 기본 마나 50을 소모해 발사합니다. 실제 소모 마나의 절반을 남은 대상에게 나눕니다. 발사 마나만 남으면 자동 발사합니다."
+    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 17
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "소모 마나 ÷ 2"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "150"
+    displayManaCostLabel: "50 + 충전"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 50
+    cooldownSeconds: 8
+    lockChargeSeconds: 0.8
+    castSeconds: 0
+    projectileSpeed: 100
+    projectileTurnSpeed: 240
+    projectileLifetime: 3
+    projectileRadius: 0.25
+    hitscanRadius: 0
+    range: 150
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 1
+    requiresFullLock: 1
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 100000, guid: 0310fd6188874cfab84fc0443148350f, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 4442764683140637388, guid: 6eb6538c7a9c4e8997499311718a5e2b, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 3
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+    bladeCharges: 0
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0.5
+    bladeAbilityDuration: 10
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    rainManaPerSecond: 5
+    rainManaPerCircle: 25
+    rainManaPerTarget: 50
+    rainMaxCircles: 16
+    rainBladeInterval: 0.06
+    rainCircleVfxPrefab: {fileID: 575105189756329235, guid: 228432bee3aa4e9da1c19f2048cf0d1e, type: 3}

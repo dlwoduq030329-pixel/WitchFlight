@@ -16,7 +16,7 @@ public partial class PlayerData
         !IsMatchBot&&BattleManager.Instance!=null&&!BattleManager.Instance.IsTraining&&!TitleMatchCompleted&&
         !string.IsNullOrEmpty(TitleMatchId.ToString());
 
-    public static bool IsTitleAttackMagic(MagicType magic)=>magic!=MagicType.None&&magic!=MagicType.Healing&&magic!=MagicType.Flare&&magic!=MagicType.Smoke&&magic!=MagicType.TimeStop;
+    public static bool IsTitleAttackMagic(MagicType magic)=>magic!=MagicType.None&&magic!=MagicType.Healing&&magic!=MagicType.Flare&&magic!=MagicType.Smoke&&magic!=MagicType.TimeStop&&magic!=MagicType.MeowFestival;
     private void ResetTitleChallenges()
     {
         TitleChallengeFlags=0;titleAttackCasts=titleSuccessfulCasts=titleBlocks=titleCatKills=titleSummons=titleRound=0;
