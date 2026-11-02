@@ -51,7 +51,7 @@ public sealed class MagicDescriptionUI : MonoBehaviour
     {
         currentMagic = magic;
         currentTable = sourceTable != null ? sourceTable : magicTable != null ? magicTable : MagicStatTable.Default;
-        bool valid = currentTable != null && magic >= MagicType.Fire && magic <= MagicType.TimeStop;
+        bool valid = currentTable != null && magic >= MagicType.Fire && magic <= MagicType.BladeRain;
         MagicStatEntry stats = valid ? currentTable.GetStats(magic) : default;
 
         if (magicIcon != null)

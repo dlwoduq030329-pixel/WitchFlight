@@ -287,7 +287,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
     private Sprite GetMagicIcon(MagicType magic)
     {
         // Empty slots must stay empty, not fall back to Fire or another player's icon.
-        if (magic < MagicType.Fire || magic > MagicType.TimeStop) return null;
+        if (magic < MagicType.Fire || magic > MagicType.BladeRain) return null;
         if (magicTable == null) magicTable = MagicStatTable.Default;
         return magicTable != null ? magicTable.GetIcon(magic) : null;
     }

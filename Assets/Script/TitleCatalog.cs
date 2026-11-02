@@ -99,7 +99,7 @@ public sealed class TitleMatchSnapshot
     public bool completed, botMatch, doubleHit;
     public int deaths, emotes, blackKills, healthPacks, altitudeDeaths;
     public float underwater;
-    public int[] magicKills = new int[16];
+    public int[] magicKills = new int[18];
     public int challengeFlags;
 }
 
@@ -109,15 +109,15 @@ public sealed class TitleProgress
     public int version=1, matches, botMatches, deaths;
     public int noSwapMatches, everySwapMatches;
     public float underwater;
-    public int[] magicKills=new int[16];
+    public int[] magicKills=new int[18];
     public List<int> unlocked=new();
     public TitleMatchSnapshot lastMatch;
     public bool Owns(int id) => unlocked != null && unlocked.Contains(id);
     public void Normalize()
     {
         unlocked ??= new();
-        if(magicKills==null) magicKills=new int[16];
-        else if(magicKills.Length<16) Array.Resize(ref magicKills,16);
+        if(magicKills==null) magicKills=new int[18];
+        else if(magicKills.Length<18) Array.Resize(ref magicKills,18);
     }
     public void GrantLogin() { Normalize(); if(!Owns(1))unlocked.Add(1); }
     // Authority snapshots are cumulative within the whole match, across all rounds.
@@ -131,10 +131,10 @@ public sealed class TitleProgress
         // Ignore older network snapshots rather than moving the saved watermark backwards.
         if(next.deaths<prev.deaths || next.underwater<prev.underwater || next.emotes<prev.emotes ||
             next.healthPacks<prev.healthPacks || next.altitudeDeaths<prev.altitudeDeaths || next.blackKills<prev.blackKills)return false;
-        for(int i=1;i<16;i++)if(At(next.magicKills,i)<At(prev.magicKills,i))return false;
+        for(int i=1;i<18;i++)if(At(next.magicKills,i)<At(prev.magicKills,i))return false;
         deaths=Add(deaths,Math.Max(0,next.deaths-prev.deaths));
         underwater=Math.Min(100000000f,underwater+Math.Max(0,next.underwater-prev.underwater));
-        for(int i=1;i<16;i++)magicKills[i]=Add(magicKills[i],Math.Max(0,At(next.magicKills,i)-At(prev.magicKills,i)));
+        for(int i=1;i<18;i++)magicKills[i]=Add(magicKills[i],Math.Max(0,At(next.magicKills,i)-At(prev.magicKills,i)));
         if(next.completed)
         {
             matches=Add(matches,1);if(next.botMatch)botMatches=Add(botMatches,1);

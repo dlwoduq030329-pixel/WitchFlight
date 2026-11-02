@@ -11,10 +11,10 @@ public partial class Player
     [Networked] public int BladeSwingStep { get; private set; }
     [Networked] private TickTimer BladeAbilityTimer { get; set; }
     private MagicStatEntry bladeStats;
-    public bool IsBladeArmed => Object != null && Object.IsValid && IsAlive && BladeCharges > 0 &&
+    public bool IsBladeArmed => networkSpawned && Object != null && Object.IsValid && IsAlive && BladeCharges > 0 &&
         GetSelectedMagic() == MagicType.Blade && TimerIsActive(BladeAbilityTimer);
 
-    public bool ShowBladeWeapon => Object != null && Object.IsValid && IsAlive &&
+    public bool ShowBladeWeapon => networkSpawned && Object != null && Object.IsValid && IsAlive &&
         GetSelectedMagic() == MagicType.Blade && TimerIsActive(BladeAbilityTimer) &&
         (BladeCharges > 0 || bladeSwing.IsActive);
 

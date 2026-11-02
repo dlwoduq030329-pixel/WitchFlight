@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 // 버튼은 NetworkButtons로 전송해 Host가 각 입력의 눌림/해제를 한 번만 판정합니다.
@@ -32,6 +32,8 @@ public struct NetworkInputData : INetworkInput
     // Acknowledges the exit-facing camera reset; stale pre-portal steering is ignored.
     public int portalExitSequence;
     public NetworkId lockTarget;
+    public int rainTargetRevision;
+    public NetworkId rainVisible0, rainVisible1, rainVisible2, rainVisible3, rainCandidate;
     public NetworkBool suppressActions;
     // Perk selection consumes only mouse combat; flight and camera remain responsive.
     public NetworkBool suppressCombat;

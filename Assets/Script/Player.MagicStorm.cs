@@ -8,7 +8,7 @@ public partial class Player
     [Networked] private Vector3 StormAimDirection { get; set; }
     private MagicStatEntry stormStats;
     private int stormShotCount;
-    public bool IsMagicStormActive => Object != null && Object.IsValid && IsAlive && TimerIsActive(StormTimer);
+    public bool IsMagicStormActive => networkSpawned && Object != null && Object.IsValid && IsAlive && TimerIsActive(StormTimer);
     public Vector3 MagicStormAimPoint => MagicCastPosition + StormAimDirection * Mathf.Max(1f, stormStats.range);
 
     private void StartMagicStorm(MagicStatEntry entry)

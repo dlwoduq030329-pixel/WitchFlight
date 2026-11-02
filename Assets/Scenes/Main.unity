@@ -41925,7 +41925,7 @@ GameObject:
   - component: {fileID: 775456159}
   - component: {fileID: 775456158}
   m_Layer: 5
-  m_Name: Button02
+  m_Name: BladeRain
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -138173,6 +138173,10 @@ PrefabInstance:
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[9].m_Arguments.m_ObjectArgumentAssemblyTypeName
       value: UnityEngine.Object, UnityEngine
       objectReference: {fileID: 0}
+    - target: {fileID: 4833209703359670613, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
+      propertyPath: m_ChildScaleWidth
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4838770320047370859, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchorMax.y
       value: 1
@@ -138480,6 +138484,10 @@ PrefabInstance:
     - target: {fileID: 5297990043176722160, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5359956140352158356, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
+      propertyPath: m_Name
+      value: MeowFestival
       objectReference: {fileID: 0}
     - target: {fileID: 5395949111481776226, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchorMax.y
@@ -140279,7 +140287,7 @@ PrefabInstance:
       objectReference: {fileID: 5699965318485888124}
     - target: {fileID: 7255314972244087111, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: magicChoices.Array.size
-      value: 15
+      value: 17
       objectReference: {fileID: 0}
     - target: {fileID: 7255314972244087111, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: magicChoices.Array.data[13].magic
@@ -143549,6 +143557,18 @@ PrefabInstance:
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[1].m_Target
       value: 
       objectReference: {fileID: 4454047296220062030}
+    - target: {fileID: 7255314972244087111, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
+      propertyPath: magicChoices.Array.data[16].magic
+      value: 17
+      objectReference: {fileID: 0}
+    - target: {fileID: 7255314972244087111, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
+      propertyPath: magicChoices.Array.data[16].button
+      value: 
+      objectReference: {fileID: 775456158}
+    - target: {fileID: 7255314972244087111, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
+      propertyPath: magicChoices.Array.data[16].buttonImage
+      value: 
+      objectReference: {fileID: 1410473851}
     m_RemovedComponents:
     - {fileID: 7255314972244087112, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
     m_RemovedGameObjects: []

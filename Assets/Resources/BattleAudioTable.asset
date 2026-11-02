@@ -1,4 +1,4 @@
-%YAML 1.1
+﻿%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -1923,6 +1923,98 @@ MonoBehaviour:
       volume: 1
       pitch: 1
       minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      category: 0
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      category: 0
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: "BladeRain 칼날비"
+    magic: 17
+    lockComplete:
+      category: 0
+      clip: {fileID: 8300000, guid: 2464dfac6d5bc4e489a1279ab19b8c71, type: 3}
+      volume: 0.8
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      category: 0
+      clip: {fileID: 8300000, guid: 0d56ede8bfa08f64d800600481aae057, type: 3}
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      category: 0
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      category: 0
+      clip: {fileID: 8300000, guid: 3c72c6e8aa2a41449a40387cab7b2689, type: 3}
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      category: 0
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      category: 0
+      clip: {fileID: 0}
+      volume: 1
+      pitch: 1
+      minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      category: 0
+      clip: {fileID: 8300000, guid: 0d56ede8bfa08f64d800600481aae057, type: 3}
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.04
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      category: 0
+      clip: {fileID: 8300000, guid: 2464dfac6d5bc4e489a1279ab19b8c71, type: 3}
+      volume: 0.8
+      pitch: 1
+      minimumInterval: 0.1
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80

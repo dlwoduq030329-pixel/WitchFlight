@@ -10,10 +10,10 @@ public sealed class MagicPickViewer : MonoBehaviour
     private List<MagicPickLog> logs=new();
     private MagicPickStatistics stats=new();
     private int roundFilter,population,sort;
-    private int[] ordered=Enumerable.Range(1,15).ToArray();
+    private int[] ordered=Enumerable.Range(1,17).ToArray();
     private string path="",status="magic_pick_v1 CSV/JSON을 가져오면 기존 기록과 누적 집계됩니다.";
-    private readonly string[] names=new string[16];
-    private readonly Sprite[] icons=new Sprite[16];
+    private readonly string[] names=new string[18];
+    private readonly Sprite[] icons=new Sprite[18];
     private Vector2 scroll;
     private Font font;
     private GUIStyle title,rowLabel;
@@ -22,7 +22,7 @@ public sealed class MagicPickViewer : MonoBehaviour
         if (!DeveloperAnalyticsMenu.EnsureViewerAccess(this)) return;
         font=Font.CreateDynamicFontFromOSFont(new[]{"Malgun Gothic","Arial"},16);
         if(magicTable==null) magicTable=MagicStatTable.Default;
-        for(int i=1;i<=15;i++)
+        for(int i=1;i<=17;i++)
         {
             names[i]=magicTable!=null?magicTable.GetStats((MagicType)i).displayName:((MagicType)i).ToString();
             if(string.IsNullOrEmpty(names[i])) names[i]=((MagicType)i).ToString();
@@ -38,9 +38,9 @@ public sealed class MagicPickViewer : MonoBehaviour
     private void Recalculate()
     {
         stats=MagicPickStatistics.Calculate(logs,roundFilter,population);
-        ordered=(sort==2?Enumerable.Range(1,15).OrderBy(i=>names[i]):
-            sort==1?Enumerable.Range(1,15).OrderBy(i=>stats.slotCounts[i]).ThenBy(i=>i):
-            Enumerable.Range(1,15).OrderByDescending(i=>stats.slotCounts[i]).ThenBy(i=>i)).ToArray();
+        ordered=(sort==2?Enumerable.Range(1,17).OrderBy(i=>names[i]):
+            sort==1?Enumerable.Range(1,17).OrderBy(i=>stats.slotCounts[i]).ThenBy(i=>i):
+            Enumerable.Range(1,17).OrderByDescending(i=>stats.slotCounts[i]).ThenBy(i=>i)).ToArray();
     }
     private void OnGUI()
     {

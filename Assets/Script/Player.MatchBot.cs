@@ -139,7 +139,7 @@ public partial class Player
         SelectMagicSlot(CurrentMagicSlot == 1 ? 2 : 1);
         stats = SelectedMagicStats;
         botAttackTime = settings.attackPauseSeconds;
-        bool support = stats.magic == MagicType.Healing || stats.magic == MagicType.Flare || stats.magic == MagicType.Smoke;
+        bool support = stats.magic == MagicType.Healing || stats.magic == MagicType.Flare || stats.magic == MagicType.Smoke || stats.magic == MagicType.MeowFestival || stats.magic == MagicType.TimeStop;
         if (!hasEnemy || (!support && Vector3.Distance(LockAimPoint, botTarget.LockAimPoint) > stats.range)) return true;
         if (stats.magic == MagicType.Healing)
         {

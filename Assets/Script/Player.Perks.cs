@@ -79,6 +79,7 @@ public partial class Player
         ClearLockTargetInternal();
         if (!Object.HasStateAuthority) return;
         StopMagicStorm();
+        CancelBladeRain();
         StopChannel(); pendingMagic = MagicType.None; pendingTargetId = default; castTimer = TickTimer.None;
     }
     private bool CanCleanse(MagicStatEntry s) => s.perkSecond != null && s.perkSecond.id == PerkId.HealingCleanse &&
