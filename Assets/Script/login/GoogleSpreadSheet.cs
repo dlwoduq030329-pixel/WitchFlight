@@ -32,6 +32,7 @@ public static class GoogleSpreadSheet
 
         using (UnityWebRequest request = new UnityWebRequest(GAS_WEB_APP_URL, "POST"))
         {
+            request.timeout = 20;
             request.uploadHandler = new UploadHandlerRaw(bodyRaw);
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");

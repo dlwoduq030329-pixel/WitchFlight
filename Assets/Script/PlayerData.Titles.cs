@@ -1,11 +1,11 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class PlayerData
 {
     [Networked] public int EquippedTitleId { get; private set; }
     [Networked] public NetworkString<_32> TitleMatchId { get; private set; }
-    [Networked, Capacity(13)] public NetworkArray<int> TitleMagicKills => default;
+    [Networked, Capacity(16)] public NetworkArray<int> TitleMagicKills => default;
     [Networked] public int TitleEmotes { get; private set; }
     [Networked] public int TitleHealthPacks { get; private set; }
     [Networked] public int TitleAltitudeDeaths { get; private set; }
@@ -16,7 +16,7 @@ public partial class PlayerData
     private double previousTitleHit = double.NegativeInfinity;
     private float nextTitleSync;
     private bool titleFinalSaved;
-    private bool CanRecordTitles => CanRecordBattleStats && !IsMatchBot && !BattleManager.Instance.IsTraining;
+    private bool CanRecordTitles => CanRecordBattleStats && !IsMatchBot && !BattleManager.Instance.IsTraining && !BattleManager.Instance.IsRace && BattleManager.Instance.RecordsBattleStats;
 
     public void SetEquippedTitle(int id)
     {
@@ -27,19 +27,21 @@ public partial class PlayerData
 
     private void ResetTitleMatch()
     {
-        bool eligible=BattleManager.Instance!=null && !BattleManager.Instance.IsTraining && !IsMatchBot;
+        bool eligible=BattleManager.Instance!=null && !BattleManager.Instance.IsTraining && !BattleManager.Instance.IsRace && BattleManager.Instance.RecordsBattleStats && !IsMatchBot;
         TitleMatchId=eligible?System.Guid.NewGuid().ToString("N"):string.Empty;
         TitleEmotes=TitleHealthPacks=TitleAltitudeDeaths=TitleBlackKills=0;
         TitleDoubleHit=TitleMatchCompleted=false;
         TitleBotMatch=NetworkGameManager.Instance!=null && BattleMatchRules.HasBots(NetworkGameManager.Instance.CurrentMatchMode);
-        for(int i=0;i<13;i++)TitleMagicKills.Set(i,0);
+        for(int i=0;i<16;i++)TitleMagicKills.Set(i,0);
         previousTitleHit=double.NegativeInfinity;
         titleFinalSaved=false;
+        ResetTitleChallenges();
     }
-    public void CompleteTitleMatch()
+    public void CompleteTitleMatch(int winningTeam=0)
     {
         if(NetworkGameManager.Instance!=null && NetworkGameManager.Instance.IsTraining)return;
-        if(Object!=null && Object.IsValid && Object.HasStateAuthority && !string.IsNullOrEmpty(TitleMatchId.ToString()))TitleMatchCompleted=true;
+        if(Object!=null && Object.IsValid && Object.HasStateAuthority && !string.IsNullOrEmpty(TitleMatchId.ToString()))
+        {CompleteTitleChallenges(winningTeam);TitleMatchCompleted=true;}
     }
     public void RecordTitleEmote() { if(CanRecordTitles)TitleEmotes++; }
     public void RecordTitleHealthPack() { if(CanRecordTitles)TitleHealthPacks++; }
@@ -55,7 +57,7 @@ public partial class PlayerData
         if(CanRecordTitles && altitude)TitleAltitudeDeaths++;
         if(!IsEnemyForStats(killer) || !killer.CanRecordTitles)return;
         int index=(int)magic;
-        if(index>0 && index<13)killer.TitleMagicKills.Set(index,killer.TitleMagicKills[index]+1);
+        if(index>0 && index<16)killer.TitleMagicKills.Set(index,killer.TitleMagicKills[index]+1);
         Color color=killer.clothColor;
         bool black=Mathf.Max(color.r,Mathf.Max(color.g,color.b))<=0.15f;
         bool dark=killer.magic1==MagicType.Dark || killer.magic2==MagicType.Dark || killer.magic1==MagicType.Curse || killer.magic2==MagicType.Curse;
@@ -65,8 +67,8 @@ public partial class PlayerData
     {
         var s=new TitleMatchSnapshot {id=TitleMatchId.ToString(),completed=TitleMatchCompleted,botMatch=TitleBotMatch,
             deaths=BattleDeaths,underwater=BattleUnderwaterSeconds,emotes=TitleEmotes,healthPacks=TitleHealthPacks,
-            altitudeDeaths=TitleAltitudeDeaths,blackKills=TitleBlackKills,doubleHit=TitleDoubleHit};
-        for(int i=0;i<13;i++)s.magicKills[i]=TitleMagicKills[i];
+            altitudeDeaths=TitleAltitudeDeaths,blackKills=TitleBlackKills,doubleHit=TitleDoubleHit,challengeFlags=TitleChallengeFlags};
+        for(int i=0;i<16;i++)s.magicKills[i]=TitleMagicKills[i];
         return s;
     }
     public override void Render()

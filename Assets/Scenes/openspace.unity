@@ -488,6 +488,19 @@ MonoBehaviour:
   purr: {fileID: 18354551}
   settings: {fileID: 11400000, guid: 9ccdc5e0dfd920740b435360a8f2b97c, type: 2}
   animations: {fileID: 11400000, guid: 97f8cfb913b4413e93a40f76dcfbcec2, type: 2}
+  home: {x: 0, y: 0, z: 0}
+  originalRotation: {x: 0, y: 0, z: 0, w: 0}
+  stroking: 0
+  wasMotion: 0
+  state: 
+  motion: -1
+  started: 0
+  headPose: {x: 0, y: 0, z: 0, w: 0}
+  headAdjusted: 0
+  homeCached: 0
+  following: 0
+  followPosition: {x: 0, y: 0, z: 0}
+  followYaw: 0
 --- !u!1 &19067809
 GameObject:
   m_ObjectHideFlags: 0
@@ -619,7 +632,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -632,7 +645,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -2824,6 +2837,8 @@ MonoBehaviour:
   bobber: {fileID: 863616744}
   marker: {fileID: 1697274172}
   label: {fileID: 1150608821}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &86216570
 GameObject:
   m_ObjectHideFlags: 0
@@ -8436,7 +8451,6 @@ GameObject:
   - component: {fileID: 127133199}
   - component: {fileID: 127133200}
   - component: {fileID: 127133196}
-  - component: {fileID: 127133201}
   m_Layer: 29
   m_Name: Assigned outfit preview
   m_TagString: Player
@@ -8459,12 +8473,7 @@ MonoBehaviour:
   appearance: {fileID: 127133200}
   equipment: {fileID: 127133199}
   animator: {fileID: 127133198}
-  Cat: {fileID: 18354552}
   settings: {fileID: 11400000, guid: 9ccdc5e0dfd920740b435360a8f2b97c, type: 2}
-  fishingRod: {fileID: 686597852}
-  emoteLabel: {fileID: 425860241}
-  nicknameLabel: {fileID: 2050928390}
-  titleLabel: {fileID: 1940116395}
 --- !u!4 &127133197
 Transform:
   m_ObjectHideFlags: 0
@@ -8571,20 +8580,6 @@ MonoBehaviour:
   eyeColorTargets: []
   eyeTexturePresets: {fileID: 0}
   maxHairLength: 10
---- !u!114 &127133201
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 127133195}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 1541381998, guid: e725a070cec140c4caffb81624c8c787, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  Guid:
-    RawGuidValue: f73bd8d9cc8646249a27dcdcd9a09e61
 --- !u!1 &127442649
 GameObject:
   m_ObjectHideFlags: 0
@@ -10177,6 +10172,8 @@ MonoBehaviour:
   bobber: {fileID: 1150967795}
   marker: {fileID: 641586579}
   label: {fileID: 20414110}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &184672017
 GameObject:
   m_ObjectHideFlags: 0
@@ -10228,6 +10225,8 @@ MonoBehaviour:
   bobber: {fileID: 639047305}
   marker: {fileID: 1859047048}
   label: {fileID: 811903675}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &186306247
 GameObject:
   m_ObjectHideFlags: 0
@@ -10342,6 +10341,8 @@ MonoBehaviour:
   bobber: {fileID: 2120325154}
   marker: {fileID: 1732325296}
   label: {fileID: 1125983950}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &189599501
 GameObject:
   m_ObjectHideFlags: 0
@@ -10584,6 +10585,8 @@ MonoBehaviour:
   bobber: {fileID: 1824145274}
   marker: {fileID: 632787396}
   label: {fileID: 792466519}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &211026709
 GameObject:
   m_ObjectHideFlags: 0
@@ -10635,6 +10638,8 @@ MonoBehaviour:
   bobber: {fileID: 1734627730}
   marker: {fileID: 565735337}
   label: {fileID: 1308101339}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &212023130
 GameObject:
   m_ObjectHideFlags: 0
@@ -11266,7 +11271,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -11279,7 +11284,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -12069,7 +12074,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -13471,6 +13476,8 @@ MonoBehaviour:
   bobber: {fileID: 1645392144}
   marker: {fileID: 1822905432}
   label: {fileID: 1026365508}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &297356939
 GameObject:
   m_ObjectHideFlags: 0
@@ -14144,44 +14151,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4a96c88997e1bea489ede6d30fad441a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  settings: {fileID: 11400000, guid: 9ccdc5e0dfd920740b435360a8f2b97c, type: 2}
   viewCamera: {fileID: 280472362}
-  ui: {fileID: 1177245893}
   spawns:
   - {fileID: 1889221788}
   - {fileID: 2122583048}
   - {fileID: 1685982050}
   - {fileID: 1151761209}
-  fishingSeats:
-  - {fileID: 459452019}
-  - {fileID: 701066914}
-  - {fileID: 1155369908}
-  - {fileID: 1732751374}
-  - {fileID: 721453605}
-  - {fileID: 1397960224}
-  - {fileID: 189577120}
-  - {fileID: 206312877}
-  - {fileID: 491164315}
-  - {fileID: 184672018}
-  - {fileID: 178120425}
-  - {fileID: 211026710}
-  - {fileID: 1506712061}
-  - {fileID: 877184305}
-  - {fileID: 699138065}
-  - {fileID: 769663100}
-  - {fileID: 1916544017}
-  - {fileID: 1682485306}
-  - {fileID: 839593625}
-  - {fileID: 81988900}
-  - {fileID: 296620237}
-  - {fileID: 886646196}
-  outfitPreview: {fileID: 127133196}
-  safeBounds:
-    m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 45, y: 12, z: 45}
-  sceneryMask:
-    serializedVersion: 2
-    m_Bits: 1
+  framedPlayer: {fileID: 0}
 --- !u!4 &321048733
 Transform:
   m_ObjectHideFlags: 0
@@ -14266,6 +14242,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d28ee348f0ee8b4684fdbcafbb6d655, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _runner: {fileID: 0}
+  _object: {fileID: 0}
+  InvokeRpc: 0
+  ObjectIndex: 0
+  WordOffset: 0
+  WordCount: 0
+  DefaultReplicated: 1
   settings: {fileID: 11400000, guid: 9ccdc5e0dfd920740b435360a8f2b97c, type: 2}
   seats:
   - {fileID: 459452019}
@@ -14302,12 +14285,11 @@ MonoBehaviour:
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SortKey: 3767675401
+  SortKey: 0
   ObjectInterest: 1
   Flags: 262145
   NestedObjects: []
-  NetworkedBehaviours:
-  - {fileID: 321048734}
+  NetworkedBehaviours: []
   ForceRemoteRenderTimeframe: 0
 --- !u!1 &324058006
 GameObject:
@@ -16466,7 +16448,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -16479,7 +16461,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -16805,7 +16787,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -18397,6 +18379,8 @@ MonoBehaviour:
   bobber: {fileID: 2008737870}
   marker: {fileID: 2042395524}
   label: {fileID: 1596986733}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &461172144
 GameObject:
   m_ObjectHideFlags: 0
@@ -18614,7 +18598,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -18627,7 +18611,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -19234,7 +19218,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -19247,7 +19231,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -20096,6 +20080,8 @@ MonoBehaviour:
   bobber: {fileID: 1600417}
   marker: {fileID: 406466525}
   label: {fileID: 514170284}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &494037572
 GameObject:
   m_ObjectHideFlags: 0
@@ -20800,7 +20786,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -20813,7 +20799,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -22166,7 +22152,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -22179,7 +22165,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -22599,7 +22585,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -22612,7 +22598,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -23587,7 +23573,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -23732,7 +23718,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -28810,7 +28796,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4278190080
   m_fontColor: {r: 0, g: 0, b: 0, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -28823,7 +28809,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -28854,7 +28840,7 @@ MonoBehaviour:
   m_ActiveFontFeatures: 6e72656b
   m_enableExtraPadding: 0
   checkPaddingRequired: 0
-  m_isRichText: 0
+  m_isRichText: 1
   m_EmojiFallbackSupport: 1
   m_parseCtrlCharacters: 1
   m_isOrthographic: 1
@@ -30041,6 +30027,8 @@ MonoBehaviour:
   bobber: {fileID: 1194724293}
   marker: {fileID: 90381121}
   label: {fileID: 562290834}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &700214868
 GameObject:
   m_ObjectHideFlags: 0
@@ -30267,6 +30255,8 @@ MonoBehaviour:
   bobber: {fileID: 461792389}
   marker: {fileID: 31583551}
   label: {fileID: 1828938116}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &701278414
 GameObject:
   m_ObjectHideFlags: 0
@@ -30828,6 +30818,8 @@ MonoBehaviour:
   bobber: {fileID: 818291993}
   marker: {fileID: 1634302914}
   label: {fileID: 478841124}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &721512457
 GameObject:
   m_ObjectHideFlags: 0
@@ -31345,6 +31337,8 @@ MonoBehaviour:
   bobber: {fileID: 1228270793}
   marker: {fileID: 1055891220}
   label: {fileID: 1794949759}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &772019432
 GameObject:
   m_ObjectHideFlags: 0
@@ -31835,7 +31829,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -31848,7 +31842,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -32417,7 +32411,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -32430,7 +32424,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -32896,7 +32890,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -33123,6 +33117,8 @@ MonoBehaviour:
   bobber: {fileID: 432659944}
   marker: {fileID: 773694575}
   label: {fileID: 1740233075}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &840220637
 GameObject:
   m_ObjectHideFlags: 0
@@ -33363,7 +33359,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -34188,6 +34184,8 @@ MonoBehaviour:
   bobber: {fileID: 1611314121}
   marker: {fileID: 2108548631}
   label: {fileID: 395698903}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &878516703
 GameObject:
   m_ObjectHideFlags: 0
@@ -34366,6 +34364,8 @@ MonoBehaviour:
   bobber: {fileID: 1410428471}
   marker: {fileID: 1718422235}
   label: {fileID: 1749820974}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &888209089
 GameObject:
   m_ObjectHideFlags: 0
@@ -35042,7 +35042,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -35836,7 +35836,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4286611584
   m_fontColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -35849,7 +35849,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -36679,7 +36679,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -36692,7 +36692,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -37863,7 +37863,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -38827,7 +38827,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -38840,7 +38840,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -39520,7 +39520,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -39533,7 +39533,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -39960,6 +39960,8 @@ MonoBehaviour:
   bobber: {fileID: 510460878}
   marker: {fileID: 515934144}
   label: {fileID: 1511943489}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &1159352180
 GameObject:
   m_ObjectHideFlags: 0
@@ -40486,56 +40488,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6761f23d24b108c4781d4de2d759841d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  settings: {fileID: 11400000, guid: 9ccdc5e0dfd920740b435360a8f2b97c, type: 2}
-  world: {fileID: 321048732}
-  status: {fileID: 609206143}
-  money: {fileID: 1817223999}
-  prompt: {fileID: 247845523}
-  notice: {fileID: 828356643}
-  fishStatus: {fileID: 1164925269}
-  fishingHUD: {fileID: 2011852414}
-  fishStart: {fileID: 489384734}
-  fishHook: {fileID: 1557397094}
-  fishCancel: {fileID: 270088617}
-  fishLeave: {fileID: 669142595}
-  panelRoot: {fileID: 1880170726}
-  heading: {fileID: 44546248}
-  body: {fileID: 56526878}
-  rows:
-  - root: {fileID: 1956727561}
-    button: {fileID: 1956727563}
-    text: {fileID: 1731904624}
-    icon: {fileID: 1340022067}
-  - root: {fileID: 956184947}
-    button: {fileID: 956184949}
-    text: {fileID: 2029990128}
-    icon: {fileID: 1992443988}
-  - root: {fileID: 1224983794}
-    button: {fileID: 1224983796}
-    text: {fileID: 249877806}
-    icon: {fileID: 1476136314}
-  - root: {fileID: 1278808506}
-    button: {fileID: 1278808508}
-    text: {fileID: 2086559156}
-    icon: {fileID: 332231287}
-  - root: {fileID: 1936195203}
-    button: {fileID: 1936195205}
-    text: {fileID: 1029477299}
-    icon: {fileID: 1140657822}
-  - root: {fileID: 68067401}
-    button: {fileID: 68067403}
-    text: {fileID: 1379383664}
-    icon: {fileID: 435611961}
-  primary: {fileID: 587967122}
-  secondary: {fileID: 900076352}
-  primaryText: {fileID: 2079147721}
-  secondaryText: {fileID: 1423023593}
-  confirmation: {fileID: 773088884}
-  confirmationText: {fileID: 524079039}
-  chatInput: {fileID: 59274580}
-  chatHistory: {fileID: 1469245327}
-  chatScroll: {fileID: 1608389601}
-  activityAudio: {fileID: 1177245892}
 --- !u!114 &1177245894
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -40594,7 +40546,7 @@ Canvas:
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
   m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
   m_SortingOrder: 0
@@ -41046,7 +40998,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -41333,7 +41285,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -44014,7 +43966,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -44027,7 +43979,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -46647,6 +46599,8 @@ MonoBehaviour:
   bobber: {fileID: 1394606069}
   marker: {fileID: 1028494952}
   label: {fileID: 567135102}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &1398115167
 GameObject:
   m_ObjectHideFlags: 0
@@ -48219,7 +48173,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 530, y: 210}
+  m_SizeDelta: {x: 530, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1469245325
 MonoBehaviour:
@@ -48285,7 +48239,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -48617,7 +48571,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -49542,6 +49496,8 @@ MonoBehaviour:
   bobber: {fileID: 961703044}
   marker: {fileID: 735951092}
   label: {fileID: 217254440}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &1508781333
 GameObject:
   m_ObjectHideFlags: 0
@@ -49849,7 +49805,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -49862,7 +49818,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -50945,7 +50901,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -50958,7 +50914,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -52689,7 +52645,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -52702,7 +52658,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -53493,6 +53449,8 @@ MonoBehaviour:
   bobber: {fileID: 1277287298}
   marker: {fileID: 257695910}
   label: {fileID: 466619387}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &1682544705
 GameObject:
   m_ObjectHideFlags: 0
@@ -54307,6 +54265,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1718725393}
   - component: {fileID: 1718725392}
+  - component: {fileID: 1718725394}
   m_Layer: 0
   m_Name: Directional Light
   m_TagString: Untagged
@@ -54394,6 +54353,29 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!114 &1718725394
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1718725391}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Version: 3
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_LightLayerMask: 1
+  m_RenderingLayers: 1
+  m_CustomShadowLayers: 0
+  m_ShadowLayerMask: 1
+  m_ShadowRenderingLayers: 1
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
 --- !u!1 &1721206882
 GameObject:
   m_ObjectHideFlags: 0
@@ -54858,6 +54840,8 @@ MonoBehaviour:
   bobber: {fileID: 1659161188}
   marker: {fileID: 1215896198}
   label: {fileID: 1661722113}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &1734627729
 GameObject:
   m_ObjectHideFlags: 0
@@ -55272,7 +55256,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -55285,7 +55269,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -55449,7 +55433,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -55462,7 +55446,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -55938,7 +55922,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -57206,7 +57190,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -57219,7 +57203,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -57534,7 +57518,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -57913,7 +57897,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -57926,7 +57910,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -59379,7 +59363,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -59675,6 +59659,8 @@ MonoBehaviour:
   bobber: {fileID: 1029951780}
   marker: {fileID: 1406439213}
   label: {fileID: 2145185932}
+  shown: -1
+  home: {x: 0, y: 0, z: 0}
 --- !u!1 &1917797136
 GameObject:
   m_ObjectHideFlags: 0
@@ -65230,7 +65216,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282398740
   m_fontColor: {r: 0.08, g: 0.22, b: 0.25, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -65243,7 +65229,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2

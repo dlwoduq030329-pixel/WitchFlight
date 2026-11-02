@@ -176,6 +176,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
         // Baking runs after animation. Discovery and reliable readiness retries are at most once per second.
         nextPreparationTime = Time.unscaledTime + 1f;
+        if (battle.IsRace || !battle.UsesVersusPresentation) return;
         if (IsTeamBattle) { PrepareTeamPresentation(phase); return; }
         if (!TryResolvePlayers(battle, out Player local, out Player opponent))
             return;
@@ -484,7 +485,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void SetUIPhase(BattleStartPhase phase)
     {
-        bool training = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
+        bool training = NetworkGameManager.Instance != null && (NetworkGameManager.Instance.IsTraining || NetworkGameManager.Instance.IsRaceMode || (BattleManager.Instance != null && !BattleManager.Instance.UsesVersusPresentation));
         bool intro = phase == BattleStartPhase.Intro;
         bool countdown = phase == BattleStartPhase.Countdown;
         if (countdown) EnsureCountdownText();

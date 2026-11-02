@@ -40,7 +40,7 @@ public partial class NetworkGameManager
                     count++; slot++;
                 }
             }
-            foreach (var data in playerDatas.Values) if (data != null && data.IsMatchBot) data.ChooseBotCounters(false);
+            foreach (var data in playerDatas.Values) if (data != null && data.IsMatchBot && !IsRaceMode) data.ChooseBotCounters(false);
             return true;
         }
         catch (System.Exception error)

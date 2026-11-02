@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Fusion;
 using TMPro;
 using UnityEngine;
@@ -637,13 +637,26 @@ public sealed partial class BattleHud : MonoBehaviour
         Visible(hudRoot, true);
         Visible(playerPanel, valid);
         if (matchTimeText != null)
-            SetText(matchTimeText, battle.IsTraining ? "훈련장" : battle.IsOvertime ? "연장전" : FormatMatchTime(battle.RemainingSeconds));
+            SetText(matchTimeText, battle.ModeLabel != null ? battle.ModeLabel : battle.IsRace ? FormatMatchTime(RaceCourse.Instance.ElapsedSeconds) : battle.IsTraining ? "훈련장" : battle.IsOvertime ? "연장전" : FormatMatchTime(battle.RemainingSeconds));
         BattleFlag flag = BattleFlag.Instance;
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
-        if (flagText != null) SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
-            valid && flag.Carrier == owner.ParticipantRef ? "YOU HAVE THE FLAG" : FlagCarrierText(flag.Carrier));
-        Visible(resultPanel, battle.IsBattleEnded);
-        Visible(resultText != null ? resultText.gameObject : null, battle.IsBattleEnded);
+        if (flagText != null)
+        {
+            if (battle.ObjectiveLabel != null) SetText(flagText, battle.ObjectiveLabel);
+            else if (battle.IsRace)
+            {
+                var data = PlayerData.Local;
+                float remaining = RaceCourse.Instance.FinishSecondsRemaining;
+                string progress = data != null && data.RaceRank > 0 ? $"{data.RaceRank}등 완주" :
+                    data != null && data.RacePassed == RaceCourse.Instance.RingCount ? "첫 번째 링으로 돌아오세요" :
+                    $"RING {(data != null ? data.RacePassed + 1 : 1)} / {RaceCourse.Instance.RingCount}";
+                SetText(flagText, remaining >= 0 ? $"{progress} · 종료까지 {Mathf.CeilToInt(remaining)}초" : progress);
+            }
+            else SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
+                valid && flag.Carrier == owner.ParticipantRef ? "YOU HAVE THE FLAG" : FlagCarrierText(flag.Carrier));
+        }
+        Visible(resultPanel, battle.IsBattleEnded && !battle.IsRace && battle.UsesStandardResults);
+        Visible(resultText != null ? resultText.gameObject : null, battle.IsBattleEnded && !battle.IsRace && battle.UsesStandardResults);
         SetNumericText(resultText, battle.WinningTeam > 0 ? "TEAM {0} WINS" : "DRAW - NO FLAG HOLDER", battle.WinningTeam);
         bool respawning = respawnAt > 0f && !battle.IsBattleEnded;
         if (respawning && respawnText == null)
@@ -733,7 +746,12 @@ public sealed partial class BattleHud : MonoBehaviour
             SetNumericText(speedStageText, !valid ? "" : stage > 0 ? "+{0}" : "{0}", stage);
         }
         SetNumericText(speedText, valid ? "{0:0.0} m/s" : "", valid ? owner.CurrentSpeed : 0f);
-        if (selectedMagicText != null) SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
+        if (selectedMagicText != null)
+        {
+            if (valid && owner.CurrentMagicSlot != 3 && owner.BladeCharges > 0)
+                SetNumericText(selectedMagicText, "칼날 마법 · {0}회", owner.BladeCharges);
+            else SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
+        }
         SetNumericText(magicCostText, valid ? "{0:0}" : "", valid ? owner.SelectedMagicApCost : 0f);
     }
 

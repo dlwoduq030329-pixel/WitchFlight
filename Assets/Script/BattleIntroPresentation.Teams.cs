@@ -60,7 +60,7 @@ public sealed partial class BattleIntroPresentation
             if (motion.source != null && motion.copy != null && motion.copy.gameObject.activeInHierarchy)
                 motion.copy.anchoredPosition = motion.copyPosition + motion.source.anchoredPosition - motion.sourcePosition;
     }
-    private bool IsTeamBattle => BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2;
+    private bool IsTeamBattle => BattleManager.Instance != null && !BattleManager.Instance.IsRace && BattleManager.Instance.UsesVersusPresentation && BattleManager.Instance.ExpectedPlayerCount > 2;
 
     private void PrepareTeamPresentation(BattleStartPhase phase)
     {

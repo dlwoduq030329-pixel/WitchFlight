@@ -22,6 +22,15 @@ public class SignUpValidator : MonoBehaviour
     private bool isUpdatingInput = false;
 
     private bool isChecking = false;
+    private System.IDisposable registrationLoading;
+
+    private void OnDisable()
+    {
+        registrationLoading?.Dispose();
+        registrationLoading = null;
+        StopAllCoroutines();
+        isChecking = false;
+    }
 
     private void OnEnable()
     {
@@ -215,25 +224,29 @@ public class SignUpValidator : MonoBehaviour
 
     public void TryRegister()
     {
+        var manager = LoginManager.Instance;
+        if (isChecking || manager == null || manager.IsSigningUp || manager.IsLoggingIn || manager.IsLoggingOut) return;
         string newId = idInputField.text;
-        if (isChecking) return;
+        string password = passwordInputField.text;
         isChecking = true;
-        // AppendID 코루틴 실행
-        StartCoroutine(GoogleSpreadSheet.AppendID(newId, (isSuccess) =>
+        registrationLoading = MainLoadingUI.BeginIntro();
+        StartCoroutine(GoogleSpreadSheet.AppendID(newId, isSuccess =>
         {
-            if (isSuccess)
+            try
             {
-                LoginManager.Instance.SignUp(idInputField.text, passwordInputField.text);
-                Debug.Log("스프레드시트에 성공적으로 추가되었습니다!");
-                isChecking = false;
+                if (isSuccess) manager.SignUp(newId, password);
+                else
+                {
+                    idDialogText.color = errorColor;
+                    idDialogText.text = "가입 정보를 등록하지 못했습니다. 다시 시도해주세요.";
+                }
             }
-            else
+            finally
             {
-                Debug.LogError("스프레드시트 추가 실패");
                 isChecking = false;
+                registrationLoading?.Dispose();
+                registrationLoading = null;
             }
         }));
     }
-
-  
 }

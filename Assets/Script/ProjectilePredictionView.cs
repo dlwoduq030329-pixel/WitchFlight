@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -33,7 +33,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         return false;
     }
 
-    public static void Predict(Player player, Player target, MagicStatEntry entry, int tick, MagicProjectile summon = null)
+    public static void Predict(Player player, Player target, MagicStatEntry entry, int tick, MagicProjectile summon = null, Vector3 aim = default)
     {
         if (player == null || player.Object == null || !player.Object.HasInputAuthority ||
             !player.Object.IsValid || player.Runner == null || player.Object.HasStateAuthority ||
@@ -45,13 +45,14 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         view.target = target;
         view.summonTarget = summon;
         view.runner = player.Runner;
+        TimeVfxSpeed.Bind(view.content, player.Runner, player.TeamIndex, true);
         view.shooterId = player.Object.Id;
         view.table = player.MagicTable;
         view.inputTick = tick;
         view.createdAt = Time.unscaledTime;
         view.launchAt = view.createdAt + Mathf.Max(0f, entry.castSeconds);
         view.direction = MagicProjectile.ResolveLaunchDirection(entry.requiresTarget,
-            player.transform.forward, player.transform.forward,
+            aim.sqrMagnitude > .001f ? aim : player.transform.forward, player.transform.forward,
             target != null ? target.LockAimPoint - view.transform.position :
                 summon != null ? summon.transform.position - view.transform.position : Vector3.zero);
         view.content.SetActive(entry.castSeconds <= 0f);
@@ -73,6 +74,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         view.hasSource = true;
         view.source = projectile;
         view.runner = projectile.Runner;
+        TimeVfxSpeed.Bind(view.content, projectile.Runner, projectile.ShooterTeam, true);
         view.shooterId = projectile.ShooterId;
         if (projectile.Runner.TryFindObject(projectile.ShooterId, out NetworkObject shooter) && shooter != null)
             view.owner = shooter.GetComponent<Player>();
@@ -167,6 +169,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         {
             float dt = Mathf.Min(remaining, 1f / 60f);
             remaining -= dt;
+            dt *= MagicProjectile.TimeProjectileMultiplier(runner, transform.position);
             if (target != null && target.Object != null && target.Object.IsValid && target.IsAlive)
                 direction = MagicProjectile.ResolveHomingDirection(stats.requiresTarget, direction,
                     target.LockAimPoint - transform.position, stats.projectileTurnSpeed, dt);
@@ -192,7 +195,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     private void UpdateFormation()
     {
         if (table == null || !table.projectileFormationEnabled || owner == null ||
-            stats.projectileSpeed <= 0f || stats.effect == MagicEffectKind.Mine ||
+            stats.projectileSpeed <= 0f || stats.effect == MagicEffectKind.Mine || stats.magic == MagicType.Blade || stats.magic == MagicType.MagicStorm ||
             (hasSource && source.ConstructKind == MagicConstructKind.SummonBolt))
         {
             formation?.Dispose();
@@ -239,6 +242,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         while (lead > 0f && remainingRange > 0f)
         {
             float dt = Mathf.Min(lead,1f/60f); lead -= dt;
+            dt *= MagicProjectile.TimeProjectileMultiplier(runner, position);
             if (targetPoint.HasValue)
                 forward = MagicProjectile.ResolveHomingDirection(stats.requiresTarget,forward,targetPoint.Value-position,stats.projectileTurnSpeed,dt);
             float step = Mathf.Min(stats.projectileSpeed*dt,remainingRange);
@@ -272,7 +276,8 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         if (count == overlaps.Length)
         { allOverlaps = Physics.OverlapSphere(from, radius, ~0, QueryTriggerInteraction.Ignore); count = allOverlaps.Length; }
         for (int i = 0; i < count; i++)
-            if (!Ignore(allOverlaps[i])) { blocked = true; return from; }
+            if (!Ignore(allOverlaps[i]) && (stats.magic != MagicType.Blade || MagicProjectile.BladeOverlapBlocks(allOverlaps[i], from)))
+            { blocked = true; return from; }
         Vector3 delta = to - from;
         float length = delta.magnitude;
         if (length < 0.0001f) return from;
@@ -282,8 +287,19 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         { allHits = Physics.SphereCastAll(from, radius, delta / length, length, ~0, QueryTriggerInteraction.Ignore); count = allHits.Length; }
         float nearest = length;
         for (int i = 0; i < count; i++)
-            if (!Ignore(allHits[i].collider) && allHits[i].distance <= nearest)
-            { nearest = Mathf.Max(0f, allHits[i].distance - 0.02f); blocked = true; }
+        {
+            RaycastHit hit = allHits[i];
+            if (Ignore(hit.collider)) continue;
+            if (stats.magic == MagicType.Blade && hit.collider.GetComponentInParent<Player>() == null) continue;
+            if (hit.distance > nearest) continue;
+            nearest = Mathf.Max(0f, hit.distance - 0.02f);
+            blocked = true;
+        }
+        if (stats.magic == MagicType.Blade && MagicProjectile.TryBladeWallHit(from, delta / length, length, hits, out var wall) && wall.distance <= nearest)
+        {
+            nearest = Mathf.Max(0f, wall.distance - .02f);
+            blocked = true;
+        }
         if (owner != null && MagicProjectile.TryTraceSummon(runner, owner.TeamIndex, from, delta / length,
             nearest, radius, out _, out float summonDistance)) { nearest = summonDistance; blocked = true; }
         return from + delta / length * nearest;

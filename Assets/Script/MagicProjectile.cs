@@ -1,29 +1,31 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 using Unity.Profiling;
 
 // Uses the existing runner. Only StateAuthority simulates flight and damage.
-public sealed partial class MagicProjectile : NetworkBehaviour
+public partial class MagicProjectile : NetworkBehaviour
 {
     private static readonly ProfilerMarker simulationMarker = new("WitchFlight.Projectile.Simulate");
     private static readonly HashSet<MagicProjectile> active = new();
-    [Networked] public MagicType Magic { get; private set; }
-    [Networked] public NetworkId ShooterId { get; private set; }
-    [Networked] public PlayerRef Shooter { get; private set; }
-    [Networked] public int ShooterTeam { get; private set; }
-    [Networked] public NetworkId TargetId { get; private set; }
-    [Networked] public bool IsMine { get; private set; }
-    [Networked] public bool Settled { get; private set; }
-    [Networked] public bool Finished { get; private set; }
-    [Networked] public int PredictionInputTick { get; private set; }
-    [Networked] public float TravelledDistance { get; private set; }
-    [Networked] private TickTimer Lifetime { get; set; }
-    [Networked] private TickTimer ArmTimer { get; set; }
+    [Networked] public MagicType Magic { get; protected set; }
+    [Networked] public NetworkId ShooterId { get; protected set; }
+    [Networked] public PlayerRef Shooter { get; protected set; }
+    [Networked] public int ShooterTeam { get; protected set; }
+    [Networked] public NetworkId TargetId { get; protected set; }
+    [Networked] public bool IsMine { get; protected set; }
+    [Networked] public bool Settled { get; protected set; }
+    [Networked] public bool Finished { get; protected set; }
+    [Networked] public int PredictionInputTick { get; protected set; }
+    [Networked] public float TravelledDistance { get; protected set; }
+    [Networked] protected TickTimer Lifetime { get; set; }
+    [Networked] protected TickTimer ArmTimer { get; set; }
 
-    private MagicStatEntry stats;
-    private Vector3 direction;
-    private bool initialized;
+    protected MagicStatEntry stats;
+    protected Vector3 direction;
+    protected bool initialized;
+    private Player stormShooter;
+    private Vector2 stormSpread;
     private ProjectilePredictionView view;
     private bool impactPresented;
     private bool audioStarted;
@@ -51,6 +53,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         // Projectiles remain server-simulated: even their shooter renders remote snapshots.
         Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
         active.Add(this);
+        if (ConstructKind == MagicConstructKind.TimeField) timeFields.Add(this);
     }
 
     public void Initialize(Player shooter, Player target, MagicStatEntry entry, Vector3 aim, int predictionInputTick = 0, NetworkId summonTargetId = default)
@@ -59,6 +62,10 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             return;
         ConstructKind = MagicConstructKind.Projectile;
         stats = entry;
+        timeLifetimeRemainder = 0f;
+        stormShooter = entry.magic == MagicType.MagicStorm ? shooter : null;
+        stormSpread = entry.magic == MagicType.MagicStorm
+            ? Random.insideUnitCircle * Mathf.Tan(entry.stormSpreadAngle * Mathf.Deg2Rad) : Vector2.zero;
         Settled = Finished = false;
         ArmTimer = TickTimer.None;
         PredictionInputTick = predictionInputTick;
@@ -92,8 +99,14 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             Runner.Despawn(Object);
             return;
         }
+        if (ConstructKind == MagicConstructKind.TimeField)
+        {
+            if (Lifetime.Expired(Runner)) Runner.Despawn(Object);
+            return;
+        }
         if (IsConstruct) { TickConstruct(); return; }
         if (iceDamagePending) { TickIceFollowUpDamage(); return; }
+        float flightDelta = TimeFlightStep();
         if (Lifetime.Expired(Runner))
         {
             if (!Finished && !IsMine && stats.effect == MagicEffectKind.AreaDamage)
@@ -110,6 +123,16 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             return;
         }
 
+        if (Magic == MagicType.MagicStorm && stormShooter != null && stormShooter.Object != null && stormShooter.Object.IsValid && stormShooter.IsAlive)
+        {
+            Vector3 aim = stormShooter.MagicStormAimPoint - transform.position;
+            if (aim.sqrMagnitude > .01f)
+            {
+                Vector3 spreadAim = Quaternion.LookRotation(aim) * new Vector3(stormSpread.x, stormSpread.y, 1f);
+                direction = Vector3.RotateTowards(direction, spreadAim.normalized,
+                    stats.projectileTurnSpeed * Mathf.Deg2Rad * flightDelta, 0f).normalized;
+            }
+        }
         Player target = FindTarget();
         MagicProjectile summonTarget = FindSummonTargetById();
         if ((target != null || summonTarget != null) && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
@@ -117,11 +140,11 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             Vector3 desired = (target != null ? target.LockAimPoint : summonTarget.transform.position) - transform.position;
             if (desired.sqrMagnitude > 0.001f)
                 direction = ResolveHomingDirection(stats.requiresTarget, direction, desired,
-                    stats.projectileTurnSpeed, Runner.DeltaTime);
+                    stats.projectileTurnSpeed, flightDelta);
         }
 
         float limit = IsMine ? stats.placementDistance : stats.range;
-        float step = Mathf.Min(stats.projectileSpeed * Runner.DeltaTime, Mathf.Max(0f, limit - TravelledDistance));
+        float step = Mathf.Min(stats.projectileSpeed * flightDelta, Mathf.Max(0f, limit - TravelledDistance));
         Vector3 next = transform.position + direction * step;
         if (TryGetInitialOverlap(out Collider overlap))
         {
@@ -238,10 +261,16 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             Player player = hit.collider.GetComponentInParent<Player>();
             if (player != null && (!player.IsAlive || player.Object.Id.Equals(ShooterId)))
                 continue;
+            if (Magic == MagicType.Blade && player == null) continue;
             if (hit.distance >= best)
                 continue;
             best = hit.distance;
             nearest = hit;
+        }
+        if (Magic == MagicType.Blade && TryBladeWallHit(transform.position, direction, distance, collisionHits, out var wall) && wall.distance < best)
+        {
+            nearest = wall;
+            best = wall.distance;
         }
         return best < float.PositiveInfinity;
     }
@@ -265,11 +294,44 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             Player player = collider.GetComponentInParent<Player>();
             if (player != null && (!player.IsAlive || player.Object.Id.Equals(ShooterId)))
                 continue;
+            if (Magic == MagicType.Blade && !BladeOverlapBlocks(collider, transform.position)) continue;
             overlap = collider;
             return true;
         }
         overlap = null;
         return false;
+    }
+
+    // Blade wings can clip scenery. Damage still uses the full projectile sphere.
+    // Shared with cosmetic prediction so a side-wall touch cannot hide a live shot.
+    public static bool BladeOverlapBlocks(Collider collider, Vector3 center)
+    {
+        if (collider.GetComponentInParent<MagicProjectile>() != null) return false;
+        if (collider.GetComponentInParent<Player>() != null) return true;
+        return (collider.ClosestPoint(center) - center).sqrMagnitude <= .000001f;
+    }
+
+    public static bool TryBladeWallHit(Vector3 origin, Vector3 direction, float distance, RaycastHit[] buffer, out RaycastHit nearest)
+    {
+        nearest = default;
+        int count = Physics.RaycastNonAlloc(origin, direction, buffer, distance, ~0, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = buffer;
+        if (count == buffer.Length)
+        {
+            hits = Physics.RaycastAll(origin, direction, distance, ~0, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
+        }
+        float closest = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || hit.distance >= closest ||
+                hit.collider.GetComponentInParent<Player>() != null ||
+                hit.collider.GetComponentInParent<MagicProjectile>() != null) continue;
+            nearest = hit;
+            closest = hit.distance;
+        }
+        return closest < float.PositiveInfinity;
     }
 
     private void SettleMine()
@@ -468,6 +530,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
             Object == null || !Object.IsValid || Runner != observer.Runner || Finished || IsMine || IsConstruct || Settled ||
             ShooterTeam == observer.TeamIndex) return false;
         MagicStatEntry entry = PresentationStats;
+        entry.projectileSpeed *= TimeProjectileMultiplier(Runner, transform.position);
         if (entry.projectileSpeed <= 0f) return false;
         Vector3 offset = transform.position - observer.LockAimPoint;
         bool guidedToObserver = entry.requiresTarget && TargetId.Equals(observer.Object.Id);
@@ -572,6 +635,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     public override void Render()
     {
         if (Magic == MagicType.None) return;
+        if (ConstructKind == MagicConstructKind.TimeField) { RenderTimeField(); return; }
         UpdateFlightAudio();
         if (IsConstruct) { RenderConstruct(); return; }
         if (view == null) view = ProjectilePredictionView.Attach(this, PresentationStats);
@@ -582,6 +646,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
     {
         flightAudio.Stop();
         active.Remove(this);
+        ClearTimeField();
         ClearConstructVisual(true);
         if (view != null) Destroy(view.gameObject);
         view = null;
@@ -593,6 +658,7 @@ public sealed partial class MagicProjectile : NetworkBehaviour
         flightAudio.Stop();
         ClearConstructVisual();
         active.Remove(this);
+        ClearTimeField();
     }
 
     private void UpdateFlightAudio()

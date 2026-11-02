@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -51,7 +51,7 @@ public sealed class MagicDescriptionUI : MonoBehaviour
     {
         currentMagic = magic;
         currentTable = sourceTable != null ? sourceTable : magicTable != null ? magicTable : MagicStatTable.Default;
-        bool valid = currentTable != null && magic >= MagicType.Fire && magic <= MagicType.Smoke;
+        bool valid = currentTable != null && magic >= MagicType.Fire && magic <= MagicType.TimeStop;
         MagicStatEntry stats = valid ? currentTable.GetStats(magic) : default;
 
         if (magicIcon != null)

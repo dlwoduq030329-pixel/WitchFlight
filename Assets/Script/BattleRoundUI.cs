@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -99,6 +99,7 @@ public sealed partial class BattleRoundUI : MonoBehaviour
     {
         BindLocalData();
         BattleManager battle = BattleManager.Instance;
+        if (battle != null && !battle.UsesStandardResults) return;
         if (HasLocalData) localTeam = localData.teamIndex;
         BattleFlag flag = BattleFlag.Instance;
         bool connected = flag != null && flag.Object != null && flag.Object.IsValid;
@@ -158,6 +159,11 @@ public sealed partial class BattleRoundUI : MonoBehaviour
     private void CaptureResult(BattleManager battle)
     {
         resultLatched = true;
+        if (battle.IsRace)
+        {
+            resultsPresentation.ShowResults(battle);
+            return;
+        }
         bool won = localTeam > 0 && battle.WinningTeam == localTeam;
         cachedResult = won ? "승리!" : "패배";
         cachedScore = Score(battle) + "  ·  2선승 경기 종료";
@@ -195,7 +201,7 @@ public sealed partial class BattleRoundUI : MonoBehaviour
     public void SelectMagic(int magicId)
     {
         if (!CanEdit || requestPending) return;
-        if (magicId < (int)MagicType.Fire || magicId > (int)MagicType.Smoke) return;
+        if (magicId < (int)MagicType.Fire || magicId > (int)MagicType.TimeStop) return;
         selectedMagic = (MagicType)magicId;
         descriptionOpen = true;
         descriptionRevision++;
@@ -434,11 +440,11 @@ public sealed partial class BattleRoundUI : MonoBehaviour
         Transform root = magicSwapPanel.transform;
         swapCountdownText = Label(root, "Time", "", new Vector2(0, 360), new Vector2(1100, 70), 46);
         roundScoreText = Label(root, "Round score", "", new Vector2(0, 295), new Vector2(1200, 50), 26);
-        for (int i = 1; i <= (int)MagicType.Smoke; i++)
+        for (int i = 1; i <= (int)MagicType.TimeStop; i++)
         {
             int id = i;
-            Vector2 pos = new Vector2(-500 + ((i - 1) % 6) * 200, 160 - ((i - 1) / 6) * 160);
-            Button button = Button(root, "", pos, new Vector2(184, 144), () => SelectMagic(id));
+            Vector2 pos = new Vector2(-500 + ((i - 1) % 7) * 170, 160 - ((i - 1) / 7) * 160);
+            Button button = Button(root, "", pos, new Vector2(160, 144), () => SelectMagic(id));
             Image icon = Image(button.transform, new Vector2(0, 20), new Vector2(70, 70));
             Icon(icon, (MagicType)id);
             Label(button.transform, "Magic name", Name((MagicType)id), new Vector2(0, -45), new Vector2(174, 42), 22);

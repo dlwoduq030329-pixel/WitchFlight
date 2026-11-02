@@ -29,7 +29,8 @@ public sealed class BattleTitleNotificationUI : MonoBehaviour
         if (explanationText == null)
             foreach (TMP_Text text in notificationRoot.GetComponentsInChildren<TMP_Text>(true))
                 if (text.name.Equals("chinghoEXplanation", StringComparison.OrdinalIgnoreCase)) explanationText = text;
-        group = notificationRoot.GetComponent<CanvasGroup>() ?? notificationRoot.AddComponent<CanvasGroup>();
+        group = notificationRoot.GetComponent<CanvasGroup>();
+        if (group == null) group = notificationRoot.AddComponent<CanvasGroup>();
         group.interactable = false;
         group.blocksRaycasts = false;
         animator = notificationRoot.GetComponent<Animator>();

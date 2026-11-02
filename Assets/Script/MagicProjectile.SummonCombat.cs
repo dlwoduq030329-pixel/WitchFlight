@@ -2,15 +2,15 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
-public sealed partial class MagicProjectile
+public partial class MagicProjectile
 {
     [Networked] public float SummonDamageTaken { get; private set; }
-    public float SummonMaxHealth => PresentationStats.summonChannelHealth > 0 ? PresentationStats.summonChannelHealth : 50f;
-    public float SummonHealthFraction => IsLiveSummon ? Mathf.Clamp01(1f - SummonDamageTaken / SummonMaxHealth) : 0f;
+    public virtual float SummonMaxHealth => PresentationStats.summonChannelHealth > 0 ? PresentationStats.summonChannelHealth : 50f;
+    public virtual float SummonHealthFraction => IsLiveSummon ? Mathf.Clamp01(1f - SummonDamageTaken / SummonMaxHealth) : 0f;
     public static IEnumerable<MagicProjectile> ActiveProjectiles => active;
-    public bool IsLiveSummon => Object != null && Object.IsValid &&
+    public virtual bool IsLiveSummon => Object != null && Object.IsValid &&
         ConstructKind == MagicConstructKind.Summon && !Finished;
-    public float SummonHitRadius => Mathf.Max(.05f,
+    public virtual float SummonHitRadius => Mathf.Max(.05f,
         PresentationStats.summonHitRadius > 0f ? PresentationStats.summonHitRadius : .65f);
 
     public bool IsSummonEnemyOf(Player observer) => observer != null && observer.Object != null &&
@@ -35,13 +35,18 @@ public sealed partial class MagicProjectile
         foreach (var candidate in active)
         {
             if (candidate == null || !candidate.IsLiveSummon || candidate.Runner != runner || candidate.ShooterTeam == attackerTeam) continue;
-            if (!TrySphereContact(origin, direction, candidate.transform.position,
-                candidate.SummonHitRadius + Mathf.Max(0f, attackRadius), distance, out float contact)) continue;
+            if (!candidate.TraceBody(origin, direction, Mathf.Max(0f, attackRadius), distance, out float contact)) continue;
             if (target != null && contact >= distance) continue;
             target = candidate; distance = contact;
         }
         return target != null;
     }
+
+    public virtual bool TraceBody(Vector3 origin, Vector3 direction, float attackRadius, float limit, out float distance) =>
+        TrySphereContact(origin, direction, transform.position, SummonHitRadius + attackRadius, limit, out distance);
+
+    public virtual float DistanceToBody(Vector3 point) => Vector3.Distance(point, transform.position);
+    public virtual float AreaContactRadius(float radius) => radius + SummonHitRadius;
 
     public static bool TrySphereContact(Vector3 origin, Vector3 direction, Vector3 center, float radius, float limit, out float distance)
     {
@@ -78,7 +83,7 @@ public sealed partial class MagicProjectile
     private static bool IsSummonSightObstacle(Collider collider) => collider != null &&
         collider.GetComponentInParent<Player>() == null && collider.GetComponentInParent<MagicProjectile>() == null;
 
-    public bool ReceiveSummonHit(MagicStatEntry attack, int attackerTeam, NetworkId attackerId)
+    public virtual bool ReceiveSummonHit(MagicStatEntry attack, int attackerTeam, NetworkId attackerId)
     {
         if (!IsLiveSummon || !Object.HasStateAuthority || ShooterTeam == attackerTeam || ShooterId.Equals(attackerId) ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return false;
@@ -94,7 +99,9 @@ public sealed partial class MagicProjectile
         if (Runner.TryFindObject(attackerId, out NetworkObject attacker) && attacker != null)
             attacker.GetComponent<Player>()?.ConfirmSummonHit();
         float threshold = stats.summonChannelHealth > 0f ? stats.summonChannelHealth : 50f;
-        if (!sustained || SummonDamageTaken + .0001f >= threshold)
+        bool killed=!sustained || SummonDamageTaken + .0001f >= threshold;
+        PlayerData.FindPerkData(Runner,attack.perkAttacker)?.RecordTitleSummonHit(attack.titleCastId,killed);
+        if (killed)
         {
             Finished = true;
             SummonLockProgress = 0f; TargetId = default;
@@ -110,8 +117,9 @@ public sealed partial class MagicProjectile
         foreach (var candidate in active)
         {
             if (candidate == null || !candidate.IsLiveSummon || candidate.Runner != runner || candidate.ShooterTeam == team) continue;
-            float distance = Vector3.Distance(center, candidate.transform.position);
-            if (distance <= radius + candidate.SummonHitRadius && HasSummonSight(center, candidate.transform.position))
+            float distance = candidate.DistanceToBody(center);
+            float hitRadius = candidate.AreaContactRadius(radius);
+            if (distance <= hitRadius && HasSummonSight(center, candidate.transform.position))
                 candidate.ReceiveSummonHit(PerkEffects.AreaHit(attack, distance), team, attacker);
         }
     }

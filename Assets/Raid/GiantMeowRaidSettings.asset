@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 417364677a35400aa2e693b6a0cbc840, type: 3}
+  m_Name: GiantMeowRaidSettings
+  m_EditorClassIdentifier: 
+  health: 2000
+  healthPerExtraPlayer: 1200
+  height: 90
+  hitRadius: 17
+  entranceSeconds: 8
+  recoverySeconds: 1.1
+  volleyLifetime: 4
+  volleyWarning: 1.5
+  volleyDamage: 24
+  absorbSeconds: 6
+  blastRadius: 120
+  blastBaseDamage: 25
+  absorbedDamageMultiplier: 0.35
+  blastDamageLimit: 120
+  breathWarning: 1.8
+  breathSeconds: 3
+  breathLength: 95
+  breathRadius: 6
+  breathSweepDegrees: 110
+  breathDamagePerSecond: 12
+  burnDamagePerSecond: 6
+  burnSeconds: 3
+  thunderWarning: 1.4
+  thunderDamage: 35
+  damageTickSeconds: 0.2
+  barrageInterval: 0.35
+  retreatBarrageInterval: 0.25
+  boundary: {fileID: 11400000, guid: 3b3841017e9c4240a001ab9bb532f31c, type: 2}
+  retreatSpeed: 22
+  retreatTurnSpeed: 75
+  flightBoundaryInset: 65
+  visionWarning: 1
+  visionSpawnInterval: 0.18
+  barrageSpeedMultiplier: 1.5
+  barrageHitRadius: 1.2
+  barrageShotsPerTarget: 4
+  spellDamageMultiplier: 3
+  wallWarningSeconds: 0.8
+  wallInterval: 1.2
+  wallPhaseSeconds: 4
+  wallSpacing: 6
+  wallHitRadius: 4.3
+  wallRange: 180
+  coreHealth: 40
+  coreRadius: 4
+  coreOrbitRadius: 32
+  minimumBlastRadius: 20
+  exposureSeconds: 5
+  exposureDamageMultiplier: 1.75
+  thunderHazardSeconds: 4
+  thunderHazardRadius: 12
+  thunderHazardTick: 0.5
+  thunderHazardDamage: 8
+  potionRestoreAmount: 40
+  potionRespawnSeconds: 8
+  potionMinAltitude: 45
+  potionMaxAltitude: 105
+  minionSummonWarning: 1.5
+  minionHealth: 40
+  minionLifetime: 30
+  minionSpeed: 24
+  minionAttackInterval: 2
+  minionDamage: 4

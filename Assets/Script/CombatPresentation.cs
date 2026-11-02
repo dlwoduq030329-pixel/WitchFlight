@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -16,7 +16,8 @@ public sealed class CombatPresentation : MonoBehaviour
         new StatusEffectVfxBinding { status = StatusEffectType.Slow },
         new StatusEffectVfxBinding { status = StatusEffectType.HitStun },
         new StatusEffectVfxBinding { status = StatusEffectType.Burn },
-        new StatusEffectVfxBinding { status = StatusEffectType.Healing }
+        new StatusEffectVfxBinding { status = StatusEffectType.Healing },
+        new StatusEffectVfxBinding { status = StatusEffectType.Wound }
     };
 
     [System.Serializable]
@@ -301,6 +302,8 @@ public sealed class CombatPresentation : MonoBehaviour
         activeParryShield = null;
         ClearLockCompleteVfx();
         ClearStatusEffectVfx();
+        if (bladeWeaponVfx != null) MagicVfxPool.Release(bladeWeaponVfx);
+        bladeWeaponVfx = null;
         if (enemyOutline != null && enemyOutline.enabled) enemyOutline.enabled = false;
         visibilityInitialized = false;
         foreach (Visual visual in visuals)
@@ -374,6 +377,39 @@ public sealed class CombatPresentation : MonoBehaviour
         return owner != null && owner.MagicTable != null ? owner.MagicTable.GetStats(magic) : Stats(magic);
     }
 
+    private GameObject bladeWeaponVfx;
+    private Quaternion bladeWeaponRotationOffset;
+    public void UpdateBladeWeaponVfx()
+    {
+        bool active = owner != null && owner.ShowBladeWeapon && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        if (!active)
+        {
+            if (bladeWeaponVfx != null) MagicVfxPool.Release(bladeWeaponVfx);
+            bladeWeaponVfx = null;
+            return;
+        }
+        if (bladeWeaponVfx == null)
+        {
+            MagicStatEntry entry = OwnerStats(MagicType.Blade);
+            Transform anchor = owner.MagicCastAnchor;
+            bladeWeaponVfx = InstantiateVfx(entry.bladeWeaponVfxPrefab, anchor.position, anchor.rotation, anchor, owner);
+            if (bladeWeaponVfx != null)
+            {
+                bladeWeaponVfx.transform.localPosition = entry.bladeWeaponOffset;
+                bladeWeaponRotationOffset = Quaternion.Euler(entry.bladeWeaponEuler);
+                bladeWeaponVfx.transform.localRotation = bladeWeaponRotationOffset;
+                RearThreatCamera.ExcludeLocalEffect(bladeWeaponVfx, owner);
+            }
+        }
+        if (bladeWeaponVfx != null)
+        {
+            if (owner.TryGetBladeWeaponRotation(out Quaternion rotation))
+                bladeWeaponVfx.transform.rotation = rotation * bladeWeaponRotationOffset;
+            else bladeWeaponVfx.transform.localRotation = bladeWeaponRotationOffset;
+            bladeWeaponVfx.SetActive(!owner.IsHiddenBySmokeFor(Player.LocalPlayer));
+        }
+    }
+
     private void UpdateStatusEffectVfx()
     {
         if (statusEffectVfxViews == null) return;
@@ -390,7 +426,7 @@ public sealed class CombatPresentation : MonoBehaviour
             {
                 view.spawnAttempted = true;
                 Transform anchor = view.anchor != null ? view.anchor : transform;
-                view.instance = InstantiateVfx(view.vfxPrefab, anchor.position, anchor.rotation, anchor);
+                view.instance = InstantiateVfx(view.vfxPrefab, anchor.position, anchor.rotation, anchor, owner);
                 if (view.instance != null)
                 {
                     view.instance.transform.localPosition = view.localOffset;
@@ -433,7 +469,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (owner.Object.HasInputAuthority)
             BattleAudio.PlayMagic(magic, MagicSound.LockComplete, owner.MagicCastPosition, local: true);
         Transform anchor = owner.MagicCastAnchor;
-        lockCompleteVfx = InstantiateVfx(stats.lockOnCompleteVfxPrefab, anchor.position, anchor.rotation, anchor);
+        lockCompleteVfx = InstantiateVfx(stats.lockOnCompleteVfxPrefab, anchor.position, anchor.rotation, anchor, owner);
         if (lockCompleteVfx == null)
         {
             lockCompleteVfx = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -484,9 +520,11 @@ public sealed class CombatPresentation : MonoBehaviour
     }
 
     // Author VFX here / in MagicStatTable. Prefabs must be visual-only, without NetworkObject.
-    public static GameObject InstantiateVfx(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null)
+    public static GameObject InstantiateVfx(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null, Player timeOwner = null)
     {
-        return MagicVfxPool.Rent(prefab, position, rotation, parent);
+        GameObject view = MagicVfxPool.Rent(prefab, position, rotation, parent);
+        if (timeOwner != null) TimeVfxSpeed.Bind(view, timeOwner.Runner, timeOwner.TeamIndex, false);
+        return view;
     }
 
     public void ShowCast(MagicType magic, Vector3 origin, Vector3 end)
@@ -512,6 +550,7 @@ public sealed class CombatPresentation : MonoBehaviour
         {
             CombatMagicVisual beam = CombatMagicVisual.Beam(magic, stats.beamVfxPrefab, stats.beamMaterial);
             RearThreatCamera.ExcludeLocalEffect(beam.gameObject, owner);
+            if (owner != null) TimeVfxSpeed.Bind(beam.gameObject, owner.Runner, owner.TeamIndex, false);
             beam.SetEndpoints(origin, end);
             MagicVfxPool.Release(beam.gameObject, 0.2f);
         }
@@ -520,7 +559,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void ShowCastVfx(MagicStatEntry stats, Vector3 origin)
     {
-        GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation);
+        GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation, null, owner);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
         if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
         else SpawnPulse(origin, MagicColor(stats.magic), stats.effect == MagicEffectKind.Healing ? 2f : 0.7f, 0.25f, owner);
@@ -542,6 +581,7 @@ public sealed class CombatPresentation : MonoBehaviour
                 ShowCastVfx(stats, owner.MagicCastPosition);
                 channelVisual = CombatMagicVisual.Beam(current, stats.beamVfxPrefab, stats.beamMaterial);
                 RearThreatCamera.ExcludeLocalEffect(channelVisual.gameObject, owner);
+                TimeVfxSpeed.Bind(channelVisual.gameObject, owner.Runner, owner.TeamIndex, false);
             }
         }
         if (channelVisual == null) return;
@@ -565,7 +605,7 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         BattleAudio.PlayMagic(magic, MagicSound.Impact, position);
         MagicStatEntry stats = Stats(magic);
-        GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity);
+        GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity, null, owner);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
         if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
         else SpawnPulse(position, MagicColor(magic), stats.radius > 0f ? stats.radius * 2f : 1.25f, 0.3f, owner);
@@ -622,6 +662,8 @@ public sealed class CombatPresentation : MonoBehaviour
             MagicType.Mine => new Color(1f, 0.65f, 0.15f, 0.85f),
             MagicType.Thunder => new Color(1f, 0.9f, 0.25f, 0.85f),
             MagicType.Flare => new Color(1f, 0.65f, 0.18f, 1f),
+            MagicType.Blade => new Color(.65f, .18f, 1f, 1f),
+            MagicType.MagicStorm => new Color(.5f, .65f, 1f, 1f),
             MagicType.Smoke => new Color(0.52f, 0.56f, 0.64f, 0.2f),
             _ => new Color(0.4f, 1f, 0.8f, 0.6f)
         };
@@ -631,6 +673,8 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         ClearLockCompleteVfx();
         ClearStatusEffectVfx();
+        if (bladeWeaponVfx != null) MagicVfxPool.Release(bladeWeaponVfx);
+        bladeWeaponVfx = null;
         if (channelVisual != null) MagicVfxPool.Release(channelVisual.gameObject);
         foreach (Visual visual in visuals)
         {

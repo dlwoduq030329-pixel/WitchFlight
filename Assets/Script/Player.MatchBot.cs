@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -18,6 +18,7 @@ public partial class Player
 
     private bool ReadCombatInput(out NetworkInputData input)
     {
+        if (IsMatchBot && RaceCourse.Instance != null) return BuildRaceInput(out input);
         bool valid = BuildBotCombatInput(out input);
         if (valid && IsMatchBot && Object.HasStateAuthority)
         {
@@ -111,6 +112,7 @@ public partial class Player
         input.areaAimPoint = hasEnemy ? botTarget.LockAimPoint : destination;
         input.hasAreaAimPoint = hasEnemy;
         if (hasEnemy) input.lockTarget = botTarget.Object.Id;
+        if (IsMagicStormActive) return true;
         if (botReleaseFrame) { botReleaseFrame = false; return true; }
         var stats = SelectedMagicStats;
         if (botHolding)
@@ -123,6 +125,16 @@ public partial class Player
             return true;
         }
         if (botAttackTime > 0 || pendingMagic != MagicType.None) return true;
+        if (BladeCharges > 0)
+        {
+            if (hasEnemy)
+            {
+                input.buttons.Set(PlayerInputButton.Lock, true);
+                botReleaseFrame = true;
+                botAttackTime = Mathf.Max(.2f, bladeStats.bladeShotInterval);
+            }
+            return true;
+        }
         // Alternate slots after a complete release, preserving normal cast/cooldown validation.
         SelectMagicSlot(CurrentMagicSlot == 1 ? 2 : 1);
         stats = SelectedMagicStats;

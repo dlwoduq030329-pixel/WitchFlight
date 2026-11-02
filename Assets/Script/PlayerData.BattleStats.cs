@@ -17,7 +17,7 @@ public partial class PlayerData
     private NetworkId lastRecordedDeathObject;
 
     private bool CanRecordBattleStats => Object != null && Object.IsValid && Object.HasStateAuthority &&
-        BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive && !BattleManager.Instance.IsRace && BattleManager.Instance.RecordsBattleStats;
 
     public void ResetBattleStats()
     {
@@ -62,6 +62,7 @@ public partial class PlayerData
         BattleStatsRevision++;
         PlayerData source = attacker == PlayerRef.None ? null : FindPerkData(Runner, attacker);
         RecordTitleHit(source);
+        RecordTitleUnblockedHit(attacker);
         if (!IsEnemyForStats(source) || !source.CanRecordBattleStats) return;
         source.BattleDamageDealt = Mathf.Min(100000000f, source.BattleDamageDealt + actualHpLost);
         source.BattleStatsRevision++;

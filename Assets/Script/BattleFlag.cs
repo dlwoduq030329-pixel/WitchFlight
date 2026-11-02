@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -268,6 +268,8 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         HasEnded = false;
         HasStarted = true;
         Phase = BattleStartPhase.Playing;
+        foreach(var data in PlayerData.PerkPlayers)
+            if(data!=null&&data.Runner==Runner)data.RecordTitleRoundStart(RoundNumber);
         BattleManager.Instance?.RecordRoundMagicPicks();
         PhaseTimer = TickTimer.None;
         MatchTimer = BattleManager.Instance != null && BattleManager.Instance.IsTraining
@@ -332,6 +334,9 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         if (!Object.HasStateAuthority || Phase != BattleStartPhase.Playing || HasEnded ||
             (team != 1 && team != 2)) return;
         LastRoundWinner = team;
+        var titleCarrier=GetCarrierPlayer();
+        foreach(var data in PlayerData.PerkPlayers)
+            if(data!=null&&data.Runner==Runner)data.RecordTitleFlagRoundEnd(data.ParticipantRef==Carrier,team,titleCarrier!=null?titleCarrier.NowHp:0);
         if (team == 1) Team1Wins++; else Team2Wins++;
         MatchTimer = TickTimer.None;
         HasStarted = false;
@@ -580,6 +585,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         if (candidate == null)
             return;
         Carrier = candidate.ParticipantRef;
+        PlayerData.FindPerkData(Runner,Carrier)?.RecordTitleFlagPickup(RemainingSeconds,IsOvertime);
         NetworkGameManager.Instance?.GetPlayerData(Carrier)?.AwardPerkFlag(RoundNumber);
         IsDescending = false;
         LastCarrier = Carrier;
@@ -884,6 +890,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         SmokeClouds.Set(slot, new SmokeCloudState {
             Center = caster.LockAimPoint, Radius = Mathf.Min(stats.radius, 100f),
             Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Min(stats.effectDuration, 120f)),
+            CasterTeam = caster.TeamIndex,
             Sequence = SmokeSequence
         });
         return true;
@@ -896,6 +903,18 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         {
             SmokeCloudState cloud = SmokeClouds[i];
             if (cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
+        }
+        return false;
+    }
+
+    public bool ContainsEnemySmoke(Vector3 point, int team)
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing) return false;
+        for (int i = 0; i < SmokeClouds.Length; i++)
+        {
+            SmokeCloudState cloud = SmokeClouds[i];
+            if (cloud.CasterTeam != team && cloud.Lifetime.IsRunning &&
+                !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
         }
         return false;
     }
@@ -914,6 +933,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
             smokeViewSequences[i] = cloud.Sequence;
             smokeViews[i] = UtilityMagicVisual.CreateSmoke(cloud.Center, cloud.Radius,
                 CombatPresentation.Stats(MagicType.Smoke).utilityVfxPrefab);
+            TimeVfxSpeed.Bind(smokeViews[i], Runner, cloud.CasterTeam, false);
         }
     }
 

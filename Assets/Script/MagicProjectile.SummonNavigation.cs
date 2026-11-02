@@ -1,7 +1,7 @@
 using Fusion;
 using UnityEngine;
 
-public sealed partial class MagicProjectile
+public partial class MagicProjectile
 {
     // Authority-only local routing, just like bot flight. Replicate the resulting transform.
     private RaycastHit[] summonNavigationHits = new RaycastHit[32];

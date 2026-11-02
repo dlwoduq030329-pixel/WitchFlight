@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
@@ -85,6 +85,8 @@ public sealed partial class linkuserinfo : MonoBehaviour
     [Header("Code waiting room (optional, MAIN only)")]
     [Tooltip("Keep this component on an always-active object OUTSIDE this panel, so it can open the panel after connecting.")]
     [SerializeField] private GameObject waitingRoomPanel;
+    [SerializeField] private TMP_Dropdown waitingRoomModeDropdown;
+    public TMP_Dropdown CodeRoomModeDropdown => waitingRoomModeDropdown;
     [SerializeField] private WaitingRoomSlot[] waitingRoomSlots = Array.Empty<WaitingRoomSlot>();
     [SerializeField] private TMP_Text waitingRoomCodeText;
     [SerializeField] private TMP_Text waitingRoomCountText;
@@ -285,7 +287,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
     private Sprite GetMagicIcon(MagicType magic)
     {
         // Empty slots must stay empty, not fall back to Fire or another player's icon.
-        if (magic < MagicType.Fire || magic > MagicType.Smoke) return null;
+        if (magic < MagicType.Fire || magic > MagicType.TimeStop) return null;
         if (magicTable == null) magicTable = MagicStatTable.Default;
         return magicTable != null ? magicTable.GetIcon(magic) : null;
     }

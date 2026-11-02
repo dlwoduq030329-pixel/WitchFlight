@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -15,9 +14,10 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
     private float nextModeLookup;
     private (int connected, int required, bool host)? displayedStatus;
 
+    private void Awake() => manager = GetComponent<NetworkGameManager>();
+
     private void Update()
     {
-        if (manager == null) manager = GetComponent<NetworkGameManager>();
         bool visible = manager != null && manager.IsWaitingInCodeRoom;
         if (visible) EnsureUI();
         if (modeDropdown != null && (!visible || !manager.IsRoomHost))
@@ -26,7 +26,8 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
             modeDropdown.interactable = false;
         }
         if (!visible || modeDropdown == null) return;
-        modeDropdown.SetValueWithoutNotify(BattleMatchRules.DropdownIndex(manager.CurrentMatchMode));
+        int selectedMode = BattleMatchRules.DropdownIndex(manager.CurrentMatchMode);
+        if (modeDropdown.value != selectedMode) modeDropdown.SetValueWithoutNotify(selectedMode);
         modeDropdown.interactable = manager.IsRoomHost;
         var status = (manager.ConnectedPlayerCount, manager.RequiredPlayerCount, manager.IsRoomHost);
         if (statusText != null && displayedStatus != status)
@@ -39,7 +40,7 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
 
     public void SelectMode(int value)
     {
-        if (manager != null && manager.IsWaitingInCodeRoom && manager.IsRoomHost && (value >= 0 && value <= 3)) manager.TrySetRoomMatchMode(value);
+        if (manager != null && manager.IsWaitingInCodeRoom && manager.IsRoomHost && (value >= 0 && value <= 5)) manager.TrySetRoomMatchMode(value);
         if (modeDropdown != null && manager != null)
             modeDropdown.SetValueWithoutNotify(BattleMatchRules.DropdownIndex(manager.CurrentMatchMode));
     }
@@ -52,17 +53,15 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
             nextModeLookup = Time.unscaledTime + .5f;
             foreach (linkuserinfo info in linkuserinfo.LoadedBridges)
             {
-                if (info == null || info.CodeWaitingRoomPanel == null) continue;
-                foreach (TMP_Dropdown dropdown in info.CodeWaitingRoomPanel.GetComponentsInChildren<TMP_Dropdown>(true))
-                    if (dropdown.name == "Dropdown_mode") { modeDropdown = dropdown; break; }
-                if (modeDropdown != null) break;
+                if (info == null || info.CodeWaitingRoomPanel == null || info.CodeRoomModeDropdown == null) continue;
+                modeDropdown = info.CodeRoomModeDropdown;
+                break;
             }
         }
         if (modeDropdown == null || boundDropdown == modeDropdown) return;
         if (boundDropdown != null) boundDropdown.onValueChanged.RemoveListener(SelectMode);
         boundDropdown = modeDropdown;
-        modeDropdown.ClearOptions();
-        modeDropdown.AddOptions(new List<string> { "1 vs 1", "2 vs 2", "1 vs 1 (BOT)", "2 vs 2 (BOT)" });
+        // Options are authored in Main. Rebind the scene reference after returning from battle.
         modeDropdown.interactable = manager != null && manager.IsWaitingInCodeRoom && manager.IsRoomHost;
         boundDropdown.onValueChanged.AddListener(SelectMode);
     }

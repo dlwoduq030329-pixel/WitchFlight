@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Rendering;
 
 // Local-only generated fallbacks. Cloud lifetime is owned by BattleFlag's replicated timer.
@@ -86,6 +86,7 @@ public sealed class UtilityMagicVisual : MonoBehaviour
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             particles.Play(false);
         }
+        if (caster != null) TimeVfxSpeed.Bind(root, caster.Runner, caster.TeamIndex, false);
     }
 
     private void LateUpdate()

@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -23,6 +23,7 @@ public partial class Player
         if (summon == null || !summon.IsSummonEnemyOf(this)) return false;
         point = summon.transform.position;
         float range = SelectedMagicStats.range > 0f ? Mathf.Min(maxLockDistance, SelectedMagicStats.range) : maxLockDistance;
+        range *= LockRangeMultiplier;
         Vector3 delta = point - LockAimPoint;
         return delta.sqrMagnitude <= range * range && Vector3.Dot(transform.forward, delta) >= 0f &&
             MagicProjectile.HasSummonSight(MagicCastPosition, point);

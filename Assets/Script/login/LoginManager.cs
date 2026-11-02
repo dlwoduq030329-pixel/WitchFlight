@@ -14,6 +14,10 @@ public partial class LoginManager : MonoBehaviour
     public bool IsLoggedIn { get; private set; }
     public bool IsLoggingIn { get; private set; }
     public bool IsLoggingOut { get; private set; }
+    public bool IsSigningUp { get; private set; }
+    private int signUpAttempt;
+    private float signUpDeadline;
+    private System.IDisposable loginLoading, signUpLoading;
     private int loginAttempt;
     private int initializationAttempt;
     private float initializationDeadline, loginDeadline;
@@ -72,6 +76,8 @@ public partial class LoginManager : MonoBehaviour
         }
         if (IsLoggingIn && Time.realtimeSinceStartup >= loginDeadline)
             FailLogin(loginAttempt, "로그인 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.");
+        if (IsSigningUp && Time.realtimeSinceStartup >= signUpDeadline)
+            FinishSignUp(signUpAttempt, false, "회원가입 응답이 지연되고 있습니다. 로그인으로 가입 여부를 확인해주세요.");
     }
 
     private void SetLoginStatus(string message)
@@ -161,7 +167,7 @@ public partial class LoginManager : MonoBehaviour
     // UI 로그인 버튼에서 호출
     public void Login(string id, string password)
     {
-        if (IsLoggingIn || IsLoggingOut) return;
+        if (IsLoggingIn || IsLoggingOut || IsSigningUp) return;
         // After a profile-read failure, the existing Login button retries the data flow.
         if (IsLoggedIn) { OnLoginSuccess?.Invoke(); return; }
         if (string.IsNullOrWhiteSpace(id) ||
@@ -175,6 +181,7 @@ public partial class LoginManager : MonoBehaviour
         }
 
         IsLoggingIn = true;
+        loginLoading = MainLoadingUI.BeginIntro();
         int attempt = ++loginAttempt;
         loginDeadline = float.PositiveInfinity; // Initialization has its own deadline.
         try
@@ -206,7 +213,8 @@ public partial class LoginManager : MonoBehaviour
                 SetLoginStatus(string.Empty);
                 Debug.Log("로그인 성공");
                 // Profile loading and lobby readiness still belong to LoginFlowController.
-                OnLoginSuccess?.Invoke();
+                try { OnLoginSuccess?.Invoke(); }
+                finally { loginLoading?.Dispose(); loginLoading = null; }
             }));
         }
         catch (System.Exception exception) { FailLogin(attempt, exception.Message); }
@@ -217,6 +225,8 @@ public partial class LoginManager : MonoBehaviour
         if (attempt != loginAttempt) return;
         loginAttempt++; // A late callback cannot reopen the lobby after failure/logout.
         IsLoggingIn = false;
+        loginLoading?.Dispose();
+        loginLoading = null;
         SetLoginStatus(message);
         OnLoginFailed?.Invoke(message);
     }
@@ -225,55 +235,58 @@ public partial class LoginManager : MonoBehaviour
     // UI 회원가입 버튼에서 호출
     public void SignUp(string id, string password)
     {
-        if (IsLoggingOut) return;
-        if (!IsInitialized)
+        if (IsLoggingOut || IsLoggingIn || IsSigningUp) return;
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(password))
         {
-            Debug.LogError("BACKND가 아직 초기화되지 않았습니다.");
+            OnSignUpFailed?.Invoke("아이디와 비밀번호를 입력해주세요.");
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(id) ||
-            string.IsNullOrWhiteSpace(password))
+        IsSigningUp = true;
+        int attempt = ++signUpAttempt;
+        signUpDeadline = float.PositiveInfinity;
+        signUpLoading = MainLoadingUI.BeginIntro();
+        try
         {
-            OnSignUpFailed?.Invoke(
-                "아이디와 비밀번호를 입력해주세요."
-            );
-
-            return;
-        }
-
-
-        Backend.BMember.CustomSignUp(
-            id,
-            password,
-            callback =>
+            EnsureBackendInitialized((success, error) =>
             {
-                if (callback.IsSuccess())
+                if (this == null || attempt != signUpAttempt || !IsSigningUp) return;
+                if (!success) { FinishSignUp(attempt, false, error); return; }
+                signUpDeadline = Time.realtimeSinceStartup + Mathf.Max(5f, loginTimeout);
+                try
                 {
-                    Debug.Log("회원가입 성공");
-
-                    OnSignUpSuccess?.Invoke();
+                    Backend.BMember.CustomSignUp(id, password, result => completions.Enqueue(() =>
+                    {
+                        if (this == null) return;
+                        FinishSignUp(attempt, result.IsSuccess(), result.GetMessage());
+                    }));
                 }
-                else
-                {
-                    Debug.LogError(
-                        $"회원가입 실패 : {callback.GetMessage()}"
-                    );
-
-                    OnSignUpFailed?.Invoke(
-                        callback.GetMessage()
-                    );
-                }
-            }
-        );
-
-
+                catch (System.Exception exception) { FinishSignUp(attempt, false, exception.Message); }
+            });
+        }
+        catch (System.Exception exception) { FinishSignUp(attempt, false, exception.Message); }
     }
 
+    private void FinishSignUp(int attempt, bool success, string message)
+    {
+        if (attempt != signUpAttempt || !IsSigningUp) return;
+        signUpAttempt++;
+        IsSigningUp = false;
+        signUpLoading?.Dispose();
+        signUpLoading = null;
+        if (success) OnSignUpSuccess?.Invoke();
+        else OnSignUpFailed?.Invoke(message);
+    }
 
     // 로그아웃
     public void Logout()
     {
+        loginLoading?.Dispose();
+        loginLoading = null;
+        signUpLoading?.Dispose();
+        signUpLoading = null;
+        signUpAttempt++;
+        IsSigningUp = false;
         loginAttempt++;
         IsLoggingIn = false;
         SetLoginStatus(string.Empty);

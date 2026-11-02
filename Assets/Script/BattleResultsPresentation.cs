@@ -31,6 +31,7 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     public bool OwnsFinalUI { get; private set; }
     private bool showingMvp, bound, awardsBound;
     private bool praiseSubmitted;
+    private bool raceResults;
     private float roundStarted;
     private int shownRound = -1;
     private TMP_FontAsset font;
@@ -57,7 +58,7 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     private void Update()
     {
         BattleManager battle = BattleManager.Instance;
-        if (battle == null) return;
+        if (battle == null || !battle.UsesStandardResults) return;
         if (!OwnsFinalUI && Time.unscaledTime >= nextCacheCheck)
         { nextCacheCheck = Time.unscaledTime + .5f; CacheCharacters(); }
         bool round = battle.Phase == BattleStartPhase.RoundResult;
@@ -99,13 +100,17 @@ public sealed class BattleResultsPresentation : MonoBehaviour
         if (!showingMvp) return;
         BindAwards();
         var flag = BattleFlag.Instance;
-        bool synced = flag != null && flag.Object != null && flag.Object.IsValid && flag.AwardsReady;
-        bool canPraise = synced && !praiseSubmitted && !flag.HasPraised(flag.Runner.LocalPlayer);
+        bool synced = raceResults ? RaceCourse.Instance != null && RaceCourse.Instance.Finished :
+            flag != null && flag.Object != null && flag.Object.IsValid && flag.AwardsReady;
+        bool voted = raceResults ? PlayerData.Local == null || PlayerData.Local.RaceHasVoted :
+            synced && flag.HasPraised(flag.Runner.LocalPlayer);
+        bool canPraise = synced && !praiseSubmitted && !voted;
         for (int i = 0; i < panels.Length; i++)
         {
             var panel = panels[i]; if (panel == null) continue;
             if (panel.praiseButton != null) panel.praiseButton.interactable = canPraise;
-            int sequence = synced ? flag.PraiseSequences[i] : panel.lastPraise;
+            int sequence = raceResults ? RaceCourse.Instance?.AtRank(i + 1)?.RaceVotes ?? panel.lastPraise :
+                synced ? flag.PraiseSequences[i] : panel.lastPraise;
             Set(panel.voteText, sequence.ToString());
             if (sequence != panel.lastPraise)
             {
@@ -141,6 +146,13 @@ public sealed class BattleResultsPresentation : MonoBehaviour
         if (OwnsFinalUI) return;
         BindUI(); CacheCharacters(); EnsureFinalFallback();
         OwnsFinalUI = true;
+        raceResults = battle.IsRace;
+        if (raceResults)
+        {
+            CaptureAwards();
+            ShowMvp();
+            return;
+        }
         gameOverUI.SetActive(true); if (mvpUI != null) mvpUI.SetActive(false);
         BringToFront(gameOverUI);
         int team = PlayerData.Local != null ? PlayerData.Local.teamIndex : 0;
@@ -210,8 +222,18 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     public void PraisePanel(int panelIndex)
     {
         if (!showingMvp || praiseSubmitted) return;
-        var flag = BattleFlag.Instance;
-        if (flag == null || !flag.RequestPraise(panelIndex)) return;
+        if (raceResults)
+        {
+            var target = RaceCourse.Instance != null ? RaceCourse.Instance.AtRank(panelIndex + 1) : null;
+            var local = PlayerData.Local;
+            if (local == null || !local.RaceClosed || local.RaceHasVoted || target == null) return;
+            local.RPC_RaceVote(target.ParticipantRef);
+        }
+        else
+        {
+            var flag = BattleFlag.Instance;
+            if (flag == null || !flag.RequestPraise(panelIndex)) return;
+        }
         praiseSubmitted = true; // Block rapid local clicks before the networked vote arrives.
         foreach (var panel in panels)
             if (panel?.praiseButton != null) panel.praiseButton.interactable = false;
@@ -226,18 +248,20 @@ public sealed class BattleResultsPresentation : MonoBehaviour
         {
             var result = awardSnapshot[i]; var panel = panels[i];
             if (panel == null) continue;
-            Set(panel.nickname, result.Name.ToString()); Set(panel.chingho, BattleAwardRules.Title(result.Category));
+            bool raceOpponent = raceResults && PlayerData.Local != null && result.Winner != PlayerData.Local.ParticipantRef;
+            Set(panel.nickname, result.Name.ToString()); Set(panel.chingho, raceResults ? $"{i + 1}등" : BattleAwardRules.Title(result.Category));
             if (panel.nickname != null)
             {
                 int ownTeam = PlayerData.Local != null ? PlayerData.Local.teamIndex : 0;
-                panel.nickname.color = ownTeam > 0 && result.Team > 0 && result.Team != ownTeam
+                panel.nickname.color = (raceResults ? raceOpponent : ownTeam > 0 && result.Team > 0 && result.Team != ownTeam)
                     ? new Color(1f,.2f,.2f) : Color.white;
             }
-            Set(panel.count, BattleAwardRules.Count(result.Category, result.Value)); Set(panel.what, BattleAwardRules.Unit(result.Category));
+            Set(panel.count, raceResults ? result.Value < 0 ? "미완주" : TimeSpan.FromSeconds(result.Value).ToString(@"mm\:ss\.ff") : BattleAwardRules.Count(result.Category, result.Value));
+            Set(panel.what, raceResults ? "기록" : BattleAwardRules.Unit(result.Category));
             if (panel.votePanel != null)
             {
                 int team = PlayerData.Local != null ? PlayerData.Local.teamIndex : 0;
-                panel.votePanel.color = team > 0 && result.Team != team
+                panel.votePanel.color = (raceResults ? raceOpponent : team > 0 && result.Team != team)
                     ? new Color32(0xE7, 0x43, 0x57, 255) : new Color32(0x44, 0xDC, 0xCC, 255);
             }
             panel.lastPraise = flag != null && flag.Object != null && flag.Object.IsValid ? flag.PraiseSequences[i] : 0;
@@ -253,6 +277,20 @@ public sealed class BattleResultsPresentation : MonoBehaviour
 
     private void CaptureAwards()
     {
+        if (raceResults)
+        {
+            if (awardSnapshot != null || RaceCourse.Instance == null || !RaceCourse.Instance.Finished) return;
+            var snapshot = new BattleAwardResult[4];
+            for (int i = 0; i < snapshot.Length; i++)
+            {
+                var data = RaceCourse.Instance.AtRank(i + 1);
+                if (data == null || !data.RaceClosed) return;
+                snapshot[i] = new BattleAwardResult { Winner = data.ParticipantRef, Name = data.playerName,
+                    Value = data.RaceDidFinish ? data.RaceTime : -1f, Team = data.teamIndex };
+            }
+            awardSnapshot = snapshot;
+            return;
+        }
         var flag = BattleFlag.Instance;
         if (awardSnapshot != null || flag == null || flag.Object == null || !flag.Object.IsValid || !flag.AwardsReady) return;
         awardSnapshot = new BattleAwardResult[4];

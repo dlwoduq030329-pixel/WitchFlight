@@ -1,13 +1,13 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 // Reuses the registered MagicProjectile NetworkObject and NetworkTransform. No second runner,
 // per-frame RPC, unregistered runtime NetworkBehaviour, or client-authoritative damage.
-public enum MagicConstructKind { Projectile, ThunderArea, Summon, SummonBolt }
+public enum MagicConstructKind { Projectile, ThunderArea, Summon, SummonBolt, TimeField }
 
-public sealed partial class MagicProjectile
+public partial class MagicProjectile
 {
-    [Networked] public MagicConstructKind ConstructKind { get; private set; }
+    [Networked] public MagicConstructKind ConstructKind { get; protected set; }
     [Networked] public float ConstructRadius { get; private set; }
     [Networked] public float ConstructDelay { get; private set; }
     [Networked] public float SummonLockProgress { get; private set; }
@@ -24,8 +24,8 @@ public sealed partial class MagicProjectile
     private NetworkId summonPursuitTarget;
     private Vector3 summonObservedPosition, summonObservedVelocity;
     private const float SummonReactionSeconds = .35f;
-    public bool IsConstruct => ConstructKind == MagicConstructKind.ThunderArea || ConstructKind == MagicConstructKind.Summon;
-    public MagicStatEntry PresentationStats => initialized ? stats : ConstructKind == MagicConstructKind.SummonBolt
+    public bool IsConstruct => ConstructKind == MagicConstructKind.ThunderArea || ConstructKind == MagicConstructKind.Summon || ConstructKind == MagicConstructKind.TimeField;
+    public virtual MagicStatEntry PresentationStats => initialized ? stats : ConstructKind == MagicConstructKind.SummonBolt
         ? SummonBoltStats(CombatPresentation.Stats(Magic)) : CombatPresentation.Stats(Magic);
 
     public static MagicStatEntry SummonBoltStats(MagicStatEntry source)
@@ -61,6 +61,8 @@ public sealed partial class MagicProjectile
         ResetSummonNavigation();
         if (ConstructKind == MagicConstructKind.Summon)
         {
+            foreach(var data in PlayerData.PerkPlayers)
+                if(data!=null&&data.Runner==Runner)data.RecordTitleSummonSpawn();
             summonFlight.Initialize(owner.SummonLaunchVelocity, owner.transform.forward, entry.summonMoveSpeed,
                 owner.SteeringTurnRate, owner.SummonFlightTurnResponse, owner.SummonFlightAcceleration, owner.SummonFlightBraking);
             direction = summonFlight.Heading;

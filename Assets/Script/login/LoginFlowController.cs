@@ -117,6 +117,7 @@ public sealed class LoginFlowController : MonoBehaviour
             return;
         }
         processing = true;
+        using var loading = MainLoadingUI.BeginIntro();
         try
         {
             // Do not clear a valid session or discard an in-flight customization save

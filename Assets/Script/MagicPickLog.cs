@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -24,7 +24,7 @@ public sealed class MagicPickPlayer
 }
 public sealed class MagicPickStatistics
 {
-    public readonly int[] slotCounts=new int[13], equippedCounts=new int[13];
+    public readonly int[] slotCounts=new int[16], equippedCounts=new int[16];
     public int matches,participantRounds,totalSlots;
     public static MagicPickStatistics Calculate(IEnumerable<MagicPickLog> logs,int roundFilter,int population)
     {
@@ -58,7 +58,7 @@ public static class MagicPickLogStore
             throw new InvalidDataException("잘못된 마법 픽 로그입니다.");
         var ids=new HashSet<int>();
         foreach(var p in log.players)
-            if(p==null || !ids.Add(p.participant) || p.slot1<1 || p.slot1>12 || p.slot2<1 || p.slot2>12)
+            if(p==null || !ids.Add(p.participant) || p.slot1<1 || p.slot1>15 || p.slot2<1 || p.slot2>15)
                 throw new InvalidDataException("참가자 또는 마법 ID가 잘못되었습니다.");
         log.players.Sort((a,b)=>a.participant.CompareTo(b.participant));
         return log;

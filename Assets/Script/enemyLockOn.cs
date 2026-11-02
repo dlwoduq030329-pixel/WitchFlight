@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 // Local screen/visibility selection. The same target travels with the release input.
@@ -111,7 +111,7 @@ public class enemyLockOn : MonoBehaviour
     private bool HasEnemyInRange()
     {
         float configured = owner.SelectedMagicStats.range;
-        float range = configured > 0f ? Mathf.Min(maxTargetDistance, configured) : maxTargetDistance;
+        float range = (configured > 0f ? Mathf.Min(maxTargetDistance, configured) : maxTargetDistance) * owner.LockRangeMultiplier;
         foreach (Player enemy in Player.ActiveCombatants)
             if (enemy != null && enemy.Runner == owner.Runner && enemy.IsTargetableBy(owner) &&
                 (enemy.LockAimPoint - owner.LockAimPoint).sqrMagnitude <= range * range) return true;
@@ -156,6 +156,7 @@ public class enemyLockOn : MonoBehaviour
             if (!owner.IsHealingAlly(ally)) return false;
             float allyRange = owner.SelectedMagicStats.range > 0f
                 ? Mathf.Min(maxTargetDistance, owner.SelectedMagicStats.range) : maxTargetDistance;
+            allyRange *= owner.LockRangeMultiplier;
             return (ally.LockAimPoint-owner.LockAimPoint).sqrMagnitude <= allyRange*allyRange &&
                 Vector3.Dot(targetCamera.transform.forward, ally.LockAimPoint-targetCamera.transform.position) > 0f &&
                 HasLineOfSight(targetCamera.transform.position, ally);
@@ -165,7 +166,7 @@ public class enemyLockOn : MonoBehaviour
             return false;
 
         MagicStatEntry stats = owner.SelectedMagicStats;
-        float range = stats.range > 0f ? Mathf.Min(maxTargetDistance, stats.range) : maxTargetDistance;
+        float range = (stats.range > 0f ? Mathf.Min(maxTargetDistance, stats.range) : maxTargetDistance) * owner.LockRangeMultiplier;
         if ((targetPoint - owner.LockAimPoint).sqrMagnitude > range * range)
             return false;
 

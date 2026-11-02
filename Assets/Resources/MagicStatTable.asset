@@ -1,4 +1,4 @@
-%YAML 1.1
+﻿%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -954,9 +954,7 @@ MonoBehaviour:
     flareVfxBrightness: 0
   - magic: 11
     displayName: "\uD50C\uB808\uC5B4"
-    description: "\uB4F1 \uB4A4\uB85C \uD50C\uB808\uC5B4\uB97C \uBC29\uCD9C\uD574
-      \uC774\uBBF8 \uC790\uC2E0\uC744 \uCD94\uC801 \uC911\uC778 \uC720\uB3C4\uD0C4\uC758
-      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \n"
+    description: "자신을 추적 중인 유도탄의 추적을 끊습니다. 지속시간 동안 이동속도가 10% 증가하고, 자신을 조준하는 적의 록온 시간이 20% 증가합니다."
     icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -987,7 +985,7 @@ MonoBehaviour:
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
-    effectDuration: 0
+    effectDuration: 3
     radius: 0
     activationDelay: 0
     placementDistance: 0
@@ -1037,9 +1035,7 @@ MonoBehaviour:
     flareVfxBrightness: 2
   - magic: 12
     displayName: "\uC5F0\uB9C9"
-    description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
-      \n\uB0B4\uBD80\uC758 \uCE90\uB9AD\uD130\uB294 \uC801\uC5D0\uAC8C \uBCF4\uC774\uC9C0
-      \uC54A\uC9C0\uB9CC \uB85D\uC628\uACFC \uD53C\uACA9 \uD310\uC815\uC740 \uC720\uC9C0\uB429\uB2C8\uB2E4."
+    description: "현재 위치에 연막을 남깁니다. 내부의 적은 록온 거리가 30% 감소합니다. 내부 캐릭터의 은폐 효과와 피격 판정은 유지됩니다."
     icon: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1118,3 +1114,271 @@ MonoBehaviour:
     flareVfxSpeed: 0
     flareVfxScale: 0
     flareVfxBrightness: 0
+  - magic: 13
+    displayName: "칼날 마법"
+    description: "시전 후 10초 안에 좌클릭 3회로 보라색 검기를 발사합니다. 무기 교체 시 해제됩니다. 적중 시 8초간 받는 회복량이 50% 감소합니다."
+    icon: {fileID: 342325613, guid: 739b11d6b80584d48994af14791fc924, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 13
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "20"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "100"
+    displayManaCostLabel: "30"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 30
+    cooldownSeconds: 8
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 100
+    projectileTurnSpeed: 0
+    projectileLifetime: 1.2
+    projectileRadius: 2.4
+    hitscanRadius: 0
+    range: 100
+    damage: 20
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 8
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 100000, guid: 3773d0abc3084f2d97564d91a2c4edfe, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 3
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+    bladeCharges: 3
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0.5
+    bladeAbilityDuration: 10
+    bladeWeaponVfxPrefab: {fileID: 100000, guid: 2a8c2eacbc6b457bb3b02ade1149ef0a, type: 3}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+  - magic: 14
+    displayName: "마탄 폭풍"
+    description: "2초간 에임을 따라 곡선으로 날아가는 마탄 30발을 발사합니다. 탄퍼짐이 있으며 발당 피해는 10입니다."
+    icon: {fileID: 706995332, guid: bf7fc59d8f3f908468d1f546e3604cfb, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 14
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "10 × 30"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "120"
+    displayManaCostLabel: "60"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 60
+    cooldownSeconds: 5
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 85
+    projectileTurnSpeed: 180
+    projectileLifetime: 1.8
+    projectileRadius: 0.234
+    hitscanRadius: 0
+    range: 120
+    damage: 10
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 7264231152250865867, guid: 0537977d5fd74e29b1b256acde0b28e7, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 4442764683140637388, guid: a7759290c770412689ab391368b4611e, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+    bladeCharges: 0
+    bladeShotInterval: 0
+    woundHealingMultiplier: 1
+    stormShotCount: 30
+    stormDuration: 2
+    stormLaunchAngle: 24
+    stormSpreadAngle: 2.5
+  - magic: 15
+    displayName: "시간 마법"
+    description: "10초간 반지름 50의 시간 영역을 펼칩니다. 적은 30% 느려지고 아군은 30% 빨라집니다. 비행 투사체는 80% 느려집니다."
+    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 15
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "없음"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "반경 50"
+    displayManaCostLabel: "60"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 60
+    cooldownSeconds: 20
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 1.8
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 50
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 10
+    radius: 50
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+    bladeCharges: 0
+    bladeShotInterval: 0
+    woundHealingMultiplier: 1
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 24
+    stormSpreadAngle: 2.5
+    timeFieldVfxPrefab: {fileID: 100000, guid: 66f12a64bdb6455a86cc1fbe7ae10d75, type: 3}
+    timeEnemySpeed: 0.7
+    timeAllySpeed: 1.3
+    timeProjectileSpeed: 0.2

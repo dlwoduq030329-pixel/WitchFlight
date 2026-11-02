@@ -12,18 +12,20 @@ public sealed class PlayerTitleLabel : MonoBehaviour
     [SerializeField] private PlayerData player;
     [SerializeField] private bool useLocalAccount = true;
     private TMP_Text label;
-    private int shown = -1;
+    private int shown;
+    private bool hasShownTitle;
     private void Awake() {label=GetComponent<TMP_Text>();}
-    private void OnEnable() {shown=-1;Refresh();}
+    private void OnEnable() {hasShownTitle=false;Refresh();}
     private void Update() => Refresh();
     private void Refresh()
     {
         int id=useLocalAccount?(TitleProgression.Ready?DataConfig.equippedTitleId:0):
             player!=null && player.Object!=null && player.Object.IsValid?player.EquippedTitleId:0;
-        if(shown==id || label==null)return;
-        shown=id;label.richText=false;label.text=TitleCatalog.Name(id);
+        // Negative IDs are valid bot titles, so no title ID can serve as an uninitialized marker.
+        if(label==null || (hasShownTitle && shown==id))return;
+        shown=id;hasShownTitle=true;label.richText=false;label.text=TitleCatalog.Name(id);
     }
-    public void SetPlayer(PlayerData data) {player=data;useLocalAccount=false;shown=-1;Refresh();}
+    public void SetPlayer(PlayerData data) {player=data;useLocalAccount=false;hasShownTitle=false;Refresh();}
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()

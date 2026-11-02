@@ -257,7 +257,7 @@ public partial class CameraFollow : MonoBehaviour
     private static bool IsFaceView()
     {
         BattleManager battle = BattleManager.Instance;
-        return battle != null && (battle.Phase == BattleStartPhase.WaitingForPlayers ||
+        return battle != null && battle.UsesVersusPresentation && (battle.Phase == BattleStartPhase.WaitingForPlayers ||
             battle.Phase == BattleStartPhase.Intro);
     }
 

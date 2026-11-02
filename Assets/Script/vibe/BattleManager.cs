@@ -66,9 +66,9 @@ public class BattleManager : MonoBehaviour
         public TickTimer RespawnAt;
     }
 
-    private NetworkRunner runner;
-    private Dictionary<PlayerRef, PlayerData> playerDatas;
-    private Dictionary<PlayerRef, NetworkObject> spawnedPlayers;
+    protected NetworkRunner runner;
+    protected Dictionary<PlayerRef, PlayerData> playerDatas;
+    protected Dictionary<PlayerRef, NetworkObject> spawnedPlayers;
     private NetworkPrefabRef playerPrefab;
     private readonly List<PendingRespawn> pendingRespawns = new();
     private BattleFlag battleFlag;
@@ -79,7 +79,13 @@ public class BattleManager : MonoBehaviour
 
     public static BattleManager Instance => instance;
     private bool HasValidFlag => battleFlag != null && battleFlag.Object != null && battleFlag.Object.IsValid;
-    public BattleStartPhase Phase => HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
+    public virtual bool UsesVersusPresentation => true;
+    public virtual bool UsesStandardResults => true;
+    public virtual bool RecordsBattleStats => true;
+    public virtual string ObjectiveLabel => null;
+    public virtual string ModeLabel => null;
+    public bool IsRace => RaceCourse.Instance != null;
+    public virtual BattleStartPhase Phase => IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
     public bool IsGameplayActive => Phase == BattleStartPhase.Playing ||
         (IsTraining && Phase == BattleStartPhase.TrainingTutorial && CatTutorialDirector.PracticeInputActive);
     public bool IsTraining => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
@@ -87,11 +93,11 @@ public class BattleManager : MonoBehaviour
     public int ExpectedPlayerCount => HasValidFlag && battleFlag.ExpectedPlayerCount > 0
         ? battleFlag.ExpectedPlayerCount : NetworkGameManager.Instance != null
             ? NetworkGameManager.Instance.RequiredPlayerCount : 2;
-    public float PhaseRemainingSeconds => HasValidFlag ? battleFlag.PhaseRemainingSeconds : 0f;
-    public bool IsBattleEnded => battleFlag != null && battleFlag.Object != null &&
+    public virtual float PhaseRemainingSeconds => IsRace ? RaceCourse.Instance.CountdownRemaining : HasValidFlag ? battleFlag.PhaseRemainingSeconds : 0f;
+    public virtual bool IsBattleEnded => IsRace ? RaceCourse.Instance.Finished : battleFlag != null && battleFlag.Object != null &&
         battleFlag.Object.IsValid && battleFlag.HasEnded;
     public float RemainingSeconds => battleFlag != null ? battleFlag.RemainingSeconds : 0f;
-    public int WinningTeam => IsBattleEnded ? battleFlag.WinningTeam : 0;
+    public virtual int WinningTeam => HasValidFlag && IsBattleEnded ? battleFlag.WinningTeam : 0;
     public int RoundNumber => HasValidFlag ? battleFlag.RoundNumber : 1;
     public int Team1Wins => HasValidFlag ? battleFlag.Team1Wins : 0;
     public int Team2Wins => HasValidFlag ? battleFlag.Team2Wins : 0;
@@ -180,7 +186,7 @@ public class BattleManager : MonoBehaviour
         TelemetryMatchId = Guid.NewGuid().ToString("N");
         telemetryStartedUtc = DateTime.UtcNow.ToString("O");
         recordedMagicPickRounds.Clear();
-        if (collectMagicPickLogs && !IsTraining) MagicPickTelemetry.Activate();
+        if (collectMagicPickLogs && !IsTraining && !IsRace) MagicPickTelemetry.Activate();
         this.runner = runner;
         this.playerDatas = playerDatas;
         this.playerPrefab = playerPrefab;
@@ -188,10 +194,10 @@ public class BattleManager : MonoBehaviour
         pendingRespawns.Clear();
         resultAnnounced = false;
         foreach (PlayerData data in playerDatas.Values)
-            if (data != null) { data.ResetMatchPerks(); data.ResetBattleStats(); }
+            if (data != null) { data.ResetMatchPerks(); data.ResetBattleStats(); if (IsRace) data.ResetRace(); }
         FindSpawnPoints();
         SpawnBattlePlayers(playerPrefab);
-        SpawnFlag();
+        if (!IsRace) SpawnFlag();
         if (collectMovementLogs)
             (GetComponent<BattleMovementRecorder>() ?? gameObject.AddComponent<BattleMovementRecorder>()).Begin(runner, this);
     }
@@ -240,7 +246,7 @@ public class BattleManager : MonoBehaviour
             SpawnBattlePlayer(pair.Key, pair.Value, prefab);
     }
 
-    private void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
+    protected virtual void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
     {
         if (playerData == null || !playerData.IsLoadoutInitialized || !IsConnected(playerRef))
             return;
@@ -266,7 +272,9 @@ public class BattleManager : MonoBehaviour
             if (secondary != null) { spawn = secondary; spawnPosition = spawn.position; }
             else spawnPosition += spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * teamSlot;
         }
-        NetworkObject playerObject = runner.Spawn(prefab, spawnPosition, spawn.rotation,
+        Quaternion spawnRotation = spawn.rotation;
+        if (IsRace) RaceCourse.Instance.SpawnPose(playerRef, playerData, out spawnPosition, out spawnRotation);
+        NetworkObject playerObject = runner.Spawn(prefab, spawnPosition, spawnRotation,
             playerData.IsMatchBot ? PlayerRef.None : playerRef);
         if (playerObject == null)
             return;
@@ -290,7 +298,7 @@ public class BattleManager : MonoBehaviour
         return false;
     }
 
-    private void SpawnFlag()
+    protected virtual void SpawnFlag()
     {
         if (battleFlag != null || !flagPrefab.IsValid)
             return;
@@ -370,6 +378,7 @@ public class BattleManager : MonoBehaviour
             error = $"유효한 마법을 선택해주세요. 변경 가능한 슬롯은 최대 {battleFlag.AllowedMagicChanges}개입니다.";
             return false;
         }
+        data.RecordTitleLoadoutChange(first,second);
         data.magic1 = first;
         data.magic2 = second;
         data.PerkLoadoutChanged();
@@ -469,7 +478,7 @@ public class BattleManager : MonoBehaviour
         resultAnnounced = true;
         GetComponent<BattleMovementRecorder>()?.Finish("completed");
         if (playerDatas != null)
-            foreach (PlayerData data in playerDatas.Values) data?.CompleteTitleMatch();
+            foreach (PlayerData data in playerDatas.Values) data?.CompleteTitleMatch(winningTeam);
         pendingRespawns.Clear();
         Debug.Log(winningTeam > 0 ? $"Flag match ended. Team {winningTeam} wins." : "Flag match ended in a draw.");
         BattleEnded?.Invoke(winningTeam);

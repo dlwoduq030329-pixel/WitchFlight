@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 public enum MagicEffectKind
 {
     DirectDamage = 0, SlowDamage = 1, AreaDamage = 2, Healing = 3,
     Binding = 4, LifeSteal = 5, GuidedChannel = 6, Mine = 7, BeamChannel = 8,
-    Flare = 9, Smoke = 10, DelayedArea = 11, PursuitSummon = 12
+    Flare = 9, Smoke = 10, DelayedArea = 11, PursuitSummon = 12, BladeVolley = 13, MagicStorm = 14, TimeField = 15
 }
 
 [Serializable]
@@ -13,6 +13,7 @@ public struct MagicStatEntry
 {
     // Authority-only cast snapshot; never serialized into the balancing asset.
     [NonSerialized] public int perkSlot, perkCast;
+    [NonSerialized] public int titleCastId;
     [NonSerialized] public PerkDefinition perkFirst, perkSecond;
     [NonSerialized] public Fusion.PlayerRef perkAttacker;
     public MagicType magic;
@@ -64,7 +65,7 @@ public struct MagicStatEntry
     [Min(0f)] public float hitStunSeconds;
     [Min(0f)] public float knockbackForce;
     [Range(0f, 1f)] public float movementMultiplier;
-    [Tooltip("Ice 둔화, Binding 속박, 소환체 / Smoke 유지 시간. Smoke는 최대 120초.")]
+    [Tooltip("Ice 둔화, Binding 속박, 소환체 / Flare / Smoke 유지 시간. Smoke는 최대 120초.")]
     [Min(0f)] public float effectDuration;
     [Tooltip("낙뢰/연막 반경. 낙뢰는 공중에서도 구형 범위 판정. 소환체 사거리는 Range / Summon Attack Range.")]
     [Min(0f)] public float radius;
@@ -74,6 +75,27 @@ public struct MagicStatEntry
     [Min(0f)] public float placementDistance;
     public bool requiresTarget;
     public bool requiresFullLock;
+
+    [Header("Time field")]
+    public GameObject timeFieldVfxPrefab;
+    [Range(.01f, 1f)] public float timeEnemySpeed;
+    [Min(1f)] public float timeAllySpeed;
+    [Range(.01f, 1f)] public float timeProjectileSpeed;
+
+    [Header("Magic Storm")]
+    [Min(1)] public int stormShotCount;
+    [Min(.01f)] public float stormDuration;
+    [Range(0f, 60f)] public float stormLaunchAngle;
+    [Range(0f, 30f)] public float stormSpreadAngle;
+
+    [Header("Blade volley / wound")]
+    [Min(1)] public int bladeCharges;
+    [Min(.01f)] public float bladeAbilityDuration;
+    public GameObject bladeWeaponVfxPrefab;
+    public Vector3 bladeWeaponOffset;
+    public Vector3 bladeWeaponEuler;
+    [Min(0f)] public float bladeShotInterval;
+    [Range(0f, 1f)] public float woundHealingMultiplier;
 
     [Header("Thunder: hold to aim, release to confirm (world-space sphere)")]
     [Tooltip("범위 확정 시 번쩍인 뒤 폭발/피해까지의 시간. 기본 1.5초. Cast Seconds와 별개이며 위치는 고정됩니다.")]
@@ -192,7 +214,7 @@ public sealed class MagicStatTable : ScriptableObject
     // All magic UI uses this lookup. None/invalid IDs must never show a fallback spell.
     public Sprite GetIcon(MagicType magic)
     {
-        return magic >= MagicType.Fire && magic <= MagicType.Smoke ? GetStats(magic).icon : null;
+        return magic >= MagicType.Fire && magic <= MagicType.TimeStop ? GetStats(magic).icon : null;
     }
 
     public GameObject GetSecondaryProjectileVfx(MagicStatEntry stats, bool iceFollowUp = false)
@@ -248,7 +270,7 @@ public sealed class MagicStatTable : ScriptableObject
 
     public static MagicStatEntry[] CreateDefaultEntries()
     {
-        var entries = new MagicStatEntry[(int)MagicType.Smoke];
+        var entries = new MagicStatEntry[(int)MagicType.TimeStop];
         for (int i = 0; i < entries.Length; i++) entries[i] = DefaultEntry((MagicType)(i + 1));
         return entries;
     }
@@ -318,17 +340,44 @@ public sealed class MagicStatTable : ScriptableObject
                 e.apPerSecond = 1; e.cooldownSeconds = 0.375f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "누르는 동안 정면에 직선 광선을 유지하며 마나를 소모합니다."; break;
             case MagicType.Flare:
-                e.effect = MagicEffectKind.Flare; e.apCost = 50; e.cooldownSeconds = 6;
+                e.effect = MagicEffectKind.Flare; e.apCost = 50; e.cooldownSeconds = 6; e.effectDuration = 3f;
                 e.flareVfxBackOffset = 0.7f; e.flareVfxSpeed = 14f; e.vfxLifetime = 3f;
                 e.flareVfxScale = 1.8f; e.flareVfxBrightness = 2f;
                 e.displayName = "플레어";
-                e.description = "등 뒤로 플레어를 방출하여 이미 자신을 추적 중인 유도탄의 추적을 끊습니다. 무적이나 회피 이동은 부여하지 않습니다."; break;
+                e.description = "자신을 추적 중인 유도탄의 추적을 끊습니다. 지속시간 동안 이동속도가 10% 증가하고, 자신을 조준하는 적의 록온 시간이 20% 증가합니다."; break;
+            case MagicType.TimeStop:
+                e.displayName = "시간 마법";
+                e.description = "10초간 반지름 50의 시간 마법진을 펼칩니다. 적의 이동과 동작은 30% 느려지고 아군은 30% 빨라집니다. 비행 투사체는 진영과 관계없이 80% 느려집니다.";
+                e.effect = MagicEffectKind.TimeField; e.radius = 50f; e.effectDuration = 10f;
+                e.apCost = 60f; e.cooldownSeconds = 20f;
+                e.timeEnemySpeed = .7f; e.timeAllySpeed = 1.3f; e.timeProjectileSpeed = .2f;
+                break;
+            case MagicType.MagicStorm:
+                e.displayName = "마탄 폭풍";
+                e.description = "2초간 현재 에임을 따라 마탄 30발을 발사합니다. 마법봉에서 무작위 방향으로 출발한 탄은 작은 곡선을 그리며 날아가며 탄퍼짐이 있습니다.";
+                e.effect = MagicEffectKind.MagicStorm;
+                e.damage = 10f; e.apCost = 60f; e.cooldownSeconds = 5f;
+                e.stormShotCount = 30; e.stormDuration = 2f;
+                e.stormLaunchAngle = 24f; e.stormSpreadAngle = 2.5f;
+                e.projectileSpeed = 85f; e.projectileTurnSpeed = 180f;
+                e.projectileRadius = .234f; e.projectileLifetime = 1.8f; e.range = 120f;
+                break;
+            case MagicType.Blade:
+                e.displayName = "칼날 마법";
+                e.description = "시전 후 10초 안에 좌클릭 3회로 보라색 검기를 발사합니다. 무기 교체 시 해제됩니다. 적중한 적은 8초간 상처 상태가 되어 받는 회복량이 50% 감소합니다.";
+                e.effect = MagicEffectKind.BladeVolley;
+                e.damage = 20f; e.apCost = 30f; e.cooldownSeconds = 8f;
+                e.bladeCharges = 3; e.bladeShotInterval = 0f; e.bladeAbilityDuration = 10f;
+                e.effectDuration = 8f; e.woundHealingMultiplier = .5f;
+                e.projectileSpeed = 100f; e.projectileRadius = 2.4f;
+                e.range = 100f; e.projectileLifetime = 1.2f;
+                break;
             case MagicType.Smoke:
                 e.effect = MagicEffectKind.Smoke; e.apCost = 40; e.cooldownSeconds = 15;
                 // The former perk radius is now the base; SmokeRadius still adds 20% at stage one.
                 e.radius = 36; e.effectDuration = 7;
                 e.displayName = "연막";
-                e.description = "현재 위치에 연막을 남깁니다. 내부의 캐릭터는 적에게 보이지 않지만 록온과 피격 판정은 유지됩니다."; break;
+                e.description = "현재 위치에 연막을 남깁니다. 내부의 적은 록온 거리가 30% 감소합니다. 내부 캐릭터의 은폐 효과와 피격 판정은 유지됩니다."; break;
         }
         return e;
     }
@@ -338,6 +387,6 @@ public sealed class MagicStatTable : ScriptableObject
         if (magics != null)
             foreach (MagicStatEntry entry in magics)
                 if (entry.magic == magic) return entry;
-        return magic >= MagicType.Fire && magic <= MagicType.Smoke ? DefaultEntry(magic) : fallback;
+        return magic >= MagicType.Fire && magic <= MagicType.TimeStop ? DefaultEntry(magic) : fallback;
     }
 }

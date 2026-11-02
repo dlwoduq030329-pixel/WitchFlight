@@ -1,7 +1,15 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
-public enum TitleCondition { Login, Matches, BotMatches, MagicKills, Underwater, Emotes, BlackDevil, Deaths, DoubleHit, HealthPacks, AltitudeDeaths }
+public enum TitleCondition { Login, Matches, BotMatches, MagicKills, Underwater, Emotes, BlackDevil, Deaths, DoubleHit, HealthPacks, AltitudeDeaths, MatchChallenge, NoSwapMatches, EverySwapMatches, RaidClear }
+
+[Flags]
+public enum TitleChallenge
+{
+    None=0, PerfectAttack=1, PerfectDefense=2, NoSwap=4, EverySwap=8,
+    LastSecond=16, Thriller=32, CatSlayer=64, Polite=128, Bulldozer=256,
+    Pacifist=512, Evasive=1024, Saint=2048
+}
 
 public sealed class TitleDefinition
 {
@@ -61,6 +69,19 @@ public static class TitleCatalog
         a.Add(new(31,"슈퍼스타","1초 내에 적의 공격을 2회 받기",TitleCondition.DoubleHit,1,hidden:true));
         a.Add(new(32,"난 아직 배가 고프다","한 게임에서 힐팩 10개 획득",TitleCondition.HealthPacks,10,hidden:true));
         a.Add(new(33,"자유를 찾아서","한 게임에서 맵 상단 한계를 넘어 사망 3회",TitleCondition.AltitudeDeaths,3,hidden:true));
+        a.Add(new(34,"막을 수 없는 지팡이","한 경기에서 공격 마법을 1회 이상 시전하고 모든 시전에서 적에게 1회 이상 적중한 뒤 경기 완료",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(35,"뚫을 수 없는 방패","한 경기에서 적 공격을 1회 이상 방어하고, 방어하지 못한 적 공격 없이 경기 완료",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(36,"고집불통","마법을 한 번도 교체하지 않고 완료한 경기 누적 10회",TitleCondition.NoSwapMatches,10,hidden:true));
+        a.Add(new(37,"팔랑귀","매 라운드 사이에 마법을 1개 이상 교체한 경기 누적 10회 완료",TitleCondition.EverySwapMatches,10,hidden:true));
+        a.Add(new(38,"끝날때까지 끝난게 아니다","마지막 라운드 종료 5초 이내에 깃발을 획득하고, 보유한 채 경기 승리",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(39,"스릴러","마지막 라운드에서 체력 10 이하로 깃발을 보유한 채 경기 승리",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(40,"하극상","한 경기에서 적 먀오녀 10회 처치 후 경기 완료",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(41,"예의 바른 마녀","먀오녀가 10회 소환되는 동안 먀오녀를 한 번도 공격하지 않고 경기 완료",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(42,"불도저","5초 안에 장애물에 3회 충돌",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(43,"평화주의자","모든 라운드에서 공격 마법을 장착하지 않고 한 경기 완료",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(44,"회피형","모든 라운드에서 플레어와 스모크 조합으로 한 경기 완료",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(45,"성녀","한 경기에서 가한 피해량 0, 실제 마법 회복량 10,000 이상으로 경기 완료",TitleCondition.MatchChallenge,1,hidden:true));
+        a.Add(new(46,"마녀 레인저","거대 먀오녀 토벌 성공",TitleCondition.RaidClear,1));
         return a;
     }
     private static void AddMagic(List<TitleDefinition> a,int id,MagicType magic,string label,string first,string second,string third,int middle)
@@ -78,23 +99,25 @@ public sealed class TitleMatchSnapshot
     public bool completed, botMatch, doubleHit;
     public int deaths, emotes, blackKills, healthPacks, altitudeDeaths;
     public float underwater;
-    public int[] magicKills = new int[13];
+    public int[] magicKills = new int[16];
+    public int challengeFlags;
 }
 
 [Serializable]
 public sealed class TitleProgress
 {
     public int version=1, matches, botMatches, deaths;
+    public int noSwapMatches, everySwapMatches;
     public float underwater;
-    public int[] magicKills=new int[13];
+    public int[] magicKills=new int[16];
     public List<int> unlocked=new();
     public TitleMatchSnapshot lastMatch;
     public bool Owns(int id) => unlocked != null && unlocked.Contains(id);
     public void Normalize()
     {
         unlocked ??= new();
-        if(magicKills==null) magicKills=new int[13];
-        else if(magicKills.Length<13) Array.Resize(ref magicKills,13);
+        if(magicKills==null) magicKills=new int[16];
+        else if(magicKills.Length<16) Array.Resize(ref magicKills,16);
     }
     public void GrantLogin() { Normalize(); if(!Owns(1))unlocked.Add(1); }
     // Authority snapshots are cumulative within the whole match, across all rounds.
@@ -108,11 +131,16 @@ public sealed class TitleProgress
         // Ignore older network snapshots rather than moving the saved watermark backwards.
         if(next.deaths<prev.deaths || next.underwater<prev.underwater || next.emotes<prev.emotes ||
             next.healthPacks<prev.healthPacks || next.altitudeDeaths<prev.altitudeDeaths || next.blackKills<prev.blackKills)return false;
-        for(int i=1;i<13;i++)if(At(next.magicKills,i)<At(prev.magicKills,i))return false;
+        for(int i=1;i<16;i++)if(At(next.magicKills,i)<At(prev.magicKills,i))return false;
         deaths=Add(deaths,Math.Max(0,next.deaths-prev.deaths));
         underwater=Math.Min(100000000f,underwater+Math.Max(0,next.underwater-prev.underwater));
-        for(int i=1;i<13;i++)magicKills[i]=Add(magicKills[i],Math.Max(0,At(next.magicKills,i)-At(prev.magicKills,i)));
-        if(next.completed) { matches=Add(matches,1); if(next.botMatch)botMatches=Add(botMatches,1); }
+        for(int i=1;i<16;i++)magicKills[i]=Add(magicKills[i],Math.Max(0,At(next.magicKills,i)-At(prev.magicKills,i)));
+        if(next.completed)
+        {
+            matches=Add(matches,1);if(next.botMatch)botMatches=Add(botMatches,1);
+            if((next.challengeFlags&(int)TitleChallenge.NoSwap)!=0)noSwapMatches=Add(noSwapMatches,1);
+            if((next.challengeFlags&(int)TitleChallenge.EverySwap)!=0)everySwapMatches=Add(everySwapMatches,1);
+        }
         foreach(var t in TitleCatalog.All)
         {
             float progress=t.condition switch {
@@ -120,7 +148,9 @@ public sealed class TitleProgress
                 TitleCondition.MagicKills=>At(magicKills,(int)t.magic), TitleCondition.Underwater=>underwater,
                 TitleCondition.Deaths=>deaths, TitleCondition.Emotes=>next.emotes, TitleCondition.BlackDevil=>next.blackKills,
                 TitleCondition.DoubleHit=>next.doubleHit?1:0, TitleCondition.HealthPacks=>next.healthPacks,
-                TitleCondition.AltitudeDeaths=>next.altitudeDeaths, _=>0 };
+                TitleCondition.AltitudeDeaths=>next.altitudeDeaths,
+                TitleCondition.NoSwapMatches=>noSwapMatches,TitleCondition.EverySwapMatches=>everySwapMatches,
+                TitleCondition.MatchChallenge=>(next.challengeFlags&(1<<(t.id-34)))!=0?1:0, _=>0 };
             if(progress>=t.required && !Owns(t.id))unlocked.Add(t.id);
         }
         lastMatch=next;

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -14,7 +14,7 @@ public sealed class MagicVfxPool : MonoBehaviour
     private readonly List<MagicVfxLease> releaseBuffer = new();
     private int retained;
     private Transform storage;
-    private struct Deadline { public GameObject root; public float at; }
+    private struct Deadline { public GameObject root; public float at; public TimeVfxSpeed clock; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => instance = null;
@@ -74,7 +74,7 @@ public sealed class MagicVfxPool : MonoBehaviour
             var pool = Ensure();
             for (int i = pool.deadlines.Count - 1; i >= 0; i--)
                 if (pool.deadlines[i].root == root) pool.deadlines.RemoveAt(i);
-            pool.deadlines.Add(new Deadline { root = root, at = Time.time + delay });
+            pool.deadlines.Add(new Deadline { root = root, at = Time.time + delay, clock = root.GetComponent<TimeVfxSpeed>() });
             return;
         }
         if (instance == null) { Destroy(root); return; }
@@ -113,6 +113,11 @@ public sealed class MagicVfxPool : MonoBehaviour
         {
             if (i >= deadlines.Count) continue;
             Deadline item = deadlines[i];
+            if (item.clock != null)
+            {
+                item.at += Time.deltaTime * (1f - item.clock.Multiplier);
+                deadlines[i] = item;
+            }
             if (item.root != null && Time.time < item.at) continue;
             deadlines.RemoveAt(i);
             if (item.root != null) Release(item.root);

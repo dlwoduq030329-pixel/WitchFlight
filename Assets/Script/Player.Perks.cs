@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -9,9 +9,16 @@ public partial class Player
     [Networked] private float PerkBaseRecovery { get; set; }
     [Networked] private TickTimer CleanseProtection { get; set; }
     [Networked] private float CleanseDurationMultiplier { get; set; }
-    [Networked] private bool HasBurnStatus { get; set; }
+    [Networked] protected bool HasBurnStatus { get; set; }
+    [Networked] private TickTimer FlareProtection { get; set; }
+    public bool IsFlareActive => Object != null && Object.IsValid && IsAlive && TimerIsActive(FlareProtection);
+    public float LockRangeMultiplier => BattleFlag.Instance != null && BattleFlag.Instance.Runner == Runner &&
+        BattleFlag.Instance.ContainsEnemySmoke(LockAimPoint, TeamIndex) ? .7f : 1f;
+    public float LockDurationMultiplierAgainst(Player target) => target != null && target.IsFlareActive &&
+        target.IsEnemyOf(this) ? 1.2f : 1f;
     private PlayerData perkOwner;
-    private float lifeStartMaxHp, perkClock, nextManaRemnant;
+    private float lifeStartMaxHp, nextManaRemnant;
+    protected float perkClock;
     private MagicStatEntry pendingPerkStats, channelPerkStats, flarePerkStats;
     private float flarePulseAt = -1f, flareCastAt;
     private int flarePulsesRemaining;
@@ -20,13 +27,13 @@ public partial class Player
     private float beamContact, beamLastContact = -100f;
     private readonly float[] visionFirstHit = { -100f, -100f, -100f };
     private readonly NetworkId[] visionVictim = new NetworkId[3];
-    private sealed class Burn { public PlayerRef attacker; public float remaining, damagePerSecond, nextTick, interval; }
+    protected sealed class Burn { public PlayerRef attacker; public float remaining, damagePerSecond, nextTick, interval; }
     private sealed class IceMark
     {
         public int slot, cast; public bool used; public float expires, amount, channelSeconds, channelUntil;
     }
     private readonly Dictionary<NetworkId, IceMark> iceMarks = new();
-    private readonly List<Burn> perkBurns = new();
+    protected readonly List<Burn> perkBurns = new();
     private PerkStatTable Perks => BattleManager.Instance != null ? BattleManager.Instance.Perks : PerkStatTable.Default;
     private PlayerData PerkOwner
     {
@@ -41,6 +48,7 @@ public partial class Player
     private float CommonAmount(PerkId id) => PerkOwner != null && PerkOwner.HasCommonPerk(id) ? Perks.Amount(id) : 0f;
     private void InitializePerkVitals(PlayerData data)
     {
+        FlareProtection = TickTimer.None;
         perkBurns.Clear();
         HasBurnStatus = false;
         perkOwner = data;
@@ -70,15 +78,16 @@ public partial class Player
         areaAimArmed = false;
         ClearLockTargetInternal();
         if (!Object.HasStateAuthority) return;
+        StopMagicStorm();
         StopChannel(); pendingMagic = MagicType.None; pendingTargetId = default; castTimer = TickTimer.None;
     }
     private bool CanCleanse(MagicStatEntry s) => s.perkSecond != null && s.perkSecond.id == PerkId.HealingCleanse &&
-        (IsBound || TimerIsActive(SlowTimer));
+        (IsBound || TimerIsActive(SlowTimer) || TimerIsActive(WoundTimer));
     private void ApplyPerkCleanse(MagicStatEntry s)
     {
         var p = s.perkSecond;
         if (p == null || p.id != PerkId.HealingCleanse) return;
-        BindingTimer = SlowTimer = TickTimer.None; SlowMultiplier = 1f;
+        BindingTimer = SlowTimer = WoundTimer = TickTimer.None; SlowMultiplier = 1f;
         CleanseDurationMultiplier = 1f - Mathf.Clamp01(p.amount);
         CleanseProtection = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f,p.seconds));
     }
@@ -109,6 +118,7 @@ public partial class Player
     }
     private void StartPerkFlare(MagicStatEntry stats)
     {
+        FlareProtection = TickTimer.CreateFromSeconds(Runner, stats.effectDuration > 0f ? stats.effectDuration : 3f);
         flarePerkStats = stats; flareRefunded = false; flareCastAt = perkClock;
         flarePulsesRemaining = stats.perkFirst?.id == PerkId.FlarePulse
             ? Mathf.Clamp(Mathf.RoundToInt(stats.perkFirst.amount), 0, 8) : 0;

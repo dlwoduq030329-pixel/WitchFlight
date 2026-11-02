@@ -21,6 +21,12 @@ public partial class LoginManager
         IsLoggingOut = true;
         loginAttempt++;
         IsLoggingIn = false;
+        loginLoading?.Dispose();
+        loginLoading = null;
+        signUpAttempt++;
+        IsSigningUp = false;
+        signUpLoading?.Dispose();
+        signUpLoading = null;
         try
         {
             SetLoginStatus("로그아웃 준비 중...");
