@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 // Small code-drawn placeholders, cached by the HUD. Replaced by EmoteTable.icon when supplied.
 public static class EmoteFallbackIcons
@@ -10,7 +10,7 @@ public static class EmoteFallbackIcons
         { name = "DefaultEmote_" + face, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
         var pixels = new Color32[size * size];
         Color fill = face == DefaultEmoteFace.Hello ? new Color(.24f,.9f,.85f) :
-            face == DefaultEmoteFace.Happy ? new Color(1f,.83f,.32f) :
+            (face == DefaultEmoteFace.Happy || face == DefaultEmoteFace.YouGood) ? new Color(1f,.83f,.32f) :
             face == DefaultEmoteFace.Sad ? new Color(.42f,.67f,1f) : new Color(1f,.4f,.5f);
         Color ink = new Color(.07f,.1f,.17f);
         for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
@@ -23,7 +23,7 @@ public static class EmoteFallbackIcons
             bool mouth = Mathf.Abs(px) < .44f && Mathf.Abs(py - (-.38f + .8f*px*px)) < .035f;
             if (face == DefaultEmoteFace.Hello)
                 eye = Circle(px+.32f,py-.2f,.085f) || (px > .19f && px < .45f && Mathf.Abs(py-.2f) < .035f);
-            if (face == DefaultEmoteFace.Happy)
+            if (face == DefaultEmoteFace.Happy || face == DefaultEmoteFace.YouGood)
                 mouth = Circle(px,(py+.26f)*1.25f,.36f) && py < -.18f;
             if (face == DefaultEmoteFace.Sad)
                 mouth = Mathf.Abs(px) < .36f && Mathf.Abs(py - (-.23f - .9f*px*px)) < .035f;

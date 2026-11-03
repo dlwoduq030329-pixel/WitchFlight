@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 public enum EmoteDirection { Up = 0, Right = 1, Down = 2, Left = 3 }
-public enum DefaultEmoteFace { Hello, Happy, Sad, Angry }
+public enum EmoteId { None = 0, BlankFace = 1, AngryFace = 2, Sudam = 3, Rude = 4, YouGood = 5 }
+public enum DefaultEmoteFace { Hello, Happy, Sad, Angry, YouGood }
 
 [Serializable]
 public sealed class EmoteEntry
@@ -32,7 +33,8 @@ public sealed class EmoteTable : ScriptableObject
         new EmoteEntry { id = 1, displayName = "안녕!", fallbackFace = DefaultEmoteFace.Hello },
         new EmoteEntry { id = 2, displayName = "신나요!", fallbackFace = DefaultEmoteFace.Happy },
         new EmoteEntry { id = 3, displayName = "아쉬워요", fallbackFace = DefaultEmoteFace.Sad },
-        new EmoteEntry { id = 4, displayName = "으으!", fallbackFace = DefaultEmoteFace.Angry }
+        new EmoteEntry { id = 4, displayName = "으으!", fallbackFace = DefaultEmoteFace.Angry },
+        new EmoteEntry { id = (int)EmoteId.YouGood, displayName = "Good", animationName = "YouGood", fallbackFace = DefaultEmoteFace.YouGood }
     };
     [Tooltip("연속 사용 최소 간격(초). 호스트에서도 검증하며 게임 플레이에는 영향을 주지 않습니다.")]
     [SerializeField, Min(.1f)] private float minimumInterval = 1f;

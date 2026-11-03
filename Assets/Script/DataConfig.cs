@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -38,6 +38,29 @@ public static class DataConfig
     private static string _titleProgressJson = "{}";
     public static int equippedTitleId { get => _equippedTitleId; set => SetValue(ref _equippedTitleId, value); }
     public static string titleProgressJson { get => _titleProgressJson; set => SetValue(ref _titleProgressJson, value ?? "{}"); }
+    private static int _emoteUpId = 1, _emoteRightId = 2, _emoteDownId = 3, _emoteLeftId = 4;
+    public static int emoteUpId { get => _emoteUpId; set => SetValue(ref _emoteUpId, value > 0 ? value : 1); }
+    public static int emoteRightId { get => _emoteRightId; set => SetValue(ref _emoteRightId, value > 0 ? value : 2); }
+    public static int emoteDownId { get => _emoteDownId; set => SetValue(ref _emoteDownId, value > 0 ? value : 3); }
+    public static int emoteLeftId { get => _emoteLeftId; set => SetValue(ref _emoteLeftId, value > 0 ? value : 4); }
+    public static int GetEmote(int slot)
+    {
+        int id = slot switch { 0 => emoteUpId, 1 => emoteRightId, 2 => emoteDownId, 3 => emoteLeftId, _ => 0 };
+        if (slot < 0 || slot > 3) return 0;
+        return EmoteTable.Default != null && EmoteTable.Default.TryGet(id, out _) ? id : slot + 1;
+    }
+    public static bool SetEmote(int slot, int id)
+    {
+        if (slot < 0 || slot > 3 || EmoteTable.Default == null || !EmoteTable.Default.TryGet(id, out _)) return false;
+        switch ((EmoteDirection)slot)
+        {
+            case EmoteDirection.Up: emoteUpId = id; break;
+            case EmoteDirection.Right: emoteRightId = id; break;
+            case EmoteDirection.Down: emoteDownId = id; break;
+            case EmoteDirection.Left: emoteLeftId = id; break;
+        }
+        return true;
+    }
     private static string _playerName;
     private static int _catTutorialCompleted;
     public static int catTutorialCompleted { get => _catTutorialCompleted; set => SetValue(ref _catTutorialCompleted, value == 1 ? 1 : 0); }
@@ -140,6 +163,7 @@ public static class DataConfig
     {
         using var batch = BeginChangeBatch(false);
         playerName = string.Empty;
+        emoteUpId = 1; emoteRightId = 2; emoteDownId = 3; emoteLeftId = 4;
         money = 0;
         itemInventoryJson = ItemInventory.EmptyJson;
         equippedTitleId = 0;
