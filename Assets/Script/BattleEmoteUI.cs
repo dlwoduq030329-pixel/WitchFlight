@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -38,12 +38,6 @@ public sealed class EmoteDisplayView
 [DefaultExecutionOrder(-300), DisallowMultipleComponent]
 public sealed class BattleEmoteUI : MonoBehaviour
 {
-    [Header("Four equipped IDs from Resources/EmoteTable (future customization)")]
-    [SerializeField, Min(1)] private int upEmoteId = 1;
-    [SerializeField, Min(1)] private int rightEmoteId = 2;
-    [SerializeField, Min(1)] private int downEmoteId = 3;
-    [SerializeField, Min(1)] private int leftEmoteId = 4;
-
     [Header("Hold T / move mouse / release T to send")]
     private KeyCode holdKey => ControlSettings.GetKey(ControlAction.Emote);
     [SerializeField, Min(.1f)] private float mouseSensitivity = 22f;
@@ -73,7 +67,7 @@ public sealed class BattleEmoteUI : MonoBehaviour
 
     private static BattleEmoteUI active;
     private readonly EmoteInputGate gate = new EmoteInputGate();
-    private readonly Sprite[] defaultIcons = new Sprite[4];
+    private readonly Sprite[] defaultIcons = new Sprite[5];
     private EmoteSlotView[] views;
     private Canvas generatedCanvas;
     private Player sampledPlayer;
@@ -159,21 +153,9 @@ public sealed class BattleEmoteUI : MonoBehaviour
         AnimateDisplay(opponentDisplay, playing);
     }
 
-    // Stable slot numbers: 0=Up, 1=Right, 2=Down, 3=Left. Saving to an account can be added by its UI.
-    public int GetSlotEmote(int slot) => slot == 0 ? upEmoteId : slot == 1 ? rightEmoteId :
-        slot == 2 ? downEmoteId : slot == 3 ? leftEmoteId : 0;
-    public bool SetSlotEmote(int slot, int emoteId)
-    {
-        if (slot < 0 || slot > 3 || Table == null || !Table.TryGet(emoteId, out _)) return false;
-        switch ((EmoteDirection)slot)
-        {
-            case EmoteDirection.Up: upEmoteId = emoteId; break;
-            case EmoteDirection.Right: rightEmoteId = emoteId; break;
-            case EmoteDirection.Down: downEmoteId = emoteId; break;
-            case EmoteDirection.Left: leftEmoteId = emoteId; break;
-        }
-        return true;
-    }
+    // The account owns the wheel layout. RPCs continue to transmit the selected emote ID.
+    public int GetSlotEmote(int slot) => DataConfig.GetEmote(slot);
+    public bool SetSlotEmote(int slot, int emoteId) => DataConfig.SetEmote(slot, emoteId);
 
     private void RefreshWheel()
     {

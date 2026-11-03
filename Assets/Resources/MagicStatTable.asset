@@ -82,15 +82,15 @@ MonoBehaviour:
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
-    rainMaxCircles: 0
+    rainMaxCircles: 2
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
-    timeEnemySpeed: 0
+    timeEnemySpeed: 0.01
     timeAllySpeed: 0
-    timeProjectileSpeed: 0
+    timeProjectileSpeed: 0.01
     stormShotCount: 0
     stormDuration: 0
     stormLaunchAngle: 0
@@ -1430,14 +1430,14 @@ MonoBehaviour:
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
     effect: 13
-    displayDamage: 0
+    displayDamage: 0.084
     displayAimTime: 0
-    displayRange: 0
+    displayRange: 0.679
     displayManaCost: 0.7
-    displayDamageLabel: 20
+    displayDamageLabel: "\uB0AE\uC74C"
     displayAimTimeLabel: "\uC5C6\uC74C"
-    displayRangeLabel: 100
-    displayManaCostLabel: 30
+    displayRangeLabel: "\uAE38\uB2E4"
+    displayManaCostLabel: "\uB192\uC74C"
     displayCategory: 
     displayCastType: 
     displayFeatures: 
@@ -1530,21 +1530,20 @@ MonoBehaviour:
     displayName: "\uB9C8\uD0C4 \uD3ED\uD48D"
     description: "2\uCD08\uAC04 \uC5D0\uC784\uC744 \uB530\uB77C \uACE1\uC120\uC73C\uB85C
       \uB0A0\uC544\uAC00\uB294 \uB9C8\uD0C4 30\uBC1C\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
-      \uD0C4\uD37C\uC9D0\uC774 \uC788\uC73C\uBA70 \uBC1C\uB2F9 \uD53C\uD574\uB294
-      10\uC785\uB2C8\uB2E4."
+      \uBC1C\uB2F9 \uD53C\uD574\uB294 10\uC785\uB2C8\uB2E4."
     icon: {fileID: 706995332, guid: bf7fc59d8f3f908468d1f546e3604cfb, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
     effect: 14
-    displayDamage: 0
+    displayDamage: 0.149
     displayAimTime: 0
-    displayRange: 0
+    displayRange: 0.376
     displayManaCost: 0.7
-    displayDamageLabel: "10 \xD7 30"
+    displayDamageLabel: "\uB192\uC74C"
     displayAimTimeLabel: "\uC5C6\uC74C"
-    displayRangeLabel: 120
-    displayManaCostLabel: 60
+    displayRangeLabel: "\uB0AE\uC74C"
+    displayManaCostLabel: "\uB0AE\uC74C"
     displayCategory: 
     displayCastType: 
     displayFeatures: 
@@ -1621,9 +1620,9 @@ MonoBehaviour:
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
     lockOnCompleteVfxPrefab: {fileID: 0}
-    projectileVfxPrefab: {fileID: 6229359017641430948, guid: 929df60048b504916b4d2f8e283514fc, type: 3}
-    secondaryProjectileVfxPrefab: {fileID: 1745524843169559258, guid: 188c1c1bdba1e42338c1616f96ce1798, type: 3}
-    impactVfxPrefab: {fileID: 7945139583991965314, guid: 77edab042f4964d99bf8fca6c95e80e2, type: 3}
+    projectileVfxPrefab: {fileID: 7264231152250865867, guid: 0537977d5fd74e29b1b256acde0b28e7, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 4442764683140637388, guid: a7759290c770412689ab391368b4611e, type: 3}
     castVfxPrefab: {fileID: 0}
     beamVfxPrefab: {fileID: 0}
     beamMaterial: {fileID: 0}
@@ -1635,11 +1634,10 @@ MonoBehaviour:
     flareVfxBrightness: 2
   - magic: 15
     displayName: "\uC2DC\uAC04 \uB9C8\uBC95"
-    description: "10\uCD08\uAC04 \uBC18\uC9C0\uB984 50\uC758 \uC2DC\uAC04 \uC601\uC5ED\uC744
-      \uD3BC\uCE69\uB2C8\uB2E4. \uC801\uC740 30% \uB290\uB824\uC9C0\uACE0 \uC544\uAD70\uC740
-      30% \uBE68\uB77C\uC9D1\uB2C8\uB2E4. \uBE44\uD589 \uD22C\uC0AC\uCCB4\uB294 80%
-      \uB290\uB824\uC9D1\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: 2325c09a6f9851c4c8141ac4af66263f, type: 3}
+    description: "\uC2DC\uAC04 \uC601\uC5ED\uC744 \uD3BC\uCE69\uB2C8\uB2E4. \uC801\uC740
+      30% \uB290\uB824\uC9C0\uACE0 \uC544\uAD70\uC740 30% \uBE68\uB77C\uC9D1\uB2C8\uB2E4.
+      \n\uBE44\uD589 \uD22C\uC0AC\uCCB4\uB294 80% \uB290\uB824\uC9D1\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
@@ -1648,10 +1646,10 @@ MonoBehaviour:
     displayAimTime: 0
     displayRange: 0
     displayManaCost: 0.7
-    displayDamageLabel: "\uC5C6\uC74C"
-    displayAimTimeLabel: "\uC5C6\uC74C"
-    displayRangeLabel: "\uBC18\uACBD 50"
-    displayManaCostLabel: 60
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uB0AE\uC74C"
+    displayRangeLabel: "\uB0AE\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
     displayCategory: 
     displayCastType: 
     displayFeatures: 
@@ -1744,10 +1742,8 @@ MonoBehaviour:
     displayName: "\uBA00\uC624\uB140 \uB300\uCD95\uC81C"
     description: "\uC790\uC2E0 \uB610\uB294 \uC544\uAD70\uC758 \uCCB4\uB825\xB7\uB9C8\uB825
       \uD68C\uBCF5\uB7C9\uC744 50% \uC99D\uAC00\uC2DC\uD0A4\uACE0 \uCD08\uB2F9 \uCCB4\uB825
-      5\uB97C \uD68C\uBCF5\uD569\uB2C8\uB2E4. \uC9C0\uC18D \uD68C\uBCF5\uC740 \uB300\uCD95\uC81C\uC758
-      \uD68C\uBCF5 \uC99D\uAC00 \uD6A8\uACFC\uB97C \uBC1B\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-      \uC7AC\uC2DC\uC804 \uC2DC \uC9C0\uC18D\uC2DC\uAC04\uB9CC \uAC31\uC2E0\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: d83694085d9a3564ca1042073e401cfb, type: 3}
+      5\uB97C \uD68C\uBCF5\uD569\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
@@ -1756,10 +1752,10 @@ MonoBehaviour:
     displayAimTime: 0
     displayRange: 0
     displayManaCost: 0.7
-    displayDamageLabel: "\uCD08\uB2F9 \uD68C\uBCF5 5"
+    displayDamageLabel: "\uC5C6\uC74C"
     displayAimTimeLabel: "\uC5C6\uC74C"
-    displayRangeLabel: 100
-    displayManaCostLabel: 70
+    displayRangeLabel: "\uB192\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
     displayCategory: 
     displayCastType: 
     displayFeatures: 
@@ -1850,25 +1846,24 @@ MonoBehaviour:
     flareVfxBrightness: 2
   - magic: 17
     displayName: "\uCE7C\uB0A0\uBE44"
-    description: "\uCCAB \uB85D\uC628\uC740 \uBB34\uB8CC. \uC774\uD6C4 \uCD08\uB2F9
-      \uB9C8\uB098 5\uB97C \uCDA9\uC804\uD558\uACE0 \uB193\uC73C\uBA74 \uAE30\uBCF8
-      \uB9C8\uB098 50\uC744 \uC18C\uBAA8\uD574 \uBC1C\uC0AC\uD569\uB2C8\uB2E4. \uC2E4\uC81C
-      \uC18C\uBAA8 \uB9C8\uB098\uC758 \uC808\uBC18\uC744 \uB0A8\uC740 \uB300\uC0C1\uC5D0\uAC8C
-      \uB098\uB215\uB2C8\uB2E4. \uBC1C\uC0AC \uB9C8\uB098\uB9CC \uB0A8\uC73C\uBA74
-      \uC790\uB3D9 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: 168fa0a22ac489b418a8fa87e125d1eb, type: 3}
+    description: "\uCD08\uB2F9 \uB9C8\uB098 5\uB97C \uCDA9\uC804\uD558\uACE0 \uB193\uC73C\uBA74
+      \uAE30\uBCF8 \uB9C8\uB098 50\uC744 \uC18C\uBAA8\uD574 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
+      \n\uC2E4\uC81C \uC18C\uBAA8 \uB9C8\uB098\uC758 \uC808\uBC18\uC744 \uB0A8\uC740
+      \uB300\uC0C1\uC5D0\uAC8C \uB098\uB215\uB2C8\uB2E4. \uBC1C\uC0AC \uB9C8\uB098\uB9CC
+      \uB0A8\uC73C\uBA74 \uC790\uB3D9 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
     effect: 17
-    displayDamage: 0
-    displayAimTime: 0
-    displayRange: 0
-    displayManaCost: 0.7
-    displayDamageLabel: "\uC18C\uBAA8 \uB9C8\uB098 \xF7 2"
-    displayAimTimeLabel: "\uC5C6\uC74C"
-    displayRangeLabel: 150
-    displayManaCostLabel: "50 + \uCDA9\uC804"
+    displayDamage: 0.5
+    displayAimTime: 0.5
+    displayRange: 0.5
+    displayManaCost: 0.5
+    displayDamageLabel: "\uC911\uAC04"
+    displayAimTimeLabel: "\uC911\uAC04"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uC911\uAC04"
     displayCategory: 
     displayCastType: 
     displayFeatures: 
@@ -1901,9 +1896,9 @@ MonoBehaviour:
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
-    timeEnemySpeed: 0
+    timeEnemySpeed: 0.01
     timeAllySpeed: 0
-    timeProjectileSpeed: 0
+    timeProjectileSpeed: 0.01
     stormShotCount: 0
     stormDuration: 0
     stormLaunchAngle: 0
@@ -1924,8 +1919,8 @@ MonoBehaviour:
     thunderBurstVfxPrefab: {fileID: 0}
     thunderVfxReferenceRadius: 0
     thunderBurstExpandSeconds: 0
-    thunderBurstStartScale: 0
-    summonMaxCount: 0
+    thunderBurstStartScale: 0.01
+    summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
     summonFollowDistance: 0

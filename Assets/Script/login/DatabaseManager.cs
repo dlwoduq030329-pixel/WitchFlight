@@ -31,6 +31,7 @@ public partial class DatabaseManager : MonoBehaviour
     public class PlayerSetting
     {
         public string nickname;
+        public int emoteUpId = 1, emoteRightId = 2, emoteDownId = 3, emoteLeftId = 4;
         public int money = DataConfig.InitialMoney;
         public string itemInventoryJson = ItemInventory.InitialJson;
 
@@ -652,6 +653,8 @@ public partial class DatabaseManager : MonoBehaviour
             setting.magic1Index = currentPlayerSetting.magic1Index;
             setting.magic2Index = currentPlayerSetting.magic2Index;
             setting.catTutorialCompleted = currentPlayerSetting.catTutorialCompleted;
+            setting.emoteUpId = currentPlayerSetting.emoteUpId; setting.emoteRightId = currentPlayerSetting.emoteRightId;
+            setting.emoteDownId = currentPlayerSetting.emoteDownId; setting.emoteLeftId = currentPlayerSetting.emoteLeftId;
             setting.equippedTitleId = currentPlayerSetting.equippedTitleId;
             setting.titleProgressJson = currentPlayerSetting.titleProgressJson;
             setting.money = currentPlayerSetting.money;
@@ -803,6 +806,10 @@ public partial class DatabaseManager : MonoBehaviour
         param.Add("catBodyIndex", setting.catBodyIndex);
         param.Add("catEyeIndex", setting.catEyeIndex);
         param.Add("catTutorialCompleted", setting.catTutorialCompleted);
+        param.Add("emoteUpId", setting.emoteUpId);
+        param.Add("emoteRightId", setting.emoteRightId);
+        param.Add("emoteDownId", setting.emoteDownId);
+        param.Add("emoteLeftId", setting.emoteLeftId);
         param.Add("hairStylePreset", config.hairStylePreset);
         param.Add("bangsLength", config.bangsLength);
         param.Add("bangsDirection", config.bangsDirection);
@@ -855,6 +862,8 @@ public partial class DatabaseManager : MonoBehaviour
         setting.catBodyIndex = currentPlayerSetting?.catBodyIndex ?? 0;
         setting.catEyeIndex = currentPlayerSetting?.catEyeIndex ?? 0;
         setting.catTutorialCompleted = DataConfig.catTutorialCompleted;
+        setting.emoteUpId = DataConfig.emoteUpId; setting.emoteRightId = DataConfig.emoteRightId;
+        setting.emoteDownId = DataConfig.emoteDownId; setting.emoteLeftId = DataConfig.emoteLeftId;
         AssignMissingCatAppearance(setting);
         setting.magic1Index = NormalizeMagicIndex(setting.magic1Index, (int)MagicType.Fire);
         setting.magic2Index = NormalizeMagicIndex(setting.magic2Index, (int)MagicType.Ice);
@@ -879,6 +888,8 @@ public partial class DatabaseManager : MonoBehaviour
         var setting = new PlayerSetting
         {
             nickname = ReadString(row, "nickname", string.Empty),
+            emoteUpId = ReadInt(row, "emoteUpId", 1), emoteRightId = ReadInt(row, "emoteRightId", 2),
+            emoteDownId = ReadInt(row, "emoteDownId", 3), emoteLeftId = ReadInt(row, "emoteLeftId", 4),
             money = ReadMoney(row),
             itemInventoryJson = ItemInventory.WithDefaultVoice(ReadString(row, "itemInventoryJson", ItemInventory.EmptyJson)),
             hatIndex = ReadInt(row, "hatIndex", (int)HatType.Classic),
@@ -991,6 +1002,8 @@ public partial class DatabaseManager : MonoBehaviour
         using var batch = DataConfig.BeginChangeBatch(false);
         DataConfig.ApplyPlayerConfig(setting.GetPlayerConfig());
         DataConfig.catTutorialCompleted = setting.catTutorialCompleted;
+        DataConfig.emoteUpId = setting.emoteUpId; DataConfig.emoteRightId = setting.emoteRightId;
+        DataConfig.emoteDownId = setting.emoteDownId; DataConfig.emoteLeftId = setting.emoteLeftId;
         DataConfig.equippedTitleId = setting.equippedTitleId;
         DataConfig.titleProgressJson = setting.titleProgressJson;
         DataConfig.money = setting.money;
