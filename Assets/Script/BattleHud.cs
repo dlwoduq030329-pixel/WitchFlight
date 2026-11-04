@@ -973,7 +973,8 @@ public sealed partial class BattleHud : MonoBehaviour
                 float urgency = timed
                     ? 1f - Mathf.Clamp01(seconds / Mathf.Max(.1f, warningLeadSeconds))
                     : 1f - Mathf.Clamp01(distance / Mathf.Max(1f, warningDistance));
-                bool ready = timed && owner.CanStartParryNow && !owner.IsParrying &&
+                bool ready = timed && !owner.IsHitStunned && !owner.IsReturningToMap &&
+                    owner.GetMagicCooldownRemaining(3) <= 0f && !owner.IsParrying &&
                     IsParryCueTiming(seconds, owner.ParryWindowSeconds, parryCueSafetyMargin);
                 if (ready && !incomingParryReady) lastIncomingBeep = -100f;
                 incomingParryReady = ready;
