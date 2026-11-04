@@ -1,4 +1,4 @@
-﻿%YAML 1.1
+%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!29 &1
 OcclusionCullingSettings:
@@ -36821,6 +36821,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   newPlayerDefaults:
     nickname: test
+    emoteUpId: 1
+    emoteRightId: 2
+    emoteDownId: 3
+    emoteLeftId: 4
     money: 20000
     itemInventoryJson: '{"version":1,"ownedItemIds":[],"equippedItems":[]}'
     hatIndex: 1
@@ -76747,7 +76751,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+  m_Sprite: {fileID: -1604408849, guid: d2606211fdd688f4ba3d802c543d4fe6, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -130104,6 +130108,31 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &1864321000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1218811789}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1edaeee4bdbf42c7997596358e19aa87, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  contentRoot: {fileID: 1785363873}
+  slotButtons:
+  - {fileID: 592310838}
+  - {fileID: 1328470045}
+  - {fileID: 1001834773}
+  - {fileID: 589297015}
+  slotIcons:
+  - {fileID: 784222371}
+  - {fileID: 323367773}
+  - {fileID: 1676689449}
+  - {fileID: 255126925}
+  equipButton: {fileID: 1543537603}
+  lobbyCharacter: {fileID: 7754228232794309097}
 --- !u!222 &1869977869965861072
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -134658,6 +134687,10 @@ PrefabInstance:
       propertyPath: m_SizeDelta.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1482575007160470670, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 481500132, guid: eb82dc3881806504cb54562db50bd6e9, type: 3}
     - target: {fileID: 1701480841621040512, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
@@ -135044,7 +135077,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2351828179131914962, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 468
+      value: 361
       objectReference: {fileID: 0}
     - target: {fileID: 2351828179131914962, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_SizeDelta.y
@@ -135052,7 +135085,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2351828179131914962, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 234
+      value: 180.5
       objectReference: {fileID: 0}
     - target: {fileID: 2351828179131914962, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchoredPosition.y
@@ -139850,6 +139883,10 @@ PrefabInstance:
       propertyPath: m_SizeDelta.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7574660769433013328, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 632450003, guid: 436518df393d6dc428c7f40354562843, type: 3}
     - target: {fileID: 7577309310080333263, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -141696,7 +141733,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8908692456434583316, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 175.5
+      value: 178.83334
       objectReference: {fileID: 0}
     - target: {fileID: 8908692456434583316, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchoredPosition.y
@@ -142720,7 +142757,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9145707859081662318, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 292.5
+      value: 299.1667
       objectReference: {fileID: 0}
     - target: {fileID: 9145707859081662318, guid: c65b85f415ffdf64ab4962c17ee06dc6, type: 3}
       propertyPath: m_AnchoredPosition.y
@@ -144275,7 +144312,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &3239447485272475424
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -146099,11 +146136,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 600263587632341806, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 82.97
       objectReference: {fileID: 0}
     - target: {fileID: 600263587632341806, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 19.09
       objectReference: {fileID: 0}
     - target: {fileID: 1398093175793961682, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
@@ -146263,11 +146300,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1794995151636245648, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 35.72
       objectReference: {fileID: 0}
     - target: {fileID: 1794995151636245648, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 27.81
       objectReference: {fileID: 0}
     - target: {fileID: 1814679490377067778, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
@@ -146551,11 +146588,11 @@ PrefabInstance:
       objectReference: {fileID: 21300000, guid: a9958ec02e3c2754c9c33f3cf6904781, type: 3}
     - target: {fileID: 2615449495047269544, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 29.25
       objectReference: {fileID: 0}
     - target: {fileID: 2615449495047269544, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 23.17
       objectReference: {fileID: 0}
     - target: {fileID: 2933835695554789945, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: onStart.m_PersistentCalls.m_Calls.Array.data[0].m_Target
@@ -147175,11 +147212,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4720353554811039830, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 35.72
       objectReference: {fileID: 0}
     - target: {fileID: 4720353554811039830, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 27.81
       objectReference: {fileID: 0}
     - target: {fileID: 5206038860345551405, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_IsActive
@@ -147187,19 +147224,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5286583800491352365, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 35.72
       objectReference: {fileID: 0}
     - target: {fileID: 5286583800491352365, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 27.81
       objectReference: {fileID: 0}
     - target: {fileID: 5772814582269339497, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 101.49
       objectReference: {fileID: 0}
     - target: {fileID: 5772814582269339497, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 38.18
       objectReference: {fileID: 0}
     - target: {fileID: 6574285932820876974, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_Name
@@ -147211,11 +147248,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6713023147193824694, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 223.22
       objectReference: {fileID: 0}
     - target: {fileID: 6713023147193824694, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 0
+      value: 34.76
       objectReference: {fileID: 0}
     - target: {fileID: 6749184578245686337, guid: 782bcd5720a485045a2e93eeba73c23f, type: 3}
       propertyPath: m_IsActive
@@ -153037,7 +153074,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!225 &6366788855091261861
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -160367,11 +160404,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8608314328620217496, guid: c7d309edf7f573841b06409873c8369c, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 73.57
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8608314328620217496, guid: c7d309edf7f573841b06409873c8369c, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 38.18
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -160444,27 +160481,3 @@ SceneRoots:
   - {fileID: 1403806836}
   - {fileID: 13569362}
   - {fileID: 1628747035}
---- !u!114 &1864321000000000001
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1218811789}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1edaeee4bdbf42c7997596358e19aa87, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  contentRoot: {fileID: 1785363873}
-  slotButtons:
-  - {fileID: 592310838}
-  - {fileID: 1328470045}
-  - {fileID: 1001834773}
-  - {fileID: 589297015}
-  slotIcons:
-  - {fileID: 784222371}
-  - {fileID: 323367773}
-  - {fileID: 1676689449}
-  - {fileID: 255126925}
-  equipButton: {fileID: 1543537603}

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 using Fusion;
@@ -461,6 +461,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             sessionRunner.AddCallbacks(this);
             sessionRunner.ProvideInput = true;
             var sceneManager = runnerObject.AddComponent<BattleNetworkSceneManager>();
+            var objectProvider = runnerObject.AddComponent<MagicNetworkObjectPool>();
             SetMatchStatus(request switch
             {
                 MatchRequest.CreateRoom => "코드 방을 만드는 중...",
@@ -498,6 +499,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 MatchmakingMode = Fusion.Photon.Realtime.MatchmakingMode.FillRoom,
                 Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex),
                 SceneManager = sceneManager,
+                ObjectProvider = objectProvider,
                 StartGameCancellationToken = cancellation.Token
             });
             if (this == null) return;

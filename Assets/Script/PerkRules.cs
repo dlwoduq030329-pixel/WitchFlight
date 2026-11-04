@@ -11,7 +11,9 @@ public static class PerkRules
         int first = magic switch {
             MagicType.Fire => 1, MagicType.Ice => 3, MagicType.Vision => 5, MagicType.Thunder => 7,
             MagicType.Healing => 9, MagicType.Binding => 11, MagicType.Dark => 13, MagicType.Curse => 15,
-            MagicType.Mine => 17, MagicType.Razier => 19, MagicType.Flare => 21, MagicType.Smoke => 23, _ => 0 };
+            MagicType.Mine => 17, MagicType.Razier => 19, MagicType.Flare => 21, MagicType.Smoke => 23,
+            MagicType.Blade => 35, MagicType.MagicStorm => 37, MagicType.BladeRain => 39,
+            MagicType.TimeStop => 41, MagicType.MeowFestival => 43, _ => 0 };
         return first == 0 ? PerkId.None : (PerkId)(first + stage - 1);
     }
     public static bool Common(PerkId id) => (int)id >= 25 && (int)id <= 34;

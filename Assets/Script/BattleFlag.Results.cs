@@ -143,9 +143,7 @@ public partial class BattleFlag
             if (PraiseVoters[i] == PlayerRef.None) { empty = i; break; }
         if (empty < 0) return;
         PraiseVoters.Set(empty, sender);
-        PlayerRef winner = Awards[panel].Winner;
-        // A player can win several categories; every card shows that player's total votes.
-        for (int i = 0; i < 4; i++)
-            if (Awards[i].Winner == winner) PraiseSequences.Set(i, PraiseSequences[i] + 1);
+        // Votes belong to the selected award card, even when its winner appears again.
+        PraiseSequences.Set(panel, PraiseSequences[panel] + 1);
     }
 }

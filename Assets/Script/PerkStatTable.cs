@@ -13,7 +13,10 @@ public enum PerkId
     FlarePulse = 21, FlareEfficiency = 22, SmokeRadius = 23, SmokeDuration = 24,
     GuardianKnot = 25, WindTurning = 26, BrakingRune = 27, FirstWind = 28,
     Tailwind = 29, DeepMana = 30, ManaBreath = 31, FrugalRune = 32,
-    EchoSpell = 33, ManaRemnant = 34
+    EchoSpell = 33, ManaRemnant = 34,
+    BladeCharges = 35, BladeWound = 36, StormCount = 37, StormPrecision = 38,
+    RainCharge = 39, RainPursuit = 40, TimeRadius = 41, TimeHealing = 42,
+    FestivalSpeed = 43, FestivalGuard = 44
 }
 
 [Serializable]
@@ -36,7 +39,7 @@ public sealed class PerkDefinition
 [CreateAssetMenu(fileName = "PerkStatTable", menuName = "WitchFlight/Combat/Perk Stat Table")]
 public sealed class PerkStatTable : ScriptableObject
 {
-    [Header("34 effects (IDs and fixed stage order never depend on array order)")]
+    [Header("44 effects (IDs and fixed stage order never depend on array order)")]
     public PerkDefinition[] perks = CreateDefaults();
     [Header("XP balancing - maximum four choices, one mastered slot")]
     [Min(1)] public int firstChoiceXp = 100;
@@ -122,6 +125,16 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.ManaBreath,"마력의 숨결","자연 MP 회복량 {percent}% 증가.",.3f),
         D(PerkId.FrugalRune,"절약의 룬","마법 MP 소모 {percent}% 감소. 패링·부스트 제외.",.2f),
         D(PerkId.EchoSpell,"되울림의 주문","마법 쿨타임 {percent}% 감소. 패링 제외.",.2f),
-        D(PerkId.ManaRemnant,"잔향 흡수","적중 시 최대 MP {percent}% 회복. 재발동 {seconds}초. 지속형 마법 제외.",.08f,3)
+        D(PerkId.ManaRemnant,"잔향 흡수","적중 시 최대 MP {percent}% 회복. 재발동 {seconds}초. 지속형 마법 제외.",.08f,3),
+        D(PerkId.BladeCharges,"연속 검격","검기 공격 횟수가 {amount}회로 증가.",5f),
+        D(PerkId.BladeWound,"깊은 상처","상처의 받는 회복량 감소율이 {percent}%로 증가.",0.75f),
+        D(PerkId.StormCount,"쏟아지는 마탄","발사하는 마탄이 {amount}발로 증가.",40f),
+        D(PerkId.StormPrecision,"집중 사격","마탄의 탄퍼짐 {percent}% 감소.",0.5f),
+        D(PerkId.RainCharge,"급속 충전","차징 중 초당 마나 소모량이 {amount}로 증가.",20f),
+        D(PerkId.RainPursuit,"쇄도하는 칼날","칼날 비행 속도와 추적 회전 속도 {percent}% 증가.",0.3f),
+        D(PerkId.TimeRadius,"확장된 시간","시간 역장의 반지름 {percent}% 증가.",0.3f),
+        D(PerkId.TimeHealing,"회복의 시간","역장 내부 아군의 체력을 초당 {amount} 회복. 역장끼리 중첩되지 않음.",10f),
+        D(PerkId.FestivalSpeed,"축제의 바람","대축제 대상의 이동속도 {percent}% 증가.",0.3f),
+        D(PerkId.FestivalGuard,"먀오녀의 수호","대축제 지속 중 피해를 {amount}회 방어.",1f)
     };
 }

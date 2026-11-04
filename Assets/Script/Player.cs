@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 using Unity.Profiling;
 
@@ -368,6 +368,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ResetBladeState();
         CancelBladeRain();
         ResetMeowFestival();
+        timeFieldHealing = timeFieldHealElapsed = 0f;
         StopMagicStorm();
         ChannelMagic = MagicType.None;
         ChannelTargetId = default;
@@ -596,6 +597,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         TickBladeAbility();
         TickPerkEffects();
         TickMeowFestival();
+        TickTimeFieldHealing();
         TickMagicStorm();
         TickBladeRainVolley();
         if (CatTutorialDirector.TrainingSessionActive && !IsTestBot && Object.HasStateAuthority)
@@ -1151,7 +1153,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void UpdateSpeed()
     {
         float targetSpeed = flightMaxSpeed * SpeedStage / 3f;
-        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() * (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed;
+        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() * (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier;
 
         if (IsBoosting)
             targetSpeed *= boostMultiplier;
@@ -1826,6 +1828,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (CatTutorialDirector.TrainingSessionActive && !IsTestBot) return;
 
+        if (TryBlockFestivalDamage()) return;
+
         LastAttacker = attacker;
         LastDamageMagic = sourceMagic;
         LastReceivedDamage = damage;
@@ -2043,6 +2047,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ResetBladeState();
         CancelBladeRain();
         ResetMeowFestival();
+        timeFieldHealing = timeFieldHealElapsed = 0f;
         StopMagicStorm();
         RespawnTimer = testBot == null && BattleManager.Instance != null
             ? TickTimer.CreateFromSeconds(Runner, BattleManager.Instance.RespawnDelaySeconds)

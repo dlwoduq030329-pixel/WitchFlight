@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -59,7 +59,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         pending.Add(view);
     }
 
-    public static ProjectilePredictionView Attach(MagicProjectile projectile, MagicStatEntry entry)
+    public static ProjectilePredictionView Attach(MagicProjectile projectile, MagicStatEntry entry, ProjectilePredictionView reusable = null)
     {
         ProjectilePredictionView view = null;
         foreach (var candidate in pending)
@@ -69,8 +69,12 @@ public sealed class ProjectilePredictionView : MonoBehaviour
                 candidate.inputTick == projectile.PredictionInputTick && candidate.stats.magic == projectile.Magic)
             { view = candidate; break; }
         }
-        if (view != null) pending.Remove(view);
-        else view = Create(entry, projectile.transform.position, projectile.transform.forward);
+        if (view != null)
+        {
+            pending.Remove(view);
+            if (reusable != null && reusable != view) Destroy(reusable.gameObject);
+        }
+        else view = Create(entry, projectile.transform.position, projectile.transform.forward, reusable);
         view.hasSource = true;
         view.source = projectile;
         view.runner = projectile.Runner;
@@ -87,11 +91,12 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         return view;
     }
 
-    private static ProjectilePredictionView Create(MagicStatEntry entry, Vector3 position, Vector3 forward)
+    private static ProjectilePredictionView Create(MagicStatEntry entry, Vector3 position, Vector3 forward, ProjectilePredictionView reusable = null)
     {
-        var root = new GameObject("Projectile visual (no gameplay authority)");
+        var root = reusable != null ? reusable.gameObject : new GameObject("Projectile visual (no gameplay authority)");
         root.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward));
-        var view = root.AddComponent<ProjectilePredictionView>();
+        var view = reusable != null ? reusable : root.AddComponent<ProjectilePredictionView>();
+        root.SetActive(true);
         view.stats = entry;
         view.content = CombatPresentation.InstantiateVfx(entry.projectileVfxPrefab, position, root.transform.rotation, root.transform);
         if (view.content == null)
@@ -305,10 +310,32 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         return from + delta / length * nearest;
     }
 
-    private void OnDestroy()
+    public void ReleaseForReuse()
+    {
+        ClearVisuals();
+        owner = target = null;
+        summonTarget = source = null;
+        runner = null;
+        table = null;
+        stats = default;
+        shooterId = default;
+        inputTick = 0;
+        createdAt = launchAt = travelled = 0f;
+        direction = correction = Vector3.zero;
+        predictedStop = predictedImpact = confirmedImpact = hasSource = false;
+        gameObject.SetActive(false);
+    }
+
+    private void ClearVisuals()
     {
         pending.Remove(this);
         formation?.Dispose();
+        formation = null;
+        if (content != null) MagicVfxPool.Release(content);
+        content = null;
         if (material != null) Destroy(material);
+        material = null;
     }
+
+    private void OnDestroy() => ClearVisuals();
 }

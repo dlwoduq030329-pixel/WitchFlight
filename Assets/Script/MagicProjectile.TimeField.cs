@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -11,6 +11,20 @@ public partial class MagicProjectile
     private GameObject timeFieldView;
     private TimeClockVisual clockView;
     private float timeLifetimeRemainder;
+
+    public static float TimeHealingRate(NetworkRunner runner, Vector3 point, int team, out PlayerRef healer)
+    {
+        float rate = 0f;
+        healer = PlayerRef.None;
+        foreach (var field in timeFields)
+        {
+            if (field == null || !field.ContainsTimePoint(runner, point) || field.ShooterTeam != team ||
+                field.stats.timeHealingPerSecond <= rate) continue;
+            rate = field.stats.timeHealingPerSecond;
+            healer = field.Shooter;
+        }
+        return rate;
+    }
 
     public void InitializeTimeField(Player owner, MagicStatEntry entry)
     {

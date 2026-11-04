@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -212,7 +212,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void UpdateSpawnShields()
     {
-        bool show = owner.IsSpawnProtected && !owner.IsHiddenBySmokeFor(Player.LocalPlayer) &&
+        bool show = (owner.IsSpawnProtected || owner.HasFestivalGuard) && !owner.IsHiddenBySmokeFor(Player.LocalPlayer) &&
             BattleManager.Instance != null && (BattleManager.Instance.IsGameplayActive || owner.IsCountdownProtected);
         for (int i = 0; i < spawnShields.Length; i++)
         {

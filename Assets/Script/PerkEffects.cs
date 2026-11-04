@@ -50,6 +50,19 @@ public static class PerkEffects
                 else s.activationDelay *= 1f - Mathf.Clamp01(a);
                 break;
             case PerkId.SmokeDuration: s.effectDuration += a; break;
+            case PerkId.BladeCharges: s.bladeCharges = Mathf.Max(1, Mathf.RoundToInt(a)); break;
+            case PerkId.BladeWound: s.woundHealingMultiplier = 1f - Mathf.Clamp01(a); break;
+            case PerkId.StormCount: s.stormShotCount = Mathf.Clamp(Mathf.RoundToInt(a), 1, 120); break;
+            case PerkId.StormPrecision: s.stormSpreadAngle *= 1f - Mathf.Clamp01(a); break;
+            case PerkId.RainCharge: s.rainManaPerSecond = a; break;
+            case PerkId.RainPursuit:
+                s.projectileSpeed *= 1f + a;
+                s.projectileTurnSpeed *= 1f + a;
+                break;
+            case PerkId.TimeRadius: s.radius *= 1f + a; break;
+            case PerkId.TimeHealing: s.timeHealingPerSecond = a; break;
+            case PerkId.FestivalSpeed: s.festivalSpeedBonus = a; break;
+            case PerkId.FestivalGuard: s.festivalGuardCharges = Mathf.Max(0, Mathf.RoundToInt(a)); break;
         }
     }
     // Cheap sustained hits must not generate more MP than their channel costs.

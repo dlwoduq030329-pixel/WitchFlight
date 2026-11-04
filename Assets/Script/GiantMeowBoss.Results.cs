@@ -15,7 +15,6 @@ public sealed partial class GiantMeowBoss
     [Networked, Capacity(4)] public NetworkArray<BattleAwardResult> Awards => default;
     [Networked, Capacity(4)] public NetworkArray<int> PraiseCounts => default;
     [Networked, Capacity(4)] public NetworkArray<PlayerRef> Voters => default;
-    [Networked, Capacity(4)] public NetworkArray<PlayerRef> VoteRecipients => default;
     [Networked] public bool AwardsReady { get; private set; }
 
     private void InitializeResults()
@@ -109,14 +108,9 @@ public sealed partial class GiantMeowBoss
         for (int i = 0; i < Voters.Length; i++)
         {
             if (Voters[i] != PlayerRef.None) continue;
-            PlayerRef winner = Awards[panel].Winner;
             Voters.Set(i, sender);
-            VoteRecipients.Set(i, winner);
-            int total = 0;
-            for (int vote = 0; vote < Voters.Length; vote++)
-                if (Voters[vote] != PlayerRef.None && VoteRecipients[vote] == winner) total++;
-            for (int slot = 0; slot < Awards.Length; slot++)
-                if (Awards[slot].Winner == winner) PraiseCounts.Set(slot, total);
+            // Keep each award card's votes independent of other cards for this player.
+            PraiseCounts.Set(panel, PraiseCounts[panel] + 1);
             break;
         }
     }

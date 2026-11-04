@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -18,6 +18,26 @@ public partial class Player
         target.IsEnemyOf(this) ? 1.2f : 1f;
     private PlayerData perkOwner;
     private float lifeStartMaxHp, nextManaRemnant;
+    private float timeFieldHealing, timeFieldHealElapsed;
+    private PlayerRef timeFieldHealer;
+
+    private void TickTimeFieldHealing()
+    {
+        if (!Object.HasStateAuthority) return;
+        float rate = MagicProjectile.TimeHealingRate(Runner, transform.position, TeamIndex, out PlayerRef healer);
+        if (timeFieldHealing > 0f && (rate <= 0f || healer != timeFieldHealer))
+        {
+            RestoreHealth(timeFieldHealing, timeFieldHealer);
+            timeFieldHealing = timeFieldHealElapsed = 0f;
+        }
+        if (rate <= 0f) return;
+        timeFieldHealer = healer;
+        timeFieldHealing += rate * Runner.DeltaTime;
+        timeFieldHealElapsed += Runner.DeltaTime;
+        if (timeFieldHealElapsed < .5f) return;
+        RestoreHealth(timeFieldHealing, timeFieldHealer);
+        timeFieldHealing = timeFieldHealElapsed = 0f;
+    }
     protected float perkClock;
     private MagicStatEntry pendingPerkStats, channelPerkStats, flarePerkStats;
     private float flarePulseAt = -1f, flareCastAt;
@@ -50,6 +70,7 @@ public partial class Player
     {
         FlareProtection = TickTimer.None;
         perkBurns.Clear();
+        timeFieldHealing = timeFieldHealElapsed = 0f;
         HasBurnStatus = false;
         perkOwner = data;
         PerkBaseMaxHp = MaxHp; PerkBaseMaxAp = MaxAp; PerkBaseRecovery = ApRecoveryPerSecond;

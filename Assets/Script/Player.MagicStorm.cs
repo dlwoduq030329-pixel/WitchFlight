@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -9,7 +9,7 @@ public partial class Player
     private MagicStatEntry stormStats;
     private int stormShotCount;
     public bool IsMagicStormActive => networkSpawned && Object != null && Object.IsValid && IsAlive && TimerIsActive(StormTimer);
-    public Vector3 MagicStormAimPoint => MagicCastPosition + StormAimDirection * Mathf.Max(1f, stormStats.range);
+    public Vector3 MagicStormAimDirection => StormAimDirection.sqrMagnitude > .001f ? StormAimDirection.normalized : transform.forward;
 
     private void StartMagicStorm(MagicStatEntry entry)
     {

@@ -111,9 +111,9 @@ public partial class Player
             if(!Runner.TryFindObject(id,out var obj) || obj==null || !obj.IsValid) continue;
             Player victim=obj.GetComponent<Player>(); MagicProjectile summon=obj.GetComponent<MagicProjectile>();
             if(victim!=null ? !victim.IsTargetableBy(this) : summon==null || !summon.IsSummonEnemyOf(this)) continue;
-            int assigned=RainVolleyCircles/RainTargetCount+(targetIndex<RainVolleyCircles%RainTargetCount?1:0);
             MagicStatEntry shotStats=rainStats;
-            shotStats.damage=(RainManaSpent*.5f/RainTargetCount)/assigned/10f;
+            // All circles emit ten blades. Split the actual mana damage budget evenly per blade.
+            shotStats.damage=(RainManaSpent*.5f)/(RainVolleyCircles*10);
             Vector3 origin=RainCirclePosition(circle);
             Vector3 aim=(victim!=null?victim.LockAimPoint:summon.transform.position)-origin;
             if (aim.sqrMagnitude < .001f) aim = transform.forward;

@@ -68,17 +68,28 @@ public static class WitchFlightPerkValidation
     private static void ValidateEffects()
     {
         var table=AssetDatabase.LoadAssetAtPath<PerkStatTable>("Assets/Resources/PerkStatTable.asset");
-        Check(table!=null&&table.perks.Length==34,"real balancing asset has 34 perks");
+        Check(table!=null&&table.perks.Length==44,"real balancing asset has 44 perks");
         var ids=new HashSet<PerkId>();foreach(var p in table.perks)Check(p!=null&&ids.Add(p.id),"unique stable perk ID");
         var magic=MagicStatTable.Default;Check(magic!=null,"shared MagicStatTable exists");
         MagicStatEntry S(MagicType m,int level,int common=0)=>PerkEffects.Apply(magic.GetStats(m),1,level,common,100,table);
         float A(PerkId id)=>table.Amount(id);
-        for(int i=1;i<=12;i++)
+        for(int i=1;i<=(int)MagicType.BladeRain;i++)
         {
             var m=(MagicType)i;var a=S(m,2);var b=S(m,0);
             Check(a.perkFirst!=null&&a.perkSecond!=null,"stage 2 retains both effects "+m);
             Check(b.perkFirst==null&&b.perkSecond==null,"unupgraded duplicate slot unaffected "+m);
         }
+        Check(S(MagicType.Blade,1).bladeCharges==5,"blade has five attacks");
+        Check(Near(S(MagicType.Blade,2).woundHealingMultiplier,.25f),"wound reduces healing by 75 percent");
+        Check(S(MagicType.MagicStorm,1).stormShotCount==40,"storm has forty shots");
+        Check(Near(S(MagicType.MagicStorm,2).stormSpreadAngle,magic.GetStats(MagicType.MagicStorm).stormSpreadAngle*.5f),"storm spread halved");
+        Check(Near(S(MagicType.BladeRain,1).rainManaPerSecond,20f),"rain charge costs twenty mana per second");
+        Check(Near(S(MagicType.BladeRain,2).projectileSpeed,magic.GetStats(MagicType.BladeRain).projectileSpeed*1.3f),"rain flight speed");
+        Check(Near(S(MagicType.BladeRain,2).projectileTurnSpeed,magic.GetStats(MagicType.BladeRain).projectileTurnSpeed*1.3f),"rain tracking speed");
+        Check(Near(S(MagicType.TimeStop,1).radius,magic.GetStats(MagicType.TimeStop).radius*1.3f),"time radius increased");
+        Check(Near(S(MagicType.TimeStop,2).timeHealingPerSecond,10f),"time healing rate");
+        Check(Near(S(MagicType.MeowFestival,1).festivalSpeedBonus,.3f),"festival movement bonus");
+        Check(S(MagicType.MeowFestival,1).festivalGuardCharges==0&&S(MagicType.MeowFestival,2).festivalGuardCharges==1,"festival second stage guard");
         Check(Near(S(MagicType.Fire,2).lockChargeSeconds,magic.GetStats(MagicType.Fire).lockChargeSeconds*(1-Mathf.Clamp01(A(PerkId.FireIgnition)))),"fire lock follows table");
         Check(Near(S(MagicType.Fire,2).apCost,magic.GetStats(MagicType.Fire).apCost*Mathf.Max(1-table.manaDiscountCap,1-table.Get(PerkId.FireIgnition).secondaryAmount)),"fire mana follows table");
         Check(S(MagicType.Ice,1).movementMultiplier<magic.GetStats(MagicType.Ice).movementMultiplier,"ice stronger slow");

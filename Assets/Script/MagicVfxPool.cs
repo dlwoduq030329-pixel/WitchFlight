@@ -1,11 +1,11 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Scene-local visual leases. NetworkObjects must continue through Fusion's provider.
 public sealed class MagicVfxPool : MonoBehaviour
 {
-    private const int RetainedPerPrefab = 32, RetainedTotal = 256;
+    private const int RetainedPerPrefab = 160, RetainedTotal = 640;
     private static MagicVfxPool instance;
     private readonly Dictionary<GameObject, Stack<MagicVfxLease>> idle = new();
     private readonly Dictionary<GameObject, MagicVfxLease> leases = new();

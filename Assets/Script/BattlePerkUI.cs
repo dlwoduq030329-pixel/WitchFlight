@@ -263,7 +263,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         var p = (Ready(local) ? local.PerkTable : PerkStatTable.Default).Get(id);
         if (p?.icon != null) return p.icon;
         if (magicTable != null)
-            for (int i=1;i<=12;i++) if (PerkRules.Spell((MagicType)i,1)==id || PerkRules.Spell((MagicType)i,2)==id) return magicTable.GetIcon((MagicType)i);
+            for (int i=1;i<=(int)MagicType.BladeRain;i++) if (PerkRules.Spell((MagicType)i,1)==id || PerkRules.Spell((MagicType)i,2)==id) return magicTable.GetIcon((MagicType)i);
         return null;
     }
     private void UpdateExperience()

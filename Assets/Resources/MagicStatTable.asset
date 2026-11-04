@@ -1209,7 +1209,7 @@ MonoBehaviour:
     displayName: "\uD50C\uB808\uC5B4"
     description: "\uC790\uC2E0\uC744 \uCD94\uC801 \uC911\uC778 \uC720\uB3C4\uD0C4\uC758
       \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \uC9C0\uC18D\uC2DC\uAC04 \uB3D9\uC548
-      \uC774\uB3D9\uC18D\uB3C4\uAC00 10% \uC99D\uAC00\uD558\uACE0, \uC790\uC2E0\uC744
+      \uC774\uB3D9\uC18D\uB3C4\uAC00 10% \uC99D\uAC00\uD558\uACE0, \n\uC790\uC2E0\uC744
       \uC870\uC900\uD558\uB294 \uC801\uC758 \uB85D\uC628 \uC2DC\uAC04\uC774 20% \uC99D\uAC00\uD569\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
@@ -1316,7 +1316,7 @@ MonoBehaviour:
     displayName: "\uC5F0\uB9C9"
     description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
       \uB0B4\uBD80\uC758 \uC801\uC740 \uB85D\uC628 \uAC70\uB9AC\uAC00 30% \uAC10\uC18C\uD569\uB2C8\uB2E4.
-      \uB0B4\uBD80 \uCE90\uB9AD\uD130\uC758 \uC740\uD3D0 \uD6A8\uACFC\uC640 \uD53C\uACA9
+      \n\uB0B4\uBD80 \uCE90\uB9AD\uD130\uC758 \uC740\uD3D0 \uD6A8\uACFC\uC640 \uD53C\uACA9
       \uD310\uC815\uC740 \uC720\uC9C0\uB429\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
@@ -1422,9 +1422,8 @@ MonoBehaviour:
   - magic: 13
     displayName: "\uCE7C\uB0A0 \uB9C8\uBC95"
     description: "\uC2DC\uC804 \uD6C4 10\uCD08 \uC548\uC5D0 \uC88C\uD074\uB9AD 3\uD68C\uB85C
-      \uBCF4\uB77C\uC0C9 \uAC80\uAE30\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4. \uBB34\uAE30
-      \uAD50\uCCB4 \uC2DC \uD574\uC81C\uB429\uB2C8\uB2E4. \uC801\uC911 \uC2DC 8\uCD08\uAC04
-      \uBC1B\uB294 \uD68C\uBCF5\uB7C9\uC774 50% \uAC10\uC18C\uD569\uB2C8\uB2E4."
+      \uBCF4\uB77C\uC0C9 \uAC80\uAE30\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4. \n\uC801\uC911
+      \uC2DC 8\uCD08\uAC04 \uBC1B\uB294 \uD68C\uBCF5\uB7C9\uC774 50% \uAC10\uC18C\uD569\uB2C8\uB2E4."
     icon: {fileID: 342325613, guid: 739b11d6b80584d48994af14791fc924, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1528,9 +1527,7 @@ MonoBehaviour:
     flareVfxBrightness: 2
   - magic: 14
     displayName: "\uB9C8\uD0C4 \uD3ED\uD48D"
-    description: "2\uCD08\uAC04 \uC5D0\uC784\uC744 \uB530\uB77C \uACE1\uC120\uC73C\uB85C
-      \uB0A0\uC544\uAC00\uB294 \uB9C8\uD0C4 30\uBC1C\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
-      \uBC1C\uB2F9 \uD53C\uD574\uB294 10\uC785\uB2C8\uB2E4."
+    description: "2\uCD08\uAC04 \uB9C8\uD0C4 30\uBC1C\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
     icon: {fileID: 706995332, guid: bf7fc59d8f3f908468d1f546e3604cfb, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1570,15 +1567,15 @@ MonoBehaviour:
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
-    rainMaxCircles: 0
+    rainMaxCircles: 2
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
-    timeEnemySpeed: 0
+    timeEnemySpeed: 0.01
     timeAllySpeed: 0
-    timeProjectileSpeed: 0
+    timeProjectileSpeed: 0.01
     stormShotCount: 30
     stormDuration: 2
     stormLaunchAngle: 24
@@ -1599,8 +1596,8 @@ MonoBehaviour:
     thunderBurstVfxPrefab: {fileID: 0}
     thunderVfxReferenceRadius: 0
     thunderBurstExpandSeconds: 0
-    thunderBurstStartScale: 0
-    summonMaxCount: 0
+    thunderBurstStartScale: 0.01
+    summonMaxCount: 1
     summonMoveSpeed: 0
     summonAttackRange: 0
     summonFollowDistance: 0
@@ -1637,7 +1634,7 @@ MonoBehaviour:
     description: "\uC2DC\uAC04 \uC601\uC5ED\uC744 \uD3BC\uCE69\uB2C8\uB2E4. \uC801\uC740
       30% \uB290\uB824\uC9C0\uACE0 \uC544\uAD70\uC740 30% \uBE68\uB77C\uC9D1\uB2C8\uB2E4.
       \n\uBE44\uD589 \uD22C\uC0AC\uCCB4\uB294 80% \uB290\uB824\uC9D1\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+    icon: {fileID: 481500132, guid: eb82dc3881806504cb54562db50bd6e9, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
@@ -1743,7 +1740,7 @@ MonoBehaviour:
     description: "\uC790\uC2E0 \uB610\uB294 \uC544\uAD70\uC758 \uCCB4\uB825\xB7\uB9C8\uB825
       \uD68C\uBCF5\uB7C9\uC744 50% \uC99D\uAC00\uC2DC\uD0A4\uACE0 \uCD08\uB2F9 \uCCB4\uB825
       5\uB97C \uD68C\uBCF5\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+    icon: {fileID: 632450003, guid: 436518df393d6dc428c7f40354562843, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
@@ -1846,12 +1843,9 @@ MonoBehaviour:
     flareVfxBrightness: 2
   - magic: 17
     displayName: "\uCE7C\uB0A0\uBE44"
-    description: "\uCD08\uB2F9 \uB9C8\uB098 5\uB97C \uCDA9\uC804\uD558\uACE0 \uB193\uC73C\uBA74
-      \uAE30\uBCF8 \uB9C8\uB098 50\uC744 \uC18C\uBAA8\uD574 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
-      \n\uC2E4\uC81C \uC18C\uBAA8 \uB9C8\uB098\uC758 \uC808\uBC18\uC744 \uB0A8\uC740
-      \uB300\uC0C1\uC5D0\uAC8C \uB098\uB215\uB2C8\uB2E4. \uBC1C\uC0AC \uB9C8\uB098\uB9CC
-      \uB0A8\uC73C\uBA74 \uC790\uB3D9 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
-    icon: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+    description: "\uB9C8\uB098\uB97C \uC18C\uBAA8\uD574 \uACF5\uACA9\uC744 \uCDA9\uC804\uD569\uB2C8\uB2E4.\n\uC624\uB798
+      \uCDA9\uC804\uD560\uC218\uB85D \uC704\uB825\uC774 \uAC15\uD574\uC9D1\uB2C8\uB2E4."
+    icon: {fileID: -1604408849, guid: d2606211fdd688f4ba3d802c543d4fe6, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}

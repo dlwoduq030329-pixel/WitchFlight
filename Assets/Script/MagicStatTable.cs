@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 
 public enum MagicEffectKind
@@ -14,6 +14,8 @@ public struct MagicStatEntry
     // Authority-only cast snapshot; never serialized into the balancing asset.
     [NonSerialized] public int perkSlot, perkCast;
     [NonSerialized] public int titleCastId;
+    [NonSerialized] public float timeHealingPerSecond, festivalSpeedBonus;
+    [NonSerialized] public int festivalGuardCharges;
     [NonSerialized] public PerkDefinition perkFirst, perkSecond;
     [NonSerialized] public Fusion.PlayerRef perkAttacker;
     public MagicType magic;
@@ -384,7 +386,7 @@ public sealed class MagicStatTable : ScriptableObject
                 break;
             case MagicType.MagicStorm:
                 e.displayName = "마탄 폭풍";
-                e.description = "2초간 현재 에임을 따라 마탄 30발을 발사합니다. 마법봉에서 무작위 방향으로 출발한 탄은 작은 곡선을 그리며 날아가며 탄퍼짐이 있습니다.";
+                e.description = "2초간 마탄 30발을 발사합니다. 각 탄알은 발사 순간의 에임 방향으로 작은 곡선을 그리며 날아갑니다. 탄퍼짐이 있으며, 발사 후에는 에임을 돌려도 경로가 바뀌지 않습니다.";
                 e.effect = MagicEffectKind.MagicStorm;
                 e.damage = 10f; e.apCost = 60f; e.cooldownSeconds = 5f;
                 e.stormShotCount = 30; e.stormDuration = 2f;

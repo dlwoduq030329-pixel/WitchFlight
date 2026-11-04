@@ -11,6 +11,7 @@ public sealed class EmoteLoadoutUI : MonoBehaviour
     [SerializeField] private Button[] slotButtons;
     [SerializeField] private Image[] slotIcons;
     [SerializeField] private Button equipButton;
+    [SerializeField] private GameObject lobbyCharacter;
     private TMP_Text equipLabel;
     private int selectedSlot = -1, pendingId;
     private bool lastEditable;
@@ -59,6 +60,8 @@ public sealed class EmoteLoadoutUI : MonoBehaviour
     {
         DataConfig.Changed-=Refresh;
         selectedSlot=-1; pendingId=0; Refresh();
+        if (lobbyCharacter != null && gameObject.scene.isLoaded)
+            lobbyCharacter.SetActive(true);
     }
     private void Update() { if(lastEditable!=Editable) Refresh(); }
     public void SelectSlot(int slot)

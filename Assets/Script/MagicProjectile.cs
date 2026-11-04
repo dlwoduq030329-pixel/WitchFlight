@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 using Unity.Profiling;
@@ -24,8 +24,7 @@ public partial class MagicProjectile : NetworkBehaviour
     protected MagicStatEntry stats;
     protected Vector3 direction;
     protected bool initialized;
-    private Player stormShooter;
-    private Vector2 stormSpread;
+    private Vector3 stormAimDirection;
     private ProjectilePredictionView view;
     private bool impactPresented;
     private bool audioStarted;
@@ -63,9 +62,14 @@ public partial class MagicProjectile : NetworkBehaviour
         ConstructKind = MagicConstructKind.Projectile;
         stats = entry;
         timeLifetimeRemainder = 0f;
-        stormShooter = entry.magic == MagicType.MagicStorm ? shooter : null;
-        stormSpread = entry.magic == MagicType.MagicStorm
-            ? Random.insideUnitCircle * Mathf.Tan(entry.stormSpreadAngle * Mathf.Deg2Rad) : Vector2.zero;
+        stormAimDirection = Vector3.zero;
+        if (entry.magic == MagicType.MagicStorm)
+        {
+            Vector2 spread = Random.insideUnitCircle * Mathf.Tan(entry.stormSpreadAngle * Mathf.Deg2Rad);
+            // Snapshot each bullet's aim. Later cursor movement only affects new bullets.
+            stormAimDirection = (Quaternion.LookRotation(shooter.MagicStormAimDirection) *
+                new Vector3(spread.x, spread.y, 1f)).normalized;
+        }
         Settled = Finished = false;
         ArmTimer = TickTimer.None;
         PredictionInputTick = predictionInputTick;
@@ -123,16 +127,9 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         }
 
-        if (Magic == MagicType.MagicStorm && stormShooter != null && stormShooter.Object != null && stormShooter.Object.IsValid && stormShooter.IsAlive)
-        {
-            Vector3 aim = stormShooter.MagicStormAimPoint - transform.position;
-            if (aim.sqrMagnitude > .01f)
-            {
-                Vector3 spreadAim = Quaternion.LookRotation(aim) * new Vector3(stormSpread.x, stormSpread.y, 1f);
-                direction = Vector3.RotateTowards(direction, spreadAim.normalized,
-                    stats.projectileTurnSpeed * Mathf.Deg2Rad * flightDelta, 0f).normalized;
-            }
-        }
+        if (Magic == MagicType.MagicStorm)
+            direction = Vector3.RotateTowards(direction, stormAimDirection,
+                stats.projectileTurnSpeed * Mathf.Deg2Rad * flightDelta, 0f).normalized;
         Player target = FindTarget();
         MagicProjectile summonTarget = FindSummonTargetById();
         if ((target != null || summonTarget != null) && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
@@ -638,7 +635,7 @@ public partial class MagicProjectile : NetworkBehaviour
         if (ConstructKind == MagicConstructKind.TimeField) { RenderTimeField(); return; }
         UpdateFlightAudio();
         if (IsConstruct) { RenderConstruct(); return; }
-        if (view == null) view = ProjectilePredictionView.Attach(this, PresentationStats);
+        if (view == null || !view.gameObject.activeSelf) view = ProjectilePredictionView.Attach(this, PresentationStats, view);
         if (Finished || impactPresented) view.ConfirmImpact();
     }
 
@@ -648,8 +645,7 @@ public partial class MagicProjectile : NetworkBehaviour
         active.Remove(this);
         ClearTimeField();
         ClearConstructVisual(true);
-        if (view != null) Destroy(view.gameObject);
-        view = null;
+        if (view != null) view.ReleaseForReuse();
         initialized = false;
     }
 
