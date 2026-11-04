@@ -1,0 +1,611 @@
+# Offline checks of actual Player combat methods. No live BACKND/Fusion connection.
+$ErrorActionPreference = 'Stop'
+$repo = Split-Path $PSScriptRoot -Parent
+$player = Get-Content (Join-Path $repo 'Assets/Script/Player.cs') -Raw
+$table = Get-Content (Join-Path $repo 'Assets/Script/MagicStatTable.cs') -Raw
+$enum = [regex]::Match((Get-Content (Join-Path $repo 'Assets/Script/PlayerData.cs') -Raw), 'public enum MagicType\s*\{[^}]+\}').Value
+function Method([string]$name) {
+    $m = [regex]::Match($player, '(?ms)^    (?:private|public) (?:static )?[\w<>]+ ' + $name + '\([^{}]*?\)\r?\n    \{.*?^    \}')
+    if (!$m.Success) {throw "Missing method: $name"}
+    $m.Value -replace '^    private ', '    public '
+}
+$methods = @('TryCastSelectedMagic','TryStartParry','ReceiveMagicHit','TakeDamage','CastMagic',
+    'RestoreHealth','TryConsumeAp','UpdateChannel','StopChannel','RegenerateAp','TimerIsActive',
+    'SetInputLockTarget','UpdateLockCharge','TryGetValidLockTarget','IsValidLockTarget','ClearLockTargetInternal',
+    'ProcessAuthoritativeCombat','ProcessPredictedProjectileInput','UpdatePendingCast','NotifyDamageDirection','NotifyConfirmedMagicHit',
+    'CanAcquireMagicTarget','GetDisplayedLockTarget','RPC_SetLockTarget','IsHealingAlly','UpdateHealingTarget','RegisterParry',
+    'ShouldShowInsufficientMana','NotifyManaFailure') | ForEach-Object { Method $_ }
+$area = Get-Content (Join-Path $repo 'Assets/Script/Player.AreaMagic.cs') -Raw
+foreach ($name in 'ProcessAreaAim','CanCreateSpecialMagic') {
+    $methods += [regex]::Match($area, '(?ms)^    private (?:void|bool) '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}').Value.Replace('private ','public ')
+}
+$summonSource = Get-Content (Join-Path $repo 'Assets/Script/Player.SummonCombat.cs') -Raw
+$methods += [regex]::Match($summonSource,'(?ms)^    public bool TryGetMagicTarget\([^{}]*?\)\r?\n    \{.*?^    \}').Value
+$stubs = @'
+using System;
+namespace UnityEngine {
+ public class Object {}
+ public class GameObject:Object {}
+ public class AnimationClip:Object {}
+ public class Sprite:Object {}
+ public class Material:Object {}
+ public class ScriptableObject:Object {}
+ public static class Resources {public static T Load<T>(string path) where T:class=>null;}
+ public class SerializeField:Attribute {}
+ public class HeaderAttribute:Attribute {public HeaderAttribute(string s){}}
+ public class TooltipAttribute:Attribute {public TooltipAttribute(string s){}}
+ public class MinAttribute:Attribute {public MinAttribute(float f){}}
+ public class RangeAttribute:Attribute {public RangeAttribute(float a,float b){}}
+ public class TextAreaAttribute:Attribute {}
+ public class CreateAssetMenuAttribute:Attribute {public string fileName,menuName;}
+ public static class Mathf {
+  public static float Max(float a,float b)=>Math.Max(a,b);
+  public static float Min(float a,float b)=>Math.Min(a,b);
+  public static float Clamp(float a,float b,float c)=>Math.Clamp(a,b,c);
+  public static float Clamp01(float a)=>Clamp(a,0,1);
+ }
+ public struct Vector3 {
+  public float x,y,z; public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
+  public static Vector3 zero=>default; public static Vector3 forward=>new Vector3(0,0,1);
+  public float sqrMagnitude=>x*x+y*y+z*z;
+  public Vector3 normalized {get {float m=(float)Math.Sqrt(sqrMagnitude);return m>.00001f?new(x/m,y/m,z/m):zero;}}
+  public static float SqrMagnitude(Vector3 a)=>a.sqrMagnitude;
+  public static Vector3 operator+(Vector3 a,Vector3 b)=>new Vector3(a.x+b.x,a.y+b.y,a.z+b.z);
+  public static Vector3 operator-(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
+  public static Vector3 operator-(Vector3 a)=>new Vector3(-a.x,-a.y,-a.z);
+  public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+  public static float Distance(Vector3 a,Vector3 b)=>(float)Math.Sqrt((a-b).sqrMagnitude);
+  public static float Angle(Vector3 a,Vector3 b)=>(float)(Math.Acos(Math.Clamp(Dot(a,b)/Math.Sqrt(a.sqrMagnitude*b.sqrMagnitude),-1,1))*180/Math.PI);
+ }
+ public class Transform {public Vector3 position,forward=Vector3.forward;}
+}
+namespace CombatChecks {
+using UnityEngine;
+using System.Collections.Generic;
+public enum PlayerRef {None,One,Two}
+public class PerkDefinition {}
+public class PlayerData {
+ public static PlayerData FindPerkData(RunnerState runner,PlayerRef who)=>null;
+ public void AwardPerkBinding(Player victim){}
+ public void AwardPerkDamage(Player victim,float damage,float maximum){}
+ public void RecordBattleDamage(PlayerRef attacker,float damage){}
+}
+public enum PlayerInputButton {Lock,Parry}
+public struct NetworkId {public int Id; public NetworkId(int id){Id=id;} public bool Equals(NetworkId other)=>Id==other.Id;}
+public struct NetworkButtons {
+ public int Bits;
+ public bool IsSet(PlayerInputButton b)=>(Bits&(1<<(int)b))!=0;
+ public bool WasPressed(NetworkButtons prev,PlayerInputButton b)=>IsSet(b)&&!prev.IsSet(b);
+}
+public struct NetworkInputData {public NetworkId lockTarget;public Vector3 aimDirection,magicAimDirection,areaAimPoint;public bool hasAreaAimPoint;}
+public class NetworkObject {
+ public bool HasStateAuthority=true,IsValid=true; public PlayerRef InputAuthority;
+ public NetworkId Id;public Player Owner;public MagicProjectile Summon;
+ public T GetComponent<T>() where T:class=>(Owner as T)??(Summon as T);
+}
+public class RunnerState {
+ public bool IsRunning=true;
+ public struct TickValue {public int Raw;} public TickValue Tick;
+ public float DeltaTime=.02f,Time;
+ public readonly Dictionary<int,NetworkObject> Objects=new();
+ public bool TryFindObject(NetworkId id,out NetworkObject obj)=>Objects.TryGetValue(id.Id,out obj);
+}
+public struct TickTimer {
+ public float End; public bool IsRunning; public static TickTimer None=>default;
+ public bool Expired(RunnerState r)=>IsRunning&&r.Time+0.000001f>=End;
+ public static TickTimer CreateFromSeconds(RunnerState r,float t)=>new TickTimer{End=r.Time+t,IsRunning=true};
+}
+public class TimerArray {private TickTimer[] values=new TickTimer[13];public int Length=>values.Length;
+ public TickTimer this[int i]=>values[i];public void Set(int i,TickTimer t){values[i]=t;}}
+public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
+public static class SmokeCloudState {public static bool ValidSettings(float r,float s)=>r>0&&s>0&&!float.IsInfinity(r+s)&&!float.IsNaN(r+s);}
+public class BattleFlag {
+ public static BattleFlag Instance=new();public bool Space=true;public int Clouds;
+ public bool CanCreateSmoke(RunnerState runner)=>Space;
+ public bool CreateSmoke(Player caster,MagicStatEntry stats){Clouds++;return true;}
+}
+public class MagicProjectile {
+ public static int Breaks;public static int BreakHomingFor(Player defender){Breaks++;return 1;}
+ public NetworkObject Object=new();public RunnerState Runner;public Transform transform=new();public int TeamIndex=2,Hits;public float Received;public bool Alive=true;
+ public bool IsSummonEnemyOf(Player p)=>Alive&&Object.IsValid&&Runner==p.Runner&&TeamIndex!=p.TeamIndex;
+ public static bool Sight=true;public static bool HasSummonSight(Vector3 a,Vector3 b)=>Sight;
+ public bool ReceiveSummonHit(MagicStatEntry s,int team,NetworkId id){Hits++;Received+=s.damage;return true;}
+}
+public class MagicTestBot {public bool Immortal;}
+public class PrefabRef {public bool IsValid=true;}
+public class Marker {public IDisposable Auto()=>new Scope();private class Scope:IDisposable {public void Dispose(){}}}
+}
+'@
+$probe = @'
+namespace CombatChecks { using UnityEngine;
+public class Player {
+ public bool areaAimArmed,hasConfirmedAreaPoint;public Vector3 confirmedAreaPoint;
+ public int ParryStartSequence;
+ public int ManaWarnings; void RPC_InsufficientMana(){ManaWarnings++;}
+ public bool ValidateAreaPoint(Vector3 p,MagicStatEntry s,out Vector3 point){point=p;return Visible;}
+ public bool CanAimAreaMagic()=>IsAlive&&!IsHitStunned&&!IsReturningToMap&&pendingMagic==MagicType.None&&
+  !TimerIsActive(MagicCooldowns[(int)GetSelectedMagic()])&&NowAp>=SelectedMagicStats.apCost;
+ public void CreateSpecialMagic(MagicStatEntry s){Launches++;LastLaunched=s;}
+ public MagicStatEntry pendingPerkStats,channelPerkStats;
+ public float beamContact,beamLastContact,lifeStartMaxHp;public NetworkId beamVictim;
+ public bool IsBound=>TimerIsActive(BindingTimer);
+ public bool NeedsCleanse;public int Cleanses;
+ public bool CanCleanse(MagicStatEntry s)=>NeedsCleanse;
+ public void ApplyPerkCleanse(MagicStatEntry s){if(NeedsCleanse){NeedsCleanse=false;Cleanses++;}}
+ public float StatusPerkDuration(float duration)=>duration;
+ public void StartPerkFlare(MagicStatEntry s)=>MagicProjectile.BreakHomingFor(this);
+ public void TrackPerkBeam(Player p,float t,MagicStatEntry s){}
+ public void TrackPerkSummonBeam(MagicProjectile p,float t,MagicStatEntry s){}
+ public float SummonChannelDamage(MagicStatEntry s,NetworkId id,float time)=>s.damagePerSecond*time;
+ public MagicStatEntry IncomingPerkDamage(MagicStatEntry s,Player p,NetworkId id)=>s;
+ public void OnAcceptedPerkHit(MagicStatEntry s,Player p,NetworkId id){}
+ public RunnerState Runner=new();public NetworkObject Object=new();public Transform transform=new();
+ public MagicStatTable magicStatTable=new();
+ public MagicType Selected=MagicType.Vision,pendingMagic,LastCastMagic,ChannelMagic;
+ public NetworkId LockTargetId,pendingTargetId,ChannelTargetId;
+ public TickTimer castTimer,ParryTimer,ParryCooldown,BindingTimer;
+ public TickTimer HealingFeedbackTimer;public float healingFeedbackSeconds=1.5f;
+ public TickTimer nextHitMarkerFeedback;
+ public int castInputTick,pendingInputTick;
+ public Vector3 castAimDirection,pendingAimDirection;
+ public TimerArray MagicCooldowns=new();
+ public bool IsAlive=true,IsHitStunned,IsReturningToMap,IsFullyLocked,channelNeedsRelease,Visible=true;
+ public bool IsChanneling=>ChannelMagic!=MagicType.None;
+ public bool IsParrying=>TimerIsActive(ParryTimer);
+ public int CurrentMagicSlot=1,CastSequence,HitSequence,ParrySequence,TeamIndex=1,Launches,Syncs;
+ public float NowHp=200,MaxHp=200,NowAp=100,MaxAp=100,ApRecoveryPerSecond=10;
+ public float LockProgress,Speed,channelDamageTime,LastReceivedDamage;
+ public PlayerRef LastAttacker;
+ public Vector3 KnockbackVelocity,ChannelEnd;
+ public Vector3 ParryFacingDirection;
+ public Vector3 LockAimPoint=>transform.position;
+ public Vector3 MagicCastPosition=>transform.position+CastOffset;
+ public Vector3 CastOffset,LastTraceOrigin,LastCastOrigin,LastLaunchDirection;
+ public NetworkButtons previousButtons;
+ public MagicTestBot testBot;
+ public PrefabRef magicProjectilePrefab=new();
+ public Player TraceTarget,Attacker;
+ public float maxLockDistance=250,defaultHitStunSeconds=.25f,parryWindowSeconds=.3f,parryCooldownSeconds=.3f;
+ public float AppliedSlow=1;public MagicStatEntry LastLaunched;
+ public Marker combatMarker=new();
+ public MagicStatEntry SelectedMagicStats=>GetMagicStats(GetSelectedMagic());
+ public MagicType GetSelectedMagic()=>CurrentMagicSlot==3?MagicType.None:Selected;
+ public MagicStatEntry GetMagicStats(MagicType m)=>magicStatTable.GetStats(m);
+ public bool IsEnemyOf(Player other)=>other!=null&&other!=this&&IsAlive&&other.IsAlive&&TeamIndex!=other.TeamIndex;
+ public bool IsTargetableBy(Player other)=>IsEnemyOf(other);
+ public bool HasLineOfSight(Player other)=>other.Visible;
+ public bool IsFiniteDirection(Vector3 v)=>!float.IsNaN(v.x+v.y+v.z);
+ public Vector3 TraceMagic(MagicStatEntry s,Vector3 o,Vector3 d,out Player victim){LastTraceOrigin=o;victim=TraceTarget;return o+d;}
+ public MagicProjectile TraceSummon,LaunchedSummon;
+ public Vector3 TraceMagicTargets(MagicStatEntry s,Vector3 o,Vector3 d,out Player p,out MagicProjectile summon){summon=TraceSummon;var end=TraceMagic(s,o,d,out p);if(summon!=null)p=null;return end;}
+ public void LaunchMagic(MagicStatEntry s,Player target,MagicProjectile summon=null){Launches++;LastLaunched=s;LastLaunchDirection=castAimDirection;LaunchedSummon=summon;}
+ public int Predictions;
+ public void TryPredictProjectile(MagicStatEntry s){Predictions++;}
+ public void RPC_PresentCast(MagicType m,Vector3 a,Vector3 b,float v){LastCastOrigin=a;}
+ public int LockReadyEvents,LockClearEvents;public MagicType LastReadyMagic;
+ public void RPC_PresentLockComplete(MagicType m){if(m==MagicType.None)LockClearEvents++;else {LockReadyEvents++;LastReadyMagic=m;}}
+ public int DamageDirectionEvents;public Vector3 DamageDirectionPosition;
+ public int HitMarkerEvents;
+ public void RPC_ConfirmedMagicHit(){HitMarkerEvents++;}
+ public void RPC_ReceivedDamageDirection(Vector3 p){DamageDirectionEvents++;DamageDirectionPosition=p;}
+ public Player FindPlayer(PlayerRef r)=>Attacker;
+ public void ApplySlow(float m,float d){AppliedSlow=m;}
+ public void ApplyHitStun(float t){}
+ public void ApplyKnockbackFrom(PlayerRef p,float k){}
+ public void SyncHealthToPlayerData(){Syncs++;}
+ public void SyncApToPlayerData(){}
+ public void Die(){IsAlive=false;}
+ public void Input(bool held,bool parry=false,NetworkId target=default) {
+  var buttons=new NetworkButtons{Bits=(held?1:0)|(parry?2:0)};
+  ProcessAuthoritativeCombat(new NetworkInputData{lockTarget=target,aimDirection=Vector3.forward,hasAreaAimPoint=true,areaAimPoint=new Vector3(0,0,40)},buttons);
+  previousButtons=buttons;
+ }
+'@ + ($methods -join [Environment]::NewLine) + @'
+}
+public static class Tests {
+ static int n;
+ static void Check(bool ok,string name){if(!ok)throw new Exception(name);n++;}
+ static bool Near(float a,float b)=>System.Math.Abs(a-b)<.005f;
+ static Player Caster(MagicType m){var p=new Player{Selected=m};p.Object.Owner=p;p.Object.InputAuthority=PlayerRef.One;return p;}
+ static Player Enemy(Player p){var e=new Player{TeamIndex=2,Runner=p.Runner,Attacker=p};e.Object.Owner=e;e.Object.Id=new NetworkId(2);
+  e.transform.position=new UnityEngine.Vector3(0,0,10);p.Runner.Objects[2]=e.Object;return e;}
+ static void Tick(Player p){p.Runner.Time+=p.Runner.DeltaTime;}
+ public static int Run(){
+  var table=new MagicStatTable();Check(table.magics.Length==12,"twelve spells including utility counters");
+  var secondary=new UnityEngine.GameObject();var common=new UnityEngine.GameObject();var ice=new UnityEngine.GameObject();
+  table.projectileSatelliteVfxPrefab=common;table.iceImpactShardVfxPrefab=ice;
+  var visualEntry=table.GetStats(MagicType.Ice);
+  Check(table.GetSecondaryProjectileVfx(visualEntry)==common&&table.GetSecondaryProjectileVfx(visualEntry,true)==ice,"legacy secondary assignments remain fallback by effect type");
+  visualEntry.secondaryProjectileVfxPrefab=secondary;
+  Check(table.GetSecondaryProjectileVfx(visualEntry)==secondary&&table.GetSecondaryProjectileVfx(visualEntry,true)==secondary,"per-spell secondary overrides ordinary satellites and ice shards");
+  float[] balancedDamage={45,25,25,100,0,0,70,0,18,0,0,0};
+  float[] balancedDps={0,0,0,0,0,0,0,10,0,20,0,0};
+  for(int i=0;i<balancedDamage.Length;i++) {
+   var stats=table.GetStats((MagicType)(i+1));
+   bool lockOn=i==0||i==1||i==5;
+   Check(stats.requiresTarget==lockOn&&stats.requiresFullLock==lockOn,"lock-on classification unchanged for spell "+(i+1));
+   Check(Near(stats.damage,balancedDamage[i]),"requested damage baseline for spell "+(i+1));
+   Check(Near(stats.damagePerSecond,balancedDps[i]),"requested DPS baseline for spell "+(i+1));
+  }
+  Check(Near(table.GetStats(MagicType.Healing).healing,40),"healing is not damage and stays unchanged");
+  Check(Near(table.GetStats(MagicType.Dark).healthCost,30)&&Near(table.GetStats(MagicType.Dark).healOnHit,40),"Dark requested health cost and healing");
+  Check(Near(table.GetStats(MagicType.Smoke).radius,36)&&Near(table.GetStats(MagicType.Smoke).effectDuration,7),"smoke former perk radius is now base; duration unchanged");
+  float[] cooldowns={3.75f,2.7f,2f,7f,18f,18f,2f,.375f,7.5f,.375f,6f,15f};
+  for(int i=0;i<cooldowns.Length;i++)
+   Check(Near(table.GetStats((MagicType)(i+1)).cooldownSeconds,cooldowns[i]),"requested cooldown for spell "+(i+1));
+  Check(Near(table.GetStats(MagicType.Ice).movementMultiplier,.4f)&&Near(table.GetStats(MagicType.Ice).effectDuration,2.5f),"ice leaves forty percent movement speed for 2.5 seconds");
+  Check(Near(table.GetStats(MagicType.Thunder).range,300)&&Near(table.GetStats(MagicType.Thunder).strikeDelay,1.5f),"thunder range buff retains delayed strike mechanic");
+  Check(Near(table.parryCooldownSeconds,.3f),"parry has a separate 0.3 second cooldown");
+  var manaPress=new NetworkButtons{Bits=1};
+  foreach(var magic in new[]{MagicType.Fire,MagicType.Thunder,MagicType.Healing,MagicType.Smoke}) {
+   var low=Caster(magic);low.NowAp=low.SelectedMagicStats.apCost-1;
+   Check(low.ShouldShowInsufficientMana(manaPress),"MP warning on initial press for "+magic);
+   low.previousButtons=manaPress;
+   Check(!low.ShouldShowInsufficientMana(manaPress),"holding cannot continuously restart MP warning for "+magic);
+  }
+  var warning=Caster(MagicType.Fire);warning.NowAp=0;
+  warning.MagicCooldowns.Set((int)MagicType.Fire,TickTimer.CreateFromSeconds(warning.Runner,1));
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"cooldown rejection does not flash MP bar");
+  warning.MagicCooldowns.Set((int)MagicType.Fire,default);warning.IsHitStunned=true;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"hit stun rejection does not flash MP bar");
+  warning.IsHitStunned=false;warning.NowAp=warning.SelectedMagicStats.apCost;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"exactly sufficient MP does not flash");
+  warning.NowAp=0;warning.previousButtons=manaPress;warning.IsFullyLocked=true;
+  Check(warning.ShouldShowInsufficientMana(default),"MP drained during completed lock warns on release");
+  warning.IsFullyLocked=false;
+  Check(!warning.ShouldShowInsufficientMana(default),"release after rejected lock cannot duplicate warning");
+  warning=Caster(MagicType.Razier);warning.NowAp=0;
+  Check(warning.ShouldShowInsufficientMana(manaPress),"empty channel MP warns on press");
+  warning.NowAp=.01f;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"channel accepts a payable partial tick");
+  warning=Caster(MagicType.Dark);warning.NowAp=0;
+  Check(!warning.ShouldShowInsufficientMana(manaPress),"health-cost spell does not require MP");
+  Check(warning.ShouldShowInsufficientMana(new NetworkButtons{Bits=2}),"parry MP rejection also warns");
+  Check(!warning.TryConsumeAp(1)&&warning.ManaWarnings==1,"all authoritative MP spending failures notify owner");
+  warning.Object.HasStateAuthority=false;warning.TryConsumeAp(1);
+  Check(warning.ManaWarnings==1,"replica cannot broadcast MP failures");
+  var parrying=Caster(MagicType.Fire);parrying.TryStartParry();
+  Check(Near(parrying.ParryCooldown.End,.3f)&&Near(parrying.NowAp,84),"parry starts cooldown and spends MP once");
+  parrying.Runner.Time=.299f;parrying.TryStartParry();
+  Check(Near(parrying.NowAp,84)&&Near(parrying.ParryCooldown.End,.3f),"parry cannot repeat or spend MP before cooldown expires");
+  parrying.Runner.Time=.3f;parrying.TryStartParry();
+  Check(Near(parrying.NowAp,68)&&Near(parrying.ParryCooldown.End,.6f),"parry can repeat exactly at cooldown expiry");
+  parrying=Caster(MagicType.Fire);parrying.magicStatTable=null;parrying.TryStartParry();
+  Check(Near(parrying.ParryCooldown.End,.3f),"missing table still uses 0.3 second parry fallback");
+  parrying=Caster(MagicType.Fire);parrying.TryStartParry();parrying.Runner.Time=.1f;
+  parrying.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.None);
+  Check(!parrying.ParryCooldown.IsRunning&&parrying.IsParrying&&parrying.ParrySequence==1,"successful zero-damage block resets cooldown without ending protection");
+  parrying.TryStartParry();
+  Check(parrying.ParryStartSequence==2&&Near(parrying.NowAp,68)&&Near(parrying.ParryCooldown.End,.4f),"success permits immediate repeat with normal MP cost and fresh cooldown");
+  parrying.TryStartParry();
+  Check(parrying.ParryStartSequence==2&&Near(parrying.NowAp,68),"repeat without another success is still on cooldown");
+  parrying.TakeDamage(20,PlayerRef.One);
+  Check(!parrying.ParryCooldown.IsRunning&&parrying.ParrySequence==2,"direct damage block also resets cooldown");
+  parrying.TryStartParry();
+  Check(parrying.ParryStartSequence==3&&Near(parrying.NowAp,52),"consecutive successful parries allow consecutive repeats");
+  parrying.Object.HasStateAuthority=false;
+  parrying.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One);
+  parrying.TakeDamage(20,PlayerRef.One);
+  Check(parrying.ParryCooldown.IsRunning&&parrying.ParrySequence==2,"replica hits cannot reset authoritative cooldown");
+  parrying.Object.HasStateAuthority=true;parrying.TakeDamage(20,PlayerRef.One,canBeParried:false);
+  Check(parrying.ParryCooldown.IsRunning&&parrying.ParrySequence==2,"unparryable damage does not grant cooldown reset");
+  Check((int)MagicType.Flare==11&&(int)MagicType.Smoke==12,"new IDs append without changing saved old IDs");
+  var utility=Caster(MagicType.Flare);
+  utility.Input(true);
+  Check(utility.Launches==0&&MagicProjectile.Breaks==1&&Near(utility.NowAp,50),"Flare instantly breaks homing and pays fifty MP");
+  utility.Input(true);utility.Input(false);utility.Input(true);
+  Check(MagicProjectile.Breaks==1,"holding or reclicking during flare cooldown cannot spam");
+  utility.Runner.Time=utility.MagicCooldowns[(int)MagicType.Flare].End;utility.Input(false);utility.Input(true);
+  Check(MagicProjectile.Breaks==2,"flare can be used again after configurable cooldown");
+  utility=Caster(MagicType.Smoke);BattleFlag.Instance.Space=false;utility.Input(true);
+  Check(utility.CastSequence==0&&Near(utility.NowAp,100),"full smoke area pool rejects before mana and cooldown");
+  BattleFlag.Instance.Space=true;utility.Input(false);utility.Input(true);
+  Check(BattleFlag.Instance.Clouds==1&&utility.Launches==0&&Near(utility.NowAp,60),"Smoke is immediate area creation, not a hitscan");
+  utility.Input(false);utility.Input(true);Check(BattleFlag.Instance.Clouds==1,"Smoke cooldown prevents duplicate areas");
+  utility=Caster(MagicType.Smoke);utility.magicStatTable.magics[11].radius=0;utility.Input(true);
+  Check(utility.CastSequence==0&&Near(utility.NowAp,100),"invalid smoke settings do not consume mana");
+  utility=Caster(MagicType.Flare);utility.NowAp=0;utility.Input(true);
+  Check(utility.CastSequence==0&&MagicProjectile.Breaks==2,"utility still requires mana");
+  utility=Caster(MagicType.Flare);utility.Object.HasStateAuthority=false;utility.Input(true);
+  Check(utility.CastSequence==0&&MagicProjectile.Breaks==2,"predicting client cannot execute utility gameplay");
+  var dotAim=new Vector3(1,0,0);
+  var aimed=Caster(MagicType.Vision);
+  aimed.ProcessAuthoritativeCombat(new NetworkInputData{aimDirection=Vector3.forward,magicAimDirection=dotAim},new NetworkButtons{Bits=1});
+  Check(aimed.Launches==1&&Near(aimed.LastLaunchDirection.x,1)&&Near(aimed.LastLaunchDirection.z,0),"instant cast consumes Dot input independently of forward steering");
+  var delayed=Caster(MagicType.Vision);delayed.magicStatTable.magics[2].castSeconds=.25f;
+  delayed.ProcessAuthoritativeCombat(new NetworkInputData{magicAimDirection=dotAim},new NetworkButtons{Bits=1});
+  Check(delayed.Launches==0&&Near(delayed.pendingAimDirection.x,1),"delayed cast captures original Dot input");
+  delayed.ProcessAuthoritativeCombat(new NetworkInputData{magicAimDirection=Vector3.forward},default);
+  delayed.Runner.Time=.3f;delayed.UpdatePendingCast();
+  Check(delayed.Launches==1&&Near(delayed.LastLaunchDirection.x,1)&&Near(delayed.LastLaunchDirection.z,0),"later input does not redirect a pending Dot cast");
+  var hitShooter=Caster(MagicType.Fire);hitShooter.Object.Id=new NetworkId(20);hitShooter.Runner.Objects[20]=hitShooter.Object;
+  var hitVictim=Enemy(hitShooter);hitVictim.Object.InputAuthority=PlayerRef.Two;
+  hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitShooter.HitMarkerEvents==1&&hitVictim.HitMarkerEvents==0,"confirmed damage notifies only its attacker");
+  hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitShooter.HitMarkerEvents==1,"same tick multiple hits are coalesced");
+  hitShooter.Runner.Time=.1f;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitShooter.HitMarkerEvents==2,"subsequent hit restarts marker");
+  hitShooter.Runner.Time=.2f;hitVictim.TryStartParry();hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitShooter.HitMarkerEvents==2,"parried hit has no hit marker");
+  hitVictim.ParryTimer=default;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitShooter.HitMarkerEvents==3,"binding confirms applied zero-damage status");
+  hitShooter.Runner.Time=.3f;hitVictim.NowHp=1;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
+  Check(!hitVictim.IsAlive&&hitShooter.HitMarkerEvents==4,"lethal hit still confirms");
+  hitShooter.Runner.Time=.4f;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitShooter.HitMarkerEvents==4,"already dead victim cannot confirm another hit");
+  hitVictim.IsAlive=true;hitVictim.NowHp=1;hitVictim.testBot=new MagicTestBot{Immortal=true};
+  hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitVictim.NowHp==1&&hitShooter.HitMarkerEvents==5,"immortal training dummy still confirms accepted hits");
+  hitShooter.Runner.Time=.5f;hitVictim.TeamIndex=hitShooter.TeamIndex;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Mine),PlayerRef.One,hitShooter.Object.Id);
+  Check(hitShooter.HitMarkerEvents==5,"friendly mine damage is not an enemy hit marker");
+  hitShooter.ReceiveMagicHit(table.GetStats(MagicType.Mine),PlayerRef.One,hitShooter.Object.Id);Check(hitShooter.HitMarkerEvents==5,"self damage has no marker");
+  hitVictim.TeamIndex=2;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,new NetworkId(999));Check(hitShooter.HitMarkerEvents==5,"missing original shooter does not use a respawned replacement");
+  hitVictim.TakeDamage(1,PlayerRef.None);Check(hitShooter.HitMarkerEvents==5,"environment damage does not confirm a spell");
+  hitVictim.Object.HasStateAuthority=false;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,hitShooter.Object.Id);Check(hitShooter.HitMarkerEvents==5,"proxy prediction cannot confirm hits");
+  hitVictim.Object.HasStateAuthority=true;hitShooter.Object.InputAuthority=PlayerRef.None;hitVictim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.None,hitShooter.Object.Id);Check(hitShooter.HitMarkerEvents==5,"AI shooter has no player UI notification");
+  var shooter=Caster(MagicType.Fire);shooter.Object.Id=new NetworkId(1);shooter.Runner.Objects[1]=shooter.Object;
+  var receiver=Enemy(shooter);receiver.Object.InputAuthority=PlayerRef.Two;
+  shooter.transform.position=new Vector3(12,4,30);
+  receiver.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,shooter.Object.Id);
+  Check(receiver.DamageDirectionEvents==1&&receiver.DamageDirectionPosition.x==12,"hit captures enemy position once");
+  shooter.transform.position=new Vector3(99,4,99);
+  Check(receiver.DamageDirectionPosition.x==12,"stored hit position does not follow moving attacker");
+  receiver.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,shooter.Object.Id);
+  Check(receiver.DamageDirectionEvents==2&&receiver.DamageDirectionPosition.x==99,"next hit captures its own new position");
+  receiver.TryStartParry();receiver.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,shooter.Object.Id);
+  Check(receiver.DamageDirectionEvents==2,"parried spell does not indicate received damage");
+  receiver.ParryTimer=default;receiver.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.One,shooter.Object.Id);
+  Check(receiver.DamageDirectionEvents==3,"binding hit indicates direction despite zero HP damage");
+  receiver.TakeDamage(1,PlayerRef.None);Check(receiver.DamageDirectionEvents==3,"environment damage has no enemy direction");
+  receiver.TakeDamage(1,PlayerRef.Two,attackerId:receiver.Object.Id);Check(receiver.DamageDirectionEvents==3,"self mine has no enemy direction");
+  shooter.TeamIndex=receiver.TeamIndex;receiver.TakeDamage(1,PlayerRef.One,attackerId:shooter.Object.Id);
+  Check(receiver.DamageDirectionEvents==3,"friendly damage not presented as enemy damage");
+  shooter.TeamIndex=1;shooter.Object.InputAuthority=PlayerRef.None;
+  receiver.ReceiveMagicHit(table.GetStats(MagicType.Ice),PlayerRef.None,shooter.Object.Id);
+  Check(receiver.DamageDirectionEvents==4,"bot identified by network ID, not PlayerRef.None");
+  receiver.TakeDamage(1,PlayerRef.One,attackerId:new NetworkId(999));
+  Check(receiver.DamageDirectionEvents==4,"missing original shooter cannot substitute respawn position");
+  Check((int)MagicType.Healing==5&&(int)MagicType.Binding==6&&(int)MagicType.Curse==8&&(int)MagicType.Razier==10,"stable saved IDs");
+  Check(table.GetStats(MagicType.Fire).lockChargeSeconds>table.GetStats(MagicType.Ice).lockChargeSeconds,"Fire lock slower than Ice");
+  Check(table.GetStats(MagicType.Vision).projectileSpeed==0&&table.GetStats(MagicType.Dark).projectileSpeed==0,"hitscan defaults");
+  foreach(var magic in new[]{MagicType.Vision,MagicType.Dark,MagicType.Thunder,MagicType.Razier})
+   Check(Near(table.GetStats(magic).hitscanRadius,.3f),"adjustable hitscan radius default "+magic);
+  Check(Near(table.GetStats(MagicType.Fire).projectileRadius,.12f)&&Near(table.GetStats(MagicType.Mine).projectileRadius,.2f),"fire and summon bolt radii");
+  foreach(float mp in new[]{100f,150f,200f})
+   Check(Near(table.GetStats(MagicType.Curse).ChannelManaPerSecond(mp),.5f)&&Near(table.GetStats(MagicType.Razier).ChannelManaPerSecond(mp),1),"fixed channel costs independent of maximum MP "+mp);
+  foreach(float hp in new[]{0f,29f,30f}){
+   var p=Caster(MagicType.Dark);p.NowHp=hp;p.TryCastSelectedMagic();Check(p.Launches==0&&p.NowHp==hp&&p.CastSequence==0,"Dark low HP blocked "+hp);
+  }
+  var d=Caster(MagicType.Dark);d.NowHp=31;d.TryCastSelectedMagic();Check(d.NowHp==1&&d.Launches==1,"Dark pays 30 above threshold");
+  var victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==41&&Near(victim.NowHp,130),"Dark actual hit deals seventy and heals forty");
+  d=Caster(MagicType.Dark);d.NowHp=80;d.magicStatTable.magics[6].healthCost=20;d.magicStatTable.magics[6].healOnHit=30;
+  d.TryCastSelectedMagic();victim=Enemy(d);victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(d.NowHp==90,"edited cost and healing honored");
+  d=Caster(MagicType.Dark);d.NowHp=100;d.TryCastSelectedMagic();victim=Enemy(d);victim.TryStartParry();
+  victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(victim.NowHp==200&&d.NowHp==70&&victim.ParrySequence==1,"parry nullifies Dark and prevents lifesteal, no reflection");
+  victim.Runner.Time=.31f;victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(Near(victim.NowHp,130)&&d.NowHp==110,"damage resumes after parry window");
+  d=Caster(MagicType.Dark);d.NowHp=100;d.TryCastSelectedMagic();victim=Enemy(d);victim.NowHp=1;
+  victim.ReceiveMagicHit(d.LastLaunched,PlayerRef.One);Check(!victim.IsAlive&&d.NowHp==110,"killing hit still heals");
+  d=Caster(MagicType.Healing);d.NowHp=190;d.Input(true);Check(d.NowHp==200&&d.NowAp==80,"Healing caps at max on press");
+  d=Caster(MagicType.Healing);d.Input(true);Check(d.NowAp==100&&d.CastSequence==0,"full HP healing does not consume resources");
+  Check(!d.HealingFeedbackTimer.IsRunning,"zero actual healing cannot start recovery VFX");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;
+  Check(d.CanAcquireMagicTarget(),"full-health caster may target injured allies");
+  d.Input(false,false,victim.Object.Id);
+  Check(d.IsFullyLocked&&d.LockProgress==1&&d.GetDisplayedLockTarget()==victim,"ally locks instantly without holding or charging");
+  d.Input(true,false,victim.Object.Id);
+  Check(victim.NowHp==140&&d.NowHp==200&&d.NowAp==80,"heal goes to ally while cost belongs to caster");
+  Check(victim.HealingFeedbackTimer.IsRunning&&!d.HealingFeedbackTimer.IsRunning,"healing status VFX belongs to recipient only");
+  Check(d.LastCastOrigin.z==victim.LockAimPoint.z,"cast effect is centered on healed ally");
+  d.Input(true,false,victim.Object.Id);Check(victim.NowHp==140,"holding heal cannot repeat casts");
+  d.Input(false,false,victim.Object.Id);Check(!d.IsFullyLocked,"cooldown clears ally lock");
+  foreach(string invalid in new[]{"enemy","behind","far","wall","dead","despawn","runner","self"}) {
+   d=Caster(MagicType.Healing);d.NowHp=100;victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;
+   if(invalid=="enemy")victim.TeamIndex=2;if(invalid=="behind")victim.transform.position=new(0,0,-10);
+   if(invalid=="far")victim.transform.position=new(0,0,300);if(invalid=="wall")victim.Visible=false;
+   if(invalid=="dead")victim.IsAlive=false;if(invalid=="despawn")victim.Object.IsValid=false;
+   if(invalid=="runner")victim.Runner=new();if(invalid=="self")d.Runner.Objects[2]=d.Object;
+   d.Input(true,false,victim.Object.Id);
+   Check(d.NowHp==140&&victim.NowHp==100,"invalid ally falls back to self: "+invalid);
+  }
+  d=Caster(MagicType.Healing);d.NowHp=100;victim=Enemy(d);victim.TeamIndex=d.TeamIndex;
+  d.Input(true,false,victim.Object.Id);Check(d.NowAp==100&&d.NowHp==100,"full-health locked ally does not silently redirect heal or spend mana");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NeedsCleanse=true;
+  d.Input(true,false,victim.Object.Id);Check(victim.Cleanses==1&&d.Cleanses==0&&d.NowAp==80,"cleanse applies to target, including full-health ally");
+  Check(!victim.HealingFeedbackTimer.IsRunning,"cleanse alone does not falsely report HP recovery");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;d.NowAp=0;
+  d.Input(true,false,victim.Object.Id);Check(!d.IsFullyLocked&&victim.NowHp==100,"no mana means no ally lock or healing");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;d.Object.HasStateAuthority=false;
+  d.ProcessPredictedProjectileInput(new(){lockTarget=victim.Object.Id},new(){Bits=1});
+  Check(d.IsFullyLocked&&victim.NowHp==100&&d.NowAp==100&&d.Predictions==0,"prediction only shows instant ally lock and never heals");
+  d=Caster(MagicType.Healing);victim=Enemy(d);victim.TeamIndex=d.TeamIndex;victim.NowHp=100;victim.transform.position=new(10,0,0);
+  d.ProcessAuthoritativeCombat(new(){lockTarget=victim.Object.Id,magicAimDirection=new(1,0,0)},new(){Bits=1});
+  Check(victim.NowHp==140,"healing front hemisphere follows supplied camera aim");
+  d=Caster(MagicType.Binding);victim=Enemy(d);victim.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.One);
+  Check(victim.NowHp==200&&Near(victim.BindingTimer.End,3)&&victim.Speed==0,"Binding roots three seconds without damage");
+  victim.BindingTimer=default;victim.TryStartParry();victim.ReceiveMagicHit(table.GetStats(MagicType.Binding),PlayerRef.None);
+  Check(!victim.BindingTimer.IsRunning&&victim.ParrySequence==1,"bot Binding with no PlayerRef still parried");
+  victim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,d.Object.Id,new Vector3(5,0,0));
+  Check(Near(victim.ParryFacingDirection.x,-1)&&Near(victim.ParryFacingDirection.z,0)&&victim.NowHp==200,"shield faces actual incoming projectile, not shooter position");
+  victim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,d.Object.Id,new Vector3(0,-3,0));
+  Check(Near(victim.ParryFacingDirection.y,1),"shield can face overhead projectiles");
+  victim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One,d.Object.Id);
+  Check(Near(victim.ParryFacingDirection.z,-1),"legacy hits fall back to source position");
+  d=Caster(MagicType.Fire);victim=Enemy(d);d.Input(true,false,victim.Object.Id);
+  Check(d.LockProgress>0&&d.Launches==0,"lock charges on hold, not fires");d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"early release no shot");
+  for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}Check(d.IsFullyLocked,"full charge");
+  Check(d.LockReadyEvents==1&&d.LastReadyMagic==MagicType.Fire,"completed lock broadcasts correct spell once while held");
+  d.Input(false,false,victim.Object.Id);Check(d.Launches==1&&d.LockProgress==0,"release fires and clears lock");
+  Check(d.LockClearEvents==1,"release cancels attached lock-complete VFX");
+  Check(!d.CanAcquireMagicTarget(),"casting immediately disables target eligibility during cooldown");
+  d.Input(true,false,victim.Object.Id);Check(d.LockProgress==0&&d.LockTargetId.Id==0&&!d.IsFullyLocked,"holding during cooldown cannot accumulate charge");
+  d.RPC_SetLockTarget(victim.Object.Id,Vector3.forward);Check(d.LockTargetId.Id==0,"legacy RPC cannot bypass cooldown");
+  d.LockTargetId=victim.Object.Id;d.LockProgress=1;d.IsFullyLocked=true;
+  Check(d.GetDisplayedLockTarget()==null,"HUD hides stale lock during cooldown");
+  d.UpdateLockCharge();Check(d.LockProgress==0&&!d.IsFullyLocked&&d.LockTargetId.Id==0,"cooldown clears stale completed lock");
+  d.Input(false,false,victim.Object.Id);Check(d.Launches==1,"release during cooldown does not cast");
+  float cooldownEnd=d.MagicCooldowns[(int)MagicType.Fire].End;
+  d.NowAp=100; // This group isolates cooldown expiry; resource eligibility is checked separately below.
+  d.Runner.Time=cooldownEnd-.05f;d.Input(true,false,victim.Object.Id);Check(d.LockProgress==0,"cannot precharge just before cooldown expires");
+  d.Runner.Time=cooldownEnd;d.Input(true,false,victim.Object.Id);
+  Check(d.CanAcquireMagicTarget()&&d.LockProgress>0&&d.LockProgress<.1f,"held input begins fresh charge at expiry");
+  Check(d.GetDisplayedLockTarget()==victim,"HUD returns acquired target after cooldown");
+  d.Input(false,false,victim.Object.Id);Check(d.Launches==1,"release immediately after expiry still requires full charge");
+  d.NowAp=100; // Isolate cooldown/lock behavior from the newly doubled cast cost.
+  for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}d.Input(false,false,victim.Object.Id);
+  Check(d.Launches==2,"normal full lock and release work after cooldown");
+  Check(d.LockReadyEvents==2,"a fresh completed lock plays the effect again");
+  d.Selected=MagicType.Ice;Check(d.CanAcquireMagicTarget(),"another ready spell remains selectable while Fire cools down");
+  d.Selected=MagicType.Fire;Check(!d.CanAcquireMagicTarget(),"switching back does not reset per-magic cooldown");
+  d.CurrentMagicSlot=3;Check(!d.CanAcquireMagicTarget(),"parry slot cannot acquire spell targets");
+  d=Caster(MagicType.Fire);victim=Enemy(d);d.Object.HasStateAuthority=false;
+  d.MagicCooldowns.Set((int)MagicType.Fire,TickTimer.CreateFromSeconds(d.Runner,1));
+  var heldButtons=new NetworkButtons{Bits=1};var lockInput=new NetworkInputData{lockTarget=victim.Object.Id};
+  d.ProcessPredictedProjectileInput(lockInput,heldButtons);
+  Check(d.LockTargetId.Id==0&&d.LockProgress==0,"owner prediction cannot start lock during replicated cooldown");
+  d.previousButtons=heldButtons;d.ProcessPredictedProjectileInput(lockInput,default);
+  Check(d.Predictions==0,"owner prediction cannot release a cooled-down lock spell");
+  d.Runner.Time=1;d.ProcessPredictedProjectileInput(lockInput,heldButtons);
+  Check(d.LockProgress>0&&d.LockTargetId.Equals(victim.Object.Id),"prediction reacquires after expiry");
+  for(int i=0;i<80;i++)d.ProcessPredictedProjectileInput(lockInput,heldButtons);
+  Check(d.IsFullyLocked&&d.LockReadyEvents==0,"predicted full lock never sends authority presentation RPCs");
+  d.Object.IsValid=false;Check(!d.CanAcquireMagicTarget(),"despawned player cannot acquire targets");
+  foreach(var magic in new[]{MagicType.Fire,MagicType.Ice,MagicType.Binding}) {
+   d=Caster(magic);victim=Enemy(d);float cost=d.SelectedMagicStats.apCost;
+   d.NowAp=cost-.01f;
+   Check(!d.CanAcquireMagicTarget(),"insufficient MP hides candidates for "+magic);
+   d.Input(true,false,victim.Object.Id);
+   Check(d.LockProgress==0&&d.LockTargetId.Id==0,"insufficient MP cannot charge "+magic);
+   d.RPC_SetLockTarget(victim.Object.Id,Vector3.forward);
+   Check(d.LockTargetId.Id==0,"RPC cannot bypass mana check for "+magic);
+   d.NowAp=cost;Check(d.CanAcquireMagicTarget(),"exact MP cost allows target acquisition for "+magic);
+   for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}
+   Check(d.IsFullyLocked,"affordable spell charges normally for "+magic);
+   d.NowAp=cost-.01f;
+   Check(d.GetDisplayedLockTarget()==null,"resource loss immediately hides completed lock for "+magic);
+   d.Input(true,false,victim.Object.Id);
+   Check(d.LockProgress==0&&!d.IsFullyLocked&&d.LockTargetId.Id==0,"resource loss cancels completed lock for "+magic);
+   Check(d.LockReadyEvents==1&&d.LockClearEvents==1,"resource loss cancels ready VFX exactly once for "+magic);
+   d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"unaffordable release cannot cast "+magic);
+   d.NowAp=cost;d.Input(true,false,victim.Object.Id);
+   Check(d.LockProgress>0&&d.LockProgress<.1f&&!d.IsFullyLocked,"restored MP starts a fresh charge for "+magic);
+   d.Object.HasStateAuthority=false;d.NowAp=0;d.ProcessPredictedProjectileInput(new NetworkInputData{lockTarget=victim.Object.Id},new NetworkButtons{Bits=1});
+   Check(d.LockProgress==0&&d.LockTargetId.Id==0,"owner prediction also cancels unaffordable lock for "+magic);
+  }
+  d=Caster(MagicType.Fire);victim=Enemy(d);
+  d.magicStatTable.magics[0].healthCost=50;d.NowHp=50;
+  Check(!d.CanAcquireMagicTarget(),"lock-on health cost cannot kill caster");d.NowHp=50.01f;
+  Check(d.CanAcquireMagicTarget(),"strictly more than health cost is enough");
+  d.BindingTimer=TickTimer.CreateFromSeconds(d.Runner,3);Check(d.CanAcquireMagicTarget(),"Binding is movement root, not silence");
+  d.magicProjectilePrefab.IsValid=false;Check(!d.CanAcquireMagicTarget(),"missing projectile cannot charge a shot");d.magicProjectilePrefab.IsValid=true;
+  d.pendingMagic=MagicType.Thunder;Check(!d.CanAcquireMagicTarget(),"pending cast prevents another lock");d.pendingMagic=MagicType.None;
+  d.IsHitStunned=true;Check(!d.CanAcquireMagicTarget(),"hit stun blocks lock");d.IsHitStunned=false;
+  d.IsReturningToMap=true;Check(!d.CanAcquireMagicTarget(),"map return blocks lock");d.IsReturningToMap=false;
+  d.IsAlive=false;Check(!d.CanAcquireMagicTarget(),"dead caster cannot lock");d.IsAlive=true;
+  d.Runner.IsRunning=false;Check(!d.CanAcquireMagicTarget(),"stopped runner cannot lock");d.Runner.IsRunning=true;
+  BattleManager.Instance.IsGameplayActive=false;Check(!d.CanAcquireMagicTarget(),"intermission cannot lock");BattleManager.Instance.IsGameplayActive=true;
+  d=Caster(MagicType.Curse);d.NowAp=0;Check(!d.CanAcquireMagicTarget(),"paid channel needs some mana even when apCost is zero");
+  d.NowAp=.01f;Check(d.CanAcquireMagicTarget(),"channel permits a paid partial final tick");
+  d.channelNeedsRelease=true;Check(!d.CanAcquireMagicTarget(),"exhausted channel must release before reacquiring");d.channelNeedsRelease=false;
+  d.magicStatTable.magics[7].maxApFractionPerSecond=0;d.magicStatTable.magics[7].apPerSecond=0;d.NowAp=0;
+  Check(d.CanAcquireMagicTarget(),"configured free channel remains usable without mana");
+  d=Caster(MagicType.Fire);victim=Enemy(d);for(int i=0;i<80;i++){d.Input(true,false,victim.Object.Id);Tick(d);}
+  victim.Visible=false;d.Input(false,false,victim.Object.Id);Check(d.Launches==0,"wall invalidates completed lock");
+  victim.Visible=true;victim.transform.position=new UnityEngine.Vector3(0,0,-10);Check(!d.IsValidLockTarget(victim),"rear hemisphere cannot lock");
+  victim.transform.position=new UnityEngine.Vector3(10,0,.1f);Check(d.IsValidLockTarget(victim),"wide forward hemisphere accepted without aim alignment");
+  d=Caster(MagicType.Vision);d.Input(true);d.Input(true);Check(d.Launches==1,"hitscan press only, no held repeats");
+  d.Input(false);Tick(d);d.Input(true);Check(d.Launches==1,"cooldown blocks repeated shot");
+  d.Runner.Time=1;d.Input(false);d.Input(true);Check(d.Launches==1,"new Vision cooldown still active after one second");
+  d.Runner.Time=2;d.Input(false);d.Input(true);Check(d.Launches==2,"cast after two-second cooldown");
+  d=Caster(MagicType.Thunder);d.Input(true);Check(d.Launches==0&&d.pendingMagic==MagicType.None&&d.NowAp==100,"Thunder hold only aims");
+  d.Input(false);Check(d.Launches==1&&d.LastLaunched.effect==MagicEffectKind.DelayedArea&&d.NowAp==20,"Thunder release creates delayed world area");
+  d=Caster(MagicType.Curse);victim=Enemy(d);victim.MaxHp=victim.NowHp=1000;
+  for(int i=0;i<100;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
+  Check(Near(d.NowAp,99)&&d.IsChanneling&&!d.channelNeedsRelease,"Curse spends one actual MP across two seconds with no natural regen");
+  Check(Near(victim.NowHp,980),"Curse deals ten DPS over two seconds");
+  d.NowAp=.005f;float partialHp=victim.NowHp;d.Input(true,false,victim.Object.Id);
+  Check(Near(d.NowAp,0)&&!d.IsChanneling&&d.channelNeedsRelease&&Near(partialHp-victim.NowHp,.1f),"partial final channel tick pays only remaining MP and applies proportional damage");
+  d.NowAp=20;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"exhaustion requires release");
+  d.Input(false);d.Runner.Time+=1;d.Input(true,false,victim.Object.Id);Check(d.IsChanneling,"channel restarts after release");
+  victim.Visible=false;d.Input(true,false,victim.Object.Id);Check(!d.IsChanneling,"Curse ends behind wall");
+  d=Caster(MagicType.Curse);victim=Enemy(d);victim.MaxHp=victim.NowHp=10000;d.Runner.DeltaTime=1f/64f;
+  for(int i=0;i<160*64;i++){d.Input(true,false,victim.Object.Id);d.RegenerateAp();Tick(d);}
+  Check(Near(d.NowAp,20)&&d.IsChanneling,"Curse can sustain the full 160-second round for eighty MP, without regeneration");
+  d=Caster(MagicType.Curse);d.MaxAp=d.NowAp=200;victim=Enemy(d);
+  for(int i=0;i<50;i++){d.Input(true,false,victim.Object.Id);Tick(d);}
+  Check(Near(d.NowAp,199.5f),"larger hat capacity does not multiply fixed Curse drain");
+  d=Caster(MagicType.Razier);victim=Enemy(d);d.TraceTarget=victim;
+  d.CastOffset=new Vector3(3,2,1);
+  for(int i=0;i<50;i++){d.Input(true);d.RegenerateAp();Tick(d);}
+  Check(Near(d.NowAp,99)&&Near(victim.NowHp,180),"Razier deals twenty DPS for one actual MP per second");
+  Check(d.LastTraceOrigin.x==3&&d.LastTraceOrigin.y==2,"straight channel traces from the editable cast root");
+  d.CastOffset=new Vector3(4,5,6);d.Input(true);Check(d.LastTraceOrigin.x==4&&d.LastTraceOrigin.y==5,"channel follows the current cast root each tick");
+  d.Input(false);Check(!d.IsChanneling&&d.TimerIsActive(d.MagicCooldowns[(int)MagicType.Razier]),"release ends channel and starts cooldown");
+  d=Caster(MagicType.Razier);victim=Enemy(d);d.TraceTarget=victim;victim.TryStartParry();
+  for(int i=0;i<6;i++){d.Input(true);Tick(d);}
+  Check(victim.NowHp==200&&victim.ParrySequence==1&&!d.IsChanneling,"parry extinguishes channel");
+  d=Caster(MagicType.Fire);victim=Enemy(d);victim.testBot=new MagicTestBot{Immortal=true};
+  victim.ReceiveMagicHit(new MagicStatEntry{damage=10000},PlayerRef.One);Check(victim.NowHp==1&&victim.IsAlive,"immortal dummy health floor");
+  d=Caster(MagicType.Vision);d.Object.HasStateAuthority=false;d.TryCastSelectedMagic();Check(d.Launches==0&&d.NowAp==100,"proxy cannot spend or cast");
+  victim=Enemy(d);victim.Object.HasStateAuthority=false;victim.ReceiveMagicHit(table.GetStats(MagicType.Fire),PlayerRef.One);
+  Check(victim.NowHp==200&&victim.HitSequence==0,"proxy cannot apply damage");
+  d=Caster(MagicType.Healing);d.CastOffset=new Vector3(3,2,1);d.NowHp=100;d.Input(true);
+  Check(d.LastCastOrigin.x==d.LockAimPoint.x&&d.LastCastOrigin.y==d.LockAimPoint.y,"self-healing remains body-centered, independent of muzzle");
+  MagicProjectile Body(Player p,int id=3){var b=new MagicProjectile{Runner=p.Runner};b.Object.Id=new(id);b.Object.Summon=b;b.transform.position=new(0,0,10);p.Runner.Objects[id]=b.Object;return b;}
+  d=Caster(MagicType.Fire);var body=Body(d);
+  Check(d.TryGetMagicTarget(body.Object.Id,out var bodyPlayer,out var bodyTarget,out var bodyPoint)&&bodyPlayer==null&&bodyTarget==body&&bodyPoint.z==10,"summon network ID resolves to hostile lockable body");
+  for(int i=0;i<80;i++){d.Input(true,false,body.Object.Id);Tick(d);}Check(d.IsFullyLocked,"ordinary lock-on charges on summon");
+  d.Input(false,false,body.Object.Id);Check(d.Launches==1&&d.LaunchedSummon==body&&Near(d.NowAp,40),"release launches paid homing spell toward summon");
+  d=Caster(MagicType.Binding);body=Body(d);body.TeamIndex=1;Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"friendly summon cannot be selected");
+  body.TeamIndex=2;body.Alive=false;Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"destroyed summon cannot be selected");body.Alive=true;
+  MagicProjectile.Sight=false;Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"wall rejects summon lock");MagicProjectile.Sight=true;
+  body.transform.position=new(0,0,-10);Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"summon still requires forward hemisphere");
+  body.transform.position=new(0,0,300);Check(!d.TryGetMagicTarget(body.Object.Id,out _,out _,out _),"summon lock respects spell range");
+  foreach(var magic in new[]{MagicType.Curse,MagicType.Razier}){
+   d=Caster(magic);body=Body(d);d.TraceSummon=body;
+   int ticks=magic==MagicType.Curse?250:125;
+   for(int i=0;i<ticks;i++){d.Input(true,false,body.Object.Id);Tick(d);}
+   Check(Near(body.Received,50)&&Near(d.NowAp,97.5f),"real channel tick path delivers fifty damage and pays correct MP to body: "+magic);
+   Check(d.ChannelTargetId.Equals(body.Object.Id),"channel visuals track summon network ID: "+magic);
+  }
+  d=Caster(MagicType.Curse);body=Body(d);var nextBody=Body(d,4);
+  for(int i=0;i<3;i++){d.Input(true,false,body.Object.Id);Tick(d);}
+  for(int i=0;i<5;i++){d.Input(true,false,nextBody.Object.Id);Tick(d);}
+  Check(Near(body.Received,0)&&Near(nextBody.Received,1),"switching summons discards prior partial channel damage");
+  return n;
+ }
+}}
+'@
+$nl = [Environment]::NewLine
+Add-Type -TypeDefinition ($stubs + $nl + 'namespace CombatChecks {' + $nl + $table.Replace('Fusion.PlayerRef','PlayerRef') + $nl + $enum + $nl + '}' + $nl + $probe)
+"Magic combat behavior checks passed: $([CombatChecks.Tests]::Run())"
+
+# Inspect the saved asset too: Unity keeps serialized values instead of C# defaults.
+$savedMagicTable = Get-Content Assets/Resources/MagicStatTable.asset -Raw
+$savedEntries = [regex]::Matches($savedMagicTable, '(?ms)^  - magic: (\d+)\r?\n(.*?)(?=^  - magic:|\z)')
+if ($savedEntries.Count -ne 12) { throw 'Expected 12 saved spells' }
+$defaultMagicTable = [CombatChecks.MagicStatTable]::new()
+foreach ($entry in $savedEntries) {
+    $id = [int]$entry.Groups[1].Value
+    $stats = $defaultMagicTable.GetStats([CombatChecks.MagicType]$id)
+    foreach ($field in 'damage','damagePerSecond','healthCost','healOnHit','healing','apCost','apPerSecond','maxApFractionPerSecond','range','lockChargeSeconds','projectileSpeed','castSeconds','movementMultiplier','effectDuration') {
+        $savedValue = [float][regex]::Match($entry.Groups[2].Value, "(?m)^    ${field}: ([\d.]+)").Groups[1].Value
+        if ([Math]::Abs($savedValue - $stats.$field) -gt 0.001) { throw "Saved $field differs from default for magic $id" }
+    }
+    if ($id -eq 12 -and $entry.Groups[2].Value -notmatch '(?m)^    radius: 36\r?$') { throw 'Saved smoke radius must be 36' }
+    $cooldown = [float][regex]::Match($entry.Groups[2].Value, '(?m)^    cooldownSeconds: ([\d.]+)').Groups[1].Value
+    if ([Math]::Abs($cooldown - $defaultMagicTable.GetStats([CombatChecks.MagicType]$id).cooldownSeconds) -gt 0.001) {
+        throw "Saved cooldown differs from updated default for magic $id"
+    }
+}
+foreach ($field in 'parryApCost','parryCooldownSeconds','parryWindowSeconds') {
+    # Authored parry balance is independent of this twelve-spell revision.
+    $value = [regex]::Match($savedMagicTable,"(?m)^  ${field}: ([\d.]+)\r?$").Groups[1].Value
+    if (!$value -or [double]::Parse($value,[Globalization.CultureInfo]::InvariantCulture) -lt 0) {
+        throw "Missing or invalid editable parry setting: $field"
+    }
+}
+foreach ($prefab in 'Assets/Ch/ChPrefab.prefab','Assets/Prefab/MagicDummy_LockOnAttacker.prefab','Assets/Prefab/MagicDummy_Immortal.prefab') {
+    if ((Get-Content $prefab -Raw) -notmatch '(?m)^  parryCooldownSeconds: 0\.3\r?$') { throw "Stale parry fallback in $prefab" }
+}
+'Saved damage, costs, cooldowns and prefab fallbacks passed.'

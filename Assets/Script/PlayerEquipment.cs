@@ -2,130 +2,216 @@ using UnityEngine;
 
 public class PlayerEquipment : MonoBehaviour
 {
-    [Header("¡ˆ∆Œ¿Ã∏¶ ¿Â¬¯«“ º’")]
-    [SerializeField]
-    private Transform hand;
+    [Header("Pre-placed scene objects (MagicType enum index order)")]
+    [SerializeField] private GameObject[] magicStaffPrefabs;
 
-    [Header("¡ˆ∆Œ¿Ã∏¶ ¿Â¬¯«“ º’")]
-    [SerializeField]
-    private Transform broomhand;
+    [Header("Pre-placed scene objects (HatType enum index order)")]
+    [SerializeField] private GameObject[] hatPrefabs;
 
-    [Header("∏∂π˝ ¡ˆ∆Œ¿Ã «¡∏Æ∆’")]
-    [SerializeField]
-    private GameObject[] magicStaffPrefabs;
+    [Header("Pre-placed scene objects (BroomType enum index order)")]
+    [SerializeField] private GameObject[] broomPrefabs;
 
     private GameObject magicStaff1;
     private GameObject magicStaff2;
-
     private MagicType magic1;
     private MagicType magic2;
+    private int currentMagicSlot;
+    private int currentHatIndex;
+    private int currentBroomIndex;
+    private bool flightEquipmentVisible = true;
+    private bool weaponVisible = true;
+    private bool followsDataConfig;
+    private bool hasLocalLoadout;
+    public GameObject CurrentBroomObject => broomPrefabs != null && currentBroomIndex > 0 &&
+        currentBroomIndex < broomPrefabs.Length ? broomPrefabs[currentBroomIndex] : null;
 
-    private int currentMagicSlot = 0;
-
-
-    public void Init(
-        MagicType magic1,
-        MagicType magic2,
-        HatType hat,
-        BroomType broom)
+    public bool IsFlightEquipment(Transform part)
     {
-        this.magic1 = magic1;
-        this.magic2 = magic2;
+        if (part == null) return false;
+        if (magicStaffPrefabs != null) foreach (var item in magicStaffPrefabs)
+            if (item != null && part.IsChildOf(item.transform)) return true;
+        if (broomPrefabs != null) foreach (var item in broomPrefabs)
+            if (item != null && part.IsChildOf(item.transform)) return true;
+        return false;
+    }
 
-        // ∏∂π˝ ¡ˆ∆Œ¿Ã 2∞≥∏¶ πÃ∏Æ ª˝º∫
-        magicStaff1 = CreateMagicStaff(magic1);
-        magicStaff2 = CreateMagicStaff(magic2);
+    private void OnEnable()
+    {
+        if (!followsDataConfig) return;
+        DataConfig.Changed += ApplyFromDataConfig;
+        ApplyFromDataConfig();
+    }
 
-        // √≥¿Ωø°¥¬ 1π¯ ¡ˆ∆Œ¿Ã ªÁøÎ
+    private void OnDisable() => DataConfig.Changed -= ApplyFromDataConfig;
+
+    // Like PlayerAppearance, only the Main preview explicitly observes local settings.
+    // No UI needs a reference to this component to equip a spell: edit DataConfig instead.
+    public void BindToDataConfig()
+    {
+        followsDataConfig = true;
+        hasLocalLoadout = false;
+        DataConfig.Changed -= ApplyFromDataConfig;
+        if (isActiveAndEnabled) DataConfig.Changed += ApplyFromDataConfig;
+        ApplyFromDataConfig();
+    }
+
+    public void UnbindFromDataConfig()
+    {
+        followsDataConfig = false;
+        hasLocalLoadout = false;
+        DataConfig.Changed -= ApplyFromDataConfig;
+    }
+
+    private void ApplyFromDataConfig()
+    {
+        if (!followsDataConfig) return;
+        int first = DataConfig.magic1Index, second = DataConfig.magic2Index;
+        bool firstChanged = (int)magic1 != first;
+        bool secondChanged = (int)magic2 != second;
+        if (!hasLocalLoadout || firstChanged || secondChanged)
+        {
+            // Show the staff just equipped. Unrelated hair/color edits do not reset it.
+            int slot = hasLocalLoadout && !firstChanged && secondChanged ? 2 : 1;
+            ApplyMagicSelection(first, second, slot);
+        }
+        if (!hasLocalLoadout || currentHatIndex != DataConfig.hatIndex) EquipHat(DataConfig.hatIndex);
+        if (!hasLocalLoadout || currentBroomIndex != DataConfig.broomIndex) EquipBroom(DataConfig.broomIndex);
+        hasLocalLoadout = true;
+    }
+
+    // Presentation only: keep selections so leaving the lobby does not erase a loadout.
+    public void SetFlightEquipmentVisible(bool visible)
+    {
+        if (flightEquipmentVisible == visible) return;
+        flightEquipmentVisible = visible;
+        int slot = currentMagicSlot;
+        currentMagicSlot = 0;
+        ChangeMagic(slot);
+        SetOnlyActive(broomPrefabs, visible ? currentBroomIndex : 0);
+        if (!visible) SetAllInactive(magicStaffPrefabs);
+    }
+
+    // Two-handed flying hides only the staff. Keep the chosen spell and broom intact.
+    public void SetWeaponVisible(bool visible)
+    {
+        if (weaponVisible == visible) return;
+        weaponVisible = visible;
+        int slot = currentMagicSlot;
+        currentMagicSlot = 0;
+        ChangeMagic(slot);
+    }
+
+    public void Init(MagicType magic1, MagicType magic2, HatType hat, BroomType broom)
+    {
+        ApplyLoadout(hat, broom, magic1, magic2);
+    }
+
+    // All objects are authored as children of ChPrefab. This method only
+    // switches their active state; it never instantiates or destroys equipment.
+    public void ApplyLoadout(HatType selectedHat, BroomType selectedBroom,
+        MagicType selectedMagic1, MagicType selectedMagic2)
+    {
+        // Battle calls this with the replicated PlayerData/Player snapshot.
+        // Never let local account settings change a remote character's weapon.
+        UnbindFromDataConfig();
+        magic1 = selectedMagic1;
+        magic2 = selectedMagic2;
+
+        SetAllInactive(magicStaffPrefabs);
+        magicStaff1 = FindMagicObject(magic1);
+        magicStaff2 = FindMagicObject(magic2);
+        currentMagicSlot = 0;
         ChangeMagic(1);
 
-        // ∏¿⁄ / ∫¯¿⁄∑Á
-        EquipHat((int)hat);
-        EquipBroom((int)broom);
+        EquipHat((int)selectedHat);
+        EquipBroom((int)selectedBroom);
     }
 
-
-    private GameObject CreateMagicStaff(MagicType magic)
+    public void ChangeMagic(int slot)
     {
-        GameObject prefab = FindMagicPrefab(magic);
+        // 3Î≤àÏùÄ Í∏∞ÌöçÏÑúÏùò Í≥†Ï†ï Ìå®ÎßÅ Ïä¨Î°ØÏûÖÎãàÎã§. ÏßÄÌå°Ïù¥Î•º ÏÉùÏÑ±ÌïòÏßÄ ÏïäÍ≥†
+        // Ïù¥ÎØ∏ Î∞∞ÏπòÎêú Îëê ÏùºÎ∞ò ÎßàÎ≤ï ÏßÄÌå°Ïù¥Îßå ÌôúÏÑ±/ÎπÑÌôúÏÑ± Ï†ÑÌôòÌï©ÎãàÎã§.
+        if (slot < 1 || slot > 3)
+            return;
 
-        if (prefab == null)
-            return null;
+        if (currentMagicSlot == slot)
+            return;
 
-        GameObject staff = Instantiate(
-            prefab,
-            hand
-        );
+        if (magicStaff1 != null)
+            magicStaff1.SetActive(false);
+        if (magicStaff2 != null)
+            magicStaff2.SetActive(false);
 
-        staff.transform.localPosition = Vector3.zero;
-        staff.transform.localRotation = Quaternion.identity;
+        GameObject selectedStaff = slot == 1
+            ? magicStaff1
+            : slot == 2
+                ? magicStaff2
+                : null;
+        if (selectedStaff != null)
+            selectedStaff.SetActive(flightEquipmentVisible && weaponVisible);
 
-        staff.SetActive(false);
-
-        return staff;
+        currentMagicSlot = slot;
     }
 
+    public void EquipMagic(int selectedMagic1, int selectedMagic2)
+    {
+        ApplyMagicSelection(selectedMagic1, selectedMagic2, 1);
+    }
 
-    private GameObject FindMagicPrefab(MagicType magic)
+    private void ApplyMagicSelection(int selectedMagic1, int selectedMagic2, int visibleSlot)
+    {
+        magic1 = (MagicType)selectedMagic1;
+        magic2 = (MagicType)selectedMagic2;
+        SetAllInactive(magicStaffPrefabs);
+        magicStaff1 = FindMagicObject(magic1);
+        magicStaff2 = FindMagicObject(magic2);
+        currentMagicSlot = 0;
+        ChangeMagic(visibleSlot);
+    }
+
+    public void EquipHat(int index)
+    {
+        currentHatIndex = index;
+        SetOnlyActive(hatPrefabs, index);
+    }
+
+    public void EquipBroom(int index)
+    {
+        currentBroomIndex = index;
+        SetOnlyActive(broomPrefabs, flightEquipmentVisible ? index : 0);
+    }
+
+    private GameObject FindMagicObject(MagicType magic)
     {
         int index = (int)magic;
-
-        if (index < 0 || index >= magicStaffPrefabs.Length)
+        if (magicStaffPrefabs == null || index <= 0 || index >= magicStaffPrefabs.Length)
             return null;
 
         return magicStaffPrefabs[index];
     }
 
-
-    public void ChangeMagic(int slot)
+    private void SetOnlyActive(GameObject[] objects, int activeIndex)
     {
-        if (slot != 1 && slot != 2)
+        if (objects == null)
             return;
 
-        // «ˆ¿Á ¿Â∫ÒøÕ ∞∞¿∏∏È æ∆π´∞Õµµ «œ¡ˆ æ ¿Ω
-        if (currentMagicSlot == slot)
+        for (int index = 0; index < objects.Length; index++)
+        {
+            if (objects[index] != null)
+                objects[index].SetActive(index == activeIndex && index > 0);
+        }
+    }
+
+    private void SetAllInactive(GameObject[] objects)
+    {
+        if (objects == null)
             return;
 
-        // ±‚¡∏ ¡ˆ∆Œ¿Ã ≤Ù±‚
-        if (magicStaff1 != null)
-            magicStaff1.SetActive(false);
-
-        if (magicStaff2 != null)
-            magicStaff2.SetActive(false);
-
-
-        // º±≈√«— ¡ˆ∆Œ¿Ã ƒ—±‚
-        if (slot == 1)
+        foreach (GameObject equipmentObject in objects)
         {
-            if (magicStaff1 != null)
-                magicStaff1.SetActive(true);
+            if (equipmentObject != null)
+                equipmentObject.SetActive(false);
         }
-        else
-        {
-            if (magicStaff2 != null)
-                magicStaff2.SetActive(true);
-        }
-
-        currentMagicSlot = slot;
-    }
-
-
-    public void EquipMagic(int magic1, int magic2)
-    {
-        // « ø‰«œ∏È ±‚¡∏ ¿Œ≈Õ∆‰¿ÃΩ∫ ¿Ø¡ˆ
-        this.magic1 = (MagicType)magic1;
-        this.magic2 = (MagicType)magic2;
-    }
-
-
-    public void EquipHat(int index)
-    {
-
-    }
-
-
-    public void EquipBroom(int index)
-    {
-
     }
 }
+

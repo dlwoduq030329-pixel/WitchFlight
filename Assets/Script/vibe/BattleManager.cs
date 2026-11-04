@@ -1,0 +1,493 @@
+using System;
+using System.Collections.Generic;
+using Fusion;
+using UnityEngine;
+
+[RequireComponent(typeof(BattleIntroPresentation))]
+[RequireComponent(typeof(BattleRoundUI))]
+[RequireComponent(typeof(BattleKillFeed))]
+public class BattleManager : MonoBehaviour
+{
+    [Header("Movement log collection (diagnostic builds only)")]
+    [Tooltip("수집 기간에만 체크한 상태로 빌드하세요. 방장이 참가자 전원(봇 포함)의 동선을 기록하고 뒤끝 게임 로그로 업로드합니다. 해제하면 기록기를 만들지 않습니다.")]
+    [SerializeField] private bool collectMovementLogs = false;
+    public bool CollectMovementLogs => collectMovementLogs;
+
+    [Tooltip("수집 기간에 체크하여 배포하세요. 각 라운드 시작 시 참가자 전원의 확정 마법을 magic_pick_v1 로그로 기록합니다. 훈련장은 제외합니다.")]
+    [SerializeField] private bool collectMagicPickLogs = false;
+    private readonly HashSet<int> recordedMagicPickRounds = new();
+    public string TelemetryMatchId { get; private set; }
+    private string telemetryStartedUtc;
+
+    [Header("Network Prefab")]
+    [SerializeField] private NetworkPrefabRef flagPrefab;
+
+    [Header("Perks / XP (empty = Resources/PerkStatTable)")]
+    [SerializeField] private PerkStatTable perkStatTable;
+    public PerkStatTable Perks => perkStatTable != null ? perkStatTable : PerkStatTable.Default;
+
+    [Header("Battle Spawn Point")]
+    [SerializeField] private Transform playerSpawnA;
+    [SerializeField] private Transform playerSpawnB;
+    [Tooltip("2대2 두 번째 팀원 위치. 비우면 기존 팀 스폰 지점 옆에 간격을 두고 생성합니다.")]
+    [SerializeField] private Transform playerSpawnA2;
+    [SerializeField] private Transform playerSpawnB2;
+    [SerializeField, Min(1f)] private float teammateSpawnSpacing = 3f;
+    [SerializeField] private Transform flagSpawnPoint;
+
+    [Header("Map boundary")]
+    [SerializeField] private MapBoundaryTable mapBoundaryTable;
+    public MapBoundaryTable MapBoundary => mapBoundaryTable;
+
+    [Header("Battle Start")]
+    [Tooltip("All clients must prepare their scene and portraits before startGame is called automatically.")]
+    [SerializeField] private bool autoStartWhenReady = true;
+    [Tooltip("Face-versus-face presentation duration, before the shared three-second countdown.")]
+    [SerializeField, Min(0.1f)] private float introDurationSeconds = 5f;
+
+    [Header("Best of three / between-round magic changes")]
+    [Tooltip("라운드 사이 마법 교체 시간(초). 호스트 설정을 모든 클라이언트에 적용합니다.")]
+    [SerializeField, Min(1f)] private float magicChangeDurationSeconds = 40f;
+    [Tooltip("직전 라운드 장비 대비 변경 가능한 마법 슬롯 수입니다. 같은 슬롯은 제한 시간 내 다시 선택할 수 있습니다.")]
+    [SerializeField, Range(1, 2)] private int maxMagicChangesPerRound = 2;
+
+    [Header("Flag Match / Respawn")]
+    [Tooltip("한 라운드 시간(초). 종료 시 마지막 깃발 소유자가 승리합니다. 2승 시 경기 종료.")]
+    [SerializeField, Min(1f)] private float matchDurationSeconds = 160f;
+    [SerializeField, Min(0f)] private float deathDespawnDelay = 2f;
+    [Tooltip("Time measured from death, not from disappearance.")]
+    [SerializeField, Min(0.1f)] private float respawnDelaySeconds = 7f;
+
+    private sealed class PendingRespawn
+    {
+        public PlayerRef PlayerRef;
+        public NetworkObject DeadObject;
+        public TickTimer DespawnAt;
+        public TickTimer RespawnAt;
+    }
+
+    protected NetworkRunner runner;
+    protected Dictionary<PlayerRef, PlayerData> playerDatas;
+    protected Dictionary<PlayerRef, NetworkObject> spawnedPlayers;
+    private NetworkPrefabRef playerPrefab;
+    private readonly List<PendingRespawn> pendingRespawns = new();
+    private BattleFlag battleFlag;
+    private bool isInitialized;
+    private bool resultAnnounced;
+    private bool startRequestedLocally;
+    private static BattleManager instance;
+
+    public static BattleManager Instance => instance;
+    private bool HasValidFlag => battleFlag != null && battleFlag.Object != null && battleFlag.Object.IsValid;
+    public virtual bool UsesVersusPresentation => true;
+    public virtual bool UsesStandardResults => true;
+    public virtual bool RecordsBattleStats => true;
+    public virtual string ObjectiveLabel => null;
+    public virtual string ModeLabel => null;
+    public bool IsRace => RaceCourse.Instance != null;
+    public virtual BattleStartPhase Phase => IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
+    public bool IsGameplayActive => Phase == BattleStartPhase.Playing ||
+        (IsTraining && Phase == BattleStartPhase.TrainingTutorial && CatTutorialDirector.PracticeInputActive);
+    public bool IsTraining => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
+    public bool AutoStartWhenReady => autoStartWhenReady;
+    public int ExpectedPlayerCount => HasValidFlag && battleFlag.ExpectedPlayerCount > 0
+        ? battleFlag.ExpectedPlayerCount : NetworkGameManager.Instance != null
+            ? NetworkGameManager.Instance.RequiredPlayerCount : 2;
+    public virtual float PhaseRemainingSeconds => IsRace ? RaceCourse.Instance.CountdownRemaining : HasValidFlag ? battleFlag.PhaseRemainingSeconds : 0f;
+    public virtual bool IsBattleEnded => IsRace ? RaceCourse.Instance.Finished : battleFlag != null && battleFlag.Object != null &&
+        battleFlag.Object.IsValid && battleFlag.HasEnded;
+    public float RemainingSeconds => battleFlag != null ? battleFlag.RemainingSeconds : 0f;
+    public virtual int WinningTeam => HasValidFlag && IsBattleEnded ? battleFlag.WinningTeam : 0;
+    public int RoundNumber => HasValidFlag ? battleFlag.RoundNumber : 1;
+    public int Team1Wins => HasValidFlag ? battleFlag.Team1Wins : 0;
+    public int Team2Wins => HasValidFlag ? battleFlag.Team2Wins : 0;
+    public int LastRoundWinner => HasValidFlag ? battleFlag.LastRoundWinner : 0;
+    public int AllowedMagicChanges => HasValidFlag ? battleFlag.AllowedMagicChanges : maxMagicChangesPerRound;
+    public bool IsOvertime => HasValidFlag && battleFlag.IsOvertime;
+    public float RespawnDelaySeconds => respawnDelaySeconds;
+    public event Action<int> BattleEnded;
+
+    private void Awake()
+    {
+        if (mapBoundaryTable != null && !mapBoundaryTable.HasValidBounds)
+            Debug.LogWarning("MapBoundaryTable needs finite xmin < xmax and zmin < zmax. Boundary return is disabled.", this);
+        if (mapBoundaryTable != null && mapBoundaryTable.altitudeLimitEnabled && !mapBoundaryTable.HasValidAltitudeLimit)
+            Debug.LogWarning("MapBoundaryTable needs a finite altitudeFadeStartY < ymax. Altitude death is disabled.", this);
+        if (mapBoundaryTable != null && mapBoundaryTable.lowerLimitEnabled && !mapBoundaryTable.HasValidLowerLimit)
+            Debug.LogWarning("MapBoundaryTable needs a finite ymin below altitudeFadeStartY. Lower boundary floor is disabled.", this);
+        if (instance == null)
+            instance = this;
+        else
+            Destroy(gameObject);
+        if (instance == this && GetComponent<BattlePerkUI>() == null) gameObject.AddComponent<BattlePerkUI>();
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (mapBoundaryTable == null || !mapBoundaryTable.HasValidBounds)
+            return;
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireCube(new Vector3((mapBoundaryTable.xmin + mapBoundaryTable.xmax) * 0.5f,
+            transform.position.y, (mapBoundaryTable.zmin + mapBoundaryTable.zmax) * 0.5f),
+            new Vector3(mapBoundaryTable.xmax - mapBoundaryTable.xmin, 0f,
+                mapBoundaryTable.zmax - mapBoundaryTable.zmin));
+        if (mapBoundaryTable.lowerLimitEnabled && mapBoundaryTable.HasValidLowerLimit)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireCube(new Vector3((mapBoundaryTable.xmin + mapBoundaryTable.xmax) * 0.5f,
+                mapBoundaryTable.ymin, (mapBoundaryTable.zmin + mapBoundaryTable.zmax) * 0.5f),
+                new Vector3(mapBoundaryTable.xmax - mapBoundaryTable.xmin, 0f,
+                    mapBoundaryTable.zmax - mapBoundaryTable.zmin));
+        }
+    }
+
+    // UnityEvent/Button API. It requests the sequence, never bypasses the readiness barrier.
+    public void startGame()
+    {
+        if (Phase != BattleStartPhase.WaitingForPlayers)
+            return;
+        startRequestedLocally = true;
+        TrySendStartRequest();
+    }
+
+    public void StartGame() => startGame();
+
+    private void Update()
+    {
+        if (startRequestedLocally)
+            TrySendStartRequest();
+    }
+
+    private void TrySendStartRequest()
+    {
+        if (!HasValidFlag)
+            return;
+        if (battleFlag.Object.HasStateAuthority)
+        {
+            battleFlag.RequestStart();
+            startRequestedLocally = false;
+        }
+        else if (Player.LocalPlayer != null && Player.LocalPlayer.IsPresentationReady)
+        {
+            Player.LocalPlayer.RequestBattleStart();
+            startRequestedLocally = false;
+        }
+    }
+
+    // NetworkGameManager calls this only on the host after PlayerData is ready.
+    public void InitializeBattle(NetworkRunner runner,
+        Dictionary<PlayerRef, PlayerData> playerDatas, NetworkPrefabRef playerPrefab,
+        Dictionary<PlayerRef, NetworkObject> spawnedPlayers)
+    {
+        if (isInitialized || runner == null || !runner.IsServer)
+            return;
+
+        isInitialized = true;
+        TelemetryMatchId = Guid.NewGuid().ToString("N");
+        telemetryStartedUtc = DateTime.UtcNow.ToString("O");
+        recordedMagicPickRounds.Clear();
+        if (collectMagicPickLogs && !IsTraining && !IsRace) MagicPickTelemetry.Activate();
+        this.runner = runner;
+        this.playerDatas = playerDatas;
+        this.playerPrefab = playerPrefab;
+        this.spawnedPlayers = spawnedPlayers;
+        pendingRespawns.Clear();
+        resultAnnounced = false;
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null) { data.ResetMatchPerks(); data.ResetBattleStats(); if (IsRace) data.ResetRace(); }
+        FindSpawnPoints();
+        SpawnBattlePlayers(playerPrefab);
+        if (!IsRace) SpawnFlag();
+        if (collectMovementLogs)
+            (GetComponent<BattleMovementRecorder>() ?? gameObject.AddComponent<BattleMovementRecorder>()).Begin(runner, this);
+    }
+
+    public void RecordRoundMagicPicks()
+    {
+        if (!collectMagicPickLogs || IsTraining || runner == null || !runner.IsServer ||
+            Phase != BattleStartPhase.Playing || string.IsNullOrEmpty(TelemetryMatchId) ||
+            recordedMagicPickRounds.Contains(RoundNumber) || playerDatas == null) return;
+        var snapshot = new MagicPickLog { matchId=TelemetryMatchId,startedUtc=telemetryStartedUtc,
+            recordedUtc=DateTime.UtcNow.ToString("O"),gameVersion=Application.version,round=RoundNumber,
+            mode=NetworkGameManager.Instance != null ? NetworkGameManager.Instance.CurrentMatchMode.ToString() : "Unknown" };
+        foreach (var data in playerDatas.Values)
+        {
+            if (data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner) continue;
+            snapshot.players.Add(new MagicPickPlayer { participant=data.ParticipantRef.RawEncoded,
+                nickname=data.playerName.ToString(),team=data.teamIndex,bot=data.IsMatchBot,
+                slot1=(int)data.magic1,slot2=(int)data.magic2 });
+        }
+        if (snapshot.players.Count == 0) return;
+        recordedMagicPickRounds.Add(RoundNumber);
+        MagicPickTelemetry.Record(snapshot);
+    }
+
+    private void FindSpawnPoints()
+    {
+        if (playerSpawnA == null)
+            playerSpawnA = FindSpawnPoint("PlayerSpawnA", "spawnA");
+        if (playerSpawnB == null)
+            playerSpawnB = FindSpawnPoint("PlayerSpawnB", "spawnB");
+        if (playerSpawnA2 == null) playerSpawnA2 = FindSpawnPoint("PlayerSpawnA2", "spawnA2");
+        if (playerSpawnB2 == null) playerSpawnB2 = FindSpawnPoint("PlayerSpawnB2", "spawnB2");
+        if (flagSpawnPoint == null)
+            flagSpawnPoint = FindSpawnPoint("FlagSpawn", "Flag");
+    }
+
+    private static Transform FindSpawnPoint(string preferredName, string sceneName)
+    {
+        GameObject found = GameObject.Find(preferredName) ?? GameObject.Find(sceneName);
+        return found != null ? found.transform : null;
+    }
+
+    private void SpawnBattlePlayers(NetworkPrefabRef prefab)
+    {
+        foreach (KeyValuePair<PlayerRef, PlayerData> pair in playerDatas)
+            SpawnBattlePlayer(pair.Key, pair.Value, prefab);
+    }
+
+    protected virtual void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
+    {
+        if (playerData == null || !playerData.IsLoadoutInitialized || !IsConnected(playerRef))
+            return;
+        if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject existing) &&
+            existing != null && existing.IsValid)
+            return;
+
+        Transform spawn = playerData.teamIndex == 1 ? playerSpawnA : playerSpawnB;
+        if (spawn == null || (playerData.teamIndex != 1 && playerData.teamIndex != 2))
+        {
+            Debug.LogError($"Missing spawn point for team {playerData.teamIndex}.", this);
+            return;
+        }
+
+        int teamSlot = 0;
+        foreach (var pair in playerDatas)
+            if (pair.Value != null && pair.Value.teamIndex == playerData.teamIndex && IsConnected(pair.Key) &&
+                pair.Key.RawEncoded < playerRef.RawEncoded) teamSlot++;
+        Transform secondary = playerData.teamIndex == 1 ? playerSpawnA2 : playerSpawnB2;
+        Vector3 spawnPosition = spawn.position;
+        if (teamSlot > 0)
+        {
+            if (secondary != null) { spawn = secondary; spawnPosition = spawn.position; }
+            else spawnPosition += spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * teamSlot;
+        }
+        Quaternion spawnRotation = spawn.rotation;
+        if (IsRace) RaceCourse.Instance.SpawnPose(playerRef, playerData, out spawnPosition, out spawnRotation);
+        NetworkObject playerObject = runner.Spawn(prefab, spawnPosition, spawnRotation,
+            playerData.IsMatchBot ? PlayerRef.None : playerRef);
+        if (playerObject == null)
+            return;
+
+        spawnedPlayers[playerRef] = playerObject;
+        if (!playerData.IsMatchBot) runner.SetPlayerObject(playerRef, playerObject);
+        Player player = playerObject.GetComponent<Player>();
+        if (player != null)
+            player.InitPlayer(playerData, isRespawn);
+    }
+
+    private bool IsConnected(PlayerRef playerRef)
+    {
+        if (runner == null || !runner.IsRunning)
+            return false;
+        if (playerDatas.TryGetValue(playerRef, out var bot) && bot != null && bot.IsMatchBot &&
+            bot.Object != null && bot.Object.IsValid) return true;
+        foreach (PlayerRef active in runner.ActivePlayers)
+            if (active == playerRef)
+                return true;
+        return false;
+    }
+
+    protected virtual void SpawnFlag()
+    {
+        if (battleFlag != null || !flagPrefab.IsValid)
+            return;
+        Vector3 position = flagSpawnPoint != null ? flagSpawnPoint.position : Vector3.zero;
+        Quaternion rotation = flagSpawnPoint != null ? flagSpawnPoint.rotation : Quaternion.identity;
+        NetworkObject flagObject = runner.Spawn(flagPrefab, position, rotation);
+        BattleFlag flag = flagObject != null ? flagObject.GetComponent<BattleFlag>() : null;
+        if (flag == null)
+        {
+            Debug.LogError("FlagOBJ must have BattleFlag and be registered as a network prefab.", this);
+            return;
+        }
+        RegisterFlag(flag);
+        BattleMapTour tour = FindFirstObjectByType<BattleMapTour>();
+        flag.PrepareMatch(position, matchDurationSeconds, ExpectedPlayerCount, introDurationSeconds,
+            magicChangeDurationSeconds, maxMagicChangesPerRound,
+            tour != null && tour.ShouldPlay(IsTraining) ? tour.MoveSeconds : 0f,
+            tour != null ? tour.FadeSeconds : 0.6f);
+    }
+
+    public void BeginMagicChange()
+    {
+        if (runner == null || !runner.IsServer || Phase != BattleStartPhase.Intermission) return;
+        pendingRespawns.Clear();
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null && data.Object != null && data.Object.IsValid)
+            {
+                data.AwardPerkRound(RoundNumber);
+                data.BeginRoundMagicChange(RoundNumber);
+            }
+        // Snapshot every participant first: bots must not counter the new intermission choices.
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null && data.IsMatchBot) data.ChooseBotCounters(true);
+        // Counter selection must finish before readiness locks the bot's loadout.
+        foreach (PlayerData data in playerDatas.Values)
+            if (data != null && data.IsMatchBot) TrySetRoundReady(data, RoundNumber, true);
+    }
+
+    public bool TrySetRoundReady(PlayerData data, int round, bool readyForRound)
+    {
+        if (runner == null || !runner.IsServer || !HasValidFlag || !battleFlag.CanChangeMagic(round) ||
+            data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner ||
+            !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.ParticipantRef) ||
+            !playerDatas.TryGetValue(data.ParticipantRef, out PlayerData registered) || registered != data ||
+            data.MagicChangeRound != round) return false;
+        data.SetRoundReadyFromHost(readyForRound);
+        return true;
+    }
+
+    public void ResetPlayersForNextRound()
+    {
+        if (runner == null || !runner.IsServer || Phase != BattleStartPhase.WaitingForPlayers) return;
+        pendingRespawns.Clear();
+        // Respawn, rather than reusing dead/faded instances: reset HP/MP, cooldowns,
+        // physics, camera binding, cached portraits and all status effects together.
+        var oldPlayers = new List<NetworkObject>(spawnedPlayers.Values);
+        spawnedPlayers.Clear();
+        foreach (NetworkObject old in oldPlayers)
+            if (old != null && old.IsValid) runner.Despawn(old);
+        SpawnBattlePlayers(playerPrefab);
+    }
+
+    public bool TryChangeRoundMagic(PlayerData data, int round, MagicType first, MagicType second, out string error, bool resetInitial = false)
+    {
+        error = "마법 교체 시간이 아닙니다.";
+        if (runner == null || !runner.IsServer || !HasValidFlag || !battleFlag.CanChangeMagic(round) ||
+            data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner ||
+            !data.Object.HasStateAuthority || !data.IsLoadoutInitialized || !IsConnected(data.ParticipantRef) ||
+            !playerDatas.TryGetValue(data.ParticipantRef, out PlayerData registered) || registered != data ||
+            data.MagicChangeRound != round) return false;
+        if (data.RoundSwapReady) { error = "준비 완료를 취소한 뒤 마법을 교체해주세요."; return false; }
+        // Reset is an explicit restore of the account snapshot, never arbitrary client values.
+        if (resetInitial) { first = data.InitialMagic1; second = data.InitialMagic2; }
+        if (!resetInitial && !BattleRoundRules.IsAllowedLoadout(data.MagicChangeBase1, data.MagicChangeBase2,
+            first, second, battleFlag.AllowedMagicChanges))
+        {
+            error = $"유효한 마법을 선택해주세요. 변경 가능한 슬롯은 최대 {battleFlag.AllowedMagicChanges}개입니다.";
+            return false;
+        }
+        data.RecordTitleLoadoutChange(first,second);
+        data.magic1 = first;
+        data.magic2 = second;
+        data.PerkLoadoutChanged();
+        error = string.Empty;
+        return true;
+    }
+
+    // BattleFlag.Spawned also calls this on remote clients.
+    public void RegisterFlag(BattleFlag flag)
+    {
+        battleFlag = flag;
+    }
+
+    public void PlayerKilled(PlayerRef deadPlayer, PlayerRef killerPlayer)
+    {
+        if (runner == null || !runner.IsServer || !IsGameplayActive || deadPlayer == PlayerRef.None)
+            return;
+        foreach (PendingRespawn pending in pendingRespawns)
+            if (pending.PlayerRef == deadPlayer)
+                return;
+        if (!spawnedPlayers.TryGetValue(deadPlayer, out NetworkObject deadObject) || deadObject == null)
+            return;
+
+        Player deadPilot = deadObject.GetComponent<Player>();
+        playerDatas.TryGetValue(deadPlayer, out PlayerData victim);
+        playerDatas.TryGetValue(killerPlayer, out PlayerData killer);
+        victim?.RecordBattleDeath(deadObject.Id, killer, deadPilot != null ? deadPilot.LastDamageMagic : MagicType.None,
+            deadPilot != null && deadPilot.DiedFromAltitude);
+        if (killer != null && killer != victim) killer.AwardPerkKill(deadPilot);
+        battleFlag?.AnnounceKill(killer != null ? killer.playerName.ToString() : "환경 / 더미",
+            killer != null ? killer.playerprofile : -1,
+            victim != null ? victim.playerName.ToString() : $"Player {deadPlayer.PlayerId}",
+            victim != null ? victim.playerprofile : -1);
+        battleFlag?.DropCarrier(deadPlayer, deadObject.transform.position,
+            deadPilot != null && deadPilot.DiedFromAltitude);
+        pendingRespawns.Add(new PendingRespawn
+        {
+            PlayerRef = deadPlayer,
+            DeadObject = deadObject,
+            DespawnAt = TickTimer.CreateFromSeconds(runner, Mathf.Min(deathDespawnDelay, respawnDelaySeconds)),
+            RespawnAt = TickTimer.CreateFromSeconds(runner, respawnDelaySeconds)
+        });
+    }
+
+    public void PlayerLeft(PlayerRef playerRef)
+    {
+        if (runner == null || !runner.IsServer)
+            return;
+        battleFlag?.ForgetReadyPlayer(playerRef);
+        if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject playerObject) && playerObject != null)
+            battleFlag?.DropCarrier(playerRef, playerObject.transform.position);
+        pendingRespawns.RemoveAll(pending => pending.PlayerRef == playerRef);
+        int departedTeam = playerDatas.TryGetValue(playerRef, out PlayerData departed) && departed != null ? departed.teamIndex : 0;
+        if (ExpectedPlayerCount > 1 && !IsBattleEnded)
+            foreach (var pair in playerDatas)
+                if (pair.Key != playerRef && pair.Value != null && pair.Value.teamIndex != departedTeam && IsConnected(pair.Key))
+                {
+                    battleFlag?.EndSeriesByForfeit(pair.Value.teamIndex);
+                    break;
+                }
+    }
+
+    // Called from the authoritative flag's network tick: no scene-lifetime coroutines.
+    public void TickRespawns()
+    {
+        if (runner == null || !runner.IsRunning || !runner.IsServer || !IsGameplayActive)
+            return;
+        for (int index = pendingRespawns.Count - 1; index >= 0; index--)
+        {
+            PendingRespawn pending = pendingRespawns[index];
+            if (!IsConnected(pending.PlayerRef))
+            {
+                pendingRespawns.RemoveAt(index);
+                continue;
+            }
+            if (pending.DespawnAt.Expired(runner) && pending.DeadObject != null)
+            {
+                if (pending.DeadObject.IsValid)
+                    runner.Despawn(pending.DeadObject);
+                if (spawnedPlayers.TryGetValue(pending.PlayerRef, out NetworkObject registered) &&
+                    registered == pending.DeadObject)
+                    spawnedPlayers.Remove(pending.PlayerRef);
+                pending.DeadObject = null;
+            }
+            if (!pending.RespawnAt.Expired(runner))
+                continue;
+            if (playerDatas.TryGetValue(pending.PlayerRef, out PlayerData playerData))
+                SpawnBattlePlayer(pending.PlayerRef, playerData, playerPrefab, true);
+            pendingRespawns.RemoveAt(index);
+        }
+    }
+
+    public void NotifyBattleEnded(int winningTeam)
+    {
+        if (resultAnnounced)
+            return;
+        resultAnnounced = true;
+        GetComponent<BattleMovementRecorder>()?.Finish("completed");
+        if (playerDatas != null)
+            foreach (PlayerData data in playerDatas.Values) data?.CompleteTitleMatch(winningTeam);
+        pendingRespawns.Clear();
+        Debug.Log(winningTeam > 0 ? $"Flag match ended. Team {winningTeam} wins." : "Flag match ended in a draw.");
+        BattleEnded?.Invoke(winningTeam);
+    }
+
+    private void OnDestroy()
+    {
+        pendingRespawns.Clear();
+        if (instance == this)
+            instance = null;
+    }
+}

@@ -1,0 +1,1948 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4bc5bd732d8d4eaf9cfecc274842df2f, type: 3}
+  m_Name: MagicStatTable
+  m_EditorClassIdentifier: 
+  predictLocalProjectiles: 1
+  projectileConfirmationTimeout: 1.2
+  projectilePredictionLead: 0.2
+  projectileCorrectionSpeed: 18
+  projectileFormationEnabled: 1
+  projectileSatelliteCount: 6
+  projectileSatelliteVfxPrefab: {fileID: 0}
+  projectileCoreVisualScale: 1.8
+  projectileSatelliteVisualScale: 0.35
+  projectileSatelliteBackDistance: 2
+  projectileSatelliteBackSeconds: 0.18
+  projectileSatelliteSpeedMultiplier: 2.5
+  projectileSatelliteSpread: 1
+  projectileSatelliteLeadDistance: 3
+  projectileMergeStartDistance: 18
+  projectileMergeEndDistance: 3
+  iceImpactFollowUpEnabled: 1
+  iceImpactShardVfxPrefab: {fileID: 0}
+  iceImpactLaunchInterval: 0.05
+  iceImpactShardSpeed: 150
+  iceImpactRingRadius: 0.85
+  iceImpactCurve: 2
+  iceImpactShardScale: 0.3
+  parryApCost: 25
+  parryWindowSeconds: 0.4
+  parryCooldownSeconds: 0.5
+  parryIcon: {fileID: 0}
+  fallback:
+    magic: 0
+    displayName: None
+    description: 
+    icon: {fileID: 0}
+    lockChargeCirclePrefab: {fileID: 0}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 0
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0
+    displayDamageLabel: 
+    displayAimTimeLabel: 
+    displayRangeLabel: 
+    displayManaCostLabel: 
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 0
+    cooldownSeconds: 0
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 0
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 0
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 0
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 2
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0.01
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0.01
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0.01
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0
+    autoAimHalfAngle: 1
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 0
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  magics:
+  - magic: 1
+    displayName: "\uD654\uC5FC \uB9C8\uBC95"
+    description: "\uAC70\uB300\uD55C \uBD88\uAF43\uC744 \uBC1C\uC0AC\uD558\uC5EC
+      \uC801\uC744 \uBD88\uD0DC\uC6C1\uB2C8\uB2E4. \n\uAE34 \uC870\uC900\uC2DC\uAC04\uC774
+      \uD544\uC694\uD558\uC9C0\uB9CC \uB192\uC740 \uD53C\uD574\uB97C \uC785\uD799\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: a170a08214b94864cb5aa94b432d4244, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 0
+    displayDamage: 0.5
+    displayAimTime: 0.1
+    displayRange: 0.75
+    displayManaCost: 0.75
+    displayDamageLabel: "\uC911\uAC04"
+    displayAimTimeLabel: "\uB290\uB9BC"
+    displayRangeLabel: "\uAE38\uB2E4"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 45
+    cooldownSeconds: 3.75
+    lockChargeSeconds: 0.8
+    castSeconds: 0
+    projectileSpeed: 67.5
+    projectileTurnSpeed: 176
+    projectileLifetime: 5
+    projectileRadius: 0.12
+    hitscanRadius: 0
+    range: 130
+    damage: 45
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 1
+    requiresFullLock: 1
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 957608868799003219, guid: 6465705fbc74a4be68db73b600de1d69, type: 3}
+    projectileVfxPrefab: {fileID: 7264231152250865867, guid: 522f45e53118f4065b908957dca8a3c5, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 4393094804759860378, guid: 8f75bed6922144577a641f1c563dad13, type: 3}
+    impactVfxPrefab: {fileID: 4442764683140637388, guid: 176b851961a2c4c1aa41e1f2b94ad8c3, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 2
+    displayName: "\uC5BC\uC74C \uB9C8\uBC95"
+    description: "\uB0C9\uAE30\uC758 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
+      \n\uC870\uC900 \uC2DC\uAC04\uC774 \uBE60\uB974\uBA70, \uC801\uC744 \uB290\uB824\uC9C0\uAC8C
+      \uB9CC\uB4ED\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 03e34f30a8068f045a4132237dd9ea86, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 1
+    displayDamage: 0.25
+    displayAimTime: 1
+    displayRange: 0.5
+    displayManaCost: 0.3
+    displayDamageLabel: "\uB0AE\uC74C"
+    displayAimTimeLabel: "\uBE60\uB984"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 30
+    cooldownSeconds: 2.7
+    lockChargeSeconds: 0.35
+    castSeconds: 0
+    projectileSpeed: 76.5
+    projectileTurnSpeed: 256
+    projectileLifetime: 4
+    projectileRadius: 0.12
+    hitscanRadius: 0
+    range: 90
+    damage: 25
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 0.4
+    effectDuration: 2.5
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 1
+    requiresFullLock: 1
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 693997840501523213, guid: 189567ef8ece44c53939759ccc5ffba9, type: 3}
+    projectileVfxPrefab: {fileID: 5629732935647548498, guid: 14deeb287dfc7462ab53ef27f3d7825f, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 8632757308903663787, guid: df64927f9ebe647caba7177d68ddab30, type: 3}
+    impactVfxPrefab: {fileID: 947545303444770331, guid: 8f3e2b192910a4b1b95dfbd1961aa2b5, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 3
+    displayName: "\uBE44\uC804 \uB9C8\uBC95"
+    description: "\uBE60\uB978 \uB9C8\uB825 \uB369\uC5B4\uB9AC\uB97C \uC3E9\uB2C8\uB2E4.
+      \n\uC870\uC900 \uC2DC\uAC04\uC774 \uD544\uC694\uD558\uC9C0\uC54A\uC73C\uBA70
+      \uB0AE\uC740 \uD53C\uD574\uB97C \uC785\uD799\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 483f402404d997e47b833359b4130930, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 0
+    displayDamage: 0.25
+    displayAimTime: 0
+    displayRange: 0.8
+    displayManaCost: 0.3
+    displayDamageLabel: "\uB0AE\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uAE3A"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 30
+    cooldownSeconds: 2
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 1.5
+    range: 150
+    damage: 25
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 172240230137488369, guid: 763dc9c69f0884b34ad0b07c612221e7, type: 3}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 2795495313983949573, guid: f6876400ec18b4bf7a31402f52b26755, type: 3}
+    castVfxPrefab: {fileID: 172240230137488369, guid: 763dc9c69f0884b34ad0b07c612221e7, type: 3}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 2100000, guid: 2d18ac86c0e61554a9f2667a43cf3596, type: 2}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 4
+    displayName: "\uCC9C\uB465 \uB9C8\uBC95"
+    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uACF5\uC911 \uBC94\uC704\uB97C
+      \uC870\uC900\uD558\uACE0 \uD720\uB85C \uAC70\uB9AC\uB97C \uC870\uC808\uD569\uB2C8\uB2E4.
+      \n\uB193\uC73C\uBA74 \uD655\uC815\uB41C \uC704\uCE58\uC5D0 1.5\uCD08 \uB4A4
+      \uAC15\uB825\uD55C \uB099\uB8B0\uAC00 \uB5A8\uC5B4\uC9D1\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: aece16bd1eb03fe4ab6583a486a6154c, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 11
+    displayDamage: 1
+    displayAimTime: 0.25
+    displayRange: 1
+    displayManaCost: 1
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uB0AE\uC74C"
+    displayRangeLabel: "\uAE3A"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 65
+    cooldownSeconds: 7
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 0.3
+    range: 300
+    damage: 100
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 12
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 1.5
+    areaAimDistance: 50
+    areaAimScrollSpeed: 10
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 1
+    thunderBurstExpandSeconds: 0.12
+    thunderBurstStartScale: 0.08
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 6732471934192075735, guid: b88910d9f3be14d0c9a8ce48380745e7, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 79618294438701557, guid: 808b7af01f0a646fe8fb8090cb63e0f3, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 6732471934192075735, guid: b88910d9f3be14d0c9a8ce48380745e7, type: 3}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 5
+    displayName: "\uD68C\uBCF5 \uB9C8\uBC95"
+    description: "\uCCB4\uB825 40\uC744 \uC989\uC2DC \uD68C\uBCF5\uD569\uB2C8\uB2E4.
+      \n\uC7AC\uC0AC\uC6A9 \uB300\uAE30 \uC2DC\uAC04\uC774 \uAE41\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 3
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.2
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uC5C6\uC74C"
+    displayManaCostLabel: "\uB9E4\uC6B0 \uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 20
+    cooldownSeconds: 18
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0.12
+    hitscanRadius: 0
+    range: 200
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0.01
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 40
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 8836563021997122651, guid: f7e5c2f77090c461f9f5f5801edfad93, type: 3}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 7
+    displayName: "\uC554\uD751 \uB9C8\uBC95"
+    description: "\uCCB4\uB825 30\uC744 \uC18C\uBAA8\uD558\uB294 \uC989\uBC1C \uACF5\uACA9.
+      \n\uC801\uC5D0\uAC8C \uD53C\uD574\uB97C \uC785\uD788\uBA74 \uCCB4\uB825 40\uC744
+      \uD68C\uBCF5\uD569\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: e8c522cb9966a2949a71f4ec5084be50, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 5
+    displayDamage: 0.75
+    displayAimTime: 0
+    displayRange: 0.4
+    displayManaCost: 0
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uC5C6\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 0
+    cooldownSeconds: 2
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 2
+    range: 130
+    damage: 70
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 30
+    healing: 0
+    healOnHit: 40
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 2795495313983949573, guid: f6876400ec18b4bf7a31402f52b26755, type: 3}
+    castVfxPrefab: {fileID: 4342024951693666987, guid: 388dc7d0f9dcf4e7ab5cd19a0aa88af6, type: 3}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 2100000, guid: b5a86551ca2daf143b07b8e305ddb1aa, type: 2}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 6
+    displayName: "\uC18D\uBC15 \uB9C8\uBC95"
+    description: "\uB85D\uC628 \uD6C4 \uC720\uB3C4 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.\n
+      \uD53C\uD574 \uC5C6\uC774 3\uCD08 \uB3D9\uC548 \uC801\uC758 \uC774\uB3D9\uC744
+      \uB9C9\uC2B5\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 470e6d85bf64c224b8b8add626b4f506, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 4
+    displayDamage: 0
+    displayAimTime: 0.5
+    displayRange: 0.5
+    displayManaCost: 0.7
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC911\uAC04"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 50
+    cooldownSeconds: 18
+    lockChargeSeconds: 0.6
+    castSeconds: 0
+    projectileSpeed: 67.5
+    projectileTurnSpeed: 240
+    projectileLifetime: 4
+    projectileRadius: 0.12
+    hitscanRadius: 0
+    range: 142.5
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 3
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 1
+    requiresFullLock: 1
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 6825076322887241133, guid: 0c3d332ff62024554bd5fbf4551c641f, type: 3}
+    projectileVfxPrefab: {fileID: 5310361573421146954, guid: 138510276a9931c4abde295e7d1cf0a2, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 3999156758526024923, guid: 6ce0f6385b09c440f8f0fd49b4a348b1, type: 3}
+    impactVfxPrefab: {fileID: 4614578252079391558, guid: ce3f0c41117794c8fbf61a809c638885, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 8
+    displayName: "\uC800\uC8FC \uB9C8\uBC95"
+    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uAC00\uAE4C\uC6B4 \uC801\uC744
+      \uC790\uB3D9 \uCD94\uC801\uD569\uB2C8\uB2E4. \n\uBCBD\uC774\uB098 \uD654\uBA74
+      \uBC16\uC73C\uB85C \uBC97\uC5B4\uB098\uBA74 \uB04A\uC5B4\uC9D1\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 4d794e788156b404c8d6ae2f9c7bc036, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 6
+    displayDamage: 0.75
+    displayAimTime: 0
+    displayRange: 0.2
+    displayManaCost: 0.2
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uB0AE\uC74C"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 0
+    cooldownSeconds: 0.375
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0.12
+    hitscanRadius: 0
+    range: 50
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 25
+    apPerSecond: 30
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 4342024951693666987, guid: 388dc7d0f9dcf4e7ab5cd19a0aa88af6, type: 3}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 2795495313983949573, guid: f6876400ec18b4bf7a31402f52b26755, type: 3}
+    castVfxPrefab: {fileID: 4342024951693666987, guid: 388dc7d0f9dcf4e7ab5cd19a0aa88af6, type: 3}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 2100000, guid: cd4984a52a6ec044daaf153c688fa81a, type: 2}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 9
+    displayName: "\uC18C\uD658 \uB9C8\uBC95"
+    description: "\uC801\uC744 \uCD94\uC801\uD558\uBA70 \uB85D\uC628 \uC720\uB3C4\uD0C4\uC744
+      \uBC1C\uC0AC\uD558\uB294 \uC0AC\uC5ED\uB9C8\uB97C \uC18C\uD658\uD569\uB2C8\uB2E4.
+      \n\uC5EC\uB7EC \uAC1C\uB97C \uC720\uC9C0\uD560 \uC218 \uC788\uC73C\uBA70 \uBCBD
+      \uB108\uBA38\uB85C \uACF5\uACA9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 0da4074812881bd4cb1d3bb307908a3f, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 12
+    displayDamage: 0.5
+    displayAimTime: 0
+    displayRange: 0.25
+    displayManaCost: 0.75
+    displayDamageLabel: "\uC911\uAC04"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uC9E7\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 40
+    cooldownSeconds: 7.5
+    lockChargeSeconds: 0.65
+    castSeconds: 0
+    projectileSpeed: 40.5
+    projectileTurnSpeed: 176
+    projectileLifetime: 4
+    projectileRadius: 0.2
+    hitscanRadius: 0
+    range: 100
+    damage: 18
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 15
+    radius: 0
+    activationDelay: 0.5
+    placementDistance: 2
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 1
+    summonMoveSpeed: 28
+    summonAttackRange: 50
+    summonFollowDistance: 18
+    summonAttackInterval: 3.75
+    summonHitRadius: 0.65
+    summonChannelHealth: 50
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 7595009254175422249, guid: 347e338d48d564fd3a25de18092bd871, type: 3}
+    projectileVfxPrefab: {fileID: 3999156758526024923, guid: 6ce0f6385b09c440f8f0fd49b4a348b1, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 894445881569174729, guid: 2152341eccacc40c29821104cde9cb43, type: 3}
+    impactVfxPrefab: {fileID: 7888945211915117539, guid: bb9c27ffb51524341a3b2f6e9673fc11, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 10
+    displayName: "\uAD11\uC120 \uB9C8\uBC95"
+    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uC815\uBA74\uC5D0 \uC9C1\uC120
+      \uAD11\uC120\uC744 \uC720\uC9C0\uD558\uBA70 \uB9C8\uB098\uB97C \uC18C\uBAA8\uD569\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 82d5cbd78bedbed4b882e96a4030dff0, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 8
+    displayDamage: 0.8
+    displayAimTime: 0
+    displayRange: 0.7
+    displayManaCost: 0.4
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uC989\uBC1C"
+    displayRangeLabel: "\uAE38\uB2E4"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 0
+    cooldownSeconds: 0.375
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 0.3
+    range: 100
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 35
+    apPerSecond: 35
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 4342024951693666987, guid: 388dc7d0f9dcf4e7ab5cd19a0aa88af6, type: 3}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 2795495313983949573, guid: f6876400ec18b4bf7a31402f52b26755, type: 3}
+    castVfxPrefab: {fileID: 4342024951693666987, guid: 388dc7d0f9dcf4e7ab5cd19a0aa88af6, type: 3}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 2100000, guid: 82b56ab48ebda7a4f84bf60601d4fcae, type: 2}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 11
+    displayName: "\uD50C\uB808\uC5B4"
+    description: "\uC790\uC2E0\uC744 \uCD94\uC801 \uC911\uC778 \uC720\uB3C4\uD0C4\uC758
+      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \uC9C0\uC18D\uC2DC\uAC04 \uB3D9\uC548
+      \uC774\uB3D9\uC18D\uB3C4\uAC00 10% \uC99D\uAC00\uD558\uACE0, \n\uC790\uC2E0\uC744
+      \uC870\uC900\uD558\uB294 \uC801\uC758 \uB85D\uC628 \uC2DC\uAC04\uC774 20% \uC99D\uAC00\uD569\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 9
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "\uC5C6\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 50
+    cooldownSeconds: 6
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 0
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 3
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 424030550594249438, guid: d9f5dfa19612de74899da47f19ec39f2, type: 3}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 3
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+  - magic: 12
+    displayName: "\uC5F0\uB9C9"
+    description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
+      \uB0B4\uBD80\uC758 \uC801\uC740 \uB85D\uC628 \uAC70\uB9AC\uAC00 30% \uAC10\uC18C\uD569\uB2C8\uB2E4.
+      \n\uB0B4\uBD80 \uCE90\uB9AD\uD130\uC758 \uC740\uD3D0 \uD6A8\uACFC\uC640 \uD53C\uACA9
+      \uD310\uC815\uC740 \uC720\uC9C0\uB429\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 0828a97f5fe5af1469ec21f2e1491fb4, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 10
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.6
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "\uC5C6\uC74C"
+    displayManaCostLabel: "\uC911\uAC04"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 40
+    cooldownSeconds: 15
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 4
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 0
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 7
+    radius: 36
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 6825076322887241133, guid: 0c3d332ff62024554bd5fbf4551c641f, type: 3}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.2
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0
+    flareVfxSpeed: 0
+    flareVfxScale: 0
+    flareVfxBrightness: 0
+  - magic: 13
+    displayName: "\uCE7C\uB0A0 \uB9C8\uBC95"
+    description: "\uC2DC\uC804 \uD6C4 10\uCD08 \uC548\uC5D0 \uC88C\uD074\uB9AD 3\uD68C\uB85C
+      \uBCF4\uB77C\uC0C9 \uAC80\uAE30\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4. \n\uC801\uC911
+      \uC2DC 8\uCD08\uAC04 \uBC1B\uB294 \uD68C\uBCF5\uB7C9\uC774 50% \uAC10\uC18C\uD569\uB2C8\uB2E4."
+    icon: {fileID: 342325613, guid: 739b11d6b80584d48994af14791fc924, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 13
+    displayDamage: 0.084
+    displayAimTime: 0
+    displayRange: 0.679
+    displayManaCost: 0.7
+    displayDamageLabel: "\uB0AE\uC74C"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "\uAE38\uB2E4"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 30
+    cooldownSeconds: 8
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 100
+    projectileTurnSpeed: 0
+    projectileLifetime: 1.2
+    projectileRadius: 2.4
+    hitscanRadius: 0
+    range: 100
+    damage: 20
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 8
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 3
+    bladeAbilityDuration: 10
+    bladeWeaponVfxPrefab: {fileID: 100000, guid: 2a8c2eacbc6b457bb3b02ade1149ef0a, type: 3}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0.5
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 100000, guid: 3773d0abc3084f2d97564d91a2c4edfe, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 3
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+  - magic: 14
+    displayName: "\uB9C8\uD0C4 \uD3ED\uD48D"
+    description: "2\uCD08\uAC04 \uB9C8\uD0C4 30\uBC1C\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
+    icon: {fileID: 706995332, guid: bf7fc59d8f3f908468d1f546e3604cfb, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 14
+    displayDamage: 0.149
+    displayAimTime: 0
+    displayRange: 0.376
+    displayManaCost: 0.7
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "\uB0AE\uC74C"
+    displayManaCostLabel: "\uB0AE\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 60
+    cooldownSeconds: 5
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 85
+    projectileTurnSpeed: 180
+    projectileLifetime: 1.8
+    projectileRadius: 0.234
+    hitscanRadius: 0
+    range: 120
+    damage: 10
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 2
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0.01
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0.01
+    stormShotCount: 30
+    stormDuration: 2
+    stormLaunchAngle: 24
+    stormSpreadAngle: 2.5
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 1
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0.01
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 7264231152250865867, guid: 0537977d5fd74e29b1b256acde0b28e7, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 4442764683140637388, guid: a7759290c770412689ab391368b4611e, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+  - magic: 15
+    displayName: "\uC2DC\uAC04 \uB9C8\uBC95"
+    description: "\uC2DC\uAC04 \uC601\uC5ED\uC744 \uD3BC\uCE69\uB2C8\uB2E4. \uC801\uC740
+      30% \uB290\uB824\uC9C0\uACE0 \uC544\uAD70\uC740 30% \uBE68\uB77C\uC9D1\uB2C8\uB2E4.
+      \n\uBE44\uD589 \uD22C\uC0AC\uCCB4\uB294 80% \uB290\uB824\uC9D1\uB2C8\uB2E4."
+    icon: {fileID: 481500132, guid: eb82dc3881806504cb54562db50bd6e9, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 15
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "\uB192\uC74C"
+    displayAimTimeLabel: "\uB0AE\uC74C"
+    displayRangeLabel: "\uB0AE\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 60
+    cooldownSeconds: 20
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 1.8
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 50
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 10
+    radius: 50
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 100000, guid: 66f12a64bdb6455a86cc1fbe7ae10d75, type: 3}
+    timeEnemySpeed: 0.7
+    timeAllySpeed: 1.3
+    timeProjectileSpeed: 0.2
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 24
+    stormSpreadAngle: 2.5
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 1
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+  - magic: 16
+    displayName: "\uBA00\uC624\uB140 \uB300\uCD95\uC81C"
+    description: "\uC790\uC2E0 \uB610\uB294 \uC544\uAD70\uC758 \uCCB4\uB825\xB7\uB9C8\uB825
+      \uD68C\uBCF5\uB7C9\uC744 50% \uC99D\uAC00\uC2DC\uD0A4\uACE0 \uCD08\uB2F9 \uCCB4\uB825
+      5\uB97C \uD68C\uBCF5\uD569\uB2C8\uB2E4."
+    icon: {fileID: 632450003, guid: 436518df393d6dc428c7f40354562843, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 16
+    displayDamage: 0
+    displayAimTime: 0
+    displayRange: 0
+    displayManaCost: 0.7
+    displayDamageLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayRangeLabel: "\uB192\uC74C"
+    displayManaCostLabel: "\uB192\uC74C"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 70
+    cooldownSeconds: 10
+    lockChargeSeconds: 0
+    castSeconds: 0
+    projectileSpeed: 0
+    projectileTurnSpeed: 0
+    projectileLifetime: 1.8
+    projectileRadius: 0
+    hitscanRadius: 0
+    range: 50
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 7
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 0
+    requiresFullLock: 0
+    rainManaPerSecond: 0
+    rainManaPerCircle: 0
+    rainManaPerTarget: 0
+    rainMaxCircles: 0
+    rainBladeInterval: 0
+    rainCircleVfxPrefab: {fileID: 0}
+    festivalRecoveryMultiplier: 1.5
+    festivalHealPerSecond: 5
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0.7
+    timeAllySpeed: 1.3
+    timeProjectileSpeed: 0.2
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 24
+    stormSpreadAngle: 2.5
+    bladeCharges: 0
+    bladeAbilityDuration: 0
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 1
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0
+    summonMaxCount: 0
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 0}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 0}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 1.5
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2
+  - magic: 17
+    displayName: "\uCE7C\uB0A0\uBE44"
+    description: "\uB9C8\uB098\uB97C \uC18C\uBAA8\uD574 \uACF5\uACA9\uC744 \uCDA9\uC804\uD569\uB2C8\uB2E4.\n\uC624\uB798
+      \uCDA9\uC804\uD560\uC218\uB85D \uC704\uB825\uC774 \uAC15\uD574\uC9D1\uB2C8\uB2E4."
+    icon: {fileID: -1604408849, guid: d2606211fdd688f4ba3d802c543d4fe6, type: 3}
+    lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
+    lockChargeCircleSize: 1.8
+    lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
+    effect: 17
+    displayDamage: 0.5
+    displayAimTime: 0.5
+    displayRange: 0.5
+    displayManaCost: 0.5
+    displayDamageLabel: "\uC911\uAC04"
+    displayAimTimeLabel: "\uC911\uAC04"
+    displayRangeLabel: "\uC911\uAC04"
+    displayManaCostLabel: "\uC911\uAC04"
+    displayCategory: 
+    displayCastType: 
+    displayFeatures: 
+    apCost: 50
+    cooldownSeconds: 8
+    lockChargeSeconds: 0.8
+    castSeconds: 0
+    projectileSpeed: 100
+    projectileTurnSpeed: 240
+    projectileLifetime: 3
+    projectileRadius: 0.25
+    hitscanRadius: 0
+    range: 150
+    damage: 0
+    hitStunSeconds: 0
+    knockbackForce: 0
+    movementMultiplier: 1
+    effectDuration: 0
+    radius: 0
+    activationDelay: 0
+    placementDistance: 0
+    requiresTarget: 1
+    requiresFullLock: 1
+    rainManaPerSecond: 5
+    rainManaPerCircle: 25
+    rainManaPerTarget: 50
+    rainMaxCircles: 16
+    rainBladeInterval: 0.06
+    rainCircleVfxPrefab: {fileID: 575105189756329235, guid: 228432bee3aa4e9da1c19f2048cf0d1e, type: 3}
+    festivalRecoveryMultiplier: 0
+    festivalHealPerSecond: 0
+    timeFieldVfxPrefab: {fileID: 0}
+    timeEnemySpeed: 0.01
+    timeAllySpeed: 0
+    timeProjectileSpeed: 0.01
+    stormShotCount: 0
+    stormDuration: 0
+    stormLaunchAngle: 0
+    stormSpreadAngle: 0
+    bladeCharges: 0
+    bladeAbilityDuration: 10
+    bladeWeaponVfxPrefab: {fileID: 0}
+    bladeWeaponOffset: {x: 0, y: 0, z: 0}
+    bladeWeaponEuler: {x: 0, y: 0, z: 0}
+    bladeShotInterval: 0
+    woundHealingMultiplier: 0.5
+    strikeDelay: 0
+    areaAimDistance: 0
+    areaAimScrollSpeed: 0
+    areaPreviewVfxPrefab: {fileID: 0}
+    areaWarningVfxPrefab: {fileID: 0}
+    thunderFlashVfxPrefab: {fileID: 0}
+    thunderBurstVfxPrefab: {fileID: 0}
+    thunderVfxReferenceRadius: 0
+    thunderBurstExpandSeconds: 0
+    thunderBurstStartScale: 0.01
+    summonMaxCount: 1
+    summonMoveSpeed: 0
+    summonAttackRange: 0
+    summonFollowDistance: 0
+    summonAttackInterval: 0
+    summonHitRadius: 0
+    summonChannelHealth: 0
+    summonVfxPrefab: {fileID: 0}
+    summonMoveAnimation: {fileID: 0}
+    summonAttackAnimation: {fileID: 0}
+    summonDeathAnimation: {fileID: 0}
+    healthCost: 0
+    healing: 0
+    healOnHit: 0
+    damagePerSecond: 0
+    apPerSecond: 0
+    maxApFractionPerSecond: 0
+    channelTickSeconds: 0.1
+    autoAimHalfAngle: 20
+    lockOnCompleteVfxPrefab: {fileID: 0}
+    projectileVfxPrefab: {fileID: 100000, guid: 0310fd6188874cfab84fc0443148350f, type: 3}
+    secondaryProjectileVfxPrefab: {fileID: 0}
+    impactVfxPrefab: {fileID: 4442764683140637388, guid: 6eb6538c7a9c4e8997499311718a5e2b, type: 3}
+    castVfxPrefab: {fileID: 0}
+    beamVfxPrefab: {fileID: 0}
+    beamMaterial: {fileID: 0}
+    vfxLifetime: 3
+    utilityVfxPrefab: {fileID: 0}
+    flareVfxBackOffset: 0.7
+    flareVfxSpeed: 14
+    flareVfxScale: 1.8
+    flareVfxBrightness: 2

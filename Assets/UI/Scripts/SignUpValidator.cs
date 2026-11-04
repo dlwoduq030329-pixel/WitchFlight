@@ -21,6 +21,24 @@ public class SignUpValidator : MonoBehaviour
 
     private bool isUpdatingInput = false;
 
+    private bool isChecking = false;
+    private System.IDisposable registrationLoading;
+
+    private void OnDisable()
+    {
+        registrationLoading?.Dispose();
+        registrationLoading = null;
+        StopAllCoroutines();
+        isChecking = false;
+    }
+
+    private void OnEnable()
+    {
+        idInputField.text = string.Empty;
+        passwordInputField.text = string.Empty;
+        passwordConfirmInputField.text = string.Empty;
+    }
+
 
     /// ID 입력 검사
     public void ValidateID(string value)
@@ -88,14 +106,40 @@ public class SignUpValidator : MonoBehaviour
             UpdateSignUpButton();
             return;
         }
-        // 여기서 나중에 서버 중복검사 추가 예정
+        StartCoroutine(
+       GoogleSpreadSheet.CheckID(
+           id,
+           isAvailable =>
+           {
+               if (isAvailable)
+               {
+                   Debug.Log("사용 가능한 ID");
 
-        idDialogText.color = successColor;
-        idDialogText.text = "사용 가능한 ID입니다.";
+                   // 여기서 UI에
+                   // "사용 가능한 아이디입니다."
+                   idDialogText.color = successColor;
+                   idDialogText.text = "사용 가능한 ID입니다.";
 
-        isIDChecked = true;
+                   isIDChecked = true;
 
-        UpdateSignUpButton();
+                   UpdateSignUpButton();
+
+               }
+               else
+               {
+                   Debug.Log("이미 존재하는 ID");
+                   idDialogText.color = errorColor;
+                   idDialogText.text = "존재하는 아이디입니다.";
+
+                   isIDChecked = false;
+
+
+                   // 여기서 UI에
+                   // "이미 사용 중인 아이디입니다."
+               }
+           }
+       )
+   );
     }
 
     /// 비밀번호 입력 검사
@@ -176,5 +220,33 @@ public class SignUpValidator : MonoBehaviour
             isIDChecked;
 
         //여기서 서버나 뭐 그런데에 닉네임 비번 저장하셈
+    }
+
+    public void TryRegister()
+    {
+        var manager = LoginManager.Instance;
+        if (isChecking || manager == null || manager.IsSigningUp || manager.IsLoggingIn || manager.IsLoggingOut) return;
+        string newId = idInputField.text;
+        string password = passwordInputField.text;
+        isChecking = true;
+        registrationLoading = MainLoadingUI.BeginIntro();
+        StartCoroutine(GoogleSpreadSheet.AppendID(newId, isSuccess =>
+        {
+            try
+            {
+                if (isSuccess) manager.SignUp(newId, password);
+                else
+                {
+                    idDialogText.color = errorColor;
+                    idDialogText.text = "가입 정보를 등록하지 못했습니다. 다시 시도해주세요.";
+                }
+            }
+            finally
+            {
+                isChecking = false;
+                registrationLoading?.Dispose();
+                registrationLoading = null;
+            }
+        }));
     }
 }

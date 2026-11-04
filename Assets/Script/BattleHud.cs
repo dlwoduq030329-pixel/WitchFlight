@@ -1,0 +1,1742 @@
+﻿using System;
+using Fusion;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+// Designer-authored UI with generated lock-on / incoming-magic fallbacks.
+[DisallowMultipleComponent]
+public sealed partial class BattleHud : MonoBehaviour
+{
+    // Cache display formatting, not gameplay values. Bars and feedback still update every frame.
+    private NetworkString<_32> cachedPlayerName;
+    private string cachedPlayerNameText = string.Empty;
+    private long cachedMatchSecond = long.MinValue;
+    private string cachedMatchTimeText;
+    private int cachedManaPercent = -1;
+    private string cachedManaPercentText, cachedManaPercentWithSymbol;
+    private MagicType cachedMagicNameType;
+    private string cachedMagicNameText;
+    private PlayerRef cachedFlagCarrier;
+    private string cachedFlagCarrierText;
+    private string cachedRespawnPrefix, cachedRespawnFormat;
+    private sealed class NumericDisplay
+    {
+        public char[] characters = Array.Empty<char>();
+        public int length = -1;
+    }
+    private readonly System.Collections.Generic.Dictionary<TMP_Text, NumericDisplay> numericDisplays = new();
+    private char[] numericBuffer = new char[256];
+
+    private void SetNumericText(TMP_Text label, string format, float first, float second = 0f)
+    {
+        if (label == null) return;
+        if (numericBuffer.Length < format.Length + 128) numericBuffer = new char[format.Length + 128];
+        int written = 0;
+        // Keep the original .NET rounding/culture, including values such as 9.95f.
+        // TryFormat writes directly into reusable storage instead of constructing strings.
+        for (int i = 0; i < format.Length; i++)
+        {
+            if (format[i] == '{' && i + 2 < format.Length && (format[i + 1] == '0' || format[i + 1] == '1') &&
+                (format[i + 2] == ':' || format[i + 2] == '}'))
+            {
+                int end = format.IndexOf('}', i + 2);
+                if (end >= 0)
+                {
+                    float value = format[i + 1] == '0' ? first : second;
+                    ReadOnlySpan<char> specifier = format[i + 2] == ':' ? format.AsSpan(i + 3, end - i - 3) : default;
+                    if (!value.TryFormat(numericBuffer.AsSpan(written), out int length, specifier))
+                        throw new InvalidOperationException("HUD number exceeded its formatting buffer.");
+                    written += length;
+                    i = end;
+                    continue;
+                }
+            }
+            numericBuffer[written++] = format[i];
+        }
+        if (!numericDisplays.TryGetValue(label, out NumericDisplay display))
+        {
+            display = new NumericDisplay();
+            numericDisplays.Add(label, display);
+        }
+        if (display.length == written && numericBuffer.AsSpan(0, written).SequenceEqual(display.characters.AsSpan(0, written))) return;
+        if (display.characters.Length < written) display.characters = new char[Math.Max(32, written)];
+        Array.Copy(numericBuffer, display.characters, written);
+        display.length = written;
+        label.SetCharArray(display.characters, 0, written);
+    }
+
+    private string FlagCarrierText(PlayerRef carrier)
+    {
+        if (cachedFlagCarrierText == null || cachedFlagCarrier != carrier)
+        {
+            cachedFlagCarrier = carrier;
+            cachedFlagCarrierText = $"FLAG: {carrier}";
+        }
+        return cachedFlagCarrierText;
+    }
+
+    private string FormatMatchTime(float seconds)
+    {
+        TimeSpan time = TimeSpan.FromSeconds(Mathf.Max(0f, seconds));
+        long second = time.Ticks / TimeSpan.TicksPerSecond;
+        if (second != cachedMatchSecond)
+        {
+            cachedMatchSecond = second;
+            cachedMatchTimeText = time.ToString(@"mm\:ss");
+        }
+        return cachedMatchTimeText;
+    }
+
+    [Header("Active parry window (actual block timer)")]
+    [SerializeField] private bool showParryWindow = true;
+    [Tooltip("선택 사항: 원형 스프라이트 Image. Filled/Radial360으로 설정됩니다. 비우면 조준점 주변에 자동 생성합니다. 직접 할당한 UI의 위치/크기는 유지합니다.")]
+    [SerializeField] private Image parryWindowFill;
+    [SerializeField, Min(12f)] private float parryWindowSize = 88f;
+    [SerializeField, Min(.5f)] private float parryWindowWidth = 3f;
+    [SerializeField] private Vector2 parryWindowOffset;
+    [SerializeField] private Color parryWindowColor = new Color(.35f, .95f, 1f, .95f);
+    [SerializeField] private Color parrySuccessColor = new Color(1f, .9f, .35f, 1f);
+    [SerializeField, Min(.01f)] private float parrySuccessFlashSeconds = .12f;
+    private CombatFeedbackGraphic generatedParryWindow, parrySuccessRing;
+    private Player parryWindowOwner;
+    private int parryWindowSuccessSequence;
+    private float parryWindowFlashUntil;
+
+    private void UpdateParryWindow()
+    {
+        Player pilot = Player.LocalPlayer;
+        bool valid = showParryWindow && !MenuOpen && pilot != null && pilot.Object != null &&
+            pilot.Object.IsValid && pilot.IsAlive && !pilot.IsReturningToMap &&
+            BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        if (!valid) { HideParryWindow(); parryWindowOwner = null; return; }
+        if (parryWindowOwner != pilot)
+        {
+            parryWindowOwner = pilot;
+            parryWindowSuccessSequence = pilot.ParrySequence;
+            parryWindowFlashUntil = 0f;
+        }
+        if (parryWindowSuccessSequence != pilot.ParrySequence)
+        {
+            parryWindowSuccessSequence = pilot.ParrySequence;
+            parryWindowFlashUntil = Time.unscaledTime + parrySuccessFlashSeconds;
+        }
+        float fraction = Mathf.Clamp01(pilot.ParryRemainingSeconds / Mathf.Max(.01f, pilot.ParryWindowSeconds));
+        bool active = pilot.IsParrying && fraction > 0f;
+        bool flash = Time.unscaledTime < parryWindowFlashUntil;
+        if (active && parryWindowFill == null && generatedParryWindow == null)
+            generatedParryWindow = CreateFeedbackRing("Active parry window", parryWindowColor, parryWindowSize, null)
+                .GetComponent<CombatFeedbackGraphic>();
+        if (parryWindowFill != null)
+        {
+            parryWindowFill.type = Image.Type.Filled;
+            parryWindowFill.fillMethod = Image.FillMethod.Radial360;
+            parryWindowFill.fillOrigin = (int)Image.Origin360.Top;
+            parryWindowFill.fillClockwise = true;
+            parryWindowFill.fillAmount = fraction;
+            parryWindowFill.raycastTarget = false;
+            parryWindowFill.color = flash ? parrySuccessColor : parryWindowColor;
+            // Never disable a shared panel/controller assigned by mistake.
+            parryWindowFill.enabled = active;
+        }
+        if (generatedParryWindow != null)
+        {
+            Visible(generatedParryWindow.gameObject, active && parryWindowFill == null);
+            generatedParryWindow.RingFill = fraction;
+            generatedParryWindow.RingWidth = parryWindowWidth;
+            generatedParryWindow.color = flash ? parrySuccessColor : parryWindowColor;
+            generatedParryWindow.rectTransform.sizeDelta = Vector2.one * parryWindowSize;
+            generatedParryWindow.SetVerticesDirty();
+            PlaceParryRing(generatedParryWindow.rectTransform);
+        }
+        // Success is a separate expanding ring: it never falsely refills the active timer.
+        if (flash && parrySuccessRing == null)
+            parrySuccessRing = CreateFeedbackRing("Parry success flash", parrySuccessColor, parryWindowSize, null)
+                .GetComponent<CombatFeedbackGraphic>();
+        if (parrySuccessRing != null)
+        {
+            Visible(parrySuccessRing.gameObject, flash);
+            float fade = Mathf.Clamp01((parryWindowFlashUntil - Time.unscaledTime) / Mathf.Max(.01f, parrySuccessFlashSeconds));
+            Color tint = parrySuccessColor; tint.a *= fade;
+            parrySuccessRing.color = tint;
+            parrySuccessRing.rectTransform.sizeDelta = Vector2.one * parryWindowSize * Mathf.Lerp(1.25f, 1f, fade);
+            PlaceParryRing(parrySuccessRing.rectTransform);
+        }
+    }
+
+    private void PlaceParryRing(RectTransform ring)
+    {
+        if (parryWindowFill != null)
+        {
+            Canvas canvas = parryWindowFill.canvas;
+            Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            PlaceScreen(ring, RectTransformUtility.WorldToScreenPoint(camera,
+                parryWindowFill.rectTransform.TransformPoint(parryWindowFill.rectTransform.rect.center)));
+            return;
+        }
+        Camera main = worldCamera != null ? worldCamera : Camera.main;
+        PlaceScreen(ring, (main != null ? main.pixelRect.center : new Vector2(Screen.width, Screen.height) * .5f) + parryWindowOffset);
+    }
+
+    private void HideParryWindow()
+    {
+        if (parryWindowFill != null) parryWindowFill.enabled = false;
+        if (generatedParryWindow != null) Visible(generatedParryWindow.gameObject, false);
+        if (parrySuccessRing != null) Visible(parrySuccessRing.gameObject, false);
+        parryWindowFlashUntil = 0f;
+    }
+    [Header("UI style")]
+    [Tooltip("DungGeunMo SDF: 자동 생성되는 경고/록온/부활 텍스트에 사용합니다.")]
+    [SerializeField] private TMP_FontAsset feedbackFont;
+    public TMP_FontAsset FeedbackFont => feedbackFont;
+    [Header("Panels (keep this component outside these panels)")]
+    [SerializeField] private GameObject hudRoot;
+    [SerializeField] private GameObject playerPanel;
+    [SerializeField] private GameObject respawnPanel;
+    [SerializeField] private GameObject resultPanel;
+    [SerializeField] private GameObject menuPanel;
+    [SerializeField] private Button resumeButton;
+    [Header("Player")]
+    [Tooltip("내 닉네임을 표시할 TextMeshPro UI. 현재 접속자의 PlayerData.playerName을 사용합니다.")]
+    [SerializeField] private TMP_Text playerNameText;
+    [Tooltip("체력바 옆에 내 프로필을 표시할 UI Image. PlayerData.playerprofile 번호로 공용 테이블에서 가져옵니다.")]
+    [SerializeField] private Image playerProfileImage;
+    [Tooltip("비워두면 Resources/ProfileImageTable을 자동으로 사용합니다.")]
+    [SerializeField] private ProfileImageTable profileTable;
+    [SerializeField] private GridHPBar hpGridBar;
+    [SerializeField] private Slider hpSlider;
+    [SerializeField] private Image hpFill;
+    [SerializeField] private TMP_Text hpText;
+    [Tooltip("지정하면 Hp Text는 현재 값만, 이 항목은 /최대 값을 표시합니다.")]
+    [SerializeField] private TMP_Text maxHpText;
+    [SerializeField] private Slider apSlider;
+    public RectTransform ManaBarRect => apSlider != null ? apSlider.transform as RectTransform : apFill != null ? apFill.rectTransform : null;
+    [SerializeField] private Image apFill;
+    [SerializeField] private TMP_Text apText;
+    [SerializeField] private TextMeshProUGUI manaPercentText;
+    [Tooltip("UI에 % 기호가 따로 있다면 끄세요.")]
+    [SerializeField] private bool manaPercentIncludeSymbol = true;
+    [Header("MP consumption trail")]
+    [Tooltip("노란 잔상 Slider. 비우면 현재 Ap Slider의 Fill을 복제해 바로 뒤에 자동 생성합니다.")]
+    [SerializeField] private Slider apTrailSlider;
+    [SerializeField] private Color apTrailColor = new Color(1f, 0.82f, 0.1f, 1f);
+    [SerializeField, Min(0f)] private float apTrailDelay = 0.2f;
+    [SerializeField, Min(0.01f)] private float apTrailCatchupSeconds = 0.4f;
+    [Header("Insufficient MP feedback")]
+    [Tooltip("흔들 MP UI 루트. 비우면 Ap Slider, Ap Fill 순서로 사용합니다.")]
+    [SerializeField] private RectTransform manaFeedbackRoot;
+    [Tooltip("빨강/흰색으로 점멸할 UI. 비우면 MP UI 루트 아래의 Graphic을 사용합니다.")]
+    [SerializeField] private Graphic[] manaFeedbackGraphics = Array.Empty<Graphic>();
+    [SerializeField, Min(0.05f)] private float manaFeedbackDuration = 1f;
+    [SerializeField, Min(0f)] private float manaFeedbackShakePixels = 8f;
+    [SerializeField, Min(0.1f)] private float manaFeedbackFlashFrequency = 6f;
+    [SerializeField] private TMP_Text teamText;
+    [SerializeField] private TMP_Text speedStageText;
+    [SerializeField] private TMP_Text speedText;
+    [SerializeField] private TMP_Text selectedMagicText;
+    [SerializeField] private TMP_Text magicCostText;
+    [Header("Speed stage images (0 hides all)")]
+    [Tooltip("전진 +1단계에서만 켤 Image입니다. Sprite 파일이 아니라 씬의 Image를 연결하세요.")]
+    [SerializeField] private Image forwardSpeed1Image;
+    [Tooltip("전진 +2단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image forwardSpeed2Image;
+    [Tooltip("전진 +3단계에서만 켤 Image입니다. Shift를 눌러도 현재 단계 이미지를 유지합니다.")]
+    [SerializeField] private Image forwardSpeed3Image;
+    [Tooltip("후진 -1단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image reverseSpeed1Image;
+    [Tooltip("후진 -2단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image reverseSpeed2Image;
+    [Tooltip("후진 -3단계에서만 켤 Image입니다.")]
+    [SerializeField] private Image reverseSpeed3Image;
+    [Header("Status effect UI (local player only)")]
+    [Tooltip("피격 당사자의 화면에만 표시할 상태이상 UI입니다. 상태 동안만 켜지며 Animation/Animator는 오브젝트 활성화 시 재생되게 만드세요. 외형 VFX는 ChPrefab의 CombatPresentation > Status Effect Vfx Views에 별도로 할당합니다. 컨트롤러 자신이나 그 부모는 넣지 마세요.")]
+    [SerializeField] private StatusEffectUIBinding[] statusEffectViews = { new StatusEffectUIBinding() };
+    [Header("Match")]
+    [Tooltip("내 진영의 라운드 승리 횟수만 표시합니다. 팀 번호와 무관하게 로컬 플레이어 기준입니다.")]
+    [SerializeField] private TextMeshProUGUI myRoundWinsText;
+    [Tooltip("상대 진영의 라운드 승리 횟수만 표시합니다. VS 문구는 별도 UI로 두세요.")]
+    [SerializeField] private TextMeshProUGUI enemyRoundWinsText;
+    [SerializeField] private TMP_Text matchTimeText;
+    [SerializeField] private TMP_Text flagText;
+    [Header("Flag position (hidden for carrier / in smoke)")]
+    [Tooltip("상대가 소지하거나 떨어진 깃발을 따라가는 UI. 본인이 소지하면 숨깁니다. 비우면 기본 표식을 생성합니다. 이 컨트롤러와 별도 자식 UI를 넣으세요.")]
+    [SerializeField] private RectTransform flagCarrierMarker;
+    [Tooltip("자동 생성 표식의 Sprite. 비우면 기본 깃발 도형을 사용합니다.")]
+    [SerializeField] private Sprite flagCarrierSprite;
+    [SerializeField] private TMP_Text flagCarrierDistanceText;
+    [SerializeField] private Vector3 flagCarrierMarkerOffset = new Vector3(0f, 1.1f, 0f);
+    [SerializeField, Min(16f)] private float flagCarrierMarkerSize = 42f;
+    [SerializeField, Min(0f)] private float flagCarrierEdgePadding = 84f;
+    [Tooltip("깃발 표식/거리 글자가 Dot과 움직이는 크로스헤어를 가리지 않도록 확보하는 화면 픽셀 여백입니다.")]
+    [SerializeField, Min(0f)] private float flagMarkerAimPadding = 24f;
+    [Header("Match result / respawn")]
+    [SerializeField] private TMP_Text resultText;
+    [SerializeField] private TMP_Text respawnText;
+    [SerializeField] private string respawnPrefix = "부활까지";
+    [Header("Aim")]
+    [SerializeField] private GameObject reticle;
+    [Tooltip("화면 중앙에 고정할 Dot입니다. 암흑/비전 즉발 마법도 이 Dot을 기준으로 조준합니다. 움직이는 원과 별개로 연결합니다.")]
+    [SerializeField] private RectTransform desiredAimMarker;
+    [Tooltip("움직이는 원형 UI: 캐릭터의 실제 정면 발사 방향입니다.")]
+    [SerializeField] private RectTransform forwardAimMarker;
+    [Tooltip("큰 원의 Image. 비워두면 Desired Aim Marker 자체의 Image를 사용합니다.")]
+    [SerializeField] private Image desiredAimImage;
+    [Tooltip("작은 원의 Image. 비워두면 Forward Aim Marker 자체의 Image를 사용합니다.")]
+    [SerializeField] private Image forwardAimImage;
+    [SerializeField] private TMP_Text aimAlignmentText;
+    [Tooltip("완료 표식. 비워 두면 Lock Complete Color 색상의 원을 생성합니다.")]
+    [SerializeField] private RectTransform lockMarker;
+    [Tooltip("충전 중 줄어드는 원. 비워 두면 기본 원을 생성합니다.")]
+    [SerializeField] private RectTransform lockChargeMarker;
+    [Tooltip("자동 생성할 충전 원 Sprite. 비우면 기본 흰 원을 사용합니다. Lock Charge Marker를 직접 연결했다면 해당 UI가 우선합니다.")]
+    [SerializeField] private Sprite lockChargeSprite;
+    [Tooltip("자동 생성할 록온 완료 표식 Sprite. 비우면 기본 초록 원을 사용합니다. Lock Marker를 직접 연결했다면 해당 UI가 우선합니다.")]
+    [SerializeField] private Sprite lockCompleteSprite;
+    [SerializeField, Min(1f)] private float lockChargeStartSize = 300f;
+    [SerializeField, Min(1f)] private float lockChargeEndSize = 28f;
+    [Tooltip("록온 진행 중 원의 색상입니다. 알파는 아래 Start/End Alpha와 곱해집니다.")]
+    [SerializeField] private Color lockChargeColor = Color.white;
+    [Tooltip("록온 완료 시 변경되는 색상입니다. 스프라이트에도 이 색상을 적용합니다.")]
+    [SerializeField] private Color lockCompleteColor = Color.green;
+    [SerializeField, Range(0f, 1f)] private float lockChargeStartAlpha = 0.25f;
+    [SerializeField, Range(0f, 1f)] private float lockChargeEndAlpha = 1f;
+    private Graphic lockChargeGraphic;
+    private Graphic lockCompleteGraphic;
+    [Header("Incoming magic / parry warning")]
+    // Keep the old reference only to hide a previously authored full-screen red overlay.
+    [SerializeField, HideInInspector] private Image incomingMagicWarning;
+    [Tooltip("선택 사항: 방향 경고용 UI Image. 비워 두면 자동 생성합니다.")]
+    [SerializeField] private Image incomingMagicIndicator;
+    [Tooltip("경고 이미지 A. A/B를 모두 넣으면 번갈아 표시합니다. 하나만 있으면 해당 이미지가 깜빡입니다.")]
+    [SerializeField] private Sprite warningSpriteA;
+    [Tooltip("경고 이미지 B. 두 Sprite 모두 비우면 기본 느낌표가 깜빡입니다.")]
+    [SerializeField] private Sprite warningSpriteB;
+    [SerializeField, Min(16f)] private float warningIconSize = 96f;
+    [Tooltip("화면 끝에서 경고 이미지 중심까지의 여백(픽셀).")]
+    [SerializeField, Min(0f)] private float warningEdgePadding = 64f;
+    [SerializeField] private Color warningIconColor = Color.white;
+    [Tooltip("느낌표 주변의 붉은 후광 크기 배율입니다. 화면 전체에는 적용하지 않습니다.")]
+    [SerializeField, Range(1f, 3f)] private float warningGlowScale = 1.8f;
+    [SerializeField] private Color warningGlowColor = new Color(1f, 0.15f, 0.2f, 0.65f);
+    [SerializeField] private bool showWarningFrame = true;
+    [SerializeField, Min(1f)] private float warningDistance = 90f;
+    [Tooltip("거리 밖이어도 이 시간 안에 충돌할 것으로 예상되는 투사체는 미리 알립니다.")]
+    [SerializeField, Min(0.1f)] private float warningLeadSeconds = 1.5f;
+    [Tooltip("초당 점멸 주기. A/B 이미지일 때는 한 주기마다 A→B→A로 전환됩니다.")]
+    [SerializeField, Range(0.2f, 12f)] private float warningFarFrequency = 1.5f;
+    [SerializeField, Range(0.2f, 12f)] private float warningNearFrequency = 8f;
+    [Header("Parry timing cue (projectiles only)")]
+    [SerializeField] private bool enableParryTimingCue = true;
+    [Tooltip("충돌 예상 시간이 패링 시간에서 이 여유(초)를 뺀 값 안으로 들어오면 표시합니다. 보조 신호이며 성공을 보장하지 않습니다.")]
+    [SerializeField, Min(0f)] private float parryCueSafetyMargin = 0.08f;
+    [Tooltip("패링 가능한 순간 느낌표·테두리·링에 표시할 색상입니다.")]
+    [SerializeField] private Color parryCueColor = new Color(1f, 0.85f, 0.1f, 1f);
+    [SerializeField, Range(1f, 2f)] private float parryCueRingScale = 1.35f;
+    [SerializeField, Range(1f, 1.6f)] private float parryCuePunchScale = 1.2f;
+    [SerializeField, Min(0.05f)] private float parryCuePunchSeconds = 0.18f;
+    [Tooltip("앞을 보면서 방어할 수 있도록 중앙 아래에 PARRY 신호를 표시합니다. 비우면 자동 생성합니다.")]
+    [SerializeField] private TMP_Text parryTimingText;
+    [SerializeField] private bool showCentralParryCue = true;
+    private RectTransform parryCueRing;
+    private Graphic parryCueRingGraphic;
+    private bool parryCueActive;
+    private MagicProjectile parryCueThreat;
+    private float parryCueStarted;
+    private Canvas generatedFeedbackCanvas;
+    private TMP_Text generatedWarning;
+    private CombatFeedbackGraphic warningGlow;
+    private CombatFeedbackGraphic warningFrame;
+    private MagicProjectile incomingThreat;
+    private Predicate<MagicProjectile> offscreenThreatFilter;
+    private float warningPhase, threatStrength, nextThreatCheck;
+    [SerializeField] private Image lockProgressFill;
+    // Retain old scene references only to suppress the retired lock-on text prompts.
+    [SerializeField, HideInInspector] private TMP_Text lockText;
+    [SerializeField] private Camera worldCamera;
+    [Header("Received damage direction")]
+    [Tooltip("비우면 BattleUI의 DamageIndicator를 자동 연결합니다. 공격자의 피격 시점 위치를 표시합니다.")]
+    [SerializeField] private DamageIndicator damageIndicator;
+    [SerializeField] private Color receivedDamageColor = Color.red;
+    [Header("Damage numbers (preplaced TMP labels, not prefabs)")]
+    [SerializeField] private TMP_Text[] damageLabels = Array.Empty<TMP_Text>();
+    [SerializeField, Min(0.1f)] private float damageDuration = 0.9f;
+    [SerializeField] private float damageRise = 1.5f;
+    [Header("Confirmed hit marker (attacker only)")]
+    [Tooltip("Hit Marker (Overwatch)의 bl_HitMarker. 비우면 현재 씬에서 같은 이름의 오브젝트를 자동으로 찾습니다. default=Marker, letal=Marker (letal).")]
+    [SerializeField] private Lovatto.Crosshair.bl_HitMarker animatedHitMarker;
+    [Tooltip("적중/처치 표시의 재생 시간 배율입니다. 1은 원본, 1.5는 1.5배 오래 재생합니다.")]
+    [SerializeField, Min(0.1f)] private float hitMarkerDurationMultiplier = 1.5f;
+    private Lovatto.Crosshair.bl_MarkerRig playingHitRig;
+    private float playingHitOriginalSpeed = 1f;
+    private bool playingLethalMarker;
+    [Tooltip("선택 사항: 네 방향 전체 모양을 가진 독립 UI Image. 지정하면 이 Image를 표시/페이드합니다. Dot 자체를 넣지 마세요. 비우면 얇은 마름모 4개를 생성합니다.")]
+    [SerializeField] private Image hitMarkerImage;
+    [Tooltip("중심이 될 Dot의 RectTransform. 비우면 Desired Aim Marker, 그것도 없으면 카메라 화면 중앙입니다.")]
+    [SerializeField] private RectTransform hitMarkerCenter;
+    [Tooltip("즉시 나타난 뒤 완전한 밝기로 유지하는 시간입니다.")]
+    [SerializeField, Min(0f)] private float hitMarkerHoldSeconds = 0.04f;
+    [SerializeField, Min(0.01f)] private float hitMarkerFadeSeconds = 0.3f;
+    [Tooltip("기본 도형만의 색상. 직접 지정한 Image는 원래 색상을 유지합니다.")]
+    [SerializeField] private Color hitMarkerColor = Color.white;
+    [Tooltip("Dot 기준 네 방향 각도. 0도=오른쪽, 양수=반시계 방향입니다. 기본 -30, -120, 30, 120도.")]
+    [SerializeField] private Vector4 hitMarkerAngles = new Vector4(-30f, -120f, 30f, 120f);
+    [SerializeField, Min(0f)] private float hitMarkerRadius = 28f;
+    [SerializeField, Min(1f)] private float hitMarkerLength = 18f;
+    [SerializeField, Min(1f)] private float hitMarkerWidth = 3f;
+    private Graphic activeHitMarker;
+    private CombatFeedbackGraphic generatedHitMarker;
+    private Color hitMarkerBaseColor;
+    private float hitMarkerStarted = float.NegativeInfinity;
+    private int displayedFlagDistance = -1;
+    private readonly Vector3[] flagMarkerCorners = new Vector3[4];
+
+    [Serializable]
+    private sealed class StatusEffectUIBinding
+    {
+        public StatusEffectType status = StatusEffectType.Binding;
+        [Tooltip("직접 만든 상태이상 안내 UI 오브젝트. 텍스트/Image 또는 그 전용 패널을 드래그하세요.")]
+        public GameObject uiObject;
+    }
+
+    private sealed class DamageSlot
+    {
+        public TMP_Text Label;
+        public Vector3 Position;
+        public Vector3 Scale;
+        public Color Color;
+        public float Started;
+        public bool Active;
+    }
+
+    private static BattleHud instance;
+    private DamageSlot[] damageSlots;
+    private Player owner;
+    private float respawnAt;
+    private int nextDamageSlot;
+    private Image tintedDesiredImage, tintedForwardImage;
+    private Color originalDesiredColor, originalForwardColor;
+    private RectTransform activeManaFeedbackRoot;
+    private Graphic[] activeManaFeedbackGraphics;
+    private Color[] originalManaFeedbackColors;
+    private Vector2 originalManaFeedbackPosition;
+    private float manaFeedbackStarted;
+    private Player manaFeedbackPlayer;
+    private bool manaFeedbackActive;
+    private bool manaTrailInitialized, manaTrailCatchingUp;
+    private float manaTrailFraction, manaTrailHoldUntil, manaTrailSpeed, manaTrailMaxAp;
+    public static bool MenuOpen { get; private set; }
+
+    public static void ShowInsufficientMana(Player player)
+    {
+        if (instance == null || !instance.isActiveAndEnabled || player == null || player != Player.LocalPlayer ||
+            MenuOpen || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
+        instance.StartManaFeedback(player);
+    }
+
+    private void StartManaFeedback(Player player)
+    {
+        BattlePerkUI.PrioritizeManaFeedback();
+        BattleAudio.Play(BattleSound.InsufficientMana, local: true);
+        ResetManaFeedback();
+        activeManaFeedbackRoot = manaFeedbackRoot != null ? manaFeedbackRoot :
+            apSlider != null ? apSlider.transform as RectTransform :
+            apFill != null ? apFill.rectTransform : null;
+        if (activeManaFeedbackRoot != null)
+            originalManaFeedbackPosition = activeManaFeedbackRoot.anchoredPosition;
+        activeManaFeedbackGraphics = manaFeedbackGraphics != null && manaFeedbackGraphics.Length > 0
+            ? manaFeedbackGraphics : activeManaFeedbackRoot != null
+                ? activeManaFeedbackRoot.GetComponentsInChildren<Graphic>(true) : Array.Empty<Graphic>();
+        originalManaFeedbackColors = new Color[activeManaFeedbackGraphics.Length];
+        for (int i = 0; i < activeManaFeedbackGraphics.Length; i++)
+            if (activeManaFeedbackGraphics[i] != null)
+                originalManaFeedbackColors[i] = activeManaFeedbackGraphics[i].color;
+        manaFeedbackPlayer = player;
+        manaFeedbackStarted = Time.unscaledTime;
+        manaFeedbackActive = true;
+    }
+
+    private void LateUpdate()
+    {
+        UpdateParryWindow();
+        if (!manaFeedbackActive) return;
+        float age = Time.unscaledTime - manaFeedbackStarted;
+        if (age >= manaFeedbackDuration || MenuOpen || manaFeedbackPlayer == null ||
+            manaFeedbackPlayer != Player.LocalPlayer || manaFeedbackPlayer.Object == null ||
+            !manaFeedbackPlayer.Object.IsValid || !manaFeedbackPlayer.IsAlive ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        { ResetManaFeedback(); return; }
+        Color tint = Mathf.FloorToInt(age * manaFeedbackFlashFrequency * 2f) % 2 == 0 ? Color.red : Color.white;
+        for (int i = 0; i < activeManaFeedbackGraphics.Length; i++)
+        {
+            Graphic graphic = activeManaFeedbackGraphics[i];
+            if (graphic == null) continue;
+            tint.a = originalManaFeedbackColors[i].a;
+            graphic.color = tint;
+        }
+        if (activeManaFeedbackRoot != null)
+        {
+            float strength = manaFeedbackShakePixels * (1f - Mathf.Clamp01(age / manaFeedbackDuration));
+            activeManaFeedbackRoot.anchoredPosition = originalManaFeedbackPosition +
+                new Vector2(Mathf.Sin(age * 113f), Mathf.Sin(age * 157f) * .5f) * strength;
+        }
+    }
+
+    private void ResetManaFeedback()
+    {
+        if (!manaFeedbackActive) return;
+        if (activeManaFeedbackRoot != null) activeManaFeedbackRoot.anchoredPosition = originalManaFeedbackPosition;
+        for (int i = 0; i < activeManaFeedbackGraphics.Length; i++)
+            if (activeManaFeedbackGraphics[i] != null) activeManaFeedbackGraphics[i].color = originalManaFeedbackColors[i];
+        manaFeedbackActive = false;
+        manaFeedbackPlayer = null;
+    }
+
+    private void EnsureManaTrail()
+    {
+        if (apTrailSlider != null || apSlider == null || apSlider.fillRect == null) return;
+        RectTransform source = apSlider.fillRect;
+        // Copy the authored fill sprite/material/radial settings at its actual rendering depth.
+        // Being inside the MP bar also makes the yellow trail follow its shake animation.
+        GameObject copy = Instantiate(source.gameObject, source.parent, false);
+        copy.name = "MP Consumption Trail (yellow)";
+        copy.transform.SetSiblingIndex(source.GetSiblingIndex());
+        foreach (Graphic graphic in copy.GetComponentsInChildren<Graphic>(true))
+            graphic.raycastTarget = false;
+        apTrailSlider = copy.GetComponent<Slider>();
+        if (apTrailSlider == null) apTrailSlider = copy.AddComponent<Slider>();
+        apTrailSlider.transition = Selectable.Transition.None;
+        apTrailSlider.interactable = false;
+        apTrailSlider.navigation = new Navigation { mode = Navigation.Mode.None };
+        apTrailSlider.onValueChanged = new Slider.SliderEvent();
+        apTrailSlider.handleRect = null;
+        apTrailSlider.targetGraphic = null;
+        apTrailSlider.minValue = 0f;
+        apTrailSlider.maxValue = 1f;
+        apTrailSlider.wholeNumbers = false;
+        apTrailSlider.direction = apSlider.direction;
+        apTrailSlider.fillRect = copy.transform as RectTransform;
+        Image fill = copy.GetComponent<Image>();
+        if (fill != null) fill.color = apTrailColor;
+        copy.SetActive(true);
+    }
+
+    private void BindManaTrail(bool valid, float fraction)
+    {
+        if (valid) EnsureManaTrail();
+        if (apTrailSlider == null || apTrailSlider == apSlider) return;
+        if (!valid || !owner.IsAlive)
+        {
+            manaTrailInitialized = false;
+            SetBar(apTrailSlider, null, fraction);
+            return;
+        }
+        if (!manaTrailInitialized || !Mathf.Approximately(manaTrailMaxAp, owner.MaxAp))
+        {
+            manaTrailInitialized = true;
+            manaTrailMaxAp = owner.MaxAp;
+            manaTrailFraction = fraction;
+            manaTrailCatchingUp = false;
+            if (apTrailSlider.fillRect != null && apTrailSlider.fillRect.TryGetComponent(out Image fill))
+                fill.color = apTrailColor;
+        }
+        manaTrailFraction = AdvanceManaTrail(manaTrailFraction, fraction, Time.unscaledTime,
+            Time.unscaledDeltaTime, apTrailDelay, apTrailCatchupSeconds,
+            ref manaTrailCatchingUp, ref manaTrailHoldUntil, ref manaTrailSpeed);
+        SetBar(apTrailSlider, null, manaTrailFraction);
+    }
+
+    private static float AdvanceManaTrail(float trail, float current, float now, float deltaTime,
+        float delay, float catchupSeconds, ref bool catchingUp, ref float holdUntil, ref float speed)
+    {
+        current = Mathf.Clamp01(current);
+        if (current >= trail)
+        {
+            catchingUp = false;
+            return current; // Recovery never leaves the yellow bar below the real MP level.
+        }
+        if (!catchingUp)
+        {
+            catchingUp = true;
+            holdUntil = now + Mathf.Max(0f, delay);
+            speed = 0f;
+        }
+        // Continuous spending extends the target, never the hold deadline.
+        speed = Mathf.Max(speed, (trail - current) / Mathf.Max(0.01f, catchupSeconds));
+        if (now < holdUntil) return trail;
+        float result = Mathf.MoveTowards(trail, current, speed * Mathf.Max(0f, deltaTime));
+        if (result <= current) catchingUp = false;
+        return result;
+    }
+
+    private void Awake()
+    {
+        if (GetComponent<BattleTitleNotificationUI>() == null) gameObject.AddComponent<BattleTitleNotificationUI>();
+        BindSceneMenu();
+        ValidateStatusEffectViews();
+        offscreenThreatFilter = IsOffscreenThreat;
+        damageSlots = new DamageSlot[damageLabels.Length];
+        for (int i = 0; i < damageLabels.Length; i++)
+        {
+            TMP_Text label = damageLabels[i];
+            damageSlots[i] = new DamageSlot
+            {
+                Label = label,
+                Scale = label != null ? label.transform.localScale : Vector3.one,
+                Color = label != null ? label.color : Color.white
+            };
+        }
+        HideViews();
+    }
+
+    private void OnEnable()
+    {
+        Canvas.willRenderCanvases += BindFlightAim;
+        instance = this;
+        MenuOpen = false;
+        if (resumeButton != null) resumeButton.onClick.AddListener(Resume);
+    }
+
+    private void Update()
+    {
+        BattleManager battle = BattleManager.Instance;
+        // Update even during intermission/VS and while the local character is despawned.
+        BindRoundScores();
+        bool show = battle != null && (battle.IsGameplayActive || battle.IsBattleEnded);
+        if (!show)
+        {
+            if (MenuOpen) SetMenuOpen(false);
+            respawnAt = 0f;
+            BindOwner(null);
+            HideViews();
+            return;
+        }
+        if (Input.GetKeyDown(KeyCode.Escape)) ToggleMenu();
+        if (MenuOpen && (menuPanel == null || !menuPanel.activeInHierarchy))
+            SetMenuOpen(false);
+
+        Player local = Player.LocalPlayer;
+        bool valid = local != null && local.Object != null && local.Object.IsValid;
+        if (valid)
+        {
+            if (owner != local)
+            {
+                BindOwner(local);
+            }
+            if (owner.IsAlive) respawnAt = 0f;
+            else
+            {
+                // Read the replicated server deadline, then keep a local clock through despawn.
+                float? remaining = owner.RespawnTimer.RemainingTime(owner.Runner);
+                if (remaining.HasValue) respawnAt = Time.unscaledTime + Mathf.Max(0f, remaining.Value);
+                else if (respawnAt <= 0f) respawnAt = Time.unscaledTime + battle.RespawnDelaySeconds;
+            }
+        }
+        else BindOwner(null);
+        if (worldCamera == null) worldCamera = Camera.main;
+
+        Visible(hudRoot, true);
+        Visible(playerPanel, valid);
+        if (matchTimeText != null)
+            SetText(matchTimeText, battle.ModeLabel != null ? battle.ModeLabel : battle.IsRace ? FormatMatchTime(RaceCourse.Instance.ElapsedSeconds) : battle.IsTraining ? "훈련장" : battle.IsOvertime ? "연장전" : FormatMatchTime(battle.RemainingSeconds));
+        BattleFlag flag = BattleFlag.Instance;
+        bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
+        if (flagText != null)
+        {
+            if (battle.ObjectiveLabel != null) SetText(flagText, battle.ObjectiveLabel);
+            else if (battle.IsRace)
+            {
+                var data = PlayerData.Local;
+                float remaining = RaceCourse.Instance.FinishSecondsRemaining;
+                string progress = data != null && data.RaceRank > 0 ? $"{data.RaceRank}등 완주" :
+                    data != null && data.RacePassed == RaceCourse.Instance.RingCount ? "첫 번째 링으로 돌아오세요" :
+                    $"RING {(data != null ? data.RacePassed + 1 : 1)} / {RaceCourse.Instance.RingCount}";
+                SetText(flagText, remaining >= 0 ? $"{progress} · 종료까지 {Mathf.CeilToInt(remaining)}초" : progress);
+            }
+            else SetText(flagText, !hasFlag ? "FLAG: collect it at the marker" :
+                valid && flag.Carrier == owner.ParticipantRef ? "YOU HAVE THE FLAG" : FlagCarrierText(flag.Carrier));
+        }
+        Visible(resultPanel, battle.IsBattleEnded && !battle.IsRace && battle.UsesStandardResults);
+        Visible(resultText != null ? resultText.gameObject : null, battle.IsBattleEnded && !battle.IsRace && battle.UsesStandardResults);
+        SetNumericText(resultText, battle.WinningTeam > 0 ? "TEAM {0} WINS" : "DRAW - NO FLAG HOLDER", battle.WinningTeam);
+        bool respawning = respawnAt > 0f && !battle.IsBattleEnded;
+        if (respawning && respawnText == null)
+        {
+            respawnText = CreateCentralPrompt("Respawn countdown", 55f, 36f);
+            respawnText.rectTransform.sizeDelta = new Vector2(520f, 64f);
+        }
+        Visible(respawnPanel, respawning);
+        Visible(respawnText != null ? respawnText.gameObject : null, respawning);
+        if (respawnText != null)
+        {
+            if (cachedRespawnFormat == null || cachedRespawnPrefix != respawnPrefix)
+            {
+                cachedRespawnPrefix = respawnPrefix;
+                cachedRespawnFormat = respawnPrefix + "  {0}";
+            }
+            SetNumericText(respawnText, Time.unscaledTime < respawnAt ? cachedRespawnFormat : "부활 중...",
+                Mathf.Max(0, Mathf.CeilToInt(respawnAt - Time.unscaledTime)));
+        }
+        BindPlayer(valid);
+        BindSpeedStageImages(valid && owner.IsAlive && battle.IsGameplayActive ? owner.CurrentSpeedStage : 0);
+        BindStatusEffectViews(valid && battle.IsGameplayActive && !MenuOpen);
+        BindAim(valid && owner.IsAlive && battle.IsGameplayActive && !MenuOpen);
+        UpdateDamage();
+        UpdateHitMarker(valid && owner.IsAlive && battle.IsGameplayActive && !MenuOpen);
+    }
+
+    private void BindRoundScores()
+    {
+        PlayerData data = PlayerData.Local;
+        BattleFlag flag = BattleFlag.Instance;
+        int myWins = 0, enemyWins = 0;
+        if (data != null && data.Object != null && data.Object.IsValid && data.Object.HasInputAuthority &&
+            data.IsLoadoutInitialized && (data.teamIndex == 1 || data.teamIndex == 2) &&
+            flag != null && flag.Object != null && flag.Object.IsValid)
+        {
+            myWins = data.teamIndex == 1 ? flag.Team1Wins : flag.Team2Wins;
+            enemyWins = data.teamIndex == 1 ? flag.Team2Wins : flag.Team1Wins;
+        }
+        SetRoundWinsText(myRoundWinsText, myWins);
+        SetRoundWinsText(enemyRoundWinsText, enemyWins);
+    }
+
+    private static void SetRoundWinsText(TextMeshProUGUI label, int wins)
+    {
+        if (label == null) return;
+        // Best-of-three digits are constant strings: no per-frame number allocations.
+        string value = wins <= 0 ? "0" : wins == 1 ? "1" : "2";
+        if (label.text != value) label.text = value;
+    }
+
+    private void BindPlayer(bool valid)
+    {
+        BindPlayerProfile();
+        if (playerNameText != null)
+        {
+            PlayerData data = PlayerData.Local;
+            playerNameText.richText = false;
+            NetworkString<_32> name = data != null && data.Object != null && data.Object.IsValid &&
+                data.IsLoadoutInitialized ? data.playerName : default;
+            if (!cachedPlayerName.Equals(name))
+            {
+                cachedPlayerName = name;
+                cachedPlayerNameText = name.ToString();
+            }
+            SetText(playerNameText, cachedPlayerNameText);
+        }
+        float manaFraction = valid ? Mathf.Clamp01(owner.NowAp / Mathf.Max(1f, owner.MaxAp)) : 0f;
+        SetBar(apSlider, apFill, manaFraction);
+        BindManaTrail(valid, manaFraction);
+        SetNumericText(apText, valid ? "{0:0} / {1:0}" : "", valid ? owner.NowAp : 0f, valid ? owner.MaxAp : 0f);
+        if (manaPercentText != null)
+        {
+            int percent = ManaPercent(valid ? owner.NowAp : 0f, valid ? owner.MaxAp : 0f);
+            if (cachedManaPercent != percent)
+            {
+                cachedManaPercent = percent;
+                cachedManaPercentText = percent.ToString();
+                cachedManaPercentWithSymbol = cachedManaPercentText + "%";
+            }
+            SetText(manaPercentText, manaPercentIncludeSymbol ? cachedManaPercentWithSymbol : cachedManaPercentText);
+        }
+        SetNumericText(teamText, valid ? "{0}" : "", valid ? owner.TeamIndex : 0);
+        if (speedStageText != null)
+        {
+            int stage = valid ? owner.CurrentSpeedStage : 0;
+            SetNumericText(speedStageText, !valid ? "" : stage > 0 ? "+{0}" : "{0}", stage);
+        }
+        SetNumericText(speedText, valid ? "{0:0.0} m/s" : "", valid ? owner.CurrentSpeed : 0f);
+        if (selectedMagicText != null)
+        {
+            if (valid && owner.IsRainCharging)
+                selectedMagicText.SetText("칼날비 · {0}명 · 충전 마나 {1:0.0}", owner.RainTargetCount, owner.RainManaSpent);
+            else if (valid && owner.CurrentMagicSlot != 3 && owner.BladeCharges > 0)
+                SetNumericText(selectedMagicText, "칼날 마법 · {0}회", owner.BladeCharges);
+            else SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
+        }
+        SetNumericText(magicCostText, valid ? "{0:0}" : "", valid ? owner.SelectedMagicApCost : 0f);
+    }
+
+    private void BindSpeedStageImages(int stage)
+    {
+        // Exclusive indicators, not cumulative bars. CurrentSpeedStage is already
+        // predicted/replicated by Player; no new networking or speed thresholds needed.
+        Visible(forwardSpeed1Image != null ? forwardSpeed1Image.gameObject : null, stage == 1);
+        Visible(forwardSpeed2Image != null ? forwardSpeed2Image.gameObject : null, stage == 2);
+        Visible(forwardSpeed3Image != null ? forwardSpeed3Image.gameObject : null, stage == 3);
+        Visible(reverseSpeed1Image != null ? reverseSpeed1Image.gameObject : null, stage == -1);
+        Visible(reverseSpeed2Image != null ? reverseSpeed2Image.gameObject : null, stage == -2);
+        Visible(reverseSpeed3Image != null ? reverseSpeed3Image.gameObject : null, stage == -3);
+    }
+
+    private void ValidateStatusEffectViews()
+    {
+        if (statusEffectViews == null) return;
+        foreach (StatusEffectUIBinding view in statusEffectViews)
+        {
+            if (view == null || view.uiObject == null || !transform.IsChildOf(view.uiObject.transform)) continue;
+            Debug.LogWarning("BattleHud: 상태이상 UI에는 컨트롤러 자신이나 그 부모를 지정할 수 없습니다. 별도의 UI 오브젝트를 연결하세요.", this);
+            view.uiObject = null;
+        }
+    }
+
+    private void BindStatusEffectViews(bool show)
+    {
+        if (statusEffectViews == null) return;
+        bool local = show && owner != null && owner == Player.LocalPlayer &&
+            owner.Object != null && owner.Object.IsValid && owner.Object.HasInputAuthority;
+        foreach (StatusEffectUIBinding view in statusEffectViews)
+        {
+            if (view == null || view.uiObject == null || transform.IsChildOf(view.uiObject.transform)) continue;
+            // Visible changes activeSelf only on transitions, preserving authored animations.
+            Visible(view.uiObject, local && owner.HasStatusEffect(view.status));
+        }
+    }
+
+    private void BindPlayerProfile()
+    {
+        if (playerProfileImage == null) return;
+        if (profileTable == null) profileTable = ProfileImageTable.Default;
+
+        // PlayerData survives character death/respawn; do not depend on the living Player.
+        PlayerData data = PlayerData.Local;
+        bool ready = data != null && data.Object != null && data.Object.IsValid &&
+            data.Object.HasInputAuthority && data.IsLoadoutInitialized;
+        Sprite sprite = ready && profileTable != null ? profileTable.GetSprite(data.playerprofile) : null;
+        if (playerProfileImage.sprite != sprite) playerProfileImage.sprite = sprite;
+        if (playerProfileImage.enabled != (sprite != null)) playerProfileImage.enabled = sprite != null;
+    }
+
+    private void BindOwner(Player next)
+    {
+        if (owner == next) return;
+        soundedParryThreats.Clear();
+        incomingThreat = null;
+        HideThreatIndicator();
+        manaTrailInitialized = false;
+        ClearHitMarker();
+        if (hpGridBar != null) hpGridBar.ResetBinding();
+        if (damageIndicator != null) damageIndicator.ClearAllIndicators();
+        if (owner != null) owner.HealthChanged -= BindHealth;
+        owner = next;
+        if (owner != null)
+        {
+            owner.HealthChanged += BindHealth;
+            BindHealth(owner.NowHp, owner.MaxHp);
+        }
+        else BindHealth(0f, 0f);
+    }
+
+    private void BindHealth(float hp, float maxHp)
+    {
+        float fraction = maxHp > 0f ? Mathf.Clamp01(hp / maxHp) : 0f;
+        if (hpGridBar != null) hpGridBar.UpdateHealth(hp, maxHp);
+        SetBar(hpSlider, hpFill, fraction);
+        SetNumericText(hpText, owner != null ? maxHpText != null ? "{0:0}" : "{0:0} / {1:0}" : "", hp, maxHp);
+        SetNumericText(maxHpText, owner != null ? "/{0:0}" : "", maxHp);
+    }
+
+    public static int ManaPercent(float current, float maximum)
+    {
+        if (maximum <= 0f || float.IsNaN(maximum) || float.IsInfinity(maximum) ||
+            float.IsNaN(current) || float.IsInfinity(current)) return 0;
+        return Mathf.RoundToInt(Mathf.Clamp01(current / maximum) * 100f);
+    }
+
+    private void BindAim(bool show)
+    {
+        Visible(reticle, show && desiredAimMarker == null);
+        Vector3 lockPoint = default;
+        bool locked = show && owner.SelectedMagicStats.UsesLockIndicator && owner.TryGetDisplayedLockPoint(out lockPoint);
+        // Lock feedback remains visible through smoke; body/health concealment is handled separately.
+        if (show && (lockMarker == null || lockChargeMarker == null)) EnsureLockFeedback();
+        bool completed = locked && owner.IsFullyLocked;
+        bool charging = locked && !completed;
+        if (completed && lockMarker != null) completed = owner.SelectedMagicStats.TargetsAllies
+            ? PlaceAllyLockMarker(lockMarker, lockPoint) : Place(lockMarker, lockPoint);
+        if (charging && lockChargeMarker != null)
+        {
+            charging = Place(lockChargeMarker, lockPoint);
+            float progress = Mathf.Clamp01(owner.LockProgress);
+            lockChargeMarker.sizeDelta = Vector2.one * Mathf.Lerp(lockChargeStartSize, lockChargeEndSize, progress);
+            Color color = lockChargeColor;
+            color.a *= Mathf.Lerp(lockChargeStartAlpha, lockChargeEndAlpha, progress);
+            ApplyLockMarkerStyle(lockChargeMarker, ref lockChargeGraphic, color);
+        }
+        if (completed && lockMarker != null)
+        {
+            lockMarker.sizeDelta = Vector2.one * lockChargeEndSize;
+            ApplyLockMarkerStyle(lockMarker, ref lockCompleteGraphic, lockCompleteColor);
+        }
+        Visible(lockMarker != null ? lockMarker.gameObject : null, completed);
+        Visible(lockChargeMarker != null ? lockChargeMarker.gameObject : null, charging);
+        Visible(lockProgressFill != null ? lockProgressFill.gameObject : null, locked);
+        if (lockProgressFill != null) lockProgressFill.fillAmount = locked ? Mathf.Clamp01(owner.LockProgress) : 0f;
+        if (lockText != null)
+        {
+            SetText(lockText, "");
+            // Disable only the text, not a potentially shared ring/marker GameObject.
+            lockText.enabled = false;
+        }
+        UpdateThreatWarning(show);
+    }
+
+
+    private void EnsureFeedbackCanvas()
+    {
+        if (generatedFeedbackCanvas != null) return;
+        var root = new GameObject("Generated combat feedback", typeof(RectTransform), typeof(Canvas));
+        root.transform.SetParent(transform, false);
+        generatedFeedbackCanvas = root.GetComponent<Canvas>();
+        generatedFeedbackCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        generatedFeedbackCanvas.overrideSorting = true;
+        generatedFeedbackCanvas.sortingOrder = 80;
+    }
+
+    private RectTransform CreateFeedbackRing(string title, Color color, float size, Sprite sprite)
+    {
+        EnsureFeedbackCanvas();
+        var view = new GameObject(title, typeof(RectTransform), typeof(CanvasRenderer),
+            sprite != null ? typeof(Image) : typeof(CombatFeedbackGraphic));
+        view.transform.SetParent(generatedFeedbackCanvas.transform, false);
+        var graphic = view.GetComponent<Graphic>();
+        if (graphic is Image icon)
+        {
+            icon.sprite = sprite;
+            icon.preserveAspect = true;
+        }
+        graphic.raycastTarget = false;
+        graphic.color = sprite != null ? Color.white : color;
+        var rect = (RectTransform)view.transform;
+        rect.sizeDelta = Vector2.one * size;
+        return rect;
+    }
+
+    private void EnsureLockFeedback()
+    {
+        if (lockChargeMarker == null) lockChargeMarker = CreateFeedbackRing("Lock charge", lockChargeColor, lockChargeStartSize, lockChargeSprite);
+        if (lockMarker == null) lockMarker = CreateFeedbackRing("Locked", lockCompleteColor, lockChargeEndSize, lockCompleteSprite);
+    }
+
+    private static void ApplyLockMarkerStyle(RectTransform marker, ref Graphic graphic, Color color)
+    {
+        // Works with both generated rings and user-assigned UI Images.
+        if (graphic == null || !graphic.transform.IsChildOf(marker))
+            graphic = marker.GetComponentInChildren<Graphic>(true);
+        if (graphic != null) graphic.color = color;
+    }
+
+    private TMP_Text CreateCentralPrompt(string title, float y, float fontSize)
+    {
+        EnsureFeedbackCanvas();
+        var go = new GameObject(title, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        go.transform.SetParent(generatedFeedbackCanvas.transform, false);
+        var text = go.GetComponent<TextMeshProUGUI>();
+        if (feedbackFont != null) text.font = feedbackFont;
+        text.raycastTarget = false;
+        text.alignment = TextAlignmentOptions.Center;
+        text.fontSize = fontSize;
+        text.color = Color.white;
+        text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        text.rectTransform.sizeDelta = new Vector2(260f, 40f);
+        text.rectTransform.anchoredPosition = new Vector2(0f, y);
+        return text;
+    }
+
+    private void UpdateThreatWarning(bool show)
+    {
+        UpdatePrimaryThreatWarning(show);
+        UpdateAdditionalThreatWarnings(show);
+        if (show) PlaceThreatIndicator();
+    }
+
+    private void UpdatePrimaryThreatWarning(bool show)
+    {
+        Visible(incomingMagicWarning != null ? incomingMagicWarning.gameObject : null, false);
+        if (!show)
+        {
+            incomingThreat = null;
+            threatStrength = warningPhase = nextThreatCheck = 0f;
+            HideThreatIndicator();
+            return;
+        }
+        if (show && Time.unscaledTime >= nextThreatCheck)
+        {
+            nextThreatCheck = Time.unscaledTime + 0.05f;
+            MagicProjectile.TryGetIncomingThreat(owner, warningDistance, out _, out incomingThreat,
+                warningLeadSeconds, offscreenThreatFilter, incomingThreats);
+        }
+        if (!HasIncomingThreat() || !IsOffscreenThreat(incomingThreat))
+        {
+            // The camera may have turned since the last 20 Hz candidate search.
+            if (HasIncomingThreat()) nextThreatCheck = 0f;
+            threatStrength = warningPhase = 0f;
+            HidePrimaryThreatIndicator();
+            return;
+        }
+        float distance = Vector3.Distance(owner.LockAimPoint, incomingThreat.transform.position);
+        bool timed = incomingThreat.TryGetImpactTime(owner, out float impactSeconds);
+        threatStrength = timed ? 1f - Mathf.Clamp01(impactSeconds / Mathf.Max(0.1f, warningLeadSeconds))
+            : 1f - Mathf.Clamp01(distance / Mathf.Max(1f, warningDistance));
+        warningPhase = Mathf.Repeat(warningPhase + Time.unscaledDeltaTime *
+            Mathf.Lerp(warningFarFrequency, warningNearFrequency, threatStrength), 1f);
+        bool firstFrame = warningPhase < 0.5f;
+        bool custom = warningSpriteA != null || warningSpriteB != null;
+        Graphic warning = EnsureThreatIndicator(custom);
+        bool cue = enableParryTimingCue && owner.CanStartParryNow && !owner.IsParrying &&
+            !ControlSettings.Held(ControlAction.Parry) && timed &&
+            IsParryCueTiming(impactSeconds, owner.ParryWindowSeconds, parryCueSafetyMargin);
+        UpdateParryCue(warning, cue);
+        // Hold a readable symbol in the timing window rather than hiding it mid-blink.
+        if (cue) firstFrame = true;
+        Visible(incomingMagicIndicator != null ? incomingMagicIndicator.gameObject : null, custom);
+        Visible(generatedWarning != null ? generatedWarning.gameObject : null, !custom);
+        if (custom)
+            incomingMagicIndicator.sprite = SelectWarningSprite(warningSpriteA, warningSpriteB, firstFrame);
+        Color tint = cue ? ParryWarningFlash(parryCueColor, Time.unscaledTime - parryCueStarted) : warningIconColor;
+        // A/B remain readable while alternating. A single sprite / fallback pulses.
+        tint.a *= cue || (custom && warningSpriteA != null && warningSpriteB != null) ? 1f : firstFrame ? 1f : 0.15f;
+        warning.color = tint;
+        warning.raycastTarget = false;
+        float punch = cue ? Mathf.Lerp(parryCuePunchScale, 1f,
+            Mathf.Clamp01((Time.unscaledTime - parryCueStarted) / Mathf.Max(0.05f, parryCuePunchSeconds))) : 1f;
+        warning.rectTransform.sizeDelta = Vector2.one * warningIconSize * punch;
+        EnsureThreatGlow(warning);
+        Color glow = cue ? new Color(parryCueColor.r, parryCueColor.g, parryCueColor.b, warningGlowColor.a) : warningGlowColor;
+        // The halo stays visible between flashes, so the direction is never lost.
+        glow.a *= Mathf.Lerp(0.6f, 1f, threatStrength);
+        warningGlow.color = glow;
+        warningGlow.rectTransform.sizeDelta = Vector2.one * warningIconSize * warningGlowScale;
+        if (warningFrame != null)
+        {
+            warningFrame.color = cue ? parryCueColor : new Color(1f, 0.35f, 0.4f, 0.9f);
+            warningFrame.rectTransform.sizeDelta = Vector2.one * warningIconSize * 1.05f * punch;
+        }
+        if (cue) parryCueRing.sizeDelta = Vector2.one * warningIconSize * parryCueRingScale * punch;
+    }
+
+    private static Sprite SelectWarningSprite(Sprite a, Sprite b, bool firstFrame)
+        => a != null && b != null ? (firstFrame ? a : b) : a != null ? a : b;
+
+    private static Color ParryWarningFlash(Color color, float elapsed)
+    {
+        // Start fully bright, then pulse without making the actionable warning disappear.
+        color.a *= Mathf.Lerp(.55f, 1f, .5f + .5f * Mathf.Cos(Mathf.Max(0f, elapsed) * Mathf.PI * 16f));
+        return color;
+    }
+
+    private static bool IsParryCueTiming(float seconds, float window, float margin)
+    {
+        if (window <= 0f || float.IsNaN(window) || float.IsInfinity(window)) return false;
+        // Never extend the actual window. Very short configured windows still get a cue.
+        float usableWindow = window - Mathf.Clamp(margin, 0f, window * 0.5f);
+        return seconds >= 0f && seconds <= usableWindow;
+    }
+
+    private void UpdateParryCue(Graphic warning, bool show)
+    {
+        if (show)
+        {
+            if (!parryCueActive || parryCueThreat != incomingThreat) parryCueStarted = Time.unscaledTime;
+            PlayParryReadySound(incomingThreat);
+            if (parryCueRing == null)
+            {
+                parryCueRing = CreateFeedbackRing("Parry timing ring", parryCueColor, warningIconSize * parryCueRingScale, null);
+                parryCueRingGraphic = parryCueRing.GetComponent<Graphic>();
+            }
+            if (parryCueRing.parent != warning.transform.parent)
+                parryCueRing.SetParent(warning.transform.parent, false);
+            parryCueRingGraphic.color = parryCueColor;
+        }
+        parryCueActive = show;
+        parryCueThreat = show ? incomingThreat : null;
+        Visible(parryCueRing != null ? parryCueRing.gameObject : null, show);
+        if (show && showCentralParryCue && parryTimingText == null)
+            parryTimingText = CreateCentralPrompt("Parry now", -65f, 26f);
+        if (parryTimingText != null)
+        {
+            parryTimingText.color = parryCueColor;
+            SetText(parryTimingText, "PARRY  [RMB]");
+            Visible(parryTimingText.gameObject, show && showCentralParryCue);
+        }
+    }
+
+    private bool HasIncomingThreat() => owner != null && owner.Object != null && owner.Object.IsValid &&
+        incomingThreat != null && incomingThreat.Object != null && incomingThreat.Object.IsValid && !incomingThreat.Finished;
+
+    private Graphic EnsureThreatIndicator(bool custom)
+    {
+        EnsureFeedbackCanvas();
+        if (custom)
+        {
+            if (incomingMagicIndicator == null)
+            {
+                var icon = new GameObject("Incoming magic direction", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                icon.transform.SetParent(generatedFeedbackCanvas.transform, false);
+                incomingMagicIndicator = icon.GetComponent<Image>();
+            }
+            incomingMagicIndicator.preserveAspect = true;
+            return incomingMagicIndicator;
+        }
+        if (generatedWarning == null)
+        {
+            generatedWarning = CreateCentralPrompt("Incoming magic exclamation", 0f, warningIconSize * 0.8f);
+            generatedWarning.text = "!";
+            generatedWarning.margin = Vector4.zero;
+        }
+        return generatedWarning;
+    }
+
+    private void HideThreatIndicator()
+    {
+        HidePrimaryThreatIndicator();
+        HideAdditionalThreatWarnings();
+    }
+
+    private void HidePrimaryThreatIndicator()
+    {
+        Visible(incomingMagicIndicator != null ? incomingMagicIndicator.gameObject : null, false);
+        Visible(generatedWarning != null ? generatedWarning.gameObject : null, false);
+        Visible(warningGlow != null ? warningGlow.gameObject : null, false);
+        Visible(warningFrame != null ? warningFrame.gameObject : null, false);
+        Visible(parryCueRing != null ? parryCueRing.gameObject : null, false);
+        Visible(parryTimingText != null ? parryTimingText.gameObject : null, false);
+        parryCueActive = false;
+        parryCueThreat = null;
+    }
+
+    private void EnsureThreatGlow(Graphic warning)
+    {
+        if (warningGlow == null)
+        {
+            var view = new GameObject("Incoming magic red halo", typeof(RectTransform), typeof(CanvasRenderer), typeof(CombatFeedbackGraphic));
+            warningGlow = view.GetComponent<CombatFeedbackGraphic>();
+            warningGlow.Glow = true;
+            warningGlow.raycastTarget = false;
+        }
+        // Put the halo behind the icon even when the designer supplies a different canvas.
+        if (warningGlow.transform.parent != warning.transform.parent)
+            warningGlow.transform.SetParent(warning.transform.parent, false);
+        if (warningGlow.transform.GetSiblingIndex() >= warning.transform.GetSiblingIndex())
+            warningGlow.transform.SetSiblingIndex(warning.transform.GetSiblingIndex());
+        if (showWarningFrame && warningFrame == null)
+        {
+            var view = new GameObject("Incoming magic HUD frame", typeof(RectTransform), typeof(CanvasRenderer), typeof(CombatFeedbackGraphic));
+            warningFrame = view.GetComponent<CombatFeedbackGraphic>();
+            warningFrame.CornerFrame = true;
+            warningFrame.raycastTarget = false;
+        }
+        if (warningFrame != null)
+        {
+            if (warningFrame.transform.parent != warning.transform.parent)
+                warningFrame.transform.SetParent(warning.transform.parent, false);
+            if (warningFrame.transform.GetSiblingIndex() >= warning.transform.GetSiblingIndex())
+                warningFrame.transform.SetSiblingIndex(warning.transform.GetSiblingIndex());
+        }
+    }
+
+    private void PlaceThreatIndicator()
+    {
+        occupiedThreatPoints.Clear();
+        PlacePrimaryThreatIndicator();
+        PlaceAdditionalThreatIndicators();
+    }
+
+    private void PlacePrimaryThreatIndicator()
+    {
+        if (!HasIncomingThreat() || worldCamera == null) { HidePrimaryThreatIndicator(); return; }
+        // Recheck after camera rendering too: no one-frame on-screen warning after a turn.
+        if (!IsOffscreenThreat(incomingThreat))
+        {
+            nextThreatCheck = 0f;
+            HidePrimaryThreatIndicator();
+            return;
+        }
+        Graphic warning = warningSpriteA != null || warningSpriteB != null ? incomingMagicIndicator : generatedWarning;
+        if (warning == null) return;
+        // Use the viewing camera's origin AND rotation, independently of the pilot's facing.
+        // Its unshaken Transform keeps the warning stable during render-only speed shake.
+        Vector3 relative = GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation,
+            incomingThreat.transform.position);
+        float padding = Mathf.Max(warningEdgePadding, warningIconSize * warningGlowScale * 0.5f + 8f);
+        Vector2 point = GetThreatScreenPoint(relative, worldCamera.pixelRect, padding);
+        bool placed = PlaceScreen(warning.rectTransform, point);
+        if (placed) occupiedThreatPoints.Add(point);
+        Visible(warning.gameObject, placed);
+        if (warningGlow != null)
+            Visible(warningGlow.gameObject, placed && PlaceScreen(warningGlow.rectTransform, point));
+        if (warningFrame != null)
+            Visible(warningFrame.gameObject, placed && showWarningFrame && PlaceScreen(warningFrame.rectTransform, point));
+        if (parryCueRing != null)
+            Visible(parryCueRing.gameObject, placed && parryCueActive && PlaceScreen(parryCueRing, point));
+    }
+
+    private static Vector3 GetThreatViewDirection(Vector3 cameraPosition, Quaternion cameraRotation, Vector3 threatPosition)
+    {
+        return Quaternion.Inverse(cameraRotation) * (threatPosition - cameraPosition);
+    }
+
+    private bool IsOffscreenThreat(MagicProjectile shot)
+    {
+        if (shot == null || worldCamera == null) return false;
+        Vector3 local = GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation,
+            shot.transform.position);
+        return !IsInsideThreatViewport(local, worldCamera.projectionMatrix, worldCamera.nearClipPlane, worldCamera.farClipPlane);
+    }
+
+    private static bool IsInsideThreatViewport(Vector3 cameraLocal, Matrix4x4 projection, float nearClip, float farClip)
+    {
+        // Use the unshaken camera pose but the actual projection, including FOV/aspect changes.
+        if (cameraLocal.z < nearClip || cameraLocal.z > farClip || cameraLocal.z <= 0f) return false;
+        Vector4 clip = projection * new Vector4(cameraLocal.x, cameraLocal.y, -cameraLocal.z, 1f);
+        return clip.w > 0f && clip.x >= -clip.w && clip.x <= clip.w && clip.y >= -clip.w && clip.y <= clip.w;
+    }
+
+    private static Vector2 GetThreatScreenPoint(Vector3 direction, Rect screen, float padding)
+    {
+        Vector2 bearing = new Vector2(direction.x, direction.y);
+        // Rear threats occupy the lower arc; dead-ahead is top, directly behind is bottom.
+        if (direction.z < 0f) bearing.y = -Mathf.Abs(direction.y) - Mathf.Abs(direction.z);
+        if (bearing.sqrMagnitude < 0.0001f) bearing = Vector2.up;
+        bearing.Normalize();
+        Vector2 half = new Vector2(Mathf.Max(0f, screen.width * 0.5f - padding),
+            Mathf.Max(0f, screen.height * 0.5f - padding));
+        return screen.center + Vector2.Scale(bearing, half);
+    }
+
+    // Input samples the assigned Dot, never the moving nose-direction circle.
+    // Only the owning client reads UI/camera state; the host receives a direction.
+    public static Ray GetMagicAimRay(Camera camera)
+    {
+        if (camera == null) return default;
+        Vector2 screenPoint = camera.pixelRect.center;
+        RectTransform dot = instance != null && instance.isActiveAndEnabled ? instance.desiredAimMarker : null;
+        if (dot != null && dot.gameObject.activeInHierarchy)
+        {
+            Canvas canvas = dot.GetComponentInParent<Canvas>();
+            Canvas root = canvas != null ? canvas.rootCanvas : null;
+            Camera uiCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
+            screenPoint = RectTransformUtility.WorldToScreenPoint(uiCamera, dot.TransformPoint(dot.rect.center));
+        }
+        return camera.ScreenPointToRay(screenPoint);
+    }
+
+    // Run after the network render pose/camera, avoiding a one-frame lag in the small circle.
+    private void BindFlightAim()
+    {
+        Player pilot = Player.LocalPlayer;
+        if (worldCamera == null) worldCamera = Camera.main;
+        CameraFollow follow = worldCamera != null ? worldCamera.GetComponent<CameraFollow>() : null;
+        bool show = isActiveAndEnabled && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
+            !MenuOpen && pilot != null && pilot.Object != null && pilot.Object.IsValid && pilot.IsAlive &&
+            !pilot.IsReturningToMap && follow != null && !follow.IsBoundaryPresentationActive;
+        bool desiredVisible = false;
+        bool forwardVisible = false;
+        bool aligned = false;
+        if (show)
+        {
+            Vector3 desiredPoint = follow.GetDisplayedAimPoint();
+            Vector3 origin = pilot.LockAimPoint;
+            float distance = Mathf.Max(1f, Vector3.Distance(origin, desiredPoint));
+            Vector3 forwardPoint = origin + pilot.transform.forward * distance;
+            // Never project the fixed crosshair through a shaken render matrix.
+            desiredVisible = desiredAimMarker != null && PlaceScreen(desiredAimMarker, worldCamera.pixelRect.center);
+            forwardVisible = forwardAimMarker != null && forwardAimMarker != desiredAimMarker &&
+                PlaceStableAim(forwardAimMarker, forwardPoint);
+            aligned = pilot.IsAimAligned((desiredPoint - origin).normalized);
+            SetText(aimAlignmentText, aligned ? "AIM ALIGNED" : "ALIGNING");
+        }
+        SetAimColors(show && aligned);
+        Visible(desiredAimMarker != null ? desiredAimMarker.gameObject : null, desiredVisible);
+        if (forwardAimMarker != desiredAimMarker)
+            Visible(forwardAimMarker != null ? forwardAimMarker.gameObject : null, forwardVisible);
+        Visible(aimAlignmentText != null ? aimAlignmentText.gameObject : null, show);
+        // Reposition after Fusion/camera rendering, without advancing the blink timer twice.
+        if (show) PlaceThreatIndicator();
+        else HideThreatIndicator();
+        if (show) PlaceHitMarker();
+        else ClearHitMarker();
+        // Avoid the current frame's actual Dot/crosshair rectangles, after they move.
+        UpdateFlagCarrierMarker();
+    }
+
+    private void UpdateFlagCarrierMarker()
+    {
+        BattleFlag flag = BattleFlag.Instance;
+        Player local = Player.LocalPlayer;
+        if (!isActiveAndEnabled || MenuOpen || worldCamera == null || flag == null ||
+            !flag.TryGetCarrierMarker(local, out Vector3 position))
+        {
+            HideFlagCarrierMarker();
+            return;
+        }
+        if (flagCarrierMarker == null)
+        {
+            flagCarrierMarker = CreateFeedbackRing("Flag carrier marker", new Color(1f, 0.8f, 0.22f),
+                flagCarrierMarkerSize, flagCarrierSprite);
+            if (flagCarrierMarker.TryGetComponent(out CombatFeedbackGraphic fallback)) fallback.Flag = true;
+        }
+        if (flagCarrierDistanceText == null)
+            flagCarrierDistanceText = CreateCentralPrompt("Flag carrier distance", 0f, 18f);
+        position += flagCarrierMarkerOffset;
+        Vector3 screen = worldCamera.WorldToScreenPoint(position);
+        float padding = Mathf.Max(flagCarrierEdgePadding, flagCarrierMarkerSize * 0.5f + 24f);
+        Rect pixels = worldCamera.pixelRect;
+        bool inside = screen.z > worldCamera.nearClipPlane && screen.x >= pixels.xMin + padding &&
+            screen.x <= pixels.xMax - padding && screen.y >= pixels.yMin + padding && screen.y <= pixels.yMax - padding;
+        Vector2 point = inside ? (Vector2)screen : GetThreatScreenPoint(
+            GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation, position), pixels, padding);
+        int distance = Mathf.RoundToInt(Vector3.Distance(local.LockAimPoint, position - flagCarrierMarkerOffset));
+        if (distance != displayedFlagDistance)
+        {
+            displayedFlagDistance = distance;
+            flagCarrierDistanceText.text = $"깃발 {distance}m";
+        }
+        Vector2 textPoint = point + Vector2.down * (flagCarrierMarkerSize * 0.5f + 18f);
+        bool placed = PlaceScreen(flagCarrierMarker, point) && PlaceScreen(flagCarrierDistanceText.rectTransform, textPoint);
+        if (placed)
+        {
+            // Include the label, not just the icon; respect authored pivots, Canvas scale
+            // and screen-space camera canvases. All offsets are presentation-only.
+            Rect markerBounds = UnionScreenRects(GetScreenRect(flagCarrierMarker), GetScreenRect(flagCarrierDistanceText.rectTransform));
+            placed = TryOffsetFlagMarker(markerBounds, GetFlagMarkerClearArea(), pixels, out Vector2 offset);
+            if (placed)
+                placed = PlaceScreen(flagCarrierMarker, point + offset) &&
+                    PlaceScreen(flagCarrierDistanceText.rectTransform, textPoint + offset);
+        }
+        Visible(flagCarrierMarker.gameObject, placed);
+        Visible(flagCarrierDistanceText.gameObject, placed);
+    }
+
+    private Rect GetFlagMarkerClearArea()
+    {
+        Vector2 center = worldCamera.pixelRect.center;
+        Rect area = new Rect(center - Vector2.one, Vector2.one * 2f);
+        area = IncludeActiveAimRect(area, desiredAimMarker);
+        area = IncludeActiveAimRect(area, forwardAimMarker);
+        area = IncludeActiveAimRect(area, reticle != null ? reticle.transform as RectTransform : null);
+        float padding = Mathf.Max(0f, flagMarkerAimPadding);
+        return Rect.MinMaxRect(area.xMin - padding, area.yMin - padding, area.xMax + padding, area.yMax + padding);
+    }
+
+    private Rect IncludeActiveAimRect(Rect area, RectTransform aim)
+    {
+        return aim != null && aim.gameObject.activeInHierarchy ? UnionScreenRects(area, GetScreenRect(aim)) : area;
+    }
+
+    private Rect GetScreenRect(RectTransform rect)
+    {
+        Canvas canvas = rect.GetComponentInParent<Canvas>();
+        Canvas root = canvas != null ? canvas.rootCanvas : null;
+        Camera uiCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
+        rect.GetWorldCorners(flagMarkerCorners);
+        Vector2 min = RectTransformUtility.WorldToScreenPoint(uiCamera, flagMarkerCorners[0]);
+        Vector2 max = min;
+        for (int i = 1; i < flagMarkerCorners.Length; i++)
+        {
+            Vector2 corner = RectTransformUtility.WorldToScreenPoint(uiCamera, flagMarkerCorners[i]);
+            min = Vector2.Min(min, corner);
+            max = Vector2.Max(max, corner);
+        }
+        return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+    }
+
+    private static Rect UnionScreenRects(Rect a, Rect b)
+    {
+        return Rect.MinMaxRect(Mathf.Min(a.xMin, b.xMin), Mathf.Min(a.yMin, b.yMin),
+            Mathf.Max(a.xMax, b.xMax), Mathf.Max(a.yMax, b.yMax));
+    }
+
+    private static bool TryOffsetFlagMarker(Rect marker, Rect clearArea, Rect viewport, out Vector2 offset)
+    {
+        offset = Vector2.zero;
+        if (marker.width > viewport.width || marker.height > viewport.height) return false;
+        Vector2 original = marker.position;
+        marker.position = new Vector2(Mathf.Clamp(marker.x, viewport.xMin, viewport.xMax - marker.width),
+            Mathf.Clamp(marker.y, viewport.yMin, viewport.yMax - marker.height));
+        if (!marker.Overlaps(clearArea))
+        {
+            offset = marker.position - original;
+            return true;
+        }
+        float bestDistance = float.PositiveInfinity;
+        // Move icon and label together to the nearest free side. If the viewport is
+        // too small, hide the flag marker instead of ever covering the aiming UI.
+        for (int side = 0; side < 4; side++)
+        {
+            Rect candidate = marker;
+            if (side == 0) candidate.x = clearArea.xMin - marker.width;
+            else if (side == 1) candidate.x = clearArea.xMax;
+            else if (side == 2) candidate.y = clearArea.yMax;
+            else candidate.y = clearArea.yMin - marker.height;
+            candidate.position = new Vector2(Mathf.Clamp(candidate.x, viewport.xMin, viewport.xMax - candidate.width),
+                Mathf.Clamp(candidate.y, viewport.yMin, viewport.yMax - candidate.height));
+            if (candidate.Overlaps(clearArea)) continue;
+            Vector2 move = candidate.position - original;
+            if (move.sqrMagnitude >= bestDistance) continue;
+            bestDistance = move.sqrMagnitude;
+            offset = move;
+        }
+        return !float.IsPositiveInfinity(bestDistance);
+    }
+
+    private void HideFlagCarrierMarker()
+    {
+        Visible(flagCarrierMarker != null ? flagCarrierMarker.gameObject : null, false);
+        Visible(flagCarrierDistanceText != null ? flagCarrierDistanceText.gameObject : null, false);
+        displayedFlagDistance = -1;
+    }
+
+    public void ToggleMenu()
+    {
+        if (battleSettings != null && battleSettings.activeSelf) { CloseSettings(); return; }
+        SetMenuOpen(!MenuOpen);
+    }
+
+    private void SetAimColors(bool aligned)
+    {
+        Image desired = desiredAimImage != null ? desiredAimImage :
+            desiredAimMarker != null ? desiredAimMarker.GetComponent<Image>() : null;
+        Image forward = forwardAimImage != null ? forwardAimImage :
+            forwardAimMarker != null ? forwardAimMarker.GetComponent<Image>() : null;
+        TintAimImage(desired, aligned, ref tintedDesiredImage, ref originalDesiredColor);
+        TintAimImage(forward, aligned, ref tintedForwardImage, ref originalForwardColor);
+    }
+
+    private static void TintAimImage(Image image, bool aligned, ref Image previousImage, ref Color originalColor)
+    {
+        if (previousImage != image)
+        {
+            if (previousImage != null) previousImage.color = originalColor;
+            previousImage = image;
+            if (image != null) originalColor = image.color;
+        }
+        if (image != null)
+            image.color = aligned ? new Color(0f, 1f, 0f, originalColor.a) : originalColor;
+    }
+    public void Resume() => SetMenuOpen(false);
+
+    private void SetMenuOpen(bool open)
+    {
+        bool wasOpen = MenuOpen;
+        BattleManager battle = BattleManager.Instance;
+        if (open && menuPanel == null && battle != null) EnsureTrainingMenu();
+        if (!open) CloseSettings();
+        MenuOpen = open && menuPanel != null && battle != null &&
+            (battle.IsGameplayActive || battle.IsBattleEnded);
+        Visible(menuPanel, MenuOpen);
+        if (MenuOpen && !wasOpen) RestartMenuEntrance();
+        else if (!MenuOpen) PauseMenuEntrance();
+        bool flight = battle != null && battle.IsGameplayActive && !MenuOpen;
+        Cursor.lockState = flight ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !flight;
+    }
+
+    public static void ShowHitMarker(Player attacker, bool lethal = false)
+    {
+        if (instance == null || !instance.isActiveAndEnabled || attacker == null ||
+            attacker.Object == null || !attacker.Object.IsValid || !attacker.Object.HasInputAuthority ||
+            attacker != Player.LocalPlayer || !attacker.IsAlive || MenuOpen ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
+        BattleAudio.Play(BattleSound.HitConfirmed, local: true);
+        if (instance.PlayAnimatedHitMarker(lethal)) return;
+        instance.EnsureHitMarker();
+        instance.hitMarkerStarted = Time.unscaledTime;
+        // Every confirmed hit restores full visibility, even during the previous fade.
+        instance.UpdateHitMarker(true);
+    }
+
+    private bool PlayAnimatedHitMarker(bool lethal)
+    {
+        if (animatedHitMarker == null)
+            foreach (var marker in FindObjectsByType<Lovatto.Crosshair.bl_HitMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (marker.gameObject.scene == gameObject.scene && marker.name == "Hit Marker (Overwatch)")
+                { animatedHitMarker = marker; break; }
+        if (animatedHitMarker == null || animatedHitMarker.markers == null) return false;
+        if (!lethal && playingLethalMarker && AnimatedHitIsPlaying()) return true;
+        string key = lethal ? "letal" : "default";
+        Lovatto.Crosshair.bl_MarkerRig selected = null;
+        foreach (var rig in animatedHitMarker.markers)
+            if (rig != null && rig.Name == key) { selected = rig; break; }
+        if (selected == null || selected.animator == null || selected.content == null) return false;
+        ClearHitMarker();
+        animatedHitMarker.gameObject.SetActive(true);
+        selected.animator.enabled = true;
+        selected.animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+        playingHitOriginalSpeed = selected.animator.speed;
+        selected.animator.speed = playingHitOriginalSpeed / Mathf.Max(0.1f, hitMarkerDurationMultiplier);
+        animatedHitMarker.OnHit(key);
+        // Even prefabs configured to crossfade must restart at frame zero on each accepted hit.
+        selected.animator.Play(selected.AnimationName, 0, 0f);
+        selected.animator.Update(0f);
+        playingHitRig = selected;
+        playingLethalMarker = lethal;
+        return true;
+    }
+
+    private bool AnimatedHitIsPlaying()
+    {
+        if (playingHitRig == null || playingHitRig.content == null || !playingHitRig.content.activeInHierarchy ||
+            playingHitRig.animator == null || !playingHitRig.animator.isActiveAndEnabled) return false;
+        return playingHitRig.animator.GetCurrentAnimatorStateInfo(0).normalizedTime < 1f;
+    }
+
+    private void EnsureHitMarker()
+    {
+        Graphic next = hitMarkerImage;
+        if (next == null)
+        {
+            if (generatedHitMarker == null)
+            {
+                EnsureFeedbackCanvas();
+                var view = new GameObject("Confirmed hit marker", typeof(RectTransform), typeof(CanvasRenderer), typeof(CombatFeedbackGraphic));
+                view.transform.SetParent(generatedFeedbackCanvas.transform, false);
+                generatedHitMarker = view.GetComponent<CombatFeedbackGraphic>();
+                generatedHitMarker.HitMarker = true;
+            }
+            generatedHitMarker.HitMarkerAngles = hitMarkerAngles;
+            generatedHitMarker.HitMarkerRadius = hitMarkerRadius;
+            generatedHitMarker.HitMarkerLength = hitMarkerLength;
+            generatedHitMarker.HitMarkerWidth = hitMarkerWidth;
+            generatedHitMarker.rectTransform.sizeDelta = Vector2.one *
+                (2f * Mathf.Max(0f, hitMarkerRadius) + Mathf.Max(1f, hitMarkerLength) + Mathf.Max(1f, hitMarkerWidth));
+            generatedHitMarker.SetVerticesDirty();
+            next = generatedHitMarker;
+        }
+        if (activeHitMarker != next)
+        {
+            if (activeHitMarker != null)
+            {
+                activeHitMarker.enabled = false;
+                activeHitMarker.color = hitMarkerBaseColor;
+            }
+            activeHitMarker = next;
+            hitMarkerBaseColor = next == generatedHitMarker ? hitMarkerColor : next.color;
+        }
+        if (next == generatedHitMarker) hitMarkerBaseColor = hitMarkerColor;
+        next.raycastTarget = false;
+        Visible(next.gameObject, true);
+    }
+
+    public static float HitMarkerAlpha(float age, float holdSeconds, float fadeSeconds)
+    {
+        if (age < 0f || float.IsNaN(age) || float.IsInfinity(age)) return 0f;
+        return 1f - Mathf.Clamp01((age - Mathf.Max(0f, holdSeconds)) / Mathf.Max(0.01f, fadeSeconds));
+    }
+
+    private void UpdateHitMarker(bool show)
+    {
+        if (!show) { ClearHitMarker(); return; }
+        if (playingHitRig != null)
+        {
+            if (!AnimatedHitIsPlaying()) ClearHitMarker();
+            return; // The authored Animator owns opacity, scale and position.
+        }
+        if (activeHitMarker == null) return;
+        float alpha = HitMarkerAlpha((Time.unscaledTime - hitMarkerStarted) / Mathf.Max(0.1f, hitMarkerDurationMultiplier),
+            hitMarkerHoldSeconds, hitMarkerFadeSeconds);
+        if (alpha <= 0f) { ClearHitMarker(); return; }
+        Color tint = hitMarkerBaseColor;
+        tint.a *= alpha;
+        activeHitMarker.color = tint;
+        activeHitMarker.enabled = true;
+        PlaceHitMarker();
+    }
+
+    private void PlaceHitMarker()
+    {
+        if (activeHitMarker == null || !activeHitMarker.enabled) return;
+        RectTransform center = hitMarkerCenter != null ? hitMarkerCenter : desiredAimMarker;
+        Vector2 point;
+        if (center != null)
+        {
+            Canvas canvas = center.GetComponentInParent<Canvas>();
+            Camera uiCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            point = RectTransformUtility.WorldToScreenPoint(uiCamera, center.TransformPoint(center.rect.center));
+        }
+        else point = worldCamera != null ? worldCamera.pixelRect.center : new Vector2(Screen.width, Screen.height) * 0.5f;
+        // Do not toggle layout / colliders / the reticle itself; this is a separate overlay.
+        activeHitMarker.enabled = PlaceScreen(activeHitMarker.rectTransform, point);
+    }
+
+    private void ClearHitMarker()
+    {
+        // Restore before replaying so repeated hits never compound the slowdown.
+        if (playingHitRig != null && playingHitRig.animator != null)
+            playingHitRig.animator.speed = playingHitOriginalSpeed;
+        if (animatedHitMarker != null) animatedHitMarker.SetActiveChild(false);
+        playingHitRig = null;
+        playingLethalMarker = false;
+        hitMarkerStarted = float.NegativeInfinity;
+        if (activeHitMarker != null)
+        {
+            activeHitMarker.enabled = false;
+            activeHitMarker.color = hitMarkerBaseColor;
+        }
+        if (hitMarkerImage != null) hitMarkerImage.enabled = false;
+    }
+
+    public static void ShowDamage(Vector3 position, float amount)
+    {
+        if (instance == null || !instance.isActiveAndEnabled || amount <= 0f ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
+        instance.ShowDamageLabel(position, amount);
+    }
+
+    // Called once by the victim-only RPC, never by a per-frame attacker Transform lookup.
+    public static void ShowReceivedDamage(Player victim, Vector3 attackerPositionAtHit)
+    {
+        if (instance == null || !instance.isActiveAndEnabled || victim == null ||
+            victim.Object == null || !victim.Object.IsValid || !victim.Object.HasInputAuthority ||
+            victim != Player.LocalPlayer || MenuOpen) return;
+        if (instance.damageIndicator == null) instance.damageIndicator = DamageIndicator.Instance;
+        if (instance.worldCamera == null) instance.worldCamera = Camera.main;
+        if (instance.damageIndicator == null || !instance.damageIndicator.isActiveAndEnabled || instance.worldCamera == null)
+            return;
+        instance.damageIndicator.SetReceiver(instance.worldCamera.transform, victim.transform);
+        // No reuse key: simultaneous hits retain their own frozen source positions.
+        instance.damageIndicator.TriggerDamageSense(attackerPositionAtHit, instance.receivedDamageColor);
+    }
+
+    private void ShowDamageLabel(Vector3 position, float amount)
+    {
+        // Reuse designer-supplied slots; if none are supplied, draw nothing.
+        for (int n = 0; n < damageSlots.Length; n++)
+        {
+            int index = (nextDamageSlot + n) % damageSlots.Length;
+            DamageSlot slot = damageSlots[index];
+            if (slot.Label == null) continue;
+            nextDamageSlot = (index + 1) % damageSlots.Length;
+            slot.Position = position;
+            slot.Started = Time.unscaledTime;
+            slot.Active = true;
+            slot.Label.text = amount.ToString("0");
+            return;
+        }
+    }
+
+    private void UpdateDamage()
+    {
+        foreach (DamageSlot slot in damageSlots)
+        {
+            if (slot.Label == null || !slot.Active) continue;
+            float age = Mathf.Clamp01((Time.unscaledTime - slot.Started) / Mathf.Max(0.1f, damageDuration));
+            if (age >= 1f) { ResetDamage(slot); continue; }
+            bool concealed = BattleFlag.Instance != null && BattleFlag.Instance.ContainsSmoke(slot.Position);
+            Visible(slot.Label.gameObject, !MenuOpen && !concealed && Place(slot.Label.rectTransform, slot.Position + Vector3.up * age * damageRise));
+            slot.Label.transform.localScale = slot.Scale * Mathf.Lerp(1f, 0.5f, age);
+            Color tint = slot.Color;
+            tint.a *= 1f - age;
+            slot.Label.color = tint;
+        }
+    }
+
+    private bool Place(RectTransform rect, Vector3 position)
+    {
+        if (worldCamera == null || rect.parent is not RectTransform parent) return false;
+        Vector3 viewport = worldCamera.WorldToViewportPoint(position);
+        if (viewport.z <= 0 || viewport.x < 0 || viewport.x > 1 || viewport.y < 0 || viewport.y > 1) return false;
+        return PlaceScreen(rect, worldCamera.WorldToScreenPoint(position));
+    }
+
+    private bool PlaceAllyLockMarker(RectTransform rect, Vector3 position)
+    {
+        if (worldCamera == null) return false;
+        Vector3 viewport = worldCamera.WorldToViewportPoint(position);
+        if (viewport.z <= 0f) return false;
+        // A 180-degree selection cone is wider than camera FOV; keep its target visible at the edge.
+        viewport.x = Mathf.Clamp(viewport.x, .04f, .96f);
+        viewport.y = Mathf.Clamp(viewport.y, .04f, .96f);
+        return PlaceScreen(rect, worldCamera.ViewportToScreenPoint(viewport));
+    }
+
+    private bool PlaceStableAim(RectTransform rect, Vector3 position)
+    {
+        // Render-only camera shake must not make the aiming circle jitter.
+        Vector3 local = worldCamera.transform.InverseTransformPoint(position);
+        if (local.z <= 0f) return false;
+        Vector4 clip = worldCamera.projectionMatrix * new Vector4(local.x, local.y, -local.z, 1f);
+        if (Mathf.Abs(clip.w) < 0.0001f) return false;
+        Vector2 viewport = new Vector2(clip.x / clip.w, clip.y / clip.w) * 0.5f + Vector2.one * 0.5f;
+        if (viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f) return false;
+        Rect pixels = worldCamera.pixelRect;
+        return PlaceScreen(rect, new Vector2(pixels.x + viewport.x * pixels.width, pixels.y + viewport.y * pixels.height));
+    }
+
+    private bool PlaceScreen(RectTransform rect, Vector2 screenPoint)
+    {
+        if (rect.parent is not RectTransform parent) return false;
+        Canvas canvas = rect.GetComponentInParent<Canvas>();
+        Camera uiCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenPoint, uiCamera, out Vector2 point))
+            return false;
+        rect.localPosition = new Vector3(point.x, point.y, rect.localPosition.z);
+        return true;
+    }
+
+    private static void SetText(TMP_Text target, string value) { if (target != null) target.text = value; }
+    private static void Visible(GameObject target, bool value) { if (target != null && target.activeSelf != value) target.SetActive(value); }
+    private string MagicName(MagicType magic)
+    {
+        if (cachedMagicNameText == null || cachedMagicNameType != magic)
+        {
+            cachedMagicNameType = magic;
+            cachedMagicNameText = magic.ToString();
+        }
+        return cachedMagicNameText;
+    }
+    private static void SetBar(Slider slider, Image fill, float fraction)
+    {
+        fraction = Mathf.Clamp01(fraction);
+        if (slider != null) slider.SetValueWithoutNotify(Mathf.Lerp(slider.minValue, slider.maxValue, fraction));
+        if (fill != null) fill.fillAmount = fraction;
+    }
+
+    private static void ResetDamage(DamageSlot slot)
+    {
+        slot.Active = false;
+        if (slot.Label == null) return;
+        slot.Label.transform.localScale = slot.Scale;
+        slot.Label.color = slot.Color;
+        Visible(slot.Label.gameObject, false);
+    }
+
+    private void HideViews()
+    {
+        BindStatusEffectViews(false);
+        BindSpeedStageImages(0);
+        HideFlagCarrierMarker();
+        ClearHitMarker();
+        Visible(lockChargeMarker != null ? lockChargeMarker.gameObject : null, false);
+        UpdateThreatWarning(false);
+        SetAimColors(false);
+        Visible(desiredAimMarker != null ? desiredAimMarker.gameObject : null, false);
+        Visible(forwardAimMarker != null ? forwardAimMarker.gameObject : null, false);
+        Visible(aimAlignmentText != null ? aimAlignmentText.gameObject : null, false);
+        Visible(hudRoot, false); Visible(playerPanel, false);
+        Visible(respawnPanel, false); Visible(resultPanel, false); Visible(menuPanel, false);
+        Visible(resultText != null ? resultText.gameObject : null, false);
+        Visible(respawnText != null ? respawnText.gameObject : null, false);
+        BindPlayer(false);
+        BindAim(false);
+        if (damageSlots != null) foreach (DamageSlot slot in damageSlots) ResetDamage(slot);
+    }
+
+    private void OnDisable()
+    {
+        PauseMenuEntrance();
+        CloseSettings();
+        HideParryWindow();
+        parryWindowOwner = null;
+        ResetManaFeedback();
+        BindOwner(null);
+        Canvas.willRenderCanvases -= BindFlightAim;
+        if (resumeButton != null) resumeButton.onClick.RemoveListener(Resume);
+        HideViews();
+        if (instance != this) return;
+        instance = null;
+        MenuOpen = false;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+}

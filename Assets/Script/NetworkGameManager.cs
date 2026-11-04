@@ -4,650 +4,1165 @@ using UnityEngine.SceneManagement;
 using Fusion;
 using Fusion.Sockets;
 
-using System.Collections.Generic;
 using System;
-using static Unity.Collections.Unicode;
-using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using TMPro;
+using UnityEngine.Serialization;
 
-
-/*
- * ÀÌ Å¬·¡½º´Â °ÔÀÓ ÀüÃ¼¿¡¼­ ³×Æ®¿öÅ©¿Í °ü·ÃµÈ ÀÏÀ» °ü¸®ÇÏ´Â
- * "Áß¾Ó °ü¸®ÀÚ" ¿ªÇÒÀ» ÇÑ´Ù.
- *
- * ÁÖ¿ä ¿ªÇÒ
- * 1. NetworkRunner »ı¼º ¹× ½ÇÇà
- * 2. Fusion Session(¹æ) »ı¼º / Âü°¡
- * 3. ÇÃ·¹ÀÌ¾î Á¢¼Ó / ÅğÀå °¨Áö
- * 4. PlayerData »ı¼º
- * 5. PlayerData¸¦ PlayerRef¿Í ¿¬°áÇÏ¿© °ü¸®
- * 6. ³×Æ®¿öÅ© ÀÔ·Â Àü´Ş
- * 7. ¾À ÀüÈ¯ °¨Áö
- * 8. Fusion¿¡¼­ Á¦°øÇÏ´Â °¢Á¾ ³×Æ®¿öÅ© ÀÌº¥Æ® ¼ö½Å
- * ÀÌ °´Ã¼´Â DontDestroyOnLoad¸¦ »ç¿ëÇÏ±â ¶§¹®¿¡
- * ¾ÀÀÌ º¯°æµÇ¾îµµ °è¼Ó Á¸ÀçÇÑ´Ù.
- 
- */
-public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
+[RequireComponent(typeof(RandomMatchUI))]
+public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     private static NetworkGameManager instance;
-
     public static NetworkGameManager Instance => instance;
+    public bool IsMatching => _runner != null || startInProgress || stopInProgress;
+    public NetworkRunner Runner => _runner;
+    public bool IsRandomMatch { get; private set; }
+    public bool IsTraining { get; private set; }
+    public bool IsCancellingMatch => cancelRequested || stopInProgress;
+    public bool IsBattleTransitioning => isGameStarting;
+    public string MatchStatus { get; private set; } = "";
+    public bool CanCancelMatch => IsMatching && !isGameStarting && !IsBattleSceneLoaded &&
+        !cancelRequested && !stopInProgress &&
+        (startInProgress || _runner == null || _runner.SceneManager == null || !_runner.SceneManager.IsBusy);
+    public bool IsBattleSceneLoaded { get; private set; }
+    public BattleMatchMode CurrentMatchMode
+    {
+        get
+        {
+            if (IsRandomMatch) return BattleMatchMode.TwoVsTwo;
+            if (_runner != null && _runner.IsRunning)
+                foreach (PlayerData data in PlayerData.PerkPlayers)
+                    if (data != null && data.Object != null && data.Object.IsValid && data.Runner == _runner && data.IsRoomOwner)
+                        return data.RoomMatchMode;
+            return roomMatchMode;
+        }
+    }
+    public bool IsRaceMode => !IsTraining && CurrentMatchMode == BattleMatchMode.Race;
+    public bool IsRaidMode => !IsTraining && CurrentMatchMode == BattleMatchMode.GiantMeowRaid;
+    private int MatchSceneIndex => IsRaidMode ? SceneUtility.GetBuildIndexByScenePath("Assets/Scenes/GiantMeowRaid.unity") : IsRaceMode ? SceneUtility.GetBuildIndexByScenePath("Assets/Scenes/Race.unity") : battleSceneIndex;
+    public int RequiredPlayerCount => IsTraining ? 1 : BattleMatchRules.PlayerCount(CurrentMatchMode);
+    public int ConnectedPlayerCount
+    {
+        get { int count = 0; if (_runner != null && _runner.IsRunning) foreach (PlayerRef p in _runner.ActivePlayers) count++; return count; }
+    }
+    public bool IsRoomHost => _runner != null && _runner.IsRunning && _runner.IsServer;
+    public bool CanStartRoomGame => !IsTraining && !IsRandomMatch && CanBeginBattle();
+    public bool IsWaitingInCodeRoom => !IsTraining && !IsRandomMatch && _runner != null && _runner.IsRunning &&
+        initialSceneLoaded && !startInProgress && !stopInProgress && !cancelRequested &&
+        !isGameStarting && !IsBattleSceneLoaded;
+
+    [Header("Scene")]
+    [SerializeField] private int mainSceneIndex = 0;
+    [SerializeField] private int battleSceneIndex = 1;
+
+    [Header("Room")]
+    [SerializeField] private TMP_InputField roomIdInput;
+    [FormerlySerializedAs("maxPlayerCount")]
+    [SerializeField] private BattleMatchMode roomMatchMode = BattleMatchMode.TwoVsTwo;
+    [Header("Matchmaking UI (optional)")]
+    [SerializeField] private TMP_Text matchmakingStatusText;
+    [Header("Random match start")]
+    [Tooltip("ëª¨ë“  ì°¸ê°€ìì˜ RandomMatchUIì—ì„œ 4ëª…ì˜ í”„ë¡œí•„ì„ 1ì´ˆ í‘œì‹œí•œ ë’¤ ì „íˆ¬ë¥¼ ì‹œì‘í•©ë‹ˆë‹¤. ë„ë©´ ë°ì´í„° ì¤€ë¹„ í›„ 1ì´ˆ ë’¤ ì‹œì‘í•˜ëŠ” í…ŒìŠ¤íŠ¸ ëª¨ë“œì…ë‹ˆë‹¤.")]
+    [SerializeField] private bool requireRandomMatchProfilePreview = true;
+
+    private const int RandomPlayerCount = 4;
+    private const string RandomLobbyName = "WitchFlight-Random-2v2-v1";
+    private enum MatchRequest { CreateRoom, JoinRoom, Random, LegacyCodeMatch, Training }
+
+    [Header("Network Prefabs")]
+    [SerializeField] private NetworkPrefabRef playerPrefab;
+    [SerializeField] private NetworkPrefabRef playerDataPrefab;
+
+    private NetworkRunner _runner;
+    private GameObject runnerObject;
+    private CancellationTokenSource matchCancellation;
+    private bool startInProgress, stopInProgress, cancelRequested, initialSceneLoaded;
+    private float nextWaitingStatusRefresh;
+    private float randomPlayersReadyAt = -1f;
+
+    // PlayerRef â†’ ì‹¤ì œ ì „íˆ¬ Player
+    private Dictionary<PlayerRef, NetworkObject> spawnedPlayers
+        = new Dictionary<PlayerRef, NetworkObject>();
+
+    // PlayerRef â†’ PlayerData
+    private Dictionary<PlayerRef, PlayerData> playerDatas
+        = new Dictionary<PlayerRef, PlayerData>();
+
+    // PlayerData.Spawned()ì˜ í˜¸ì¶œ ìˆœì„œì™€ ë¬´ê´€í•˜ê²Œ ì ‘ì† ìˆœì„œ ê¸°ì¤€ì˜ ì§„ì˜ì„ ë³´ê´€í•œë‹¤.
+    // ì²« ì ‘ì†ìëŠ” A(1), ë‹¤ìŒ ì ‘ì†ìëŠ” B(2)ë¡œ ë°°ì •í•œë‹¤.
+    private Dictionary<PlayerRef, int> assignedTeamIndexes
+        = new Dictionary<PlayerRef, int>();
+
+    private bool isGameStarting = false;
+    private Coroutine battleInitializationRoutine;
+    private Vector2 accumulatedLook;
+    private NetworkButtons latchedButtons;
+    private bool pendingEmoteCombatSuppression;
+    private Player inputPlayer;
+    private enemyLockOn inputTargeting;
+    private Camera inputCamera;
+    private CameraFollow inputCameraFollow;
+
+    private void Update()
+    {
+        // Re-check after startup/scene loading completes as those callbacks can precede
+        // loadout initialization. Random matchmaking and solo training auto-start.
+        if ((IsRandomMatch || IsTraining) && IsRoomHost) CheckPlayerCount();
+        RefreshRoomAdmission();
+        if (Time.unscaledTime >= nextWaitingStatusRefresh)
+        {
+            nextWaitingStatusRefresh = Time.unscaledTime + 0.25f;
+            UpdateWaitingStatus();
+        }
+        if (_runner == null || Player.LocalPlayer == null || BattleManager.Instance == null ||
+            !BattleManager.Instance.IsGameplayActive || CombatPresentation.MenuOpen ||
+            Cursor.lockState != CursorLockMode.Locked)
+        {
+            accumulatedLook = Vector2.zero;
+            latchedButtons = default;
+            pendingEmoteCombatSuppression = false;
+            return;
+        }
+
+        // Retain a brief wheel opening even when it occurs entirely between Fusion input ticks.
+        pendingEmoteCombatSuppression |= BattleEmoteUI.BlocksCombatInput;
+        if (BattleEmoteUI.CapturesMouse) accumulatedLook = Vector2.zero;
+        else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * ControlSettings.SensitivityMultiplier;
+        LatchButton(PlayerInputButton.Accelerate, ControlSettings.Down(ControlAction.Accelerate));
+        LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
+        LatchButton(PlayerInputButton.QuickBrake, ControlSettings.Down(ControlAction.QuickBrake));
+        if (BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
+        else LatchButton(PlayerInputButton.Parry, ControlSettings.Down(ControlAction.Parry));
+        LatchButton(PlayerInputButton.Boost, ControlSettings.Down(ControlAction.Boost));
+        LatchButton(PlayerInputButton.MagicSlot1, ControlSettings.Down(ControlAction.MagicSlot1));
+        LatchButton(PlayerInputButton.MagicSlot2, ControlSettings.Down(ControlAction.MagicSlot2));
+        LatchButton(PlayerInputButton.MagicSlot3, Input.GetKeyDown(KeyCode.Alpha3));
+    }
+
+    private void LatchButton(PlayerInputButton button, bool pressed)
+    {
+        if (pressed)
+            latchedButtons.Set(button, true);
+    }
 
 
-
+    // ê²Œì„ ì‹œì‘ ì „, NetworkGameManagerê°€ ìƒì„±ë  ë•Œ ìë™ í˜¸ì¶œ
     private void Awake()
     {
         if (instance == null)
         {
             instance = this;
+            if (!Enum.IsDefined(typeof(BattleMatchMode), roomMatchMode)) roomMatchMode = BattleMatchMode.TwoVsTwo;
+            if (GetComponent<RoomMatchSettingsUI>() == null) gameObject.AddComponent<RoomMatchSettingsUI>();
+            DontDestroyOnLoad(gameObject);
         }
-
-        DontDestroyOnLoad(gameObject);
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
 
-    /*
-     * ========================================================
-     * NetworkRunner
-     * ========================================================
-     *
-     * Fusion¿¡¼­ ½ÇÁ¦ ³×Æ®¿öÅ© ½Ã¹Ä·¹ÀÌ¼ÇÀ» ´ã´çÇÏ´Â ÇÙ½É °´Ã¼.
-     *
-     * ½±°Ô »ı°¢ÇÏ¸é
-     *
-     * "ÀÌ °ÔÀÓÀÇ Fusion ³×Æ®¿öÅ© ¿£Áø"
-     *
-     * ÀÌ¶ó°í »ı°¢ÇÏ¸é µÈ´Ù.
-     *
-     * Session ¿¬°á
-     * Player °ü¸®
-     * NetworkObject Spawn
-     * ³×Æ®¿öÅ© ÀÔ·Â
-     * ¾À µ¿±âÈ­
-     *
-     * µîÀÇ Áß½ÉÀÌ µÈ´Ù.
-     *
-     * StartGame()À» È£ÃâÇÒ ¶§ »ı¼ºµÈ´Ù.
-     *
-     * ========================================================
-     */
-
-    private NetworkRunner _runner;
-
-    [SerializeField]
-    private NetworkPrefabRef _playerPrefab;
-
-
-    /*
-     * PlayerData Prefab
-     * --------------------------------------------------------
-     *
-     * ÇÃ·¹ÀÌ¾îÀÇ °ÔÀÓ ¼³Á¤ / »óÅÂ Á¤º¸¸¦ ÀúÀåÇÏ´Â
-     * NetworkObject Prefab.
-     *
-     * ¿¹:
-     *
-     * ¸ğÀÚ
-     * ºøÀÚ·ç
-     * ¸¶¹ı 1
-     * ¸¶¹ı 2
-     * Ready »óÅÂ
-     * Camp
-     *
-     * µîÀÇ µ¥ÀÌÅÍ¸¦ ÀúÀåÇÏ´Â ¿ëµµ·Î »ç¿ëÇÑ´Ù.
-     *
-     * ½ÇÁ¦ ÀüÅõ Ä³¸¯ÅÍ¿Í´Â º°°³ÀÇ °´Ã¼´Ù.
-     *
-     * ========================================================
-     */
-
-    [SerializeField]
-    private NetworkPrefabRef playerDataPrefab;
-
-
-    /*
-     * ========================================================
-     * _spawnedCharacters
-     * ========================================================
-     *
-     * ÇöÀç ³×Æ®¿öÅ©¿¡ Âü°¡ÇÑ ÇÃ·¹ÀÌ¾î¿Í
-     * ±× ÇÃ·¹ÀÌ¾î¿¡°Ô »ı¼ºµÈ NetworkObject¸¦ ¿¬°áÇÏ´Â Dictionary.
-     *
-     *
-     * Key
-     * --------------------------------------------------------
-     * PlayerRef
-     *
-     * FusionÀÌ °¢ ÇÃ·¹ÀÌ¾î¿¡°Ô ºÎ¿©ÇÏ´Â ³×Æ®¿öÅ©»óÀÇ ÇÃ·¹ÀÌ¾î ID.
-     *
-     *
-     * Value
-     * --------------------------------------------------------
-     * NetworkObject
-     *
-     * ÇØ´ç ÇÃ·¹ÀÌ¾î¿¡°Ô »ı¼ºµÈ ½ÇÁ¦ ³×Æ®¿öÅ© Ä³¸¯ÅÍ.
-     *
-     *
-     * ¿¹:
-     *
-     * PlayerRef(1) ¡æ Player NetworkObject
-     * PlayerRef(2) ¡æ Player NetworkObject
-     *
-     *
-     * ÇöÀç ÄÚµå¿¡¼­´Â ÇÃ·¹ÀÌ¾î Ä³¸¯ÅÍ Spawn ºÎºĞÀÌ ÁÖ¼® Ã³¸®µÇ¾î
-     * ÀÖ±â ¶§¹®¿¡ ¾ÆÁ÷ ½ÇÁ¦·Î Ãß°¡µÇ°í ÀÖÁö´Â ¾Ê´Ù.
-     *
-     * ========================================================
-     */
-
-    private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters
-        = new Dictionary<PlayerRef, NetworkObject>();
-
-
-    /*
-     * ========================================================
-     * playerDatas
-     * ========================================================
-     *
-     * °¢ ÇÃ·¹ÀÌ¾îÀÇ PlayerRef¿Í PlayerData¸¦ ¿¬°áÇÑ´Ù.
-     *
-     *
-     * Key
-     * --------------------------------------------------------
-     * PlayerRef
-     *
-     * Fusion¿¡¼­ ÇØ´ç ÇÃ·¹ÀÌ¾î¸¦ ½Äº°ÇÏ´Â ID.
-     *
-     *
-     * Value
-     * --------------------------------------------------------
-     * PlayerData
-     *
-     * ÇØ´ç ÇÃ·¹ÀÌ¾îÀÇ ³×Æ®¿öÅ© µ¥ÀÌÅÍ.
-     *
-     *
-     * ¿¹:
-     *
-     * PlayerRef(1)
-     *     ¡é
-     * PlayerData
-     *     ¦§¦¡ Hat
-     *     ¦§¦¡ Broom
-     *     ¦§¦¡ Magic1
-     *     ¦§¦¡ Magic2
-     *     ¦¦¦¡ Ready
-     *
-     *
-     * ÀÌ·¸°Ô ÇÃ·¹ÀÌ¾î¿Í µ¥ÀÌÅÍ¸¦ ¿¬°áÇØ¼­ °ü¸®ÇÑ´Ù.
-     *
-     * ========================================================
-     */
-
-    private Dictionary<PlayerRef, PlayerData> playerDatas
-        = new Dictionary<PlayerRef, PlayerData>();
-
-
-    /*
-     * ========================================================
-     * StartGame()
-     * ========================================================
-     *
-     * Fusion Session¿¡ Âü°¡ÇÏ°Å³ª »ı¼ºÇÏ´Â ÇÔ¼ö.
-     *
-     * mode
-     * --------------------------------------------------------
-     * °ÔÀÓ Âü°¡ ¹æ½ÄÀ» °áÁ¤ÇÑ´Ù.
-     *
-     * ¿¹:
-     *
-     * GameMode.Host
-     * GameMode.Client
-     * GameMode.AutoHostOrClient
-     *
-     *
-     * mapName
-     * --------------------------------------------------------
-     * Session ÀÌ¸§ÀÌ´Ù.
-     *
-     * °°Àº SessionNameÀ» »ç¿ëÇÏ´Â ÇÃ·¹ÀÌ¾î³¢¸®
-     * °°Àº SessionÀ» Ã£À» ¼ö ÀÖ´Ù.
-     *
-     *
-     * ÇöÀç ÄÚµå¿¡¼­´Â
-     *
-     * StartGame(GameMode.AutoHostOrClient, "ÀÌÀç¿±");
-     *
-     * ÇüÅÂ·Î È£ÃâÇÏ°í ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
-    async void StartGame(GameMode mode, string mapName) //À¯Àú°¡ Á¢¼ÓÇßÀ» °æ¿ì ¸ğµç À¯Àú¿¡°Ô È£ÃâµÈ´Ù.
+    // ê²Œì„ ì‹œì‘ / ë§¤ì¹­ ë²„íŠ¼ì„ ëˆŒë €ì„ ë•Œ í˜¸ì¶œ
+    public void StartMatch()
     {
-        _runner = gameObject.AddComponent<NetworkRunner>();
-
-
-        _runner.ProvideInput = true;
-
-
-        
-        var scene = SceneRef.FromIndex(
-            SceneManager.GetActiveScene().buildIndex
-        );
-
-
-        var sceneInfo = new NetworkSceneInfo();
-        if (scene.IsValid)
-        {
-            sceneInfo.AddSceneRef(
-                scene,
-                LoadSceneMode.Single
-            );
-        }
-
-        await _runner.StartGame(new StartGameArgs()
-        {
-
-            GameMode = mode,
-
-            SessionName = mapName,
-
-            PlayerCount = 2,
-
-            Scene = scene,
-
-            SceneManager =
-                gameObject.AddComponent<NetworkSceneManagerDefault>()
-        });
+        if (IsMatching) return;
+        if (TryReadRoomId(out string roomId))
+            StartGame(MatchRequest.LegacyCodeMatch, roomId);
     }
 
-
-
-    /*
-     * ========================================================
-     * OnGUI()
-     * ========================================================
-     *
-     * UnityÀÇ GUI¸¦ ÀÌ¿ëÇØ ÀÓ½Ã Å×½ºÆ® ¹öÆ°À» ¸¸µå´Â ÇÔ¼ö.
-     *
-     * ½ÇÁ¦ °ÔÀÓ UI¸¦ ¸¸µå´Â ¿ëµµ°¡ ¾Æ´Ï¶ó
-     * ÇöÀç Fusion ¿¬°áÀ» Å×½ºÆ®ÇÏ±â À§ÇÑ ÄÚµå´Ù.
-     *
-     * ========================================================
-     */
-
-    private void OnGUI()
+    // Three separate button entry points; retain StartMatch only for existing UI.
+    public void CreateRoom()
     {
-        /*
-         * ¾ÆÁ÷ NetworkRunner°¡ »ı¼ºµÇÁö ¾Ê¾Ò´Ù¸é
-         * GameStart ¹öÆ°À» Ç¥½ÃÇÑ´Ù.
-         */
+        if (IsMatching) return;
+        if (TryReadRoomId(out string roomId)) StartGame(MatchRequest.CreateRoom, roomId);
+    }
 
-        if (_runner == null)
+    public void CreateRoom(string roomId, Action onSuccess, Action<string> onFailed)
+    {
+        StartGame(MatchRequest.CreateRoom, roomId, onSuccess, onFailed);
+    }
+
+    public void JoinRoom()
+    {
+        if (IsMatching) return;
+        if (TryReadRoomId(out string roomId)) JoinRoom(roomId);
+    }
+
+    public void JoinRoom(string roomId)
+    {
+        JoinRoom(roomId, null, null);
+    }
+
+    /// <summary>
+    /// ê¸°ì¡´ ë°©ì— ì ‘ì†í•˜ê³  ìš”ì²­í•œ UIì— ê²°ê³¼ë¥¼ ì „ë‹¬í•©ë‹ˆë‹¤. ì—†ëŠ” ë°©ì€ ìƒì„±í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.
+    /// onSuccess: ì„¸ì…˜ ì ‘ì† ì™„ë£Œ (PlayerData/í”„ë¡œí•„ ë™ê¸°í™” ì™„ë£ŒëŠ” ë³„ë„).
+    /// onFailed: ì½”ë“œ ì˜¤ë¥˜, ë¹ˆ ì½”ë“œ, ì ‘ì† ì¤‘ë³µ, ë¡œê·¸ì¸/ì„¤ì • ì˜¤ë¥˜, ì·¨ì†Œ, ì—°ê²° ì‹¤íŒ¨.
+    /// UIëŠ” ì½œë°±ì—ì„œ ì…ë ¥ì°½/ì˜¤ë¥˜ ë¬¸êµ¬ë¥¼ ì²˜ë¦¬í•˜ê³  ëŒ€ê¸°ì‹¤ ì •ë³´ëŠ” linkuserinfoë¡œ ê°±ì‹ í•©ë‹ˆë‹¤.
+    /// </summary>
+    public void JoinRoom(string roomId, Action onSuccess, Action<string> onFailed)
+    {
+        if (IsMatching)
         {
-            /*
-             * GameStart ¹öÆ° Å¬¸¯
-             *
-             * AutoHostOrClient ¹æ½ÄÀ¸·Î
-             * "ÀÌÀç¿±"ÀÌ¶ó´Â Session¿¡ Âü°¡ÇÑ´Ù.
-             */
+            // Reject only this request; never replace an in-flight request's callback/status.
+            NotifyRoomJoinResult(onSuccess, onFailed, "ì´ë¯¸ ì ‘ì† ì¤‘ì´ê±°ë‚˜ ë°©ì— ì…ì¥í•œ ìƒíƒœì…ë‹ˆë‹¤.");
+            return;
+        }
+        if (!RoomCodeRules.TryValidate(roomId, out string code, out string error))
+        {
+            SetMatchStatus(error);
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
+            return;
+        }
 
-            if (GUI.Button(
-                new Rect(0, 0, 200, 40),
-                "GameStart"))
+        StartGame(MatchRequest.JoinRoom, code, onSuccess, onFailed);
+    }
+
+    private void NotifyRoomJoinResult(Action onSuccess, Action<string> onFailed, string error)
+    {
+        // The delegates belong to ONE join attempt, not a global UI reference.
+        Delegate callback = error == null ? (Delegate)onSuccess : onFailed;
+        if (callback == null) return;
+        foreach (Delegate handler in callback.GetInvocationList())
+        {
+            // Scene changes may destroy the UI before the connection finishes.
+            if (handler.Target is UnityEngine.Object target && target == null) continue;
+            try
             {
-                StartGame(
-                    GameMode.AutoHostOrClient,
-                    "ÀÌÀç¿±"
-                );
+                if (error == null) ((Action)handler)();
+                else ((Action<string>)handler)(error);
+            }
+            catch (Exception exception)
+            {
+                // A UI callback error must not shut down a successfully joined session
+                // or deliver a second (failure) result for the same successful attempt.
+                Debug.LogException(exception, this);
             }
         }
     }
 
+    private bool TryReadRoomId(out string roomId)
+    {
+        if (!RoomCodeRules.TryValidate(roomIdInput != null ? roomIdInput.text : null,
+            out roomId, out string error))
+        {
+            SetMatchStatus(roomIdInput == null ? "Room Id Inputì„ ì—°ê²°í•´ì£¼ì„¸ìš”." : error);
+            return false;
+        }
+        return true;
+    }
+
+    // Connect this to a separate random-match button. No room code is required.
+    public void StartRandomMatch()
+    {
+        if (!IsMatching) StartGame(MatchRequest.Random, null);
+    }
+
+    // Main scene training button: a local Fusion simulation, never a public room.
+    public void StartTraining()
+    {
+        if (!IsMatching) StartGame(MatchRequest.Training, null);
+    }
+
+    // Unity Button.OnClick entry point. Keeps the login/profile when returning to Main.
+    public async void ExitTraining()
+    {
+        if (IsTraining && IsBattleSceneLoaded) await ReturnToMainMenuAsync();
+    }
+
+    internal bool IsTrainingScene(Scene scene) => IsTraining && scene.buildIndex == battleSceneIndex;
+
+    // Dropdown: 0 = 1v1, 1 = 2v2, 2 = 1v1 BOT, 3 = 2v2 BOT. Host only in a connected room.
+    public bool TrySetRoomMatchMode(int dropdownValue)
+    {
+        if (dropdownValue < 0 || dropdownValue > 5) return false;
+        BattleMatchMode selected = BattleMatchRules.FromDropdown(dropdownValue);
+        if (IsMatching && (!IsWaitingInCodeRoom || !IsRoomHost)) return false;
+        if (ConnectedPlayerCount > BattleMatchRules.PlayerCount(selected))
+        {
+            SetMatchStatus("ì°¸ê°€ìê°€ 3ëª… ì´ìƒì´ë©´ 1ëŒ€1ë¡œ ë³€ê²½í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
+            return false;
+        }
+        if (selected == CurrentMatchMode) return true; // Keep manually selected teams on a no-op UI event.
+        if (IsRoomHost)
+        {
+            PlayerData owner = GetPlayerData(_runner.LocalPlayer);
+            if (owner == null || !owner.IsRoomOwner) return false;
+            owner.SetRoomMatchMode(selected);
+            // Two remaining players may be on the same side after others leave.
+            var participants = new List<PlayerRef>(_runner.ActivePlayers);
+            participants.Sort((a, b) => a.RawEncoded.CompareTo(b.RawEncoded));
+            assignedTeamIndexes.Clear();
+            foreach (PlayerRef player in participants)
+            {
+                int team = NextTeamIndex();
+                assignedTeamIndexes[player] = team;
+                if (playerDatas.TryGetValue(player, out PlayerData data) && data != null)
+                { data.teamIndex = team; data.camp = team == 1 ? Camp.A : Camp.B; }
+            }
+        }
+        roomMatchMode = selected;
+        RefreshRoomAdmission();
+        UpdateWaitingStatus();
+        return true;
+    }
+
+    public void SetRoomMatchMode(int dropdownValue) => TrySetRoomMatchMode(dropdownValue);
+
+    // Host-authoritative team changes. PlayerData's owner-only RPC supplies the requester.
+    public bool TrySetWaitingTeam(PlayerData data, int team)
+    {
+        if (!IsRoomHost || !IsWaitingInCodeRoom || !BattleMatchRules.IsTeamMode(CurrentMatchMode) ||
+            (team != 1 && team != 2) || data == null || data.Object == null || !data.Object.IsValid ||
+            !data.Object.HasStateAuthority || data.Runner != _runner || !data.IsLoadoutInitialized)
+            return false;
+        PlayerRef player = data.ParticipantRef;
+        if (GetPlayerData(player) != data || !assignedTeamIndexes.ContainsKey(player)) return false;
+        bool connected = false;
+        foreach (PlayerRef participant in _runner.ActivePlayers)
+            if (participant == player) { connected = true; break; }
+        if (!connected) return false;
+        // Count reservations too: another join can be awaiting its PlayerData.Spawned callback.
+        int others = 0;
+        foreach (PlayerRef participant in _runner.ActivePlayers)
+            if (participant != player && assignedTeamIndexes.TryGetValue(participant, out int assigned) && assigned == team)
+                others++;
+        if (others >= 2) return false;
+        assignedTeamIndexes[player] = team;
+        data.teamIndex = team;
+        data.camp = team == 1 ? Camp.A : Camp.B;
+        UpdateWaitingStatus();
+        return true;
+    }
+
+    private void RefreshRoomAdmission()
+    {
+        if (IsTraining || !IsRoomHost || isGameStarting || IsBattleSceneLoaded || cancelRequested || stopInProgress) return;
+        bool open = ConnectedPlayerCount < RequiredPlayerCount;
+        if (_runner.SessionInfo.IsOpen != open) _runner.SessionInfo.IsOpen = open;
+    }
+
+    // Main/code-room start button. This is separate from BattleManager.startGame()
+    // which begins the intro/countdown AFTER Battle has loaded.
+    public void StartRoomGame()
+    {
+        if (isGameStarting || IsBattleSceneLoaded) return;
+        if (IsRandomMatch)
+        {
+            SetMatchStatus("ëœë¤ ë§¤ì¹­ì€ ì°¸ê°€ìê°€ ì¤€ë¹„ë˜ë©´ ìë™ìœ¼ë¡œ ì‹œì‘í•©ë‹ˆë‹¤.");
+            return;
+        }
+        if (!IsRoomHost)
+        {
+            SetMatchStatus("ë°©ì¥ë§Œ ê²Œì„ì„ ì‹œì‘í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.");
+            return;
+        }
+        // Check actual connected users even if invoked directly, not through the UI.
+        int connectedPlayers = 0;
+        foreach (PlayerRef player in _runner.ActivePlayers) connectedPlayers++;
+        if (!IsBotMatch && !IsRaidMode && connectedPlayers < RequiredPlayerCount)
+        {
+            SetMatchStatus($"ê²Œì„ ì‹œì‘ ì‹¤íŒ¨: ì¸ì›ì´ ë¶€ì¡±í•©ë‹ˆë‹¤. ({connectedPlayers}/{RequiredPlayerCount})");
+            return;
+        }
+        if (!CanStartRoomGame)
+        {
+            SetMatchStatus($"ì°¸ê°€ì {RequiredPlayerCount}ëª…ê³¼ PlayerData ì¤€ë¹„ê°€ ì™„ë£Œë˜ì–´ì•¼ ì‹œì‘í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.");
+            return;
+        }
+        BeginBattleTransition();
+    }
+
+    private bool CanBeginBattle()
+    {
+        return IsRoomHost && !startInProgress && !stopInProgress && !cancelRequested &&
+            !isGameStarting && !IsBattleSceneLoaded && initialSceneLoaded &&
+            (_runner.SceneManager == null || !_runner.SceneManager.IsBusy) && AreBattlePlayerDatasReady();
+    }
+
+    private bool ValidateMatchSetup()
+    {
+        if (!HasValidNetworkPrefab(playerDataPrefab, "PlayerData") ||
+            !HasValidNetworkPrefab(playerPrefab, "Player"))
+        {
+            SetMatchStatus("ë„¤íŠ¸ì›Œí¬ í”„ë¦¬íŒ¹ ì„¤ì •ì„ í™•ì¸í•´ì£¼ì„¸ìš”.");
+            return false;
+        }
+        int currentScene = SceneManager.GetActiveScene().buildIndex;
+        if (MatchSceneIndex < 0 || MatchSceneIndex >= SceneManager.sceneCountInBuildSettings ||
+            currentScene < 0 || currentScene == MatchSceneIndex)
+        {
+            Debug.LogError("Start matchmaking from the lobby with a valid Battle build index.", this);
+            SetMatchStatus("ë¡œë¹„ ì”¬ ë° Battle ë¹Œë“œ ì„¤ì •ì„ í™•ì¸í•´ì£¼ì„¸ìš”.");
+            return false;
+        }
+        return true;
+    }
+
+    // Despite its name, this starts/joins a NETWORK SESSION, not the battle.
+    private async void StartGame(MatchRequest request, string roomId,
+        Action onSuccess = null, Action<string> onFailed = null)
+    {
+        if (IsMatching)
+        {
+            NotifyRoomJoinResult(onSuccess, onFailed, "ì´ë¯¸ ì ‘ì† ì¤‘ì´ê±°ë‚˜ ë°©ì— ì…ì¥í•œ ìƒíƒœì…ë‹ˆë‹¤.");
+            return;
+        }
+        // Guard every code-room entry point, including the legacy create-or-join button.
+        // Never truncate an overlong code into another room's code.
+        if (request != MatchRequest.Random && request != MatchRequest.Training)
+        {
+            if (!RoomCodeRules.TryValidate(roomId, out string code, out string error))
+            {
+                SetMatchStatus(error);
+                NotifyRoomJoinResult(onSuccess, onFailed, error);
+                return;
+            }
+            roomId = code;
+        }
+        if (!ValidateMatchSetup())
+        {
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
+            return;
+        }
+        // Keep standalone battle tests usable, but do not match with an uninitialized login profile.
+        if (LoginManager.Instance != null && (!LoginManager.Instance.IsLoggedIn ||
+            DatabaseManager.Instance == null || !DatabaseManager.Instance.IsDataConfigReady))
+        {
+            SetMatchStatus("ë¡œê·¸ì¸ê³¼ ë¡œë¹„ ë°ì´í„° ì´ˆê¸°í™”ë¥¼ ë¨¼ì € ì™„ë£Œí•´ì£¼ì„¸ìš”.");
+            Debug.LogWarning(MatchStatus);
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
+            return;
+        }
+        bool randomMatch = request == MatchRequest.Random;
+        startInProgress = true;
+        cancelRequested = false;
+        IsRandomMatch = randomMatch;
+        IsTraining = request == MatchRequest.Training;
+        randomPlayersReadyAt = -1f;
+        var cancellation = new CancellationTokenSource();
+        matchCancellation = cancellation;
+        NetworkRunner sessionRunner = null;
+        string failureMessage = null;
+        bool connected = false;
+        IDisposable roomLoading = request == MatchRequest.CreateRoom || request == MatchRequest.JoinRoom ||
+            request == MatchRequest.LegacyCodeMatch ? MainLoadingUI.BeginLobby() : null;
+        try
+        {
+            // A failed/shut-down Runner cannot be reused. Its disposable child keeps
+            // shutdown from destroying this persistent manager and the user's UI.
+            runnerObject = new GameObject("WitchFlight Network Session");
+            runnerObject.transform.SetParent(transform, false);
+            sessionRunner = runnerObject.AddComponent<NetworkRunner>();
+            _runner = sessionRunner;
+            sessionRunner.AddCallbacks(this);
+            sessionRunner.ProvideInput = true;
+            var sceneManager = runnerObject.AddComponent<BattleNetworkSceneManager>();
+            var objectProvider = runnerObject.AddComponent<MagicNetworkObjectPool>();
+            SetMatchStatus(request switch
+            {
+                MatchRequest.CreateRoom => "ì½”ë“œ ë°©ì„ ë§Œë“œëŠ” ì¤‘...",
+                MatchRequest.JoinRoom => "ì½”ë“œ ë°©ì— ì ‘ì† ì¤‘...",
+                MatchRequest.Random => "ëœë¤ ìƒëŒ€ë¥¼ ì°¾ëŠ” ì¤‘...",
+                MatchRequest.Training => "í›ˆë ¨ì¥ì„ ì¤€ë¹„í•˜ëŠ” ì¤‘...",
+                _ => "ì½”ë“œ ë°©ì— ì—°ê²° ì¤‘..."
+            });
+
+            var result = await sessionRunner.StartGame(new StartGameArgs
+            {
+                GameMode = request switch
+                {
+                    MatchRequest.CreateRoom => GameMode.Host,
+                    MatchRequest.JoinRoom => GameMode.Client,
+                    MatchRequest.Training => GameMode.Single,
+                    _ => GameMode.AutoHostOrClient
+                },
+                // Explicit join must never silently create a room when the code is absent.
+                EnableClientSessionCreation = request != MatchRequest.JoinRoom,
+                // Null + AutoHostOrClient = join random or create, handled by Photon.
+                SessionName = roomId,
+                // Keep transport capacity at four so a code-room host can switch mode.
+                // Admission and launch enforce the selected two/four-player game size.
+                PlayerCount = IsTraining ? 1 : RandomPlayerCount,
+                CustomLobbyName = randomMatch ? RandomLobbyName : null,
+                SessionProperties = randomMatch ? new Dictionary<string, SessionProperty>
+                {
+                    { "queue", "random-2v2" },
+                    { "players", RandomPlayerCount },
+                    { "battle", battleSceneIndex }
+                } : null,
+                IsVisible = randomMatch,
+                IsOpen = !IsTraining,
+                MatchmakingMode = Fusion.Photon.Realtime.MatchmakingMode.FillRoom,
+                Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex),
+                SceneManager = sceneManager,
+                ObjectProvider = objectProvider,
+                StartGameCancellationToken = cancellation.Token
+            });
+            if (this == null) return;
+            if (cancelRequested || !result.Ok)
+            {
+                bool cancelled = cancelRequested || result.ShutdownReason == ShutdownReason.OperationCanceled;
+                failureMessage = cancelled ? "ë§¤ì¹­ì„ ì·¨ì†Œí–ˆìŠµë‹ˆë‹¤." : GetMatchFailureMessage(result.ShutdownReason);
+                await ShutdownSession(sessionRunner);
+                if (!cancelled) Debug.LogWarning($"Matchmaking failed: {result.ShutdownReason} {result.ErrorMessage}", this);
+            }
+            else if (sessionRunner != null && sessionRunner.IsRunning && ReferenceEquals(_runner, sessionRunner))
+            {
+                connected = true;
+            }
+            else
+            {
+                failureMessage = "ë°©ì— ì ‘ì†í•˜ëŠ” ì¤‘ ì—°ê²°ì´ ì¢…ë£Œë˜ì—ˆìŠµë‹ˆë‹¤. ë‹¤ì‹œ ì‹œë„í•´ì£¼ì„¸ìš”.";
+                await ShutdownSession(sessionRunner);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            failureMessage = "ë§¤ì¹­ì„ ì·¨ì†Œí–ˆìŠµë‹ˆë‹¤.";
+            await ShutdownSession(sessionRunner);
+        }
+        catch (Exception exception)
+        {
+            failureMessage = "ë§¤ì¹­ ì—°ê²°ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤. ë‹¤ì‹œ ì‹œë„í•´ì£¼ì„¸ìš”.";
+            await ShutdownSession(sessionRunner);
+            if (this != null) Debug.LogException(exception, this);
+        }
+        finally
+        {
+            if (ReferenceEquals(matchCancellation, cancellation)) matchCancellation = null;
+            cancellation.Dispose();
+            startInProgress = false;
+            roomLoading?.Dispose();
+        }
+
+        if (this == null) return;
+        // Notify AFTER cleanup/finally so UI can safely retry from a failure callback
+        // and IsWaitingInCodeRoom does not still report "startup in progress" on success.
+        if (connected)
+        {
+            UpdateWaitingStatus();
+            NotifyRoomJoinResult(onSuccess, onFailed, null);
+        }
+        else
+        {
+            SetMatchStatus(failureMessage ?? "ë°©ì— ì ‘ì†í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤. ë‹¤ì‹œ ì‹œë„í•´ì£¼ì„¸ìš”.");
+            NotifyRoomJoinResult(onSuccess, onFailed, MatchStatus);
+        }
+    }
+
+    // Lobby-only cancellation. Battle/scene transition is not a matchmaking cancel.
+    public async void CancelMatch()
+    {
+        if (!CanCancelMatch) return;
+        cancelRequested = true;
+        SetMatchStatus("ë§¤ì¹­ ì·¨ì†Œ ì¤‘...");
+        if (startInProgress)
+        {
+            matchCancellation?.Cancel();
+            return; // StartGame owns shutdown until its awaited operation finishes.
+        }
+        stopInProgress = true;
+        try
+        {
+            await ShutdownSession(_runner);
+            if (this != null) SetMatchStatus("ë§¤ì¹­ì„ ì·¨ì†Œí–ˆìŠµë‹ˆë‹¤.");
+        }
+        finally { stopInProgress = false; }
+    }
+
+    // Account logout disconnects without triggering the authenticated lobby-return flow.
+    public async Task DisconnectForLogoutAsync()
+    {
+        cancelRequested = true;
+        matchCancellation?.Cancel();
+        float deadline = Time.realtimeSinceStartup + 20f;
+        while (startInProgress || stopInProgress)
+        {
+            if (Time.realtimeSinceStartup >= deadline)
+                throw new InvalidOperationException("ë„¤íŠ¸ì›Œí¬ ì—°ê²° ì •ë¦¬ê°€ ì§€ì—°ë˜ê³  ìˆìŠµë‹ˆë‹¤. ì ì‹œ í›„ ë‹¤ì‹œ ë¡œê·¸ì•„ì›ƒí•´ì£¼ì„¸ìš”.");
+            await Task.Yield();
+            if (this == null) return;
+        }
+        stopInProgress = true;
+        try { await ShutdownSession(_runner); }
+        finally { if (this != null) stopInProgress = false; }
+    }
+
+    public void DisposeAfterLogout()
+    {
+        if (_runner != null || startInProgress || stopInProgress) return;
+        // Recreate scene-owned UI references on the next Main load.
+        if (instance == this) instance = null;
+        Destroy(gameObject);
+    }
+
+    // A final-result UI calls this. Shutdown the session before reloading Main;
+    // let Main create a fresh manager with its own live scene UI references.
+    public async Task<bool> ReturnToMainMenuAsync()
+    {
+        TitleProgression.Observe(PlayerData.Local, true);
+        if (stopInProgress || startInProgress) return false;
+        if (!Application.CanStreamedLevelBeLoaded(mainSceneIndex))
+        {
+            Debug.LogError("Main Scene Indexê°€ Build Settingsì˜ í™œì„± ì”¬ì„ ê°€ë¦¬í‚¤ëŠ”ì§€ í™•ì¸í•´ì£¼ì„¸ìš”.", this);
+            return false;
+        }
+        stopInProgress = true;
+        try
+        {
+            await ShutdownSession(_runner);
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            int index = mainSceneIndex;
+            if (instance == this) instance = null;
+            AsyncOperation loading = SceneManager.LoadSceneAsync(index, LoadSceneMode.Single);
+            if (loading == null) throw new InvalidOperationException("ë©”ì¸ ì”¬ ë¡œë“œë¥¼ ì‹œì‘í•˜ì§€ ëª»í–ˆìŠµë‹ˆë‹¤.");
+            Destroy(gameObject);
+            await loading;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            if (this != null && instance == null) instance = this;
+            Debug.LogException(exception);
+            return false;
+        }
+        finally { if (this != null) stopInProgress = false; }
+    }
+
+    private async Task ShutdownSession(NetworkRunner sessionRunner)
+    {
+        // Capture before Shutdown invalidates NetworkBehaviour.Runner. Fusion normally
+        // destroys these objects; the fallback also handles an interrupted startup.
+        var sessionDataObjects = new List<GameObject>();
+        if (sessionRunner != null)
+        {
+            foreach (PlayerData data in FindObjectsByType<PlayerData>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (data != null && data.Runner == sessionRunner) sessionDataObjects.Add(data.gameObject);
+        }
+        try
+        {
+            if (sessionRunner != null) await sessionRunner.Shutdown(destroyGameObject: false);
+        }
+        catch (Exception exception) { Debug.LogWarning($"Session shutdown: {exception.Message}"); }
+        finally
+        {
+            foreach (GameObject dataObject in sessionDataObjects)
+                if (dataObject != null) Destroy(dataObject);
+            if (this != null) CleanupSession(sessionRunner);
+        }
+    }
+
+    private void CleanupSession(NetworkRunner sessionRunner)
+    {
+        if (!ReferenceEquals(_runner, sessionRunner)) return;
+        if (battleInitializationRoutine != null) StopCoroutine(battleInitializationRoutine);
+        battleInitializationRoutine = null;
+        IsBattleSceneLoaded = false;
+        initialSceneLoaded = false;
+        randomPlayersReadyAt = -1f;
+        accumulatedLook = Vector2.zero;
+        latchedButtons = default;
+        _runner = null;
+        isGameStarting = false;
+        IsRandomMatch = false;
+        IsTraining = false;
+        spawnedPlayers.Clear();
+        playerDatas.Clear();
+        assignedTeamIndexes.Clear();
+        if (runnerObject != null) Destroy(runnerObject);
+        runnerObject = null;
+    }
+
+    private void SetMatchStatus(string status)
+    {
+        MatchStatus = status;
+        if (matchmakingStatusText != null) matchmakingStatusText.text = status;
+    }
+
+    private static string GetMatchFailureMessage(ShutdownReason reason)
+    {
+        return reason switch
+        {
+            ShutdownReason.GameNotFound => "í•´ë‹¹ ì½”ë“œì˜ ë°©ì´ ì—†ìŠµë‹ˆë‹¤. ì½”ë“œë¥¼ í™•ì¸í•´ì£¼ì„¸ìš”.",
+            ShutdownReason.GameIdAlreadyExists => "ì´ë¯¸ ì‚¬ìš© ì¤‘ì¸ ë°© ì½”ë“œì…ë‹ˆë‹¤. ë‹¤ë¥¸ ì½”ë“œë¡œ ë§Œë“¤ê±°ë‚˜ ë°© ì ‘ì†ì„ ì„ íƒí•´ì£¼ì„¸ìš”.",
+            ShutdownReason.GameIsFull => "ë°©ì˜ ì¸ì›ì´ ê°€ë“ ì°¼ìŠµë‹ˆë‹¤.",
+            ShutdownReason.GameClosed => "ì´ë¯¸ ì‹œì‘í–ˆê±°ë‚˜ ì…ì¥ì´ ë‹«íŒ ë°©ì…ë‹ˆë‹¤.",
+            _ => $"ë§¤ì¹­ ì‹¤íŒ¨: {reason}. ë‹¤ì‹œ ì‹œë„í•´ì£¼ì„¸ìš”."
+        };
+    }
+
+    private void UpdateWaitingStatus()
+    {
+        if (_runner == null || !_runner.IsRunning || isGameStarting || IsBattleSceneLoaded || cancelRequested) return;
+        int count = 0;
+        foreach (PlayerRef player in _runner.ActivePlayers) count++;
+        if (IsTraining)
+            SetMatchStatus("í›ˆë ¨ì¥ì„ ì¤€ë¹„í•˜ëŠ” ì¤‘...");
+        else if (IsRandomMatch)
+            SetMatchStatus(count >= RequiredPlayerCount
+                ? (requireRandomMatchProfilePreview
+                    ? "ë§¤ì¹­ ì™„ë£Œ! íŒ€ í”„ë¡œí•„ í‘œì‹œ ë° 1ì´ˆ ëŒ€ê¸° ì¤‘..."
+                    : "ë§¤ì¹­ ì™„ë£Œ! ì°¸ê°€ì ë°ì´í„° ì¤€ë¹„ ë° 1ì´ˆ ëŒ€ê¸° ì¤‘...")
+                : $"ëœë¤ ìƒëŒ€ ëŒ€ê¸° ì¤‘ ({count}/{RequiredPlayerCount})");
+        else if (IsRaidMode)
+            SetMatchStatus(CanStartRoomGame ? $"ê±°ëŒ€ ë¨€ì˜¤ë…€ í† ë²Œ ì¤€ë¹„ ì™„ë£Œ Â· í˜„ì¬ {count}ëª…ìœ¼ë¡œ ì‹œì‘í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤." : $"ê±°ëŒ€ ë¨€ì˜¤ë…€ í† ë²Œ Â· ì°¸ê°€ì ì •ë³´ ì¤€ë¹„ ì¤‘ ({count}/4)");
+        else if (IsBotMatch)
+            SetMatchStatus(CanStartRoomGame ? $"ë´‡ì „ ì¤€ë¹„ ì™„ë£Œ Â· ì‹œì‘ ì‹œ ë¹ˆ ìë¦¬ {RequiredPlayerCount - count}ê°œë¥¼ ë´‡ì´ ì±„ì›ë‹ˆë‹¤." : $"ë´‡ì „ ì°¸ê°€ì ì¤€ë¹„ ì¤‘ ({count}/{RequiredPlayerCount})");
+        else if (count < RequiredPlayerCount)
+            SetMatchStatus($"ì°¸ê°€ì ëŒ€ê¸° ì¤‘ ({count}/{RequiredPlayerCount})");
+        else if (!_runner.IsServer)
+            SetMatchStatus("ë°©ì¥ì˜ ê²Œì„ ì‹œì‘ì„ ê¸°ë‹¤ë¦¬ëŠ” ì¤‘...");
+        else
+            SetMatchStatus(CanStartRoomGame ? "ì°¸ê°€ìê°€ ì¤€ë¹„ë˜ì—ˆìŠµë‹ˆë‹¤. ê²Œì„ ì‹œì‘ ë²„íŠ¼ì„ ëˆŒëŸ¬ì£¼ì„¸ìš”." : "ì°¸ê°€ì ì •ë³´ë¥¼ ì¤€ë¹„í•˜ëŠ” ì¤‘...");
+    }
+
+    private void OnDestroy()
+    {
+        if (instance != this) return;
+        instance = null;
+        matchCancellation?.Cancel();
+    }
 
 
-    /*
-     * ========================================================
-     * OnPlayerJoined()
-     * ========================================================
-     *
-     * Fusion Session¿¡ »õ·Î¿î Player°¡ Âü°¡ÇßÀ» ¶§
-     * È£ÃâµÇ´Â Äİ¹é.
-     *
-     *
-     * ¾ÆÁÖ Áß¿äÇÑ ÇÔ¼ö´Ù.
-     *
-     *
-     * ¿¹:
-     *
-     * Host°¡ ¹æ¿¡ µé¾î¿È
-     *     ¡é
-     * OnPlayerJoined()
-     *
-     * Client°¡ µé¾î¿È
-     *     ¡é
-     * OnPlayerJoined()
-     *
-     *
-     * ¿©±â¼­ Áß¿äÇÑ °ÍÀº
-     *
-     * "´©°¡ Á¢¼ÓÇß´Â°¡?"
-     *
-     * ¸¦ PlayerRef player·Î ¾Ë·ÁÁØ´Ù´Â °ÍÀÌ´Ù.
-     *
-     * ========================================================
-     */
-
+    // ë°©ì— í”Œë ˆì´ì–´ê°€ ì ‘ì†í–ˆì„ ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
+    // Hostê°€ í•´ë‹¹ í”Œë ˆì´ì–´ì˜ PlayerData ìƒì„±
     public void OnPlayerJoined(
         NetworkRunner runner,
-        PlayerRef player) //³»°¡ Á¢¼ÓÇßÀ»¶§¸¸ X Á¢¼ÓÇÏ¸é ¸ğµç À¯Àú¿¡°Ô È£ÃâµÈ´Ù.
+        PlayerRef player)
     {
+        if (runner != _runner || cancelRequested) return;
+        randomPlayersReadyAt = -1f;
+        UpdateWaitingStatus();
         if (!runner.IsServer)
             return;
 
-        if (playerDatas.ContainsKey(player)) //PlayerData Áßº¹ »ı¼º ¹æÁö.
+        // Two clients may pass the connection check in the same frame. Enforce the
+        // selected capacity again before reserving a team or spawning PlayerData.
+        if (assignedTeamIndexes.Count >= RequiredPlayerCount && !assignedTeamIndexes.ContainsKey(player))
+        { runner.Disconnect(player); return; }
+        if (playerDatas.ContainsKey(player) || assignedTeamIndexes.ContainsKey(player))
             return;
 
-
-        /*
-         * ====================================================
-         * PlayerData NetworkObject Spawn
-         * ====================================================
-         *
-         * playerDataPrefabÀ» ³×Æ®¿öÅ© »ó¿¡ »ı¼ºÇÑ´Ù.
-         *
-         *
-         * ¸¶Áö¸· ÀÎÀÚÀÎ player´Â
-         * SpawnµÇ´Â NetworkObjectÀÇ Input Authority¸¦
-         * ÇØ´ç ÇÃ·¹ÀÌ¾î¿¡°Ô ºÎ¿©ÇÏ´Â ¿ªÇÒÀ» ÇÑ´Ù.
-         *
-         *
-         * Áï,
-         *
-         * runner.Spawn(
-         *     playerDataPrefab,
-         *     À§Ä¡,
-         *     È¸Àü,
-         *     player
-         * );
-         *
-         *
-         * ¸¶Áö¸· player°¡
-         *
-         * "ÀÌ NetworkObject´Â ÀÌ Player°¡ ¼ÒÀ¯ÇÑ´Ù"
-         *
-         * ¶ó´Â ÀÇ¹Ì°¡ µÈ´Ù.
-         *
-         * ====================================================
-         */
-
-        NetworkObject obj = runner.Spawn(
+        // Spawned()ê°€ ë¹„ë™ê¸°ë¡œ ì‹¤í–‰ë˜ë¯€ë¡œ, PlayerDataë¥¼ ë“±ë¡í•˜ê¸° ì „ì— ì§„ì˜ì„ ì˜ˆì•½í•œë‹¤.
+        assignedTeamIndexes[player] = NextTeamIndex();
+        NetworkObject playerDataObject = runner.Spawn(
             playerDataPrefab,
             Vector3.zero,
             Quaternion.identity,
             player
         );
 
+        PlayerData playerData = playerDataObject != null
+            ? playerDataObject.GetComponent<PlayerData>()
+            : null;
 
-        /*
-         * ¹æ±İ »ı¼ºÇÑ NetworkObject¿¡¼­
-         * PlayerData ÄÄÆ÷³ÍÆ®¸¦ °¡Á®¿Â´Ù.
-         *
-         * ÇöÀç ÄÚµå¿¡¼­´Â °¡Á®¿À±â¸¸ ÇÏ°í
-         * ½ÇÁ¦ Dictionary µî·ÏÀº ÇÏÁö ¾Ê´Â´Ù.
-         *
-         * PlayerDataÀÇ Spawned()¿¡¼­
-         * RegisterPlayerData()¸¦ È£ÃâÇÏ´Â ±¸Á¶¶ó¸é
-         * ÀÌ °´Ã¼´Â Spawned ÀÌÈÄ µî·ÏµÉ ¼ö ÀÖ´Ù.
-         */
-
-        PlayerData data =
-            obj.GetComponent<PlayerData>();
-
-
-        /*
-         * ÇöÀç´Â Á÷Á¢ Dictionary¿¡ ³ÖÁö ¾Ê´Â´Ù.
-         *
-         * ¾Æ·¡ ¹æ½Ä ´ë½Å
-         *
-         * playerDatas.Add(player, data);
-         *
-         * PlayerData ÂÊ¿¡¼­
-         *
-         * NetworkGameManager.Instance.RegisterPlayerData(this);
-         *
-         * ¸¦ È£ÃâÇÏ´Â ±¸Á¶¸¦ »ç¿ëÇÒ ¼ö ÀÖ´Ù.
-         */
-
-        //playerDatas.Add(player, data);
-
-        if (runner.ActivePlayers.Count() >= 2)
+        if (playerData == null)
         {
-            runner.LoadScene(SceneRef.FromIndex(2));
+            assignedTeamIndexes.Remove(player);
+            Debug.LogError($"Failed to create PlayerData for {player}.");
+            return;
+        }
+        // Spawn ì§í›„ í˜¸ìŠ¤íŠ¸ê°€ ë¨¼ì € ë“±ë¡í•œë‹¤. PlayerData.Spawned/RPC ìˆœì„œì— ì˜ì¡´í•˜ì§€ ì•ŠëŠ”ë‹¤.
+        RegisterPlayerData(playerData);
+
+        // PlayerData is match-lifetime data, not a lobby-scene object.
+        // Keep it out of the scene that Fusion unloads during LoadScene.
+        if (playerDataObject != null)
+            runner.MakeDontDestroyOnLoad(playerDataObject.gameObject);
+    }
+
+
+    // PlayerData.Spawned()ì˜ State Authority êµ¬ê°„ì—ì„œ í˜¸ì¶œí•œë‹¤.
+    // ì´ ì‹œì ì€ Fusion ë„¤íŠ¸ì›Œí¬ ìƒíƒœê°’ì„ ì•ˆì „í•˜ê²Œ ê¸°ë¡í•  ìˆ˜ ìˆë‹¤.
+    public void AssignTeamIndex(PlayerData data)
+    {
+        if (_runner == null || !_runner.IsServer || data == null || data.Runner != _runner || data.teamIndex != 0)
+            return;
+
+        PlayerRef player = data.ParticipantRef;
+        if (!assignedTeamIndexes.TryGetValue(player, out int teamIndex))
+        {
+            // ë³µêµ¬ ê²½ë¡œ: ê¸°ì¡´ PlayerDataê°€ ì´ë¯¸ ì¡´ì¬í•˜ëŠ” ê²½ìš°ì—ë„ ì¼ê´€ëœ ê°’ì„ ë§Œë“ ë‹¤.
+            teamIndex = NextTeamIndex();
+            assignedTeamIndexes[player] = teamIndex;
+        }
+
+        data.teamIndex = teamIndex;
+        data.camp = teamIndex == 1 ? Camp.A : Camp.B;
+        if (data.IsRoomOwner) data.SetRoomMatchMode(IsRandomMatch ? BattleMatchMode.TwoVsTwo : roomMatchMode);
+    }
+
+    private int NextTeamIndex()
+    {
+        if (IsRaidMode) return 1;
+        // Still 1,2,1,2 in join order; fill the vacant side after a waiting player leaves.
+        int team1 = 0, team2 = 0;
+        foreach (int team in assignedTeamIndexes.Values)
+            if (team == 1) team1++; else if (team == 2) team2++;
+        return team1 <= team2 ? 1 : 2;
+    }
+    // PlayerDataê°€ ìƒì„±ëœ í›„ PlayerData.Spawned()ì—ì„œ í˜¸ì¶œ
+    // ìƒì„±ëœ PlayerDataë¥¼ Dictionaryì— ë“±ë¡
+    public void RegisterPlayerData(
+        PlayerData data)
+    {
+        // PlayerData DictionaryëŠ” ì „íˆ¬ Playerë¥¼ ìƒì„±í•˜ëŠ” í˜¸ìŠ¤íŠ¸ë§Œ ê´€ë¦¬í•œë‹¤.
+        if (_runner == null || !_runner.IsServer || cancelRequested || data == null ||
+            data.Object == null || data.Runner != _runner)
+            return;
+
+        PlayerRef player = data.ParticipantRef;
+        playerDatas[player] = data;
+    }
+
+    public void NotifyPlayerDataInitialized(PlayerData data)
+    {
+        if (_runner == null || !_runner.IsServer || cancelRequested || data == null || data.Runner != _runner)
+            return;
+
+        RegisterPlayerData(data);
+        CheckPlayerCount();
+    }
+
+
+    // PlayerDataê°€ ì œê±°ë  ë•Œ PlayerData.Despawned()ì—ì„œ í˜¸ì¶œ
+    public void UnregisterPlayerData(
+        PlayerData data)
+    {
+        if (data == null || data.Object == null || data.Runner != _runner)
+            return;
+
+        PlayerRef player =
+            data.ParticipantRef;
+
+        if (playerDatas.TryGetValue(player, out PlayerData registered) && registered == data)
+        {
+            randomPlayersReadyAt = -1f;
+            playerDatas.Remove(player);
+            assignedTeamIndexes.Remove(player);
         }
     }
 
 
-
-    /*
-     * ========================================================
-     * RegisterPlayerData()
-     * ========================================================
-     *
-     * PlayerData°¡ ÀÚ½ÅÀÇ Á¸Àç¸¦
-     * NetworkGameManager¿¡°Ô µî·ÏÇÒ ¶§ »ç¿ëÇÏ´Â ÇÔ¼ö.
-     *
-     *
-     * PlayerData°¡ NetworkBehaviourÀÌ°í
-     * Spawned()¿¡¼­ ÀÌ ÇÔ¼ö¸¦ È£ÃâÇÑ´Ù°í »ı°¢ÇÏ¸é µÈ´Ù.
-     *
-     * ========================================================
-     */
-
-    public void RegisterPlayerData(PlayerData data)
+    // PlayerData ë“±ë¡ í›„ í˜¸ì¶œ
+    // í˜„ì¬ í”Œë ˆì´ì–´ê°€ ìµœëŒ€ ì¸ì›ì¸ì§€ í™•ì¸
+    private void CheckPlayerCount()
     {
-        /*
-         * PlayerData°¡ °¡Áö°í ÀÖ´Â NetworkObjectÀÇ
-         * InputAuthority¸¦ PlayerRef·Î »ç¿ëÇÑ´Ù.
-         *
-         *
-         * °á°ú:
-         *
-         * PlayerRef
-         *      ¡é
-         * PlayerData
-         *
-         * ÇüÅÂ·Î Dictionary¿¡ ÀúÀåµÈ´Ù.
-         */
+        if ((!IsRandomMatch && !IsTraining) || !CanBeginBattle())
+        {
+            randomPlayersReadyAt = -1f;
+            return;
+        }
+        if (IsTraining || AreRandomStartRequirementsMet()) BeginBattleTransition();
+    }
 
-        playerDatas.Add(
-            data.Object.InputAuthority,
-            data
+    private bool AreRandomStartRequirementsMet()
+    {
+        if (requireRandomMatchProfilePreview)
+        {
+            randomPlayersReadyAt = -1f;
+            return AreRandomProfilesPresented();
+        }
+        // UI-independent test path. CanBeginBattle must still validate the host,
+        // connected participants, initialized PlayerData and scene-loading state.
+        if (randomPlayersReadyAt < 0f) randomPlayersReadyAt = Time.unscaledTime;
+        return Time.unscaledTime - randomPlayersReadyAt >= 1f;
+    }
+
+    private bool AreRandomProfilesPresented()
+    {
+        // Every peer must display EVERY other participant, including its teammate.
+        foreach (PlayerRef playerRef in _runner.ActivePlayers)
+        {
+            if (!playerDatas.TryGetValue(playerRef, out PlayerData data) || data == null) return false;
+            foreach (PlayerRef opponentRef in _runner.ActivePlayers)
+            {
+                if (opponentRef == playerRef) continue;
+                if (!playerDatas.TryGetValue(opponentRef, out PlayerData opponent) || opponent == null ||
+                    !data.HasPresentedLobbyOpponent(opponent)) return false;
+            }
+        }
+        return true;
+    }
+
+    private void BeginBattleTransition()
+    {
+        // Revalidate at click time; do not trust an earlier UI enabled state.
+        if (!CanBeginBattle())
+        {
+            randomPlayersReadyAt = -1f;
+            return;
+        }
+        if (IsRandomMatch && !AreRandomStartRequirementsMet()) return;
+        if (!ValidateMatchSetup()) return;
+        if (IsBotMatch && !FillBotSeats()) return;
+        isGameStarting = true;
+        if (!IsTraining)
+        {
+            _runner.SessionInfo.IsOpen = false;
+            _runner.SessionInfo.IsVisible = false;
+        }
+        SetMatchStatus(IsTraining ? "í›ˆë ¨ì¥ìœ¼ë¡œ ì´ë™ ì¤‘..." : IsRaidMode ? "ê±°ëŒ€ ë¨€ì˜¤ë…€ í† ë²Œë¡œ ì´ë™ ì¤‘..." : IsRaceMode ? "Race ì”¬ìœ¼ë¡œ ì´ë™ ì¤‘..." : "ë§¤ì¹­ ì™„ë£Œ! Battle ì”¬ìœ¼ë¡œ ì´ë™ ì¤‘...");
+
+        LoadBattleScene();
+    }
+
+
+    // í”Œë ˆì´ì–´ ì¸ì›ì´ ìµœëŒ€ ì¸ì›ì— ë„ë‹¬í–ˆì„ ë•Œ í˜¸ì¶œ
+    // ëª¨ë“  í”Œë ˆì´ì–´ë¥¼ ì „íˆ¬ ì”¬ìœ¼ë¡œ ì´ë™
+    private void LoadBattleScene()
+    {
+        if (!_runner.IsServer)
+            return;
+
+        _runner.LoadScene(
+            SceneRef.FromIndex(
+                MatchSceneIndex
+            )
         );
     }
 
 
-
-    /*
-     * ========================================================
-     * UnregisterPlayerData()
-     * ========================================================
-     *
-     * PlayerData°¡ ³×Æ®¿öÅ©¿¡¼­ Á¦°ÅµÉ ¶§
-     * Dictionary¿¡¼­µµ ÇØ´ç µ¥ÀÌÅÍ¸¦ Á¦°ÅÇÏ±â À§ÇÑ ÇÔ¼ö.
-     *
-     * ========================================================
-     */
-
-    public void UnregisterPlayerData(PlayerData data)
+    // ë„¤íŠ¸ì›Œí¬ë¥¼ í†µí•œ ì”¬ ë¡œë”©ì´ ì™„ë£Œë˜ë©´ Fusionì´ ìë™ í˜¸ì¶œ
+    // Hostê°€ BattleManagerë¥¼ ì°¾ì•„ ì „íˆ¬ ì´ˆê¸°í™” ì‹œì‘
+    public void OnSceneLoadDone(
+        NetworkRunner runner)
     {
-        /*
-         * ÇØ´ç PlayerDataÀÇ InputAuthority¸¦ ÀÌ¿ëÇØ¼­
-         * Dictionary¿¡¼­ »èÁ¦ÇÑ´Ù.
-         */
+        if (runner != _runner || cancelRequested) return;
+        initialSceneLoaded = true;
+        int sceneIndex =
+            SceneManager.GetActiveScene().buildIndex;
 
-        playerDatas.Remove(
-            data.Object.InputAuthority
-        );
+        IsBattleSceneLoaded = sceneIndex == MatchSceneIndex;
+        if (sceneIndex != MatchSceneIndex)
+            return;
+        
+        isGameStarting = true;
+        SetMatchStatus(IsTraining ? "í›ˆë ¨ì¥" : "ë§¤ì¹­ ì™„ë£Œ");
+
+        if (!runner.IsServer)
+            return;
+
+        BattleManager battleManager =
+            FindFirstObjectByType<BattleManager>();
+
+        if (battleManager == null)
+        {
+            GameObject battleManagerObject = new GameObject("BattleManager");
+            battleManager = battleManagerObject.AddComponent<BattleManager>();
+            Debug.LogWarning("Battle scene had no BattleManager. A runtime BattleManager was created.");
+        }
+
+        if (battleInitializationRoutine == null)
+        {
+            battleInitializationRoutine = StartCoroutine(
+                InitializeBattleWhenPlayerDataIsReady(
+                    battleManager,
+                    runner
+                )
+            );
+        }
     }
 
 
+    private IEnumerator InitializeBattleWhenPlayerDataIsReady(
+        BattleManager battleManager,
+        NetworkRunner runner)
+    {
+        // PlayerDataì˜ Spawned ë° Loadout RPCê°€ ë°˜ì˜ë  ë•Œê¹Œì§€ BattleManager ì´ˆê¸°í™”ë¥¼ ë¯¸ë£¬ë‹¤.
+        while (!AreBattlePlayerDatasReady())
+            yield return null;
 
-    /*
-     * ========================================================
-     * OnPlayerLeft()
-     * ========================================================
-     *
-     * ÇÃ·¹ÀÌ¾î°¡ Session¿¡¼­ ³ª°¬À» ¶§ È£ÃâµÇ´Â Äİ¹é.
-     *
-     * ¿¹:
-     *
-     * Client°¡ °ÔÀÓÀ» Á¾·á
-     *     ¡é
-     * OnPlayerLeft()
-     *
-     * ========================================================
-     */
+        battleManager.InitializeBattle(
+            runner,
+            playerDatas,
+            playerPrefab,
+            spawnedPlayers
+        );
 
+        battleInitializationRoutine = null;
+    }
+
+    private bool AreBattlePlayerDatasReady()
+    {
+        if (_runner == null || !_runner.IsRunning || !_runner.IsServer) return false;
+        int count = 0, teamA = 0, teamB = 0;
+        // Count connected participants, not stale dictionary entries after disconnects.
+        foreach (PlayerRef player in _runner.ActivePlayers)
+        {
+            count++;
+            if (!playerDatas.TryGetValue(player, out PlayerData data) ||
+                data == null || data.Object == null || !data.Object.IsValid || data.Runner != _runner || !data.IsLoadoutInitialized ||
+                (data.teamIndex != 1 && data.teamIndex != 2))
+                return false;
+            if (data.teamIndex == 1) teamA++; else teamB++;
+        }
+        if (IsTraining) return count == 1 && teamA == 1 && playerDatas.ContainsKey(_runner.LocalPlayer);
+        if (IsRaidMode) return count >= 1 && count <= 4;
+        return IsBotMatch ? count > 0 && count <= RequiredPlayerCount && teamA <= RequiredPlayerCount / 2 && teamB <= RequiredPlayerCount / 2 : count == RequiredPlayerCount && teamA == RequiredPlayerCount / 2 && teamB == RequiredPlayerCount / 2;
+    }
+    // ë‹¤ë¥¸ ìŠ¤í¬ë¦½íŠ¸ì—ì„œ íŠ¹ì • í”Œë ˆì´ì–´ì˜ PlayerDataê°€ í•„ìš”í•  ë•Œ í˜¸ì¶œ
+    public PlayerData GetPlayerData(
+        PlayerRef player)
+    {
+        if (playerDatas.TryGetValue(
+            player,
+            out PlayerData data))
+        {
+            return data;
+        }
+
+        return null;
+    }
+
+
+    // ë‹¤ë¥¸ ìŠ¤í¬ë¦½íŠ¸ì—ì„œ íŠ¹ì • í”Œë ˆì´ì–´ì˜ ì‹¤ì œ Player ì˜¤ë¸Œì íŠ¸ê°€ í•„ìš”í•  ë•Œ í˜¸ì¶œ
+    public NetworkObject GetPlayerObject(
+        PlayerRef player)
+    {
+        if (spawnedPlayers.TryGetValue(
+            player,
+            out NetworkObject playerObject))
+        {
+            return playerObject;
+        }
+
+        return null;
+    }
+
+
+    // ê²Œì„ ì¤‘ í”Œë ˆì´ì–´ê°€ ë°©ì„ ë‚˜ê°€ê±°ë‚˜ ì—°ê²°ì´ ëŠê²¼ì„ ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
     public void OnPlayerLeft(
         NetworkRunner runner,
         PlayerRef player)
     {
-        /*
-         * ÇØ´ç PlayerRef·Î »ı¼ºµÈ
-         * NetworkObject¸¦ Dictionary¿¡¼­ Ã£´Â´Ù.
-         */
+        if (runner != _runner || cancelRequested) return;
+        randomPlayersReadyAt = -1f;
+        UpdateWaitingStatus();
+        if (!runner.IsServer)
+            return;
 
-        if (_spawnedCharacters.TryGetValue(
+        BattleManager.Instance?.PlayerLeft(player);
+
+        if (spawnedPlayers.TryGetValue(
             player,
-            out NetworkObject networkObject))
+            out NetworkObject playerObject))
         {
-            /*
-             * ÇØ´ç ÇÃ·¹ÀÌ¾îÀÇ NetworkObject¸¦
-             * ³×Æ®¿öÅ©¿¡¼­ Á¦°ÅÇÑ´Ù.
-             */
+            runner.Despawn(playerObject);
 
-            runner.Despawn(networkObject);
-
-
-            /*
-             * Dictionary¿¡¼­µµ Á¦°ÅÇÑ´Ù.
-             */
-
-            _spawnedCharacters.Remove(player);
+            spawnedPlayers.Remove(player);
         }
+
+        if (playerDatas.TryGetValue(player, out PlayerData departedData))
+        {
+            playerDatas.Remove(player);
+            if (departedData != null && departedData.Object != null && departedData.Object.IsValid)
+                runner.Despawn(departedData.Object);
+        }
+
+        assignedTeamIndexes.Remove(player);
     }
 
 
-
-    /*
-     * ========================================================
-     * OnInput()
-     * ========================================================
-     *
-     * FusionÀÌ ·ÎÄÃ ÇÃ·¹ÀÌ¾îÀÇ ÀÔ·ÂÀ» ¿äÃ»ÇÒ ¶§ È£ÃâµÈ´Ù.
-     *
-     * ProvideInput = true·Î ¼³Á¤µÇ¾î ÀÖ¾î¾ß ÀÇ¹Ì°¡ ÀÖ´Ù.
-     *
-     *
-     * Áß¿äÇÑ Á¡:
-     *
-     * ¿©±â¼­ ÀÔ·ÂÀ» "³×Æ®¿öÅ©·Î Á÷Á¢ º¸³»´Â °Í"ÀÌ¶ó±âº¸´Ù
-     *
-     * "ÇöÀç Tick¿¡¼­ »ç¿ëÇÒ ÀÔ·Â µ¥ÀÌÅÍ¸¦ Fusion¿¡°Ô Á¦°ø"
-     *
-     * ÇÑ´Ù°í ÀÌÇØÇÏ´Â °ÍÀÌ ÁÁ´Ù.
-     *
-     * ========================================================
-     */
-
+    // ê²Œì„ ì‹¤í–‰ ì¤‘ ë§¤ ë„¤íŠ¸ì›Œí¬ Tickë§ˆë‹¤ Fusionì´ ìë™ í˜¸ì¶œ
+    // í˜„ì¬ í‚¤ë³´ë“œì™€ ë§ˆìš°ìŠ¤ ì…ë ¥ì„ NetworkInputDataì— ì €ì¥
     public void OnInput(
         NetworkRunner runner,
         NetworkInput input)
     {
-        /*
-         * ³×Æ®¿öÅ©·Î Àü´ŞÇÒ ÀÔ·Â µ¥ÀÌÅÍ¸¦ »ı¼ºÇÑ´Ù.
-         */
-
         NetworkInputData data =
             new NetworkInputData();
+        if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
+            CombatPresentation.MenuOpen || Cursor.lockState != CursorLockMode.Locked)
+        {
+            data.suppressActions = true;
+            accumulatedLook = Vector2.zero;
+            latchedButtons = default;
+            pendingEmoteCombatSuppression = false;
+            input.Set(data);
+            return;
+        }
+        data.buttons.Set(PlayerInputButton.Accelerate, ControlSettings.Held(ControlAction.Accelerate));
+        data.buttons.Set(PlayerInputButton.Decelerate, Input.GetKey(KeyCode.S));
+        data.buttons.Set(PlayerInputButton.QuickBrake, ControlSettings.Held(ControlAction.QuickBrake));
+        data.buttons.Set(PlayerInputButton.TurnLeft, ControlSettings.Held(ControlAction.TurnLeft));
+        data.buttons.Set(PlayerInputButton.TurnRight, ControlSettings.Held(ControlAction.TurnRight));
+        data.buttons.Set(PlayerInputButton.Lock, ControlSettings.Held(ControlAction.LockOn));
+        data.buttons.Set(PlayerInputButton.Parry, ControlSettings.Held(ControlAction.Parry));
+        data.buttons.Set(PlayerInputButton.Boost, ControlSettings.Held(ControlAction.Boost));
+        data.buttons.Set(PlayerInputButton.MagicSlot1, ControlSettings.Held(ControlAction.MagicSlot1));
+        data.buttons.Set(PlayerInputButton.MagicSlot2, ControlSettings.Held(ControlAction.MagicSlot2));
+        data.buttons.Set(PlayerInputButton.MagicSlot3, Input.GetKey(KeyCode.Alpha3));
+        data.buttons.Set(PlayerInputButton.Menu, Input.GetKey(KeyCode.Escape));
 
-
-        /*
-         * W
-         * °¡¼Ó ÀÔ·Â
-         */
-
-        data.accelerate =
-            Input.GetKey(KeyCode.W);
-
-
-        /*
-         * S
-         * °¨¼Ó ÀÔ·Â
-         */
-
-        data.decelerate =
-            Input.GetKey(KeyCode.S);
-
-
-        /*
-         * A
-         * ÁÂÈ¸Àü ÀÔ·Â
-         */
-
-        data.turnLeft =
-            Input.GetKey(KeyCode.A);
-
-
-        /*
-         * D
-         * ¿ìÈ¸Àü ÀÔ·Â
-         */
-
-        data.turnRight =
-            Input.GetKey(KeyCode.D);
-
-
-        /*
-         * ¸¶¿ì½º YÃà ¿òÁ÷ÀÓ.
-         *
-         * GetAxisRaw¸¦ »ç¿ëÇÏ¿©
-         * ¸¶¿ì½º ¿òÁ÷ÀÓ °ªÀ» °¡Á®¿Â´Ù.
-         */
-
-        data.mouseY =
-            Input.GetAxisRaw("Mouse Y");
-
-
-        /*
-         * ¿Ï¼ºµÈ ÀÔ·Â µ¥ÀÌÅÍ¸¦ Fusion¿¡ Àü´ŞÇÑ´Ù.
-         *
-         * ÀÌÈÄ NetworkBehaviourÀÇ
-         * FixedUpdateNetwork()¿¡¼­
-         *
-         * GetInput(out NetworkInputData data)
-         *
-         * ¸¦ ÅëÇØ ÀÌ µ¥ÀÌÅÍ¸¦ °¡Á®¿Ã ¼ö ÀÖ´Ù.
-         */
+        for (int i = 0; i <= (int)PlayerInputButton.QuickBrake; i++)
+        {
+            if (latchedButtons.IsSet(i))
+                data.buttons.Set(i, true);
+        }
+        latchedButtons = default;
+        data.look = BattleEmoteUI.CapturesMouse ? Vector2.zero : accumulatedLook;
+        data.suppressCombat = BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput || pendingEmoteCombatSuppression;
+        pendingEmoteCombatSuppression = false;
+        if (data.suppressCombat)
+        {
+            data.buttons.Set(PlayerInputButton.Lock,false);
+            data.buttons.Set(PlayerInputButton.Parry,false);
+        }
+        accumulatedLook = Vector2.zero;
+        Player local = Player.LocalPlayer;
+        if (local != null)
+        {
+            data.portalExitSequence = local.PortalExitSequence;
+            if (inputPlayer != local)
+            {
+                inputPlayer = local;
+                inputTargeting = local.GetComponent<enemyLockOn>();
+                inputCamera = null; // Respawn/scene changes must not retain the old camera.
+            }
+            if (inputCamera == null || !inputCamera.isActiveAndEnabled || !inputCamera.CompareTag("MainCamera"))
+            {
+                inputCamera = Camera.main;
+                inputCameraFollow = inputCamera != null ? inputCamera.GetComponent<CameraFollow>() : null;
+            }
+            if (inputTargeting != null)
+            {
+                data.lockTarget = inputTargeting.GetInputTarget(data.buttons.IsSet(PlayerInputButton.Lock));
+                inputTargeting.SampleBladeRain(ref data);
+            }
+            // Missing camera means no validated aim, not automatic nose alignment.
+            data.aimDirection = Vector3.zero;
+            data.aimUp = local.transform.up;
+            if (inputCameraFollow != null)
+            {
+                CameraFollow follow = inputCameraFollow;
+                follow.SynchronizePortalExit();
+                data.aimDirection = (follow.GetDisplayedAimPoint() - local.LockAimPoint).normalized;
+                if (follow.TryGetSteeringInput(out Vector3 direction, out Vector3 up))
+                {
+                    // Desired steering direction only; Dot hitscan aim is sent separately below.
+                    data.aimDirection = direction;
+                    data.aimUp = up;
+                    data.steerToAim = true;
+                }
+            }
+            if (inputCamera != null && (data.buttons.IsSet(PlayerInputButton.Lock) || local.IsMagicStormActive))
+                data.magicAimDirection = local.GetDotAimDirection(BattleHud.GetMagicAimRay(inputCamera));
+            // Include the release tick: that is when the area position becomes fixed.
+            if (inputCamera != null)
+                data.hasAreaAimPoint = local.TryGetAreaAimPoint(BattleHud.GetMagicAimRay(inputCamera), out data.areaAimPoint);
+        }
 
         input.Set(data);
     }
 
 
-
-    /*
-     * ========================================================
-     * OnInputMissing()
-     * ========================================================
-     *
-     * FusionÀÌ Æ¯Á¤ PlayerÀÇ ÀÔ·ÂÀ» ¹ŞÁö ¸øÇßÀ» ¶§ È£ÃâµÉ ¼ö ÀÖ´Ù.
-     *
-     * ÇöÀç´Â ¾Æ¹«·± Ã³¸®¸¦ ÇÏÁö ¾Ê´Â´Ù.
-     *
-     * ========================================================
-     */
-
+    // í•´ë‹¹ Tickì— í”Œë ˆì´ì–´ ì…ë ¥ì„ ë°›ì§€ ëª»í–ˆì„ ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
     public void OnInputMissing(
         NetworkRunner runner,
         PlayerRef player,
@@ -656,67 +1171,36 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnShutdown()
-     * ========================================================
-     *
-     * Fusion Runner°¡ Á¾·áµÇ¾úÀ» ¶§ È£ÃâµÈ´Ù.
-     *
-     * ¿¹:
-     *
-     * Session Á¾·á
-     * ³×Æ®¿öÅ© ¿¬°á Á¾·á
-     * ¿À·ù·Î ÀÎÇÑ Shutdown
-     *
-     * µîÀÇ »óÈ²¿¡¼­ È£ÃâµÈ´Ù.
-     *
-     * shutdownReasonÀ» ÅëÇØ Á¾·á ÀÌÀ¯¸¦ ¾Ë ¼ö ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
+    // NetworkRunnerê°€ ì¢…ë£Œë  ë•Œ Fusionì´ ìë™ í˜¸ì¶œ
     public void OnShutdown(
         NetworkRunner runner,
         ShutdownReason shutdownReason)
     {
+        if (!ReferenceEquals(runner, _runner)) return;
+        // Async startup/cancellation owns cleanup until its await completes.
+        if (startInProgress || stopInProgress) return;
+        CleanupSession(runner);
+        SetMatchStatus($"ì—°ê²°ì´ ì¢…ë£Œë˜ì—ˆìŠµë‹ˆë‹¤: {shutdownReason}. ë¡œë¹„ì—ì„œ ë‹¤ì‹œ ë§¤ì¹­í•´ì£¼ì„¸ìš”.");
+    }
+
+    private bool HasValidNetworkPrefab(NetworkPrefabRef prefab, string name)
+    {
+        if (prefab.IsValid)
+            return true;
+
+        Debug.LogError($"NetworkGameManager {name} Network Prefab is not assigned.");
+        return false;
     }
 
 
-
-    /*
-     * ========================================================
-     * OnConnectedToServer()
-     * ========================================================
-     *
-     * Client°¡ Server/Host¿¡ Á¤»óÀûÀ¸·Î ¿¬°áµÇ¾úÀ» ¶§
-     * È£ÃâµÈ´Ù.
-     *
-     * "³×Æ®¿öÅ© ¿¬°á ¼º°ø"À» È®ÀÎÇÏ´Â ¿ëµµ·Î »ç¿ëÇÒ ¼ö ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
+    // Fusion ì„œë²„ ì—°ê²°ì´ ì™„ë£Œë˜ì—ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnConnectedToServer(
         NetworkRunner runner)
     {
     }
 
 
-
-    /*
-     * ========================================================
-     * OnDisconnectedFromServer()
-     * ========================================================
-     *
-     * Server¿ÍÀÇ ¿¬°áÀÌ ²÷°åÀ» ¶§ È£ÃâµÈ´Ù.
-     *
-     * reasonÀ» ÅëÇØ ¿¬°áÀÌ ²÷±ä ÀÌÀ¯¸¦ È®ÀÎÇÒ ¼ö ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
+    // Fusion ì„œë²„ì™€ ì—°ê²°ì´ ëŠê²¼ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnDisconnectedFromServer(
         NetworkRunner runner,
         NetDisconnectReason reason)
@@ -724,42 +1208,20 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnConnectRequest()
-     * ========================================================
-     *
-     * ´Ù¸¥ Client°¡ ÀÌ Runner¿¡ ¿¬°áÀ» ¿äÃ»ÇßÀ» ¶§ È£ÃâµÈ´Ù.
-     *
-     *
-     * ¿©±â¼­ ¿¬°á ¿äÃ»À» °Ë»çÇÏ°Å³ª
-     * TokenÀ» È®ÀÎÇÏ´Â µîÀÇ Ã³¸®¸¦ ÇÒ ¼ö ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
+    // ë‹¤ë¥¸ í”Œë ˆì´ì–´ê°€ ì„œë²„ì— ì—°ê²°ì„ ìš”ì²­í–ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnConnectRequest(
         NetworkRunner runner,
         NetworkRunnerCallbackArgs.ConnectRequest request,
         byte[] token)
     {
+        if (IsTraining || runner != _runner || isGameStarting || cancelRequested || ConnectedPlayerCount >= RequiredPlayerCount)
+            request.Refuse();
+        else
+            request.Accept();
     }
 
 
-
-    /*
-     * ========================================================
-     * OnConnectFailed()
-     * ========================================================
-     *
-     * Server/Session¿¡ ¿¬°áÇÏ·Á ÇßÁö¸¸ ½ÇÆĞÇßÀ» ¶§ È£ÃâµÈ´Ù.
-     *
-     * reasonÀ» ÅëÇØ ½ÇÆĞ ¿øÀÎÀ» È®ÀÎÇÒ ¼ö ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
+    // ì„œë²„ ì—°ê²°ì— ì‹¤íŒ¨í–ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnConnectFailed(
         NetworkRunner runner,
         NetAddress remoteAddress,
@@ -768,20 +1230,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnUserSimulationMessage()
-     * ========================================================
-     *
-     * FusionÀÇ SimulationMessage¸¦ Ã³¸®ÇÏ´Â Äİ¹é.
-     *
-     * ÇöÀç ÇÁ·ÎÁ§Æ®¿¡¼­´Â Á÷Á¢ »ç¿ëÇÒ ÇÊ¿ä°¡ ¾ø±â ¶§¹®¿¡
-     * ºñ¿öµĞ´Ù.
-     *
-     * ========================================================
-     */
-
+    // UserSimulationMessageë¥¼ ë°›ì•˜ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnUserSimulationMessage(
         NetworkRunner runner,
         SimulationMessagePtr message)
@@ -789,24 +1238,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnSessionListUpdated()
-     * ========================================================
-     *
-     * Session ¸ñ·ÏÀÌ ¾÷µ¥ÀÌÆ®µÇ¾úÀ» ¶§ È£ÃâµÈ´Ù.
-     *
-     *
-     * ³ªÁß¿¡
-     *
-     * "ÇöÀç Á¸ÀçÇÏ´Â ¹æ ¸ñ·Ï"
-     *
-     * À» UI¿¡ º¸¿©ÁÖ°í ½Í´Ù¸é »ç¿ëÇÒ ¼ö ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
+    // ì„¸ì…˜ ëª©ë¡ì´ ë³€ê²½ë˜ì—ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnSessionListUpdated(
         NetworkRunner runner,
         List<SessionInfo> sessionList)
@@ -814,20 +1246,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnCustomAuthenticationResponse()
-     * ========================================================
-     *
-     * FusionÀÇ Custom AuthenticationÀ» »ç¿ëÇßÀ» ¶§
-     * ÀÎÁõ ¼­¹ö¿¡¼­ ¹ŞÀº ÀÀ´äÀ» Ã³¸®ÇÏ´Â °÷.
-     *
-     * ÇöÀç´Â »ç¿ëÇÏÁö ¾Ê´Â´Ù.
-     *
-     * ========================================================
-     */
-
+    // Custom Authentication ì‘ë‹µì„ ë°›ì•˜ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnCustomAuthenticationResponse(
         NetworkRunner runner,
         Dictionary<string, object> data)
@@ -835,20 +1254,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnHostMigration()
-     * ========================================================
-     *
-     * Host°¡ °ÔÀÓ¿¡¼­ ³ª°¡ Host ±ÇÇÑÀ» ´Ù¸¥ Player°¡
-     * ÀÌ¾î¹Ş´Â Host Migration »óÈ²¿¡¼­ È£ÃâµÈ´Ù.
-     *
-     * ÇöÀç´Â ¾Æ¹«·± Ã³¸®¸¦ ÇÏÁö ¾Ê´Â´Ù.
-     *
-     * ========================================================
-     */
-
+    // í˜„ì¬ Hostê°€ ë‚˜ê°€ì„œ Host Migrationì´ ë°œìƒí–ˆì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnHostMigration(
         NetworkRunner runner,
         HostMigrationToken hostMigrationToken)
@@ -856,171 +1262,24 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnSceneLoadDone()
-     * ========================================================
-     *
-     * FusionÀÌ ³×Æ®¿öÅ© SceneÀ» ¸ğµÎ ·ÎµåÇÑ ÈÄ È£ÃâµÈ´Ù.
-     *
-     *
-     * ¿¹:
-     *
-     * Host°¡ ¾À2·Î ÀÌµ¿
-     *        ¡é
-     * Clientµµ ¾À2 ·Îµå
-     *        ¡é
-     * Scene Load ¿Ï·á
-     *        ¡é
-     * OnSceneLoadDone()
-     *
-     *
-     * ¿©±â¿¡¼­ ÇöÀç Scene¿¡ ÇÊ¿äÇÑ
-     * NetworkObject¸¦ SpawnÇÏ´Â µîÀÇ ÀÛ¾÷À» ÇÒ ¼ö ÀÖ´Ù.
-     *
-     * ========================================================
-     */
-
-    public void OnSceneLoadDone(
-        NetworkRunner runner)
-    {
-        /*
-         * ÇöÀç È°¼ºÈ­µÈ Unity SceneÀÇ Build Index¸¦ °¡Á®¿Â´Ù.
-         */
-
-        // int sceneIndex =
-        // SceneManager.GetActiveScene().buildIndex;
-
-
-        /*
-         * ÇöÀç Scene¿¡ µû¶ó ´Ù¸¥ Ã³¸®¸¦ ÇÏ±â À§ÇÑ ºĞ±â.
-         */
-
-        /* switch (sceneIndex)
-         {
-             *//*
-              * =================================================
-              * Scene 1
-              * =================================================
-              *
-              * ÇöÀç ±âÈ¹¿¡¼­ ¸ŞÀÎ / Ä¿½ºÅÍ¸¶ÀÌÂ¡ Scene.
-              *
-              * PlayerData¸¦ »ç¿ëÇÏ°Å³ª
-              * Ready ½Ã½ºÅÛ µîÀ» ±¸ÇöÇÒ ¼ö ÀÖ´Â À§Ä¡.
-              *
-              * =================================================
-              *//*
-
-             case 1:
-
-                 //SpawnLobbyPlayerData();
-
-                 // ¸ŞÀÎ¾À
-
-                 break;
-
-
-
-             *//*
-              * =================================================
-              * Scene 2
-              * =================================================
-              *
-              * ÇöÀç ±âÈ¹¿¡¼­ ½ÇÁ¦ ÀüÅõ°¡ ÁøÇàµÇ´Â Scene.
-              *
-              * PlayerData¿¡ ÀúÀåµÈ Á¤º¸¸¦ ÀĞ°í
-              * BattlePlayer¸¦ SpawnÇÏ´Â µîÀÇ ÀÛ¾÷À»
-              * ÀÌ°÷¿¡¼­ ½ÃÀÛÇÒ ¼ö ÀÖ´Ù.
-              *
-              * =================================================
-              *//*
-
-             case 2:
-
-                 // ÀüÅõ¾À
-
-                 //SpawnBattlePlayer();
-
-                 break;
-         }*/
-
-        if (!runner.IsServer)
-            return;
-        int sceneIndex = SceneManager.GetActiveScene().buildIndex;
-
-        switch (sceneIndex)
-        {
-            case 1:
-                // ¸ŞÀÎ/·Îºñ ¾À
-                break;
-
-            case 2:
-                // ÀüÅõ ¾À
-                {
-                    foreach (var data in playerDatas)
-                    {
-                         
-                    }
-                    break;
-
-                }
-
-        }
-    }
-
-
-
-    /*
-     * ========================================================
-     * OnSceneLoadStart()
-     * ========================================================
-     *
-     * FusionÀÌ ³×Æ®¿öÅ© SceneÀ» ·ÎµåÇÏ±â ½ÃÀÛÇÒ ¶§ È£ÃâµÈ´Ù.
-     *
-     *
-     * OnSceneLoadDone()
-     *      ¡é
-     * Scene ·Îµå ¿Ï·á
-     *
-     * ¶ó¸é,
-     *
-     * OnSceneLoadStart()
-     *      ¡é
-     * Scene ·Îµå ½ÃÀÛ
-     *
-     * ÀÌ¶ó°í »ı°¢ÇÏ¸é µÈ´Ù.
-     *
-     * ========================================================
-     */
-
+    // ë„¤íŠ¸ì›Œí¬ ì”¬ ë¡œë”©ì´ ì‹œì‘ë  ë•Œ ìë™ í˜¸ì¶œ
     public void OnSceneLoadStart(
         NetworkRunner runner)
     {
+        if (runner != _runner || cancelRequested) return;
+        // The first load is the initial lobby; later loads belong to the battle transition.
+        if (initialSceneLoaded)
+        {
+            isGameStarting = true;
+            SetMatchStatus("ë§¤ì¹­ ì™„ë£Œ! Battle ì”¬ìœ¼ë¡œ ì´ë™ ì¤‘...");
+        }
+        IsBattleSceneLoaded = false;
+        accumulatedLook = Vector2.zero;
+        latchedButtons = default;
     }
 
 
-
-    /*
-     * ========================================================
-     * OnObjectExitAOI()
-     * ========================================================
-     *
-     * AOI(Area Of Interest)¿¡¼­ NetworkObject°¡
-     * ¹ş¾î³µÀ» ¶§ È£ÃâµÈ´Ù.
-     *
-     *
-     * ´ë±Ô¸ğ ¸Ê¿¡¼­
-     *
-     * "³» ÁÖº¯¿¡ ÀÖ´Â NetworkObject¸¸ µ¿±âÈ­"
-     *
-     * ÇÏ´Â ½Ã½ºÅÛÀ» »ç¿ëÇÒ ¶§ È°¿ëÇÒ ¼ö ÀÖ´Ù.
-     *
-     * ÇöÀç °ÔÀÓ¿¡¼­´Â ´çÀå »ç¿ëÇÏÁö ¾Ê¾Æµµ µÈ´Ù.
-     *
-     * ========================================================
-     */
-
+    // íŠ¹ì • NetworkObjectê°€ í”Œë ˆì´ì–´ì˜ AOI ë°–ìœ¼ë¡œ ë‚˜ê°”ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnObjectExitAOI(
         NetworkRunner runner,
         NetworkObject obj,
@@ -1029,18 +1288,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnObjectEnterAOI()
-     * ========================================================
-     *
-     * NetworkObject°¡ Æ¯Á¤ PlayerÀÇ
-     * AOI(Area Of Interest)¿¡ µé¾î¿ÔÀ» ¶§ È£ÃâµÈ´Ù.
-     *
-     * ========================================================
-     */
-
+    // íŠ¹ì • NetworkObjectê°€ í”Œë ˆì´ì–´ì˜ AOI ì•ˆìœ¼ë¡œ ë“¤ì–´ì™”ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnObjectEnterAOI(
         NetworkRunner runner,
         NetworkObject obj,
@@ -1049,23 +1297,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnReliableDataReceived()
-     * ========================================================
-     *
-     * FusionÀÇ Reliable Data Àü¼Û ±â´ÉÀ» »ç¿ëÇÒ ¶§
-     * »ó´ë¹æ¿¡°Ô¼­ ½Å·Ú¼º ÀÖ´Â µ¥ÀÌÅÍ¸¦ ¹Ş¾ÒÀ» °æ¿ì È£ÃâµÈ´Ù.
-     *
-     * ÀÏ¹İÀûÀÎ Networked Property³ª Network RPC¿Í´Â
-     * º°µµÀÇ µ¥ÀÌÅÍ Àü´Ş ½Ã½ºÅÛÀÌ´Ù.
-     *
-     * ÇöÀç ÇÁ·ÎÁ§Æ®¿¡¼­´Â »ç¿ëÇÏÁö ¾Ê´Â´Ù.
-     *
-     * ========================================================
-     */
-
+    // Reliable Dataë¥¼ ì •ìƒì ìœ¼ë¡œ ë°›ì•˜ì„ ë•Œ ìë™ í˜¸ì¶œ
     public void OnReliableDataReceived(
         NetworkRunner runner,
         PlayerRef player,
@@ -1075,21 +1307,7 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
 
-
-    /*
-     * ========================================================
-     * OnReliableDataProgress()
-     * ========================================================
-     *
-     * Reliable Data Àü¼Û ÁøÇà »óÈ²À» È®ÀÎÇÒ ¶§ »ç¿ëÇÑ´Ù.
-     *
-     * progress´Â ÀÏ¹İÀûÀ¸·Î 0 ~ 1 ¹üÀ§ÀÇ ÁøÇà·üÀ» ÀÇ¹ÌÇÑ´Ù.
-     *
-     * ÇöÀç ÇÁ·ÎÁ§Æ®¿¡¼­´Â »ç¿ëÇÏÁö ¾Ê´Â´Ù.
-     *
-     * ========================================================
-     */
-
+    // Reliable Dataë¥¼ ë°›ëŠ” ì§„í–‰ë¥ ì´ ë³€ê²½ë  ë•Œ ìë™ í˜¸ì¶œ
     public void OnReliableDataProgress(
         NetworkRunner runner,
         PlayerRef player,
@@ -1098,4 +1316,3 @@ public class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     {
     }
 }
-

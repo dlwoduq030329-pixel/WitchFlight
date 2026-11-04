@@ -1,0 +1,954 @@
+﻿using System.Collections.Generic;
+using Fusion;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+public enum BattleStartPhase { WaitingForPlayers, Intro, Countdown, Playing, Ended, Intermission, MapTour, TrainingTutorial, RoundResult }
+
+// One existing network flag owns the replicated match clock, carrier and result.
+[DefaultExecutionOrder(50)]
+public partial class BattleFlag : NetworkBehaviour, IAfterRender
+{
+    [SerializeField, Min(0.1f)] private float pickupRadius = 0.85f;
+    public float PickupRadius => pickupRadius;
+    [Tooltip("드롭된 깃발과 맵 벽 사이에 확보할 공간입니다.")]
+    [SerializeField, Min(.1f)] private float dropClearance = 1.2f;
+    [SerializeField] private Vector3 carryOffset = new Vector3(0f, 1.3f, -0.5f);
+    [Header("Carried flag appearance (pickup radius stays unchanged)")]
+    [Tooltip("깃발 모델을 묶은 자식 Transform입니다. NetworkObject 루트가 아닌 모델 전용 자식을 연결하세요.")]
+    [SerializeField] private Transform flagVisualRoot;
+    [Tooltip("소지 중에만 원래 모델 크기에 곱할 배율입니다. 드랍 시 원래 크기로 복구됩니다.")]
+    [SerializeField, Range(0.05f, 1f)] private float carriedVisualScale = 0.35f;
+    [Tooltip("소지 중 등 본 기준 위치. 카메라 회전에 영향받지 않습니다.")]
+    [SerializeField] private Vector3 carriedVisualOffset = new Vector3(-.12f, -.3f, -.24f);
+    [SerializeField] private Vector3 carriedVisualEuler = new Vector3(0f, -15f, 35f);
+    private Quaternion originalVisualRotation;
+    private FlagClothMotion clothMotion;
+
+    [Networked] public PlayerRef Carrier { get; private set; }
+    [Networked] public PlayerRef LastCarrier { get; private set; }
+    [Networked] public int LastCarrierTeam { get; private set; }
+    [Networked] public int WinningTeam { get; private set; }
+    [Networked] public bool HasEnded { get; private set; }
+    [Networked] private bool HasStarted { get; set; }
+    [Networked] private NetworkId CarrierObjectId { get; set; }
+    [Networked] private PlayerRef DroppedBy { get; set; }
+    [Networked] private TickTimer DroppedPickupTimer { get; set; }
+    [Networked] private Vector3 WorldPosition { get; set; }
+    [Networked] public bool IsDescending { get; private set; }
+    [Networked] private TickTimer MatchTimer { get; set; }
+    [Networked] public BattleStartPhase Phase { get; private set; }
+    [Networked] public float TourMoveSeconds { get; private set; }
+    [Networked] public float TourFadeSeconds { get; private set; }
+    public float TourDuration => TourMoveSeconds > 0f ? 3f * (TourMoveSeconds + 2f * TourFadeSeconds) + TourFadeSeconds : 0f;
+    [Networked] public int ExpectedPlayerCount { get; private set; }
+    [Networked] private bool IsPrepared { get; set; }
+    [Networked] private TickTimer PhaseTimer { get; set; }
+    [Networked] public int RoundNumber { get; private set; }
+    [Networked] public int Team1Wins { get; private set; }
+    [Networked] public int Team2Wins { get; private set; }
+    [Networked] public int LastRoundWinner { get; private set; }
+    [Networked] public int AllowedMagicChanges { get; private set; }
+    [Networked] public bool IsOvertime { get; private set; }
+    public const int WinsRequired = 2;
+
+    // Bounded persistent areas; only creation changes network state (no per-frame RPCs).
+    public const int MaxSmokeClouds = 16;
+    [Networked, Capacity(MaxSmokeClouds)] private NetworkArray<SmokeCloudState> SmokeClouds => default;
+    [Networked] private int SmokeSequence { get; set; }
+    private readonly GameObject[] smokeViews = new GameObject[MaxSmokeClouds];
+    private readonly int[] smokeViewSequences = new int[MaxSmokeClouds];
+
+    private readonly HashSet<PlayerRef> readyPlayers = new();
+    private bool startRequested;
+    private float introSeconds;
+    private bool mapTourStarted;
+    private float matchSeconds;
+    private float initialFlagHeight;
+    private float fallStopHeight;
+    private float fallSpeed;
+    private Vector3 roundFlagPosition;
+    private float magicChangeSeconds;
+    private Renderer[] flagRenderers;
+    private bool[] originalRenderingOff;
+    private ShadowCastingMode[] originalShadows;
+    private bool flagSmokeHidden;
+    private Vector3 originalVisualPosition, originalVisualScale;
+    private bool visualTransformCached;
+    private readonly FlagBackMount backMount = new();
+    private Player lastVisualCarrier;
+    private int lastVisualPortalSequence;
+
+    private struct PositionSample
+    {
+        public NetworkId ObjectId;
+        public Vector3 Center;
+    }
+
+    private readonly Dictionary<PlayerRef, PositionSample> previousPositions = new();
+    private readonly RaycastHit[] obstacleHits = new RaycastHit[32];
+    private readonly Collider[] dropObstacles = new Collider[64];
+    private SphereCollider dropProbe;
+    private PropertyReader<Vector3> worldPositionReader;
+    private PropertyReader<NetworkId> carrierIdReader;
+    public static BattleFlag Instance { get; private set; }
+    // Shared by predicted movement and authority-only XP. Only the current holder counts.
+    public bool IsCarriedBy(NetworkRunner runner, PlayerRef player)
+    {
+        return Object != null && Object.IsValid && Runner == runner &&
+            Phase == BattleStartPhase.Playing && player != PlayerRef.None && Carrier == player;
+    }
+    public float PhaseRemainingSeconds => Object != null && Object.IsValid
+        ? Mathf.Max(0f, PhaseTimer.RemainingTime(Runner) ?? 0f) : 0f;
+    public float RemainingSeconds => Object != null && Object.IsValid && HasStarted && !HasEnded
+        ? Mathf.Max(0f, MatchTimer.RemainingTime(Runner) ?? 0f) : 0f;
+
+    public override void Spawned()
+    {
+        Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
+        worldPositionReader = GetPropertyReader<Vector3>(nameof(WorldPosition));
+        carrierIdReader = GetPropertyReader<NetworkId>(nameof(CarrierObjectId));
+        Instance = this;
+        CacheFlagRenderers();
+        CacheFlagVisualTransform();
+        BattleManager.Instance?.RegisterFlag(this);
+        foreach (Collider flagCollider in GetComponentsInChildren<Collider>())
+            flagCollider.isTrigger = true;
+    }
+
+    public void PrepareMatch(Vector3 position, float durationSeconds, int requiredPlayers, float presentationSeconds,
+        float changeSeconds = 40f, int changeLimit = 2, float tourMoveSeconds = 0f, float tourFadeSeconds = 0.6f)
+    {
+        if (!Object.HasStateAuthority || IsPrepared)
+            return;
+        WorldPosition = position;
+        transform.position = position;
+        initialFlagHeight = position.y;
+        IsDescending = false;
+        ExpectedPlayerCount = Mathf.Max(1, requiredPlayers);
+        matchSeconds = Mathf.Max(1f, durationSeconds);
+        introSeconds = Mathf.Max(0.1f, presentationSeconds);
+        TourMoveSeconds = Mathf.Max(0f, tourMoveSeconds);
+        TourFadeSeconds = Mathf.Max(0.05f, tourFadeSeconds);
+        mapTourStarted = false;
+        roundFlagPosition = position;
+        magicChangeSeconds = Mathf.Max(1f, changeSeconds);
+        AllowedMagicChanges = Mathf.Clamp(changeLimit, 1, 2);
+        RoundNumber = 1;
+        Team1Wins = Team2Wins = LastRoundWinner = 0;
+        IsOvertime = false;
+        Phase = BattleStartPhase.WaitingForPlayers;
+        PhaseTimer = TickTimer.None;
+        MatchTimer = TickTimer.None;
+        readyPlayers.Clear();
+        HasStarted = false;
+        HasEnded = false;
+        IsPrepared = true;
+    }
+
+    // Called only by an InputAuthority RPC on the actual Player object, never a supplied player id.
+    public void MarkPlayerReady(PlayerRef playerRef)
+    {
+        if (!Object.HasStateAuthority || !IsPrepared || Phase != BattleStartPhase.WaitingForPlayers)
+            return;
+        if (!BattleParticipants.TryGetPlayerObject(Runner, playerRef, out NetworkObject playerObject) ||
+            playerObject == null || !playerObject.IsValid || playerObject.InputAuthority != playerRef)
+            return;
+        Player player = playerObject.GetComponent<Player>();
+        if (player != null && player.IsAlive && player.TeamIndex > 0 && player.MaxHp > 0f)
+            readyPlayers.Add(playerRef);
+    }
+
+    public void RequestStart()
+    {
+        if (Object.HasStateAuthority && IsPrepared && Phase == BattleStartPhase.WaitingForPlayers)
+            startRequested = true;
+    }
+
+    public void ForgetReadyPlayer(PlayerRef playerRef)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority)
+            return;
+        readyPlayers.Remove(playerRef);
+        if (Phase == BattleStartPhase.Intro || Phase == BattleStartPhase.MapTour || Phase == BattleStartPhase.Countdown || Phase == BattleStartPhase.TrainingTutorial)
+            ResetPreparation();
+    }
+
+    private bool AreAllPlayersReady()
+    {
+        int count = 0;
+        foreach (PlayerRef playerRef in BattleParticipants.Refs(Runner))
+        {
+            count++;
+            PlayerData participant = PlayerData.FindPerkData(Runner, playerRef);
+            if ((participant != null && participant.IsMatchBot ? false : !readyPlayers.Contains(playerRef)) ||
+                !BattleParticipants.TryGetPlayerObject(Runner, playerRef, out NetworkObject playerObject) ||
+                playerObject == null || !playerObject.IsValid)
+                return false;
+        }
+        return count >= ExpectedPlayerCount;
+    }
+
+    private void ResetPreparation()
+    {
+        Phase = BattleStartPhase.WaitingForPlayers;
+        PhaseTimer = TickTimer.None;
+        readyPlayers.Clear();
+    }
+
+    private void TickPreparation()
+    {
+        if (!AreAllPlayersReady())
+        {
+            // Never begin a two-player match if one leaves during the intro/countdown.
+            if (Phase != BattleStartPhase.WaitingForPlayers)
+                ResetPreparation();
+            return;
+        }
+        if (Phase == BattleStartPhase.WaitingForPlayers)
+        {
+            BattleManager manager = BattleManager.Instance;
+            if (!startRequested && manager != null && (manager.AutoStartWhenReady || manager.IsTraining))
+                manager.startGame();
+            if (!startRequested)
+                return;
+            bool training = manager != null && manager.IsTraining;
+            bool playTour = RoundNumber == 1 && !mapTourStarted && TourDuration > 0f;
+            Phase = training
+                ? (playTour ? BattleStartPhase.MapTour : BattleStartPhase.Countdown)
+                : BattleStartPhase.Intro;
+            PhaseTimer = TickTimer.CreateFromSeconds(Runner,
+                training ? (playTour ? TourDuration : 3f) : introSeconds);
+            if (Phase == BattleStartPhase.MapTour) mapTourStarted = true;
+            if (training && !playTour) BeginTrainingGuideOrCountdown();
+        }
+        else if (Phase == BattleStartPhase.Intro && PhaseTimer.Expired(Runner))
+        {
+            bool playTour = RoundNumber == 1 && !mapTourStarted && TourDuration > 0f;
+            Phase = playTour ? BattleStartPhase.MapTour : BattleStartPhase.Countdown;
+            PhaseTimer = TickTimer.CreateFromSeconds(Runner, playTour ? TourDuration : 3f);
+            if (playTour) mapTourStarted = true;
+        }
+        else if (Phase == BattleStartPhase.MapTour && PhaseTimer.Expired(Runner))
+        {
+            BeginTrainingGuideOrCountdown();
+        }
+        else if (Phase == BattleStartPhase.TrainingTutorial && !CatTutorialDirector.TrainingGuideRequired)
+        {
+            Phase = BattleStartPhase.Countdown;
+            PhaseTimer = TickTimer.CreateFromSeconds(Runner, 3f);
+        }
+        else if (Phase == BattleStartPhase.Countdown && PhaseTimer.Expired(Runner))
+        {
+            BeginMatch(WorldPosition, matchSeconds);
+        }
+    }
+
+    private void BeginTrainingGuideOrCountdown()
+    {
+        bool guide = BattleManager.Instance != null && BattleManager.Instance.IsTraining &&
+            CatTutorialDirector.TrainingGuideRequired;
+        Phase = guide ? BattleStartPhase.TrainingTutorial : BattleStartPhase.Countdown;
+        PhaseTimer = guide ? TickTimer.None : TickTimer.CreateFromSeconds(Runner, 3f);
+    }
+
+    private void BeginMatch(Vector3 position, float durationSeconds)
+    {
+        if (!Object.HasStateAuthority || HasStarted)
+            return;
+        Carrier = PlayerRef.None;
+        LastCarrier = PlayerRef.None;
+        DroppedBy = PlayerRef.None;
+        DroppedPickupTimer = TickTimer.None;
+        LastCarrierTeam = 0;
+        WinningTeam = 0;
+        CarrierObjectId = default;
+        WorldPosition = position;
+        transform.position = position;
+        HasEnded = false;
+        HasStarted = true;
+        Phase = BattleStartPhase.Playing;
+        foreach(var data in PlayerData.PerkPlayers)
+            if(data!=null&&data.Runner==Runner)data.RecordTitleRoundStart(RoundNumber);
+        BattleManager.Instance?.RecordRoundMagicPicks();
+        PhaseTimer = TickTimer.None;
+        MatchTimer = BattleManager.Instance != null && BattleManager.Instance.IsTraining
+            ? TickTimer.None : TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, durationSeconds));
+        previousPositions.Clear();
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (!Object.HasStateAuthority || !IsPrepared || HasEnded)
+            return;
+        if (Phase == BattleStartPhase.RoundResult)
+        {
+            if (PhaseTimer.Expired(Runner))
+            {
+                if (Team1Wins >= WinsRequired || Team2Wins >= WinsRequired)
+                { EndSeries(LastRoundWinner); return; }
+                Phase = BattleStartPhase.Intermission;
+                PhaseTimer = TickTimer.CreateFromSeconds(Runner, magicChangeSeconds);
+                BattleManager.Instance?.BeginMagicChange();
+            }
+            return;
+        }
+        if (Phase == BattleStartPhase.Intermission)
+        {
+            if (PhaseTimer.Expired(Runner) || AreAllRoundPlayersReady()) PrepareNextRound();
+            return;
+        }
+        if (Phase != BattleStartPhase.Playing)
+        {
+            TickPreparation();
+            return;
+        }
+        bool training = BattleManager.Instance != null && BattleManager.Instance.IsTraining;
+        BattleManager.Instance?.TickRespawns();
+        if (Carrier != PlayerRef.None)
+        {
+            Player carrier = GetCarrierPlayer();
+            if (carrier == null || !carrier.IsAlive)
+                DropCarrier(Carrier, carrier != null ? carrier.transform.position : WorldPosition,
+                    carrier != null && carrier.DiedFromAltitude);
+            else
+                WorldPosition = carrier.transform.TransformPoint(carryOffset);
+        }
+        UpdateDescent();
+        CheckPickupAndRecordPositions();
+        transform.position = WorldPosition;
+        // Resolve death/drop and pickups before the deadline decision. A past owner
+        // never wins while the flag is free, including while it is falling.
+        if (!training && (IsOvertime || MatchTimer.Expired(Runner)))
+        {
+            Player current = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
+            if (current != null && current.IsAlive && (current.TeamIndex == 1 || current.TeamIndex == 2))
+                FinishRound(current.TeamIndex);
+            else IsOvertime = true;
+        }
+    }
+
+    private void FinishRound(int team)
+    {
+        if (BattleManager.Instance != null && BattleManager.Instance.IsTraining) return;
+        if (!Object.HasStateAuthority || Phase != BattleStartPhase.Playing || HasEnded ||
+            (team != 1 && team != 2)) return;
+        LastRoundWinner = team;
+        var titleCarrier=GetCarrierPlayer();
+        foreach(var data in PlayerData.PerkPlayers)
+            if(data!=null&&data.Runner==Runner)data.RecordTitleFlagRoundEnd(data.ParticipantRef==Carrier,team,titleCarrier!=null?titleCarrier.NowHp:0);
+        if (team == 1) Team1Wins++; else Team2Wins++;
+        MatchTimer = TickTimer.None;
+        HasStarted = false;
+        IsOvertime = false;
+        Carrier = PlayerRef.None;
+        CarrierObjectId = default;
+        ClearRoundSmoke();
+        Phase = BattleStartPhase.RoundResult;
+        PhaseTimer = TickTimer.CreateFromSeconds(Runner, BattleResultsTable.Default.roundResultSeconds);
+    }
+
+    private void PrepareNextRound()
+    {
+        if (!Object.HasStateAuthority || Phase != BattleStartPhase.Intermission ||
+            (!PhaseTimer.Expired(Runner) && !AreAllRoundPlayersReady())) return;
+        RoundNumber++;
+        WorldPosition = roundFlagPosition;
+        transform.position = roundFlagPosition;
+        LastCarrier = Carrier = PlayerRef.None;
+        DroppedBy = PlayerRef.None;
+        DroppedPickupTimer = TickTimer.None;
+        LastCarrierTeam = 0;
+        CarrierObjectId = default;
+        IsDescending = IsOvertime = HasStarted = false;
+        previousPositions.Clear();
+        readyPlayers.Clear();
+        PhaseTimer = MatchTimer = TickTimer.None;
+        Phase = BattleStartPhase.WaitingForPlayers;
+        startRequested = true; // Subsequent rounds always repeat readiness -> VS -> countdown.
+        BattleManager.Instance?.ResetPlayersForNextRound();
+    }
+
+    public bool CanChangeMagic(int round) => Object != null && Object.IsValid &&
+        Object.HasStateAuthority && !HasEnded && Phase == BattleStartPhase.Intermission &&
+        round == RoundNumber && PhaseTimer.IsRunning && !PhaseTimer.Expired(Runner);
+
+    private bool AreAllRoundPlayersReady()
+    {
+        int count = 0;
+        foreach (PlayerRef participant in BattleParticipants.Refs(Runner))
+        {
+            var data = PlayerData.FindPerkData(Runner, participant);
+            if (data == null || data.Object == null || !data.Object.IsValid || !data.IsLoadoutInitialized ||
+                data.MagicChangeRound != RoundNumber || !data.RoundSwapReady) return false;
+            count++;
+        }
+        return count >= ExpectedPlayerCount && count > 0;
+    }
+
+    public void EndSeriesByForfeit(int team)
+    {
+        if (BattleManager.Instance != null && BattleManager.Instance.IsTraining) return;
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || HasEnded ||
+            (team != 1 && team != 2)) return;
+        if (team == 1) Team1Wins = WinsRequired; else Team2Wins = WinsRequired;
+        EndSeries(team);
+    }
+
+    private void EndSeries(int team)
+    {
+        SelectMatchAwards();
+        WinningTeam = team;
+        HasEnded = true;
+        Phase = BattleStartPhase.Ended;
+        PhaseTimer = MatchTimer = TickTimer.None;
+        ClearRoundSmoke();
+        BattleManager.Instance?.NotifyBattleEnded(team);
+    }
+
+    // Snapshot names/profile IDs at the kill, before either PlayerData can disappear.
+    public void AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || Phase != BattleStartPhase.Playing) return;
+        RPC_AnnounceKill(killerName, killerProfile, victimName, victimProfile);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All, Channel = RpcChannel.Reliable)]
+    private void RPC_AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile)
+    {
+        BattleKillFeed.Instance?.ShowKill(killerName, killerProfile, victimName, victimProfile);
+        BattleAudio.Play(BattleSound.KillNotice, local: true);
+    }
+
+    private void ClearRoundSmoke()
+    {
+        for (int i = 0; i < SmokeClouds.Length; i++) SmokeClouds.Set(i, default);
+    }
+
+    private Player GetCarrierPlayer()
+    {
+        return Runner.TryFindObject(CarrierObjectId, out NetworkObject carrierObject) && carrierObject != null
+            ? carrierObject.GetComponent<Player>() : null;
+    }
+
+    public void DropCarrier(PlayerRef playerRef, Vector3 position, bool descend = false)
+    {
+        if (!Object.HasStateAuthority || HasEnded || Carrier != playerRef || playerRef == PlayerRef.None)
+            return;
+        DroppedBy = playerRef;
+        DroppedPickupTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f,
+            FlightCombatTable.Default != null ? FlightCombatTable.Default.droppedFlagOwnerDelay : 1.2f));
+        WorldPosition = ResolveDropPosition(position);
+        Carrier = PlayerRef.None;
+        CarrierObjectId = default;
+        IsDescending = descend;
+        if (descend)
+        {
+            fallStopHeight = Mathf.Min(initialFlagHeight, WorldPosition.y);
+            MapBoundaryTable table = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
+            fallSpeed = Mathf.Max(0.1f, table != null ? table.flagFallSpeed : 5f);
+        }
+        // Retain history for presentation only; it no longer decides a round winner.
+        previousPositions.Clear();
+    }
+
+    private void UpdateDescent()
+    {
+        if (!IsDescending || Carrier != PlayerRef.None)
+            return;
+        float step = fallSpeed * Runner.DeltaTime;
+        float stopHeight = fallStopHeight;
+        // Stop above solid scenery, ignoring flag triggers and player colliders.
+        float clearance = Mathf.Max(pickupRadius, dropClearance);
+        int count = Runner.GetPhysicsScene().SphereCast(WorldPosition, clearance, Vector3.down,
+            obstacleHits, step + .05f, ~0, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = obstacleHits;
+        if (count == obstacleHits.Length) { IsDescending = false; return; }
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (!IsDropScenery(hit.collider)) continue;
+            stopHeight = Mathf.Max(stopHeight, WorldPosition.y - Mathf.Max(0f, hit.distance - .05f));
+        }
+        Vector3 position = WorldPosition;
+        position.y = Mathf.Max(stopHeight, position.y - step);
+        WorldPosition = position;
+        if (position.y <= stopHeight)
+            IsDescending = false;
+    }
+
+    private bool IsDropScenery(Collider hit) => hit != null && !hit.isTrigger &&
+        !hit.transform.IsChildOf(transform) && hit.GetComponentInParent<Player>() == null &&
+        hit.GetComponentInParent<MagicProjectile>() == null && hit.GetComponentInParent<BattleItemPickup>() == null;
+
+    private bool DropPointClear(Vector3 point, float radius)
+    {
+        int count = Runner.GetPhysicsScene().OverlapSphere(point, radius, dropObstacles, ~0, QueryTriggerInteraction.Ignore);
+        if (count == dropObstacles.Length) return false;
+        for (int i = 0; i < count; i++) if (IsDropScenery(dropObstacles[i])) return false;
+        return true;
+    }
+
+    private Vector3 ResolveDropPosition(Vector3 requested)
+    {
+        float radius = Mathf.Max(pickupRadius, dropClearance);
+        Player holder = GetCarrierPlayer();
+        Vector3 anchor = holder != null ? holder.LockAimPoint : requested;
+        // The pilot's capsule is the safe side of the wall. Start there rather
+        // than at an animated/offset flag model that may already cross the wall.
+        if (holder != null) GetCapsule(holder, out anchor, out _, out _);
+        if (dropProbe == null)
+        {
+            var probeObject = new GameObject("Flag drop clearance probe");
+            probeObject.transform.SetParent(transform, false);
+            dropProbe = probeObject.AddComponent<SphereCollider>();
+            dropProbe.enabled = false; dropProbe.isTrigger = true;
+        }
+        // ComputePenetration uses the collider shape scale even with explicit poses.
+        dropProbe.transform.localScale = new Vector3(
+            1f / Mathf.Max(.0001f, Mathf.Abs(transform.lossyScale.x)),
+            1f / Mathf.Max(.0001f, Mathf.Abs(transform.lossyScale.y)),
+            1f / Mathf.Max(.0001f, Mathf.Abs(transform.lossyScale.z)));
+        dropProbe.radius = radius;
+        Vector3 point = anchor;
+        for (int pass = 0; pass < 12; pass++)
+        {
+            if (DropPointClear(point, radius)) return point;
+            int count = Runner.GetPhysicsScene().OverlapSphere(point, radius, dropObstacles, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                Collider wall = dropObstacles[i];
+                if (!IsDropScenery(wall)) continue;
+                if (Physics.ComputePenetration(dropProbe, point, Quaternion.identity, wall,
+                    wall.transform.position, wall.transform.rotation, out Vector3 normal, out float depth))
+                    point += normal * (depth + .06f);
+            }
+        }
+        // Deep concave mesh interiors can have no penetration normal. Search
+        // nearby clear points without crossing a wall from the capsule center.
+        for (float distance = radius; distance <= 16f; distance *= 2f)
+            for (int y = -1; y <= 1; y++)
+                for (int yaw = 0; yaw < 360; yaw += 45)
+                {
+                    Vector3 direction = (Quaternion.Euler(0, yaw, 0) * Vector3.forward + Vector3.up * y).normalized;
+                    Vector3 candidate = anchor + direction * distance;
+                    if (!DropPointClear(candidate, radius)) continue;
+                    int count = Runner.GetPhysicsScene().Raycast(anchor, direction, obstacleHits, distance, ~0, QueryTriggerInteraction.Ignore);
+                    bool blocked = count == obstacleHits.Length;
+                    for (int i = 0; i < count; i++) blocked |= IsDropScenery(obstacleHits[i].collider);
+                    if (!blocked) return candidate;
+                }
+        // An invalid/deeply embedded pilot must not make the objective unrecoverable.
+        point = roundFlagPosition;
+        for (int i = 0; i < 32; i++, point += Vector3.up * radius * 2f)
+            if (DropPointClear(point, radius)) return point;
+        Debug.LogWarning("No clear flag drop point near the pilot or flag spawn; check map colliders.", this);
+        return roundFlagPosition;
+    }
+
+    private void CheckPickupAndRecordPositions()
+    {
+        Player candidate = null;
+        float nearestDistance = float.PositiveInfinity;
+        foreach (PlayerRef playerRef in BattleParticipants.Refs(Runner))
+        {
+            if (!BattleParticipants.TryGetPlayerObject(Runner, playerRef, out NetworkObject playerObject) || playerObject == null)
+                continue;
+            Player player = playerObject.GetComponent<Player>();
+            if (player == null || !player.IsAlive)
+            {
+                previousPositions.Remove(playerRef);
+                continue;
+            }
+
+            GetCapsule(player, out Vector3 center, out Vector3 halfAxis, out float radius);
+            Vector3 previous = previousPositions.TryGetValue(playerRef, out PositionSample sample) &&
+                sample.ObjectId == playerObject.Id ? sample.Center : center;
+            previousPositions[playerRef] = new PositionSample { ObjectId = playerObject.Id, Center = center };
+            if (Carrier != PlayerRef.None)
+                continue;
+            if (playerRef == DroppedBy && !DroppedPickupTimer.ExpiredOrNotRunning(Runner)) continue;
+
+            // Sweep the capsule between ticks so a fast player cannot skip through the flag.
+            // Expanding the flag into a segment gives the same translational capsule distance.
+            float distance = SegmentDistanceSquared(previous, center,
+                WorldPosition - halfAxis, WorldPosition + halfAxis, out Vector3 contactCenter);
+            float contactRadius = radius + pickupRadius;
+            if (distance <= contactRadius * contactRadius && distance < nearestDistance &&
+                HasPickupSight(contactCenter))
+            {
+                candidate = player;
+                nearestDistance = distance;
+            }
+        }
+
+        if (candidate == null)
+            return;
+        Carrier = candidate.ParticipantRef;
+        PlayerData.FindPerkData(Runner,Carrier)?.RecordTitleFlagPickup(RemainingSeconds,IsOvertime);
+        NetworkGameManager.Instance?.GetPlayerData(Carrier)?.AwardPerkFlag(RoundNumber);
+        IsDescending = false;
+        LastCarrier = Carrier;
+        LastCarrierTeam = candidate.TeamIndex;
+        CarrierObjectId = candidate.Object.Id;
+        WorldPosition = candidate.transform.TransformPoint(carryOffset);
+    }
+
+    private bool HasPickupSight(Vector3 contactCenter)
+    {
+        Vector3 delta = WorldPosition - contactCenter;
+        if (delta.sqrMagnitude < 0.0001f)
+            return true;
+        RaycastHit[] hits = GetObstacleHits(contactCenter, delta.normalized, delta.magnitude, out int count);
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || hit.transform.IsChildOf(transform) ||
+                hit.collider.GetComponentInParent<Player>() != null)
+                continue;
+            return false;
+        }
+        return true;
+    }
+
+    private RaycastHit[] GetObstacleHits(Vector3 origin, Vector3 direction, float distance, out int count)
+    {
+        count = Physics.RaycastNonAlloc(origin, direction, obstacleHits, distance,
+            ~0, QueryTriggerInteraction.Ignore);
+        if (count < obstacleHits.Length) return obstacleHits;
+        RaycastHit[] all = Physics.RaycastAll(origin, direction, distance, ~0, QueryTriggerInteraction.Ignore);
+        count = all.Length;
+        return all;
+    }
+
+    // Shared with map-item pickup so both use the actual player capsule dimensions.
+    internal static void GetCapsule(Player player, out Vector3 center, out Vector3 halfAxis, out float radius)
+    {
+        Transform playerTransform = player.transform;
+        CharacterController controller = player.GetComponent<CharacterController>();
+        if (controller != null)
+        {
+            Vector3 scale = playerTransform.lossyScale;
+            radius = controller.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+            float halfHeight = Mathf.Max(0f, controller.height * Mathf.Abs(scale.y) * 0.5f - radius);
+            center = playerTransform.TransformPoint(controller.center);
+            halfAxis = playerTransform.up * halfHeight;
+            return;
+        }
+        CapsuleCollider capsule = player.GetComponent<CapsuleCollider>();
+        if (capsule != null)
+        {
+            Vector3 scale = playerTransform.lossyScale;
+            int axis = capsule.direction;
+            radius = capsule.radius * Mathf.Max(Mathf.Abs(scale[(axis + 1) % 3]), Mathf.Abs(scale[(axis + 2) % 3]));
+            Vector3 direction = axis == 0 ? Vector3.right : axis == 1 ? Vector3.up : Vector3.forward;
+            halfAxis = playerTransform.TransformDirection(direction) *
+                Mathf.Max(0f, capsule.height * Mathf.Abs(scale[axis]) * 0.5f - radius);
+            center = playerTransform.TransformPoint(capsule.center);
+            return;
+        }
+        center = playerTransform.position;
+        halfAxis = Vector3.zero;
+        radius = 0.2f;
+    }
+
+    internal static float SegmentDistanceSquared(Vector3 a0, Vector3 a1, Vector3 b0, Vector3 b1,
+        out Vector3 closestPlayerCenter)
+    {
+        closestPlayerCenter = a0;
+        Vector3 a = a1 - a0;
+        Vector3 b = b1 - b0;
+        Vector3 offset = a0 - b0;
+        float aa = Vector3.Dot(a, a);
+        float bb = Vector3.Dot(b, b);
+        float bf = Vector3.Dot(b, offset);
+        float s;
+        float t;
+        if (aa <= 0.000001f && bb <= 0.000001f)
+            return offset.sqrMagnitude;
+        if (aa <= 0.000001f)
+        {
+            s = 0f;
+            t = Mathf.Clamp01(bf / bb);
+        }
+        else
+        {
+            float ac = Vector3.Dot(a, offset);
+            if (bb <= 0.000001f)
+            {
+                t = 0f;
+                s = Mathf.Clamp01(-ac / aa);
+            }
+            else
+            {
+                float ab = Vector3.Dot(a, b);
+                float denominator = aa * bb - ab * ab;
+                s = denominator > 0.000001f ? Mathf.Clamp01((ab * bf - ac * bb) / denominator) : 0f;
+                t = (ab * s + bf) / bb;
+                if (t < 0f)
+                {
+                    t = 0f;
+                    s = Mathf.Clamp01(-ac / aa);
+                }
+                else if (t > 1f)
+                {
+                    t = 1f;
+                    s = Mathf.Clamp01((ab - ac) / aa);
+                }
+            }
+        }
+        closestPlayerCenter = a0 + a * s;
+        return (closestPlayerCenter - (b0 + b * t)).sqrMagnitude;
+    }
+
+    public override void Render()
+    {
+        RenderSmoke();
+        if (!IsPrepared)
+            return;
+        BattleManager.Instance?.RegisterFlag(this);
+        if (HasEnded)
+            BattleManager.Instance?.NotifyBattleEnded(WinningTeam);
+    }
+
+    void IAfterRender.AfterRender()
+    {
+        if (!IsPrepared) return;
+        // Carrier roots have finished NetworkTransform.Render before following them.
+        // The flag has no NetworkTransform: interpolate its free-flight snapshots here,
+        // instead of snapping directly to the latest received WorldPosition each frame.
+        Player carrier = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
+        Vector3 position = WorldPosition;
+        if (carrier == null && Carrier == PlayerRef.None &&
+            TryGetSnapshotsBuffers(out var from, out var to, out float alpha))
+        {
+            NetworkId fromCarrier = carrierIdReader.Read(from);
+            NetworkId toCarrier = carrierIdReader.Read(to);
+            // Never lerp across a pickup/drop or a different respawned carrier.
+            if (fromCarrier.Equals(default(NetworkId)) && toCarrier.Equals(default(NetworkId)))
+                position = Vector3.Lerp(worldPositionReader.Read(from), worldPositionReader.Read(to), alpha);
+        }
+        transform.position = carrier != null ? carrier.transform.TransformPoint(carryOffset) : position;
+        if (carrier != null)
+            transform.rotation = Quaternion.Euler(0f, carrier.transform.eulerAngles.y, 0f);
+        UpdateCarriedVisual(carrier);
+        UpdateFlagVisibility();
+        // LateUpdate attaches to the final animated torso pose before integrating cloth.
+    }
+
+    private void CacheFlagVisualTransform()
+    {
+        if (visualTransformCached) RestoreFlagVisualTransform();
+        visualTransformCached = flagVisualRoot != null && flagVisualRoot != transform && flagVisualRoot.IsChildOf(transform);
+        if (!visualTransformCached) return;
+        originalVisualPosition = flagVisualRoot.localPosition;
+        originalVisualScale = flagVisualRoot.localScale;
+        originalVisualRotation = flagVisualRoot.localRotation;
+        clothMotion = flagVisualRoot.GetComponentInChildren<FlagClothMotion>(true);
+    }
+
+    private void UpdateCarriedVisual(Player carrier)
+    {
+        if (!visualTransformCached || flagVisualRoot == null) return;
+        if (carrier == null || !carrier.IsAlive)
+        {
+            RestoreFlagVisualTransform();
+            return;
+        }
+        // Never resize the NetworkObject root or its authoritative pickup sphere.
+        // Always multiply the saved scale, not last frame's already-shrunken scale.
+        flagVisualRoot.localScale = originalVisualScale * Mathf.Clamp(carriedVisualScale, 0.05f, 1f);
+        backMount.Resolve(carrier.transform);
+        backMount.Pose(out Vector3 backPosition,out Quaternion backRotation);
+        flagVisualRoot.position = backPosition + backRotation * carriedVisualOffset;
+        flagVisualRoot.rotation = backRotation * Quaternion.Euler(carriedVisualEuler) * originalVisualRotation;
+        if(clothMotion!=null)clothMotion.SetTorso(backMount.Chest);
+    }
+
+    private void LateUpdate()
+    {
+        if(Object==null || !Object.IsValid || !IsPrepared)return;
+        Player carrier=Carrier!=PlayerRef.None?GetCarrierPlayer():null;
+        UpdateCarriedVisual(carrier);
+        if(clothMotion==null)return;
+        int portal=carrier!=null?carrier.PortalExitSequence:0;
+        if(carrier!=lastVisualCarrier || portal!=lastVisualPortalSequence)clothMotion.ResetMotion();
+        lastVisualCarrier=carrier;lastVisualPortalSequence=portal;
+        if(carrier==null)clothMotion.SetTorso(null);
+        clothMotion.AnimateMotion(carrier!=null && carrier.IsAlive,!flagSmokeHidden,Time.deltaTime);
+    }
+
+    private void RestoreFlagVisualTransform()
+    {
+        if (!visualTransformCached || flagVisualRoot == null) return;
+        flagVisualRoot.localPosition = originalVisualPosition;
+        flagVisualRoot.localScale = originalVisualScale;
+        flagVisualRoot.localRotation = originalVisualRotation;
+    }
+
+    // Local-only visibility. The authoritative pickup, carrier and colliders never change.
+    public bool IsConcealedBySmoke()
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing) return false;
+        Player carrier = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
+        return ContainsSmoke(transform.position) || (carrier != null && ContainsSmoke(carrier.LockAimPoint));
+    }
+
+    public bool TryGetCarrierMarker(Player observer, out Vector3 position)
+    {
+        position = default;
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing ||
+            observer == null || observer.Object == null || !observer.Object.IsValid ||
+            observer.Runner != Runner || !observer.IsAlive || IsConcealedBySmoke()) return false;
+        // Keep following a dropped/falling flag using its interpolated render pose.
+        // Do not use LastCarrier: the previous owner no longer carries the flag.
+        if (Carrier == PlayerRef.None)
+        {
+            position = transform.position;
+            return true;
+        }
+        if (Carrier == observer.ParticipantRef) return false;
+        Player carrier = GetCarrierPlayer();
+        if (carrier == null || carrier == observer || !carrier.IsAlive) return false;
+        position = carrier.LockAimPoint;
+        return true;
+    }
+
+    private void CacheFlagRenderers()
+    {
+        flagRenderers = GetComponentsInChildren<Renderer>(true);
+        originalRenderingOff = new bool[flagRenderers.Length];
+        originalShadows = new ShadowCastingMode[flagRenderers.Length];
+        for (int i = 0; i < flagRenderers.Length; i++)
+        {
+            originalRenderingOff[i] = flagRenderers[i].forceRenderingOff;
+            originalShadows[i] = flagRenderers[i].shadowCastingMode;
+        }
+        flagSmokeHidden = false;
+    }
+
+    private void UpdateFlagVisibility()
+    {
+        bool hidden = IsConcealedBySmoke();
+        if (hidden == flagSmokeHidden || flagRenderers == null) return;
+        flagSmokeHidden = hidden;
+        for (int i = 0; i < flagRenderers.Length; i++)
+        {
+            if (flagRenderers[i] == null) continue;
+            flagRenderers[i].forceRenderingOff = originalRenderingOff[i] || hidden;
+            flagRenderers[i].shadowCastingMode = hidden ? ShadowCastingMode.Off : originalShadows[i];
+        }
+    }
+
+    private void RestoreFlagVisibility()
+    {
+        if (flagRenderers == null) return;
+        for (int i = 0; i < flagRenderers.Length; i++)
+        {
+            if (flagRenderers[i] == null) continue;
+            flagRenderers[i].forceRenderingOff = originalRenderingOff[i];
+            flagRenderers[i].shadowCastingMode = originalShadows[i];
+        }
+        flagSmokeHidden = false;
+    }
+
+    private void OnDisable()
+    {
+        RestoreFlagVisibility();
+        RestoreFlagVisualTransform();
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        RestoreFlagVisibility();
+        RestoreFlagVisualTransform();
+        ClearSmokeViews();
+        readyPlayers.Clear();
+        previousPositions.Clear();
+        if (Instance == this)
+            Instance = null;
+    }
+
+    public bool CanCreateSmoke(NetworkRunner expectedRunner) => Object != null && Object.IsValid &&
+        Object.HasStateAuthority && Runner == expectedRunner && Phase == BattleStartPhase.Playing &&
+        FindFreeSmokeSlot() >= 0;
+
+    private int FindFreeSmokeSlot()
+    {
+        for (int i = 0; i < SmokeClouds.Length; i++)
+            if (!SmokeClouds[i].Lifetime.IsRunning || SmokeClouds[i].Lifetime.Expired(Runner)) return i;
+        return -1;
+    }
+
+    public bool CreateSmoke(Player caster, MagicStatEntry stats)
+    {
+        if (caster == null || caster.Object == null || !caster.Object.IsValid ||
+            !caster.Object.HasStateAuthority || !caster.IsAlive || !CanCreateSmoke(caster.Runner) ||
+            !SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration)) return false;
+        int slot = FindFreeSmokeSlot();
+        SmokeSequence++;
+        SmokeClouds.Set(slot, new SmokeCloudState {
+            Center = caster.LockAimPoint, Radius = Mathf.Min(stats.radius, 100f),
+            Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Min(stats.effectDuration, 120f)),
+            CasterTeam = caster.TeamIndex,
+            Sequence = SmokeSequence
+        });
+        return true;
+    }
+
+    public bool ContainsSmoke(Vector3 point)
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing) return false;
+        for (int i = 0; i < SmokeClouds.Length; i++)
+        {
+            SmokeCloudState cloud = SmokeClouds[i];
+            if (cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
+        }
+        return false;
+    }
+
+    public bool ContainsEnemySmoke(Vector3 point, int team)
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing) return false;
+        for (int i = 0; i < SmokeClouds.Length; i++)
+        {
+            SmokeCloudState cloud = SmokeClouds[i];
+            if (cloud.CasterTeam != team && cloud.Lifetime.IsRunning &&
+                !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
+        }
+        return false;
+    }
+
+    private void RenderSmoke()
+    {
+        if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing)
+        { ClearSmokeViews(); return; }
+        for (int i = 0; i < SmokeClouds.Length; i++)
+        {
+            SmokeCloudState cloud = SmokeClouds[i];
+            bool active = cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner);
+            if (smokeViews[i] != null && (!active || smokeViewSequences[i] != cloud.Sequence))
+            { Destroy(smokeViews[i]); smokeViews[i] = null; }
+            if (!active || smokeViews[i] != null) continue;
+            smokeViewSequences[i] = cloud.Sequence;
+            smokeViews[i] = UtilityMagicVisual.CreateSmoke(cloud.Center, cloud.Radius,
+                CombatPresentation.Stats(MagicType.Smoke).utilityVfxPrefab);
+            TimeVfxSpeed.Bind(smokeViews[i], Runner, cloud.CasterTeam, false);
+        }
+    }
+
+    private void ClearSmokeViews()
+    {
+        for (int i = 0; i < smokeViews.Length; i++)
+        {
+            if (smokeViews[i] != null) Destroy(smokeViews[i]);
+            smokeViews[i] = null;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        ClearSmokeViews();
+        if (Instance == this) Instance = null;
+    }
+}

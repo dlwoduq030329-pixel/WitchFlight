@@ -1,0 +1,154 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f17d65e606d34ef4bd876b6f59d3f314, type: 3}
+  m_Name: EquipmentStatTable
+  m_EditorClassIdentifier: 
+  defaultHat:
+    displayName: 
+    description: 
+    displayMaxAp: 0
+    displayApRecovery: 0
+    displayMaxApLabel: 
+    displayApRecoveryLabel: 
+    hat: 1
+    maxAp: 100
+    apRecoveryPerSecond: 5
+  defaultBroom:
+    displayName: 
+    description: 
+    displayMaxHp: 0
+    displaySpeed: 0
+    displayTurnSpeed: 0
+    displayBoostCost: 0
+    displaySpeedLabel: 
+    displayTurnSpeedLabel: 
+    displayMaxHpLabel: 
+    displayBoostCostLabel: 
+    broom: 2
+    maxHp: 180
+    maxSpeed: 30
+    turnSpeed: 95
+    turnAcceleration: 14
+    turnReturnSpeed: 26
+    lockOnTurnSpeed: 450
+    speedStageTransitionSpeed: 45
+    brakeSpeed: 40
+    boostMultiplier: 1.35
+    boostApCostPerSecond: 30
+    boostDuration: 0.45
+    boostCooldown: 1.5
+  hats:
+  - displayName: "\uD074\uB798\uC2DD \uBAA8\uC790"
+    description: "\uCD5C\uB300 \uB9C8\uB098\uC640 \uD68C\uBCF5\uB7C9\uC774 \uADE0\uD615
+      \uC7A1\uD78C \uBAA8\uC790\uC785\uB2C8\uB2E4."
+    displayMaxAp: 0.6
+    displayApRecovery: 0.7143
+    displayMaxApLabel: "\uC911\uAC04"
+    displayApRecoveryLabel: "\uC911\uAC04"
+    hat: 1
+    maxAp: 150
+    apRecoveryPerSecond: 5
+  - displayName: "\uAC04\uC9C0 \uBAA8\uC790"
+    description: "\uCD5C\uB300 \uB9C8\uB098\uAC00 \uB192\uC544 \uB9C8\uBC95\uC744
+      \uC5F0\uC18D\uD574\uC11C \uC0AC\uC6A9\uD560 \uB54C \uC720\uB9AC\uD569\uB2C8\uB2E4."
+    displayMaxAp: 1
+    displayApRecovery: 0.4286
+    displayMaxApLabel: "\uB192\uC74C"
+    displayApRecoveryLabel: "\uB0AE\uC74C"
+    hat: 2
+    maxAp: 200
+    apRecoveryPerSecond: 3
+  - displayName: "\uB9C8\uB825 \uBAA8\uC790"
+    description: "\uB9C8\uB098\uAC00 \uBE60\uB974\uAC8C \uD68C\uBCF5\uB418\uC5B4
+      \uC9C0\uC18D\uC801\uC778 \uB9C8\uBC95 \uC0AC\uC6A9\uC5D0 \uC720\uB9AC\uD569\uB2C8\uB2E4."
+    displayMaxAp: 0.2
+    displayApRecovery: 1
+    displayMaxApLabel: "\uB0AE\uC74C"
+    displayApRecoveryLabel: "\uB192\uC74C"
+    hat: 3
+    maxAp: 100
+    apRecoveryPerSecond: 7
+  brooms:
+  - displayName: "\uB290\uB9B0 \uBE57\uC790\uB8E8"
+    description: "\uB192\uC740 \uCCB4\uB825\uACFC \uC801\uC740 \uBD80\uC2A4\uD2B8
+      \uB9C8\uB098 \uC18C\uBAA8\uB85C \uC548\uC815\uC801\uC778 \uBE44\uD589\uC744
+      \uB3D5\uC2B5\uB2C8\uB2E4."
+    displayMaxHp: 1
+    displaySpeed: 0.3
+    displayTurnSpeed: 0.8171
+    displayBoostCost: 0.6957
+    displaySpeedLabel: "\uB290\uB9BC"
+    displayTurnSpeedLabel: "\uC911\uAC04"
+    displayMaxHpLabel: "\uB192\uC74C"
+    displayBoostCostLabel: "\uB0AE\uC74C"
+    broom: 1
+    maxHp: 300
+    maxSpeed: 28.5
+    turnSpeed: 120
+    turnAcceleration: 10.35
+    turnReturnSpeed: 20.7
+    lockOnTurnSpeed: 414
+    speedStageTransitionSpeed: 38.5
+    brakeSpeed: 30.8
+    boostMultiplier: 1.35
+    boostApCostPerSecond: 24
+    boostDuration: 0.35
+    boostCooldown: 1.9
+  - displayName: "\uAE30\uBCF8 \uBE57\uC790\uB8E8"
+    description: "\uB6F0\uC5B4\uB09C \uC120\uD68C\uB825\uACFC \uD3B8\uC548\uD55C
+      \uAC00\uAC10\uC18D\uC73C\uB85C \uC790\uC720\uB86D\uAC8C \uBE44\uD589\uD560
+      \uC218 \uC788\uC2B5\uB2C8\uB2E4."
+    displayMaxHp: 0.6
+    displaySpeed: 0.9091
+    displayTurnSpeed: 1
+    displayBoostCost: 0.8696
+    displaySpeedLabel: "\uC911\uAC04"
+    displayTurnSpeedLabel: "\uBE60\uB984"
+    displayMaxHpLabel: "\uC911\uAC04"
+    displayBoostCostLabel: "\uC911\uAC04"
+    broom: 2
+    maxHp: 180
+    maxSpeed: 30
+    turnSpeed: 95
+    turnAcceleration: 14
+    turnReturnSpeed: 26
+    lockOnTurnSpeed: 450
+    speedStageTransitionSpeed: 45
+    brakeSpeed: 40
+    boostMultiplier: 1.35
+    boostApCostPerSecond: 30
+    boostDuration: 0.45
+    boostCooldown: 1.5
+  - displayName: "\uACE0\uC18D \uBE57\uC790\uB8E8"
+    description: "\uB192\uC740 \uCD5C\uACE0 \uC18D\uB3C4\uB85C \uC0C1\uB300\uB97C
+      \uCD94\uACA9\uD558\uACE0 \uBE60\uB974\uAC8C \uC774\uB3D9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."
+    displayMaxHp: 0.3
+    displaySpeed: 1
+    displayTurnSpeed: 0.6395
+    displayBoostCost: 1
+    displaySpeedLabel: "\uBE60\uB984"
+    displayTurnSpeedLabel: "\uB290\uB9BC"
+    displayMaxHpLabel: "\uB0AE\uC74C"
+    displayBoostCostLabel: "\uB192\uC74C"
+    broom: 3
+    maxHp: 160
+    maxSpeed: 33
+    turnSpeed: 77.625
+    turnAcceleration: 8.1
+    turnReturnSpeed: 16.2
+    lockOnTurnSpeed: 324
+    speedStageTransitionSpeed: 33.25
+    brakeSpeed: 26.6
+    boostMultiplier: 1.35
+    boostApCostPerSecond: 34.5
+    boostDuration: 0.6
+    boostCooldown: 1.1

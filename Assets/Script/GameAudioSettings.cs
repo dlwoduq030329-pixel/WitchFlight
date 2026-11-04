@@ -1,0 +1,133 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Audio;
+using UnityEngine.SceneManagement;
+
+public enum GameAudioCategory { SFX, BGM, Voice }
+
+// Mixer gain leaves individual source volumes and speed-dependent envelopes intact.
+public static class GameAudioSettings
+{
+    private static AudioMixer mixer;
+    private static AudioMixerGroup sfx, bgm, voice;
+    public static event Action Changed;
+    public static float Master => Read("Master");
+    public static float BGM => Read("BGM");
+    public static float SFX => Read("SFX");
+    public static float Voice => Read("Voice");
+    private static float Read(string key) => Mathf.Clamp01(PlayerPrefs.GetFloat("Audio." + key, 1f));
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void Reset() { mixer = null; sfx = bgm = voice = null; Changed = null; }
+    public static AudioMixerGroup Group(GameAudioCategory category)
+    {
+        if (mixer == null)
+        {
+            mixer = Resources.Load<AudioMixer>("GameAudioMixer");
+            if (mixer == null) return null;
+            var effects = mixer.FindMatchingGroups("SFX");
+            var music = mixer.FindMatchingGroups("BGM");
+            var voices = mixer.FindMatchingGroups("Voice");
+            sfx = effects.Length > 0 ? effects[0] : null;
+            bgm = music.Length > 0 ? music[0] : null;
+            voice = voices.Length > 0 ? voices[0] : null;
+        }
+        return category == GameAudioCategory.Voice ? voice : category == GameAudioCategory.BGM ? bgm : sfx;
+    }
+    public static float Decibels(float volume) => volume <= 0f ? -80f : Mathf.Log10(Mathf.Clamp01(volume)) * 20f;
+    public static void Apply()
+    {
+        Group(GameAudioCategory.SFX);
+        if (mixer == null) return;
+        mixer.SetFloat("MasterVolume", Decibels(Master));
+        mixer.SetFloat("BGMVolume", Decibels(BGM));
+        mixer.SetFloat("SFXVolume", Decibels(SFX));
+        mixer.SetFloat("VoiceVolume", Decibels(Voice));
+    }
+    private static void Set(string key, float value)
+    {
+        if (float.IsNaN(value) || float.IsInfinity(value)) return;
+        PlayerPrefs.SetFloat("Audio." + key, Mathf.Clamp01(value));
+        Apply(); Changed?.Invoke();
+    }
+    public static void SetMaster(float value) => Set("Master", value);
+    public static void SetBGM(float value) => Set("BGM", value);
+    public static void SetSFX(float value) => Set("SFX", value);
+    public static void SetVoice(float value) => Set("Voice", value);
+}
+
+// Covers authored and third-party sources; explicit category components take precedence.
+public sealed class GameAudioRouting : MonoBehaviour
+{
+    private float nextScan;
+    private readonly AudioSceneComponents<AudioSource> sources = new();
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void Boot()
+    {
+        var root = new GameObject("Game Audio Settings");
+        DontDestroyOnLoad(root);
+        root.AddComponent<GameAudioRouting>();
+        root.AddComponent<GameAudioContext>();
+    }
+    private void Start() { GameAudioSettings.Apply(); Scan(); }
+    private void Update()
+    {
+        if (Time.unscaledTime < nextScan) return;
+        nextScan = Time.unscaledTime + .5f;
+        Scan();
+    }
+    private void Scan()
+    {
+        foreach (var source in sources.Collect(gameObject.scene))
+        {
+            if (source == null) continue;
+            if (source.outputAudioMixerGroup != null) continue;
+            var tag = source.GetComponentInParent<AudioCategory>();
+            string clipName = source.clip != null ? source.clip.name : "";
+            GameAudioCategory inferred = clipName.StartsWith("SFX_Voice_", StringComparison.OrdinalIgnoreCase)
+                ? GameAudioCategory.Voice : clipName.StartsWith("BGM_", StringComparison.OrdinalIgnoreCase)
+                ? GameAudioCategory.BGM : GameAudioCategory.SFX;
+            source.outputAudioMixerGroup = GameAudioSettings.Group(tag != null ? tag.Category : inferred);
+        }
+    }
+    private void OnApplicationPause(bool paused) { if (paused) PlayerPrefs.Save(); }
+    private void OnApplicationQuit() => PlayerPrefs.Save();
+}
+
+// Polling also discovers third-party/dynamically created objects. Reuse the result buffers
+// so this compatibility path does not allocate scene-wide arrays every half-second.
+internal sealed class AudioSceneComponents<T> where T : Component
+{
+    private readonly List<GameObject> roots = new();
+    private readonly List<T> scratch = new();
+    private readonly List<T> results = new();
+
+    public List<T> Collect(Scene persistentScene)
+    {
+        results.Clear();
+        bool includedPersistent = false;
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene scene = SceneManager.GetSceneAt(i);
+            Append(scene);
+            includedPersistent |= scene == persistentScene;
+        }
+        if (!includedPersistent) Append(persistentScene);
+        return results;
+    }
+
+    private void Append(Scene scene)
+    {
+        if (!scene.IsValid() || !scene.isLoaded) return;
+        // Unity requires capacity greater than rootCount for the allocation-free overload.
+        if (roots.Capacity <= scene.rootCount) roots.Capacity = scene.rootCount + 1;
+        scene.GetRootGameObjects(roots);
+        foreach (GameObject root in roots)
+        {
+            root.GetComponentsInChildren(true, scratch);
+            results.AddRange(scratch);
+        }
+        scratch.Clear();
+        roots.Clear();
+    }
+}
