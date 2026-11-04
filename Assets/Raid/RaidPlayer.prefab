@@ -1,4 +1,4 @@
-﻿%YAML 1.1
+%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!1 &6257143225072814
 GameObject:
@@ -5553,11 +5553,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _LockFailureSequence: 0
+  _BladeCharges: 0
+  _BladeSwingSequence: 0
+  _BladeSwingStep: 0
+  _RainManaSpent: 0
+  _RainTargetCount: 0
+  _RainTargetRevision: 0
+  _RainVolleyStep: 0
   _CatHitSequence: 0
   _CatKillSequence: 0
   _CobraActive: 0
   _PortalEntryPosition: {x: 0, y: 0, z: 0}
+  _StormShotsRemaining: 0
   _MatchBotSlot: 0
+  _FestivalOrigin: {x: 0, y: 0, z: 0}
+  _FestivalSequence: 0
   _SubmergedSeconds: 0
   maxSpeed: 60
   enableMovementPrediction: 1
@@ -5606,6 +5616,10 @@ MonoBehaviour:
     fastPoseEnterSpeedRatio: 0.72
     fastPoseExitSpeedRatio: 0.55
     hideStaffWhenDisarmed: 1
+  bladeSwing:
+    duration: 0.65
+    armSweep: 65
+    torsoTwist: 20
   _IsBoosting: 0
   _IsReturningToMap: 0
   _DiedFromAltitude: 0
