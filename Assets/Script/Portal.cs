@@ -25,6 +25,17 @@ public sealed class Portal : MonoBehaviour
     [Tooltip("Per-player delay before any portal can teleport them again.")]
     [SerializeField, Min(0.1f)] private float reentryDelay = 0.5f;
 
+    [Header("Portal visual states")]
+    [SerializeField] private GameObject idleVisual;
+    [SerializeField] private GameObject closeVisual;
+    [SerializeField] private GameObject openVisual;
+    [SerializeField, Min(0f)] private float openSeconds = .5f;
+    [SerializeField, HideInInspector] private string visualId;
+    private NetworkRunner visualRunner;
+    private double visualReadyAt;
+    private bool usedVisual;
+    private int visualState = -1;
+
     [Header("Presentation hook (host only)")]
     [SerializeField] private PortalUsedEvent onPortalUsed = new PortalUsedEvent();
 
@@ -32,7 +43,12 @@ public sealed class Portal : MonoBehaviour
     private TickTimer cooldownTimer;
     private static readonly System.Collections.Generic.HashSet<Portal> activePortals = new();
     public static System.Collections.Generic.IEnumerable<Portal> ActivePortals => activePortals;
-    private void OnEnable() => activePortals.Add(this);
+    private void OnEnable()
+    {
+        activePortals.Add(this);
+        visualState = -1;
+        UpdateVisual();
+    }
     private void OnDisable() => activePortals.Remove(this);
 
     public bool TryGetBotRoute(NetworkRunner runner, out Vector3 entry, out Vector3 exit, out Quaternion rotation)
@@ -52,6 +68,13 @@ public sealed class Portal : MonoBehaviour
     private void Awake()
     {
         ConfigureTrigger();
+        // Resolve designer-authored children once, including initially inactive effects.
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name == "PortalBlueIdle" || child.name == "PortalRedIdle") idleVisual ??= child.gameObject;
+            else if (child.name == "PortalBlueClose" || child.name == "PortalRedClose") closeVisual ??= child.gameObject;
+            else if (child.name == "PortalBlueOpen" || child.name == "PortalRedOpen") openVisual ??= child.gameObject;
+        }
         if (destination == null)
             Debug.LogWarning("Portal: assign Destination in the Inspector. This portal is inactive until assigned.", this);
     }
@@ -93,7 +116,46 @@ public sealed class Portal : MonoBehaviour
         // On Portal Used Inspector 이벤트로도 연결할 수 있습니다.
         // 호스트에서 사용 승인 직후 호출되며, 실제 이동은 다음 Fusion 틱에 적용됩니다.
         // 다른 클라이언트에도 연출을 보이려면 별도로 RPC/네트워크 연출을 전달해야 합니다.
+        if (!string.IsNullOrEmpty(visualId))
+            player.PresentPortalUse(visualId, player.Runner.SimulationTime + Mathf.Max(0f, cooldownSeconds));
+        else
+            StartVisualCooldown(player.Runner, player.Runner.SimulationTime + Mathf.Max(0f, cooldownSeconds));
         onPortalUsed.Invoke(player);
+    }
+
+    public static void PresentUse(string id, NetworkRunner runner, double readyAt)
+    {
+        foreach (Portal portal in activePortals)
+            if (portal != null && portal.visualId == id)
+            {
+                portal.StartVisualCooldown(runner, readyAt);
+                return;
+            }
+    }
+
+    private void StartVisualCooldown(NetworkRunner runner, double readyAt)
+    {
+        visualRunner = runner;
+        visualReadyAt = readyAt;
+        usedVisual = true;
+        UpdateVisual();
+    }
+
+    private void Update() => UpdateVisual();
+
+    private void UpdateVisual()
+    {
+        int next = 0;
+        if (usedVisual && visualRunner != null && visualRunner.IsRunning)
+        {
+            double now = visualRunner.SimulationTime;
+            next = now < visualReadyAt ? 1 : now < visualReadyAt + openSeconds ? 2 : 0;
+        }
+        if (next == visualState) return;
+        visualState = next;
+        if (idleVisual != null) idleVisual.SetActive(next == 0);
+        if (closeVisual != null) closeVisual.SetActive(next == 1);
+        if (openVisual != null) openVisual.SetActive(next == 2);
     }
 
     private void GetExitPose(out Vector3 position, out Quaternion rotation)

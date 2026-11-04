@@ -3,6 +3,18 @@ using UnityEngine;
 
 public partial class Player
 {
+    public void PresentPortalUse(string id, double readyAt)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
+        RPC_PortalVisual(id, readyAt);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_PortalVisual(string id, double readyAt)
+    {
+        Portal.PresentUse(id, Runner, readyAt);
+    }
+
     [Networked] private TickTimer SpawnProtectionTimer { get; set; }
     [Networked] private bool SpawnProtectionPending { get; set; }
     public bool IsSpawnProtected => Object != null && Object.IsValid && IsAlive &&
