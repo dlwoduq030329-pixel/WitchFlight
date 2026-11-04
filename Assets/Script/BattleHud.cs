@@ -349,6 +349,7 @@ public sealed partial class BattleHud : MonoBehaviour
     private MagicProjectile incomingThreat;
     private float nextIncomingSoundCheck, lastIncomingBeep = -100f, incomingSoundInterval;
     private MagicProjectile audibleThreat;
+    private bool incomingParryReady;
     private Predicate<MagicProjectile> offscreenThreatFilter;
     private float warningPhase, threatStrength, nextThreatCheck;
     [SerializeField] private Image lockProgressFill;
@@ -957,24 +958,32 @@ public sealed partial class BattleHud : MonoBehaviour
     {
         if (!show || owner == null || !owner.IsAlive || CombatPresentation.MenuOpen)
         {
-            audibleThreat = null; nextIncomingSoundCheck = 0f; lastIncomingBeep = -100f;
+            audibleThreat = null; incomingParryReady = false; nextIncomingSoundCheck = 0f; lastIncomingBeep = -100f;
             return;
         }
         var audio = BattleAudio.Table;
         if (audio == null) return;
         if (Time.unscaledTime >= nextIncomingSoundCheck)
         {
-            nextIncomingSoundCheck = Time.unscaledTime + .1f;
+            nextIncomingSoundCheck = Time.unscaledTime + .05f;
             MagicProjectile.TryGetIncomingThreat(owner, warningDistance, out float distance, out audibleThreat, warningLeadSeconds);
             if (audibleThreat != null)
             {
-                float urgency = audibleThreat.TryGetImpactTime(owner, out float seconds)
+                bool timed = audibleThreat.TryGetImpactTime(owner, out float seconds);
+                float urgency = timed
                     ? 1f - Mathf.Clamp01(seconds / Mathf.Max(.1f, warningLeadSeconds))
                     : 1f - Mathf.Clamp01(distance / Mathf.Max(1f, warningDistance));
-                incomingSoundInterval = Mathf.Lerp(Mathf.Max(.05f, audio.incomingFarInterval),
-                    Mathf.Max(.05f, audio.incomingNearInterval), urgency);
+                bool ready = timed && owner.CanStartParryNow && !owner.IsParrying &&
+                    IsParryCueTiming(seconds, owner.ParryWindowSeconds, parryCueSafetyMargin);
+                if (ready && !incomingParryReady) lastIncomingBeep = -100f;
+                incomingParryReady = ready;
+                float rapidInterval = Mathf.Max(.02f, audio.incomingParryInterval);
+                float nearInterval = Mathf.Max(rapidInterval * 3f, audio.incomingNearInterval);
+                incomingSoundInterval = ready ? rapidInterval :
+                    Mathf.Lerp(Mathf.Max(nearInterval, audio.incomingFarInterval), nearInterval,
+                        Mathf.Sqrt(urgency));
             }
-            else lastIncomingBeep = -100f;
+            else { lastIncomingBeep = -100f; incomingParryReady = false; }
         }
         if (audibleThreat == null || audibleThreat.Object == null || !audibleThreat.Object.IsValid ||
             audibleThreat.Finished || Time.unscaledTime - lastIncomingBeep < incomingSoundInterval) return;
