@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Fusion;
 using TMPro;
 using UnityEngine;
@@ -347,6 +347,9 @@ public sealed partial class BattleHud : MonoBehaviour
     private CombatFeedbackGraphic warningGlow;
     private CombatFeedbackGraphic warningFrame;
     private MagicProjectile incomingThreat;
+    private float nextIncomingSoundCheck, lastIncomingBeep = -100f, incomingSoundInterval;
+    private MagicProjectile audibleThreat;
+    private bool incomingParryReady;
     private Predicate<MagicProjectile> offscreenThreatFilter;
     private float warningPhase, threatStrength, nextThreatCheck;
     [SerializeField] private Image lockProgressFill;
@@ -945,9 +948,49 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void UpdateThreatWarning(bool show)
     {
+        UpdateIncomingSound(show);
         UpdatePrimaryThreatWarning(show);
         UpdateAdditionalThreatWarnings(show);
         if (show) PlaceThreatIndicator();
+    }
+
+    private void UpdateIncomingSound(bool show)
+    {
+        if (!show || owner == null || !owner.IsAlive || CombatPresentation.MenuOpen)
+        {
+            audibleThreat = null; incomingParryReady = false; nextIncomingSoundCheck = 0f; lastIncomingBeep = -100f;
+            return;
+        }
+        var audio = BattleAudio.Table;
+        if (audio == null) return;
+        if (Time.unscaledTime >= nextIncomingSoundCheck)
+        {
+            nextIncomingSoundCheck = Time.unscaledTime + .05f;
+            MagicProjectile.TryGetIncomingThreat(owner, warningDistance, out float distance, out audibleThreat, warningLeadSeconds);
+            if (audibleThreat != null)
+            {
+                bool timed = audibleThreat.TryGetImpactTime(owner, out float seconds);
+                float urgency = timed
+                    ? 1f - Mathf.Clamp01(seconds / Mathf.Max(.1f, warningLeadSeconds))
+                    : 1f - Mathf.Clamp01(distance / Mathf.Max(1f, warningDistance));
+                bool ready = timed && !owner.IsHitStunned && !owner.IsReturningToMap &&
+                    owner.GetMagicCooldownRemaining(3) <= 0f && !owner.IsParrying &&
+                    IsParryCueTiming(seconds, owner.ParryWindowSeconds, parryCueSafetyMargin);
+                if (ready && !incomingParryReady) lastIncomingBeep = -100f;
+                incomingParryReady = ready;
+                float rapidInterval = Mathf.Max(.02f, audio.incomingParryInterval);
+                float nearInterval = Mathf.Max(rapidInterval * 3f, audio.incomingNearInterval);
+                incomingSoundInterval = ready ? rapidInterval :
+                    Mathf.Lerp(Mathf.Max(nearInterval, audio.incomingFarInterval), nearInterval,
+                        Mathf.Sqrt(urgency));
+            }
+            else { lastIncomingBeep = -100f; incomingParryReady = false; }
+        }
+        if (audibleThreat == null || audibleThreat.Object == null || !audibleThreat.Object.IsValid ||
+            audibleThreat.Finished || Time.unscaledTime - lastIncomingBeep < incomingSoundInterval) return;
+        if (!audibleThreat.IsThreatTo(owner)) return;
+        BattleAudio.Play(BattleSound.IncomingMagic, local: true);
+        lastIncomingBeep = Time.unscaledTime;
     }
 
     private void UpdatePrimaryThreatWarning(bool show)
@@ -1062,7 +1105,7 @@ public sealed partial class BattleHud : MonoBehaviour
     }
 
     private bool HasIncomingThreat() => owner != null && owner.Object != null && owner.Object.IsValid &&
-        incomingThreat != null && incomingThreat.Object != null && incomingThreat.Object.IsValid && !incomingThreat.Finished;
+        incomingThreat != null && incomingThreat.Object != null && incomingThreat.Object.IsValid && !incomingThreat.Finished && incomingThreat.IsThreatTo(owner);
 
     private Graphic EnsureThreatIndicator(bool custom)
     {

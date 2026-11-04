@@ -12,7 +12,7 @@ public enum BattleSound
     WallCrash, UIClick, UIConfirm, UICancel, BodyRam, Cobra, HurtVoice, WaterEnter, WaterExit,
     CatPetPurr, CatVictory, CatDefeat, CatAnnoyed, CatYawn, DrowningWarning,
     KillConfirmed,
-    AttackVoice, DeathVoice, HealVoice, GreetingVoice, VSVoice, HealOtherVoice, ParryVoice, LowHealthVoice, VictoryVoice, DefeatVoice, AllyHitVoice, CatAttackVoice, CatKillVoice, UIImportant, MatchFound, UIPopup, AttendanceSuccess, UITab, MagicSelected, MagicCast, LockCharging, LockFailed, ThunderExplosion, UITyping
+    AttackVoice, DeathVoice, HealVoice, GreetingVoice, VSVoice, HealOtherVoice, ParryVoice, LowHealthVoice, VictoryVoice, DefeatVoice, AllyHitVoice, CatAttackVoice, CatKillVoice, UIImportant, MatchFound, UIPopup, AttendanceSuccess, UITab, MagicSelected, MagicCast, LockCharging, LockFailed, ThunderExplosion, UITyping, IncomingMagic
 }
 
 public enum MagicSound { LockComplete, Cast, ProjectileLoop, Impact, ChannelLoop, ChannelEnd, FollowUp, AreaWarning, SummonAttack, EffectLoop }
@@ -95,6 +95,12 @@ public sealed class BattleAudioTable : ScriptableObject
 {
     [Range(0f, 1f)] public float masterVolume = 1f;
     public AudioMixerGroup outputMixer;
+    [Header("다가오는 마법 경고 (로컬 SFX)")]
+    public BattleSoundCue incomingMagic = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .55f, minimumInterval = .02f };
+    [Min(.05f)] public float incomingFarInterval = .55f;
+    [Min(.05f)] public float incomingNearInterval = .14f;
+    [Tooltip("실제 패링 가능 구간에 진입했을 때의 경고음 간격(초).")]
+    [Min(.02f)] public float incomingParryInterval = .045f;
     [Header("처치 확정 SFX (처치한 본인에게만 재생)")]
     [Tooltip("처치 시 띵! 효과음입니다. Clip을 교체하여 변경하고, 비우면 재생하지 않습니다.")]
     public BattleSoundCue killConfirmed = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .7f, minimumInterval = 0f };
@@ -133,6 +139,7 @@ public sealed class BattleAudioTable : ScriptableObject
 
     public BattleSoundCue Get(BattleSound sound)
     {
+        if (sound == BattleSound.IncomingMagic) return incomingMagic;
         if (sound == BattleSound.KillConfirmed) return killConfirmed;
         if (sound == BattleSound.CatPetPurr) return catPetPurr;
         if (sound == BattleSound.CatVictory) return catVictory;

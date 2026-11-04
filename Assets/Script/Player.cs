@@ -1540,15 +1540,19 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         Vector3 end = TraceMagicTargets(stats, origin, direction, out Player victim, out MagicProjectile summonHit);
         if (stats.effect == MagicEffectKind.AreaDamage)
         {
-            MagicProjectile.DamageSummonsInArea(Runner, TeamIndex, end, stats.radius, stats, Object.Id);
+            bool contacted = MagicProjectile.DamageSummonsInArea(Runner, TeamIndex, end, stats.radius, stats, Object.Id);
             foreach (Player enemy in combatants)
             {
                 if (enemy == null || enemy.Runner != Runner) continue;
                 if (enemy != null && enemy.IsEnemyOf(this) &&
                     (enemy.LockAimPoint - end).sqrMagnitude <= stats.radius * stats.radius &&
                     MagicProjectile.HasBlastSight(end, enemy))
+                {
+                    contacted = true;
                     enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(enemy.LockAimPoint, end)), ParticipantRef, Object.Id, enemy.LockAimPoint - end);
+                }
             }
+            if (!contacted) NotifyFaceMiss();
         }
         else if (summonHit != null)
         {
@@ -1561,7 +1565,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             victim.ReceiveMagicHit(stats, ParticipantRef, Object.Id, direction);
             if (victim.HitSequence == hit) ResetVisionMiss(stats);
         }
-        else ResetVisionMiss(stats);
+        else { ResetVisionMiss(stats); NotifyFaceMiss(); }
 
         RPC_PresentCast(stats.magic, origin, end, 0f);
     }
@@ -1684,6 +1688,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!ChannelTargetId.Equals(nextTarget)) channelDamageTime = 0f;
         ChannelTargetId = nextTarget;
         ChannelEnd = end;
+        if (target == null && summon == null) NotifyFaceMiss();
         channelDamageTime += paidTime;
         bool exhausted = perSecond > 0f && NowAp <= 0.0001f;
         if (channelDamageTime + 0.00001f >= Mathf.Max(0.02f, stats.channelTickSeconds) || exhausted)
@@ -1907,6 +1912,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         // of HUD visibility/alive state so a delayed projectile kill still rings.
         if (lethal) BattleAudio.Play(BattleSound.KillConfirmed, local: true);
         BattleHud.ShowHitMarker(this, lethal);
+        BattleFacePortrait.ConfirmedHit(this, lethal);
     }
 
     private void ApplyKnockbackFrom(PlayerRef attacker, float knockbackForce)

@@ -116,7 +116,10 @@ public partial class MagicProjectile : NetworkBehaviour
             if (!Finished && !IsMine && stats.effect == MagicEffectKind.AreaDamage)
                 Impact(transform.position);
             else
+            {
+                if (!Finished && !IsMine) NotifyShooterFaceMiss();
                 Runner.Despawn(Object);
+            }
             return;
         }
         if (Finished)
@@ -331,6 +334,13 @@ public partial class MagicProjectile : NetworkBehaviour
         return closest < float.PositiveInfinity;
     }
 
+    private void NotifyShooterFaceMiss()
+    {
+        if (ConstructKind != MagicConstructKind.Projectile && ConstructKind != MagicConstructKind.ThunderArea) return;
+        if (Runner.TryFindObject(ShooterId, out NetworkObject shooter) && shooter != null)
+            shooter.GetComponent<Player>()?.NotifyFaceMiss();
+    }
+
     private void SettleMine()
     {
         Settled = true;
@@ -363,15 +373,17 @@ public partial class MagicProjectile : NetworkBehaviour
         transform.position = point;
         if (IsMine || stats.effect == MagicEffectKind.AreaDamage)
         {
-            DamageSummonsInArea(Runner, ShooterTeam, point, stats.radius, stats, ShooterId);
+            bool contacted = DamageSummonsInArea(Runner, ShooterTeam, point, stats.radius, stats, ShooterId);
             foreach (Player player in Player.ActiveCombatants)
             {
                 if (player == null || player.Runner != Runner) continue;
                 if (player == null || !player.IsAlive || (!IsMine && player.TeamIndex == ShooterTeam) ||
                     (player.LockAimPoint - point).sqrMagnitude > stats.radius * stats.radius || !HasBlastSight(player))
                     continue;
+                contacted = true;
                 player.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(player.LockAimPoint,point)), Shooter, ShooterId, player.LockAimPoint - point);
             }
+            if (!contacted) NotifyShooterFaceMiss();
         }
         else if (summonHit != null)
         {
@@ -389,6 +401,8 @@ public partial class MagicProjectile : NetworkBehaviour
                 Runner.TryFindObject(ShooterId, out NetworkObject catOwner) && catOwner != null)
                 catOwner.GetComponent<Player>()?.NotifySummonKillAudio(point);
         }
+        if (directHit == null && summonHit == null && !IsMine && stats.effect != MagicEffectKind.AreaDamage)
+            NotifyShooterFaceMiss();
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
         Lifetime = TickTimer.CreateFromSeconds(Runner, 0.2f);
@@ -490,7 +504,9 @@ public partial class MagicProjectile : NetworkBehaviour
                 continue;
             Vector3 delta = observer.LockAimPoint - shot.transform.position;
             float sqr = delta.sqrMagnitude;
+            if (!shot.TargetId.Equals(default(NetworkId)) && !shot.TargetId.Equals(observer.Object.Id)) continue;
             bool timed = shot.TryGetImpactTime(observer, out float impactSeconds);
+            if (!timed && !shot.TargetId.Equals(observer.Object.Id)) continue;
             if (sqr > range * range && (!timed || impactSeconds > warningLeadSeconds)) continue;
             if (!shot.Settled && Vector3.Dot(shot.transform.forward, delta) <= 0f) continue;
             // A visible foreground shot must not mask a different off-screen threat.
@@ -516,6 +532,15 @@ public partial class MagicProjectile : NetworkBehaviour
                 (shot.IsMine || shot.ConstructKind == MagicConstructKind.Summon) && !shot.Finished && shot.Shooter == player)
                 return true;
         return false;
+    }
+
+    public bool IsThreatTo(Player observer)
+    {
+        if (observer == null || observer.Object == null || !observer.Object.IsValid ||
+            Object == null || !Object.IsValid || Runner != observer.Runner || Finished ||
+            IsMine || IsConstruct || Settled || ShooterTeam == observer.TeamIndex) return false;
+        if (!TargetId.Equals(default(NetworkId))) return TargetId.Equals(observer.Object.Id);
+        return TryGetImpactTime(observer, out _);
     }
 
     // Warning/bot reaction estimate only: never delays a shot or grants a block. Hitscan spells
