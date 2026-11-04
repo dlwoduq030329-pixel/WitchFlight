@@ -34,6 +34,7 @@ public sealed class BattleAudio : MonoBehaviour
     }
     private static BattleAudio instance;
     private BattleAudioTable table;
+    public static BattleAudioTable Table { get { Initialize(); return instance.table; } }
     private readonly List<Voice> voices = new();
     private readonly HashSet<AudioClip> reportedLoadFailures = new();
     private readonly Dictionary<(BattleSoundCue, int), float> nextAllowed = new();

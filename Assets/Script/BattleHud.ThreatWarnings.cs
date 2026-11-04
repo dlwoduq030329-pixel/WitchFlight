@@ -44,7 +44,7 @@ public sealed partial class BattleHud
         foreach (MagicProjectile shot in incomingThreats)
         {
             if (shot == incomingThreat || shot == null || shot.Object == null || !shot.Object.IsValid ||
-                shot.Finished || !IsOffscreenThreat(shot)) continue;
+                shot.Finished || !shot.IsThreatTo(owner) || !IsOffscreenThreat(shot)) continue;
             if (index == additionalThreatViews.Count) additionalThreatViews.Add(CreateAdditionalThreatWarning());
             ThreatWarningView view = additionalThreatViews[index++];
             if (view.target != shot) { view.target = shot; view.phase = 0f; view.cueActive = false; }
@@ -137,7 +137,7 @@ public sealed partial class BattleHud
         {
             MagicProjectile shot = view.target;
             if (shot == null || shot == incomingThreat || worldCamera == null || shot.Object == null ||
-                !shot.Object.IsValid || shot.Finished || !IsOffscreenThreat(shot))
+                !shot.Object.IsValid || shot.Finished || !shot.IsThreatTo(owner) || !IsOffscreenThreat(shot))
             { Visible(view.root.gameObject, false); continue; }
             Vector3 direction = GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation, shot.transform.position);
             float padding = Mathf.Max(warningEdgePadding, warningIconSize * warningGlowScale * .5f + 8f);

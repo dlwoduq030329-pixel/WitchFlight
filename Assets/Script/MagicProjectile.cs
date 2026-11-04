@@ -504,7 +504,9 @@ public partial class MagicProjectile : NetworkBehaviour
                 continue;
             Vector3 delta = observer.LockAimPoint - shot.transform.position;
             float sqr = delta.sqrMagnitude;
+            if (!shot.TargetId.Equals(default(NetworkId)) && !shot.TargetId.Equals(observer.Object.Id)) continue;
             bool timed = shot.TryGetImpactTime(observer, out float impactSeconds);
+            if (!timed && !shot.TargetId.Equals(observer.Object.Id)) continue;
             if (sqr > range * range && (!timed || impactSeconds > warningLeadSeconds)) continue;
             if (!shot.Settled && Vector3.Dot(shot.transform.forward, delta) <= 0f) continue;
             // A visible foreground shot must not mask a different off-screen threat.
@@ -530,6 +532,15 @@ public partial class MagicProjectile : NetworkBehaviour
                 (shot.IsMine || shot.ConstructKind == MagicConstructKind.Summon) && !shot.Finished && shot.Shooter == player)
                 return true;
         return false;
+    }
+
+    public bool IsThreatTo(Player observer)
+    {
+        if (observer == null || observer.Object == null || !observer.Object.IsValid ||
+            Object == null || !Object.IsValid || Runner != observer.Runner || Finished ||
+            IsMine || IsConstruct || Settled || ShooterTeam == observer.TeamIndex) return false;
+        if (!TargetId.Equals(default(NetworkId))) return TargetId.Equals(observer.Object.Id);
+        return TryGetImpactTime(observer, out _);
     }
 
     // Warning/bot reaction estimate only: never delays a shot or grants a block. Hitscan spells

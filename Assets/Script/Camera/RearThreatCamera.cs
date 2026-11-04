@@ -113,13 +113,12 @@ public sealed class RearThreatCamera : MonoBehaviour
             Vector3 delta = enemy.LockAimPoint - main.transform.position;
             int side = RearSector(main.transform.InverseTransformDirection(delta));
             if (side == 0) continue;
-            bool nearby = settings.rearViewEnabled && delta.sqrMagnitude <= settings.rearViewDistance * settings.rearViewDistance;
             // Replicated target ID is enough: show the attacker as soon as targeting begins,
             // including the first snapshot before charge progress becomes positive.
             // Healing locks are never attack warnings, even during a loadout transition.
             bool locking = settings.showLockingThreats && !enemy.SelectedMagicStats.TargetsAllies &&
                 enemy.HasLockTarget(local.Object);
-            if ((nearby || locking) && HasClearSight(main.transform.position, enemy.LockAimPoint))
+            if (locking && HasClearSight(main.transform.position, enemy.LockAimPoint))
                 AddThreat(side, enemy.LockAimPoint, delta.sqrMagnitude, locking, false);
         }
         // Releasing a lock to fire must not close the view while its shot approaches.
@@ -133,7 +132,7 @@ public sealed class RearThreatCamera : MonoBehaviour
                     shot.ShooterTeam == local.TeamIndex) continue;
                 Vector3 delta = shot.transform.position - main.transform.position;
                 int side = RearSector(main.transform.InverseTransformDirection(delta));
-                if (side == 0 || (!shot.TargetId.Equals(local.Object.Id) && !shot.TryGetImpactTime(local, out _))) continue;
+                if (side == 0 || !shot.IsThreatTo(local)) continue;
                 if (!HasClearSight(main.transform.position, shot.transform.position)) continue;
                 AddThreat(side, shot.transform.position, delta.sqrMagnitude, false, true);
             }
