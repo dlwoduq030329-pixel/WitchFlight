@@ -111,8 +111,9 @@ public partial class MagicProjectile
         return true;
     }
 
-    public static void DamageSummonsInArea(NetworkRunner runner, int team, Vector3 center, float radius, MagicStatEntry attack, NetworkId attacker)
+    public static bool DamageSummonsInArea(NetworkRunner runner, int team, Vector3 center, float radius, MagicStatEntry attack, NetworkId attacker)
     {
+        bool contacted = false;
         // ReceiveSummonHit marks Finished; it does not remove from active during this enumeration.
         foreach (var candidate in active)
         {
@@ -120,7 +121,11 @@ public partial class MagicProjectile
             float distance = candidate.DistanceToBody(center);
             float hitRadius = candidate.AreaContactRadius(radius);
             if (distance <= hitRadius && HasSummonSight(center, candidate.transform.position))
+            {
+                contacted = true;
                 candidate.ReceiveSummonHit(PerkEffects.AreaHit(attack, distance), team, attacker);
+            }
         }
+        return contacted;
     }
 }

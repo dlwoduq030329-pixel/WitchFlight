@@ -116,7 +116,10 @@ public partial class MagicProjectile : NetworkBehaviour
             if (!Finished && !IsMine && stats.effect == MagicEffectKind.AreaDamage)
                 Impact(transform.position);
             else
+            {
+                if (!Finished && !IsMine) NotifyShooterFaceMiss();
                 Runner.Despawn(Object);
+            }
             return;
         }
         if (Finished)
@@ -331,6 +334,13 @@ public partial class MagicProjectile : NetworkBehaviour
         return closest < float.PositiveInfinity;
     }
 
+    private void NotifyShooterFaceMiss()
+    {
+        if (ConstructKind != MagicConstructKind.Projectile && ConstructKind != MagicConstructKind.ThunderArea) return;
+        if (Runner.TryFindObject(ShooterId, out NetworkObject shooter) && shooter != null)
+            shooter.GetComponent<Player>()?.NotifyFaceMiss();
+    }
+
     private void SettleMine()
     {
         Settled = true;
@@ -363,15 +373,17 @@ public partial class MagicProjectile : NetworkBehaviour
         transform.position = point;
         if (IsMine || stats.effect == MagicEffectKind.AreaDamage)
         {
-            DamageSummonsInArea(Runner, ShooterTeam, point, stats.radius, stats, ShooterId);
+            bool contacted = DamageSummonsInArea(Runner, ShooterTeam, point, stats.radius, stats, ShooterId);
             foreach (Player player in Player.ActiveCombatants)
             {
                 if (player == null || player.Runner != Runner) continue;
                 if (player == null || !player.IsAlive || (!IsMine && player.TeamIndex == ShooterTeam) ||
                     (player.LockAimPoint - point).sqrMagnitude > stats.radius * stats.radius || !HasBlastSight(player))
                     continue;
+                contacted = true;
                 player.ReceiveMagicHit(PerkEffects.AreaHit(stats, Vector3.Distance(player.LockAimPoint,point)), Shooter, ShooterId, player.LockAimPoint - point);
             }
+            if (!contacted) NotifyShooterFaceMiss();
         }
         else if (summonHit != null)
         {
@@ -389,6 +401,8 @@ public partial class MagicProjectile : NetworkBehaviour
                 Runner.TryFindObject(ShooterId, out NetworkObject catOwner) && catOwner != null)
                 catOwner.GetComponent<Player>()?.NotifySummonKillAudio(point);
         }
+        if (directHit == null && summonHit == null && !IsMine && stats.effect != MagicEffectKind.AreaDamage)
+            NotifyShooterFaceMiss();
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
         Lifetime = TickTimer.CreateFromSeconds(Runner, 0.2f);

@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 
 // Reuses the registered MagicProjectile NetworkObject and NetworkTransform. No second runner,
@@ -97,15 +97,20 @@ public partial class MagicProjectile
             if (!ConstructTimer.Expired(Runner)) return;
             Finished = true; // Guard before damage callbacks; each victim is hit at most once.
             Vector3 center = transform.position;
+            bool contacted = false;
             foreach (Player enemy in Player.ActiveCombatants)
             {
                 if (enemy == null || enemy.Object == null || !enemy.Object.IsValid || enemy.Runner != Runner ||
                     !enemy.IsAlive || enemy.TeamIndex == ShooterTeam) continue;
                 float distance = Vector3.Distance(center, enemy.LockAimPoint);
                 if (distance <= ConstructRadius && HasBlastSight(center,enemy))
+                {
+                    contacted = true;
                     enemy.ReceiveMagicHit(PerkEffects.AreaHit(stats,distance), Shooter, ShooterId, enemy.LockAimPoint - center);
+                }
             }
-            DamageSummonsInArea(Runner, ShooterTeam, center, ConstructRadius, stats, ShooterId);
+            contacted |= DamageSummonsInArea(Runner, ShooterTeam, center, ConstructRadius, stats, ShooterId);
+            if (!contacted) NotifyShooterFaceMiss();
             RPC_Impact(center, Magic);
             Lifetime = TickTimer.CreateFromSeconds(Runner,.25f);
             return;
