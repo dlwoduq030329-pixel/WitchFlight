@@ -6478,7 +6478,7 @@
 +}
 --- before/Assets/Script/BattleIntroPresentation.cs
 +++ after/Assets/Script/BattleIntroPresentation.cs
-@@ -1,619 +1,619 @@
+@@ -1,619 +1,642 @@
 -using System;
 -using System.Collections.Generic;
 -using Fusion;
@@ -7407,9 +7407,9 @@
 +            Mesh mesh;
 +            if (source is SkinnedMeshRenderer skin && skin.sharedMesh != null)
 +            {
-+                mesh = new Mesh { name = source.name + " intro snapshot" };
-+                snapshot.OwnedMeshes.Add(mesh);
-+                skin.BakeMesh(mesh, false);
++                // Preserve bind poses and the frozen skeleton together. Baking the
++                // scaled live model and then shrinking its root can misalign equipment.
++                mesh = skin.sharedMesh;
 +            }
 +            else if (source is MeshRenderer && source.TryGetComponent(out MeshFilter sourceFilter))
 +                mesh = sourceFilter.sharedMesh;
@@ -7420,11 +7420,34 @@
 +
 +            Transform copy = CopyVisualTransform(source.transform, transforms);
 +            // A separate leaf supports multiple renderers without adding gameplay components.
-+            GameObject meshObject = new GameObject(source.name + " portrait mesh", typeof(MeshFilter), typeof(MeshRenderer));
++            GameObject meshObject = new GameObject(source.name + " portrait mesh");
 +            meshObject.layer = PortraitLayer;
 +            meshObject.transform.SetParent(copy, false);
-+            meshObject.GetComponent<MeshFilter>().sharedMesh = mesh;
-+            MeshRenderer renderer = meshObject.GetComponent<MeshRenderer>();
++            Renderer renderer;
++            if (source is SkinnedMeshRenderer sourceSkin)
++            {
++                var portraitSkin = meshObject.AddComponent<SkinnedMeshRenderer>();
++                portraitSkin.sharedMesh = mesh;
++                var sourceBones = sourceSkin.bones;
++                var copiedBones = new Transform[sourceBones.Length];
++                for (int boneIndex = 0; boneIndex < sourceBones.Length; boneIndex++)
++                    copiedBones[boneIndex] = sourceBones[boneIndex] != null
++                        ? CopyVisualTransform(sourceBones[boneIndex], transforms) : null;
++                portraitSkin.bones = copiedBones;
++                portraitSkin.rootBone = sourceSkin.rootBone != null
++                    ? CopyVisualTransform(sourceSkin.rootBone, transforms) : null;
++                portraitSkin.localBounds = sourceSkin.localBounds;
++                portraitSkin.quality = sourceSkin.quality;
++                portraitSkin.updateWhenOffscreen = true;
++                for (int shape = 0; shape < mesh.blendShapeCount; shape++)
++                    portraitSkin.SetBlendShapeWeight(shape, sourceSkin.GetBlendShapeWeight(shape));
++                renderer = portraitSkin;
++            }
++            else
++            {
++                meshObject.AddComponent<MeshFilter>().sharedMesh = mesh;
++                renderer = meshObject.AddComponent<MeshRenderer>();
++            }
 +            Material[] materials = source.sharedMaterials;
 +            renderer.sharedMaterials = materials;
 +            renderer.shadowCastingMode = ShadowCastingMode.Off;
