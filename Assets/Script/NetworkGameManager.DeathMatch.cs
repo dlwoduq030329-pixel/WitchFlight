@@ -10,6 +10,8 @@ public partial class NetworkGameManager
         if (IsDeathMatch && IsRoomHost && DeathMatchState.Instance == null) _runner.Spawn(deathMatchStatePrefab);
     }
 
+    private int deathMatchJoinSequence;
+
     public const int DeathMatchCapacity = 20;
     private const string DeathMatchSession = "WitchFlight-DeathMatch-v1";
     [Header("Deathmatch shared session")]

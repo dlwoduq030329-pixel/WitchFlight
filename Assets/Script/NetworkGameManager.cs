@@ -687,6 +687,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         IsRandomMatch = false;
         IsTraining = false;
         IsDeathMatch = false;
+        deathMatchJoinSequence = 0;
         spawnedPlayers.Clear();
         playerDatas.Clear();
         assignedTeamIndexes.Clear();
@@ -809,6 +810,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         data.teamIndex = teamIndex;
+        if (IsDeathMatch) data.DeathMatchJoinOrder = ++deathMatchJoinSequence;
         data.camp = teamIndex == 1 ? Camp.A : Camp.B;
         if (data.IsRoomOwner) data.SetRoomMatchMode(IsDeathMatch ? BattleMatchMode.DeathMatch : IsRandomMatch ? BattleMatchMode.TwoVsTwo : roomMatchMode);
     }
