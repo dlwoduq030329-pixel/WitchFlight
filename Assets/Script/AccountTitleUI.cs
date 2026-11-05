@@ -46,19 +46,18 @@ public sealed class AccountTitleUI : MonoBehaviour
         if(profiles!=null)foreach(Button button in profiles.GetComponentsInChildren<Button>(true))Bind(button,CancelSelection);
         selectedId=0; disabledFrame=-1;
         DataConfig.Changed+=Refresh;
+        DataConfig.SnapshotApplied+=Refresh;
+        DatabaseManager.DataConfigReadyChanged+=Refresh;
         Refresh();
     }
     private void OnDisable()
     {
         disabledFrame=Time.frameCount;
         DataConfig.Changed-=Refresh;
+        DataConfig.SnapshotApplied-=Refresh;
+        DatabaseManager.DataConfigReadyChanged-=Refresh;
         foreach(var l in listeners)if(l.button!=null)l.button.onClick.RemoveListener(l.action);
         listeners.Clear();choices.Clear();
-    }
-    private void Update()
-    {
-        if(lastReady!=TitleProgression.Ready || lastEquippedId!=DataConfig.equippedTitleId ||
-            lastProgressJson!=DataConfig.titleProgressJson)Refresh();
     }
     private void Bind(Button button,UnityAction action)
     { if(button==null)return;button.onClick.AddListener(action);listeners.Add((button,action)); }

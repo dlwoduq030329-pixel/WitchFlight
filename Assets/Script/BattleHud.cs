@@ -1665,7 +1665,7 @@ public sealed partial class BattleHud : MonoBehaviour
             if (slot.Label == null || !slot.Active) continue;
             float age = Mathf.Clamp01((Time.unscaledTime - slot.Started) / Mathf.Max(0.1f, damageDuration));
             if (age >= 1f) { ResetDamage(slot); continue; }
-            bool concealed = BattleFlag.Instance != null && BattleFlag.Instance.ContainsSmoke(slot.Position);
+            bool concealed = CombatSmoke.Contains(NetworkGameManager.Instance != null ? NetworkGameManager.Instance.Runner : null, slot.Position);
             Visible(slot.Label.gameObject, !MenuOpen && !concealed && Place(slot.Label.rectTransform, slot.Position + Vector3.up * age * damageRise));
             slot.Label.transform.localScale = slot.Scale * Mathf.Lerp(1f, 0.5f, age);
             Color tint = slot.Color;

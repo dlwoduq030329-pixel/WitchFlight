@@ -80,14 +80,14 @@ public partial class PlayerData : NetworkBehaviour
     }
 
     // Profile image ID only. Image selection/rendering and backend storage are separate.
-    [Networked] public int playerprofile { get; private set; } = 0;
+    [Networked, OnChangedRender(nameof(NotifyDeathMatchRankingChanged))] public int playerprofile { get; private set; } = 0;
     [Networked] public int CatBodyIndex { get; private set; } = 1;
     [Networked] public int CatEyeIndex { get; private set; } = 1;
     // Compatibility: both names read the SAME replicated profile index (default 0).
     // Use SetPlayerProfile to change it; do not introduce a second networked copy.
     public int profileimage => playerprofile;
     // LoginPlayerData.nickname -> DataConfig.playerName -> owner's RPC -> all clients.
-    [Networked] public NetworkString<_32> playerName { get; private set; }
+    [Networked, OnChangedRender(nameof(NotifyDeathMatchRankingChanged))] public NetworkString<_32> playerName { get; private set; }
     [Networked] public bool IsRoomOwner { get; private set; }
     [Networked] public HatType hat { get; set; }
     [Networked] public BroomType broom { get; set; }
@@ -117,7 +117,7 @@ public partial class PlayerData : NetworkBehaviour
 
 
 
-    [Networked] public bool IsLoadoutInitialized { get; private set; }
+    [Networked, OnChangedRender(nameof(NotifyDeathMatchRankingChanged))] public bool IsLoadoutInitialized { get; private set; }
 
     // 전투 중인 Player의 체력/AP 상태를 보존하는 PlayerData 값입니다.
     [Networked] public float BattleMaxHp { get; private set; }
@@ -129,6 +129,7 @@ public partial class PlayerData : NetworkBehaviour
     public override void Spawned()
     {
         perkPlayers.Add(this);
+        NotifyDeathMatchRankingChanged();
         if (Object.HasStateAuthority)
             IsRoomOwner = Runner.IsServer && ParticipantRef == Runner.LocalPlayer;
         if (Object.HasInputAuthority)
@@ -305,9 +306,10 @@ public partial class PlayerData : NetworkBehaviour
     {
         if (hasState && Object != null && Object.HasInputAuthority) TitleProgression.Observe(this, true);
         perkPlayers.Remove(this);
+        NotifyDeathMatchRankingChanged();
         if (Local == this) Local = null;
         NetworkGameManager.Instance?.UnregisterPlayerData(this);
     }
 
-    private void OnDestroy() { perkPlayers.Remove(this); if (Local == this) Local = null; }
+    private void OnDestroy() { if (perkPlayers.Remove(this)) NotifyDeathMatchRankingChanged(); if (Local == this) Local = null; }
 }

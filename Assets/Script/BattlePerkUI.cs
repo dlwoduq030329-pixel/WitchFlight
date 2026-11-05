@@ -120,7 +120,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     {
         get { if (active == null) return false; active.SampleInput(); return active.gate.BlocksCombat; }
     }
-    private bool Allowed => Application.isFocused && !CombatPresentation.MenuOpen && BattleManager.Instance != null &&
+    private bool Allowed => (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsDeathMatch) && Application.isFocused && !CombatPresentation.MenuOpen && BattleManager.Instance != null &&
         (BattleManager.Instance.Phase == BattleStartPhase.Playing || BattleManager.Instance.Phase == BattleStartPhase.Countdown ||
         CatTutorialDirector.PracticeInputActive);
     private void SampleInput()
@@ -131,6 +131,16 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     }
     private void Awake()
     {
+        if (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch)
+        {
+            // No generated XP/selection UI and no perk input loop in deathmatch.
+            Show(selectionRoot, false); Show(acquiredRoot, false); Show(benefitAnimation, false);
+            Show(comparisonRoot, false); Show(teamComparisonRoot, false);
+            if (experienceSlider != null) Show(experienceSlider.gameObject, false);
+            if (experienceText != null) Show(experienceText.gameObject, false);
+            enabled = false;
+            return;
+        }
         active = this;
         if (font == null) font = GetComponent<BattleHud>()?.FeedbackFont;
         if (font == null) font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");

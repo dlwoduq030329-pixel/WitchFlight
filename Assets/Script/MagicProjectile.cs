@@ -35,7 +35,7 @@ public partial class MagicProjectile : NetworkBehaviour
     private Player iceDamageVictim;
     private TickTimer iceDamageTimer;
     private readonly RaycastHit[] collisionHits = new RaycastHit[32];
-    private readonly Collider[] overlapHits = new Collider[32];
+    private Collider[] overlapHits = new Collider[32];
     // Main-thread, non-reentrant visibility queries; no damage callbacks within them.
     private static readonly RaycastHit[] blastHits = new RaycastHit[32];
     private static readonly Collider[] blastOverlaps = new Collider[32];
@@ -281,10 +281,11 @@ public partial class MagicProjectile : NetworkBehaviour
         int count = Physics.OverlapSphereNonAlloc(transform.position, radius, overlapHits,
             ~0, QueryTriggerInteraction.Ignore);
         Collider[] hits = overlapHits;
-        if (count == hits.Length)
+        while (count == hits.Length)
         {
-            hits = Physics.OverlapSphere(transform.position, radius, ~0, QueryTriggerInteraction.Ignore);
-            count = hits.Length;
+            overlapHits = hits = new Collider[hits.Length * 2];
+            count = Physics.OverlapSphereNonAlloc(transform.position, radius, hits,
+                ~0, QueryTriggerInteraction.Ignore);
         }
         for (int i = 0; i < count; i++)
         {

@@ -12,8 +12,7 @@ public partial class Player
     [Networked] protected bool HasBurnStatus { get; set; }
     [Networked] private TickTimer FlareProtection { get; set; }
     public bool IsFlareActive => Object != null && Object.IsValid && IsAlive && TimerIsActive(FlareProtection);
-    public float LockRangeMultiplier => BattleFlag.Instance != null && BattleFlag.Instance.Runner == Runner &&
-        BattleFlag.Instance.ContainsEnemySmoke(LockAimPoint, TeamIndex) ? .7f : 1f;
+    public float LockRangeMultiplier => CombatSmoke.ContainsEnemy(Runner, LockAimPoint, TeamIndex) ? .7f : 1f;
     public float LockDurationMultiplierAgainst(Player target) => target != null && target.IsFlareActive &&
         target.IsEnemyOf(this) ? 1.2f : 1f;
     private PlayerData perkOwner;
@@ -62,7 +61,7 @@ public partial class Player
             if (IsTestBot || Object == null || !Object.IsValid) return null;
             if (perkOwner == null || perkOwner.Object == null || !perkOwner.Object.IsValid || perkOwner.Runner != Runner)
                 perkOwner = PlayerData.FindPerkData(Runner, ParticipantRef);
-            return perkOwner != null && perkOwner.PerksInitialized ? perkOwner : null;
+            return perkOwner != null && perkOwner.PerksEnabled && perkOwner.PerksInitialized ? perkOwner : null;
         }
     }
     private float CommonAmount(PerkId id) => PerkOwner != null && PerkOwner.HasCommonPerk(id) ? Perks.Amount(id) : 0f;
@@ -90,7 +89,7 @@ public partial class Player
     private MagicStatEntry ApplyPerkStats(MagicStatEntry stats, int slot)
     {
         var data = PerkOwner;
-        if (data == null) return stats;
+        if (data == null || !data.PerksEnabled) return stats;
         return PerkEffects.Apply(stats, slot, data.PerkLevel(slot), data.CommonPerksMask,
             PerkBaseMaxAp > 0f ? PerkBaseMaxAp : MaxAp, Perks);
     }

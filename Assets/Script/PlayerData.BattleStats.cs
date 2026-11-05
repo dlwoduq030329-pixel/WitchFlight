@@ -7,13 +7,13 @@ public partial class PlayerData
     // Only authoritative combat events change them; the HUD sends no RPCs.
     [Networked] public float BattleDamageDealt { get; private set; }
     [Networked] public float BattleDamageTaken { get; private set; }
-    [Networked] public int BattleKills { get; private set; }
+    [Networked, OnChangedRender(nameof(NotifyDeathMatchRankingChanged))] public int BattleKills { get; private set; }
     [Networked] public int BattleDeaths { get; private set; }
     [Networked] public float BattleFlagSeconds { get; private set; }
     [Networked] public float BattleBoostSeconds { get; private set; }
     [Networked] public float BattleUnderwaterSeconds { get; private set; }
     [Networked] public int BattleWallCrashes { get; private set; }
-    [Networked] public int BattleStatsRevision { get; private set; }
+    [Networked, OnChangedRender(nameof(NotifyDeathMatchStatsChanged))] public int BattleStatsRevision { get; private set; }
     private NetworkId lastRecordedDeathObject;
 
     private bool CanRecordBattleStats => Object != null && Object.IsValid && Object.HasStateAuthority &&

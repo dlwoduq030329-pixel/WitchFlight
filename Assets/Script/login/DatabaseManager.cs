@@ -100,7 +100,18 @@ public partial class DatabaseManager : MonoBehaviour
     public bool IsAutoSavePending => autoSaveDirty || autoSaveInFlight;
     public string LoadedAccountId => HasLoadedProfile ? loadedUserInDate : string.Empty;
     public bool IsPlayerSettingLoaded { get; private set; }
-    public bool IsDataConfigReady { get; private set; }
+    public static event Action DataConfigReadyChanged;
+    private bool dataConfigReady;
+    public bool IsDataConfigReady
+    {
+        get => dataConfigReady;
+        private set
+        {
+            if (dataConfigReady == value) return;
+            dataConfigReady = value;
+            DataConfigReadyChanged?.Invoke();
+        }
+    }
     public bool LastSaveSucceeded { get; private set; }
     public string LastError { get; private set; } = string.Empty;
     public bool HasLoadedProfile => Backend.IsLogin && IsPlayerSettingLoaded &&

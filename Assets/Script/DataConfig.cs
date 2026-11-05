@@ -6,6 +6,8 @@ public static class DataConfig
 {
     // Keep the existing assignment API while notifying the account's save coordinator.
     public static event Action Changed;
+    // Presentation-only notification: loading server data must not trigger auto-save.
+    public static event Action SnapshotApplied;
     public const int InitialMoney = 20000;
     public static event Action MoneyChanged;
     private static int _money;
@@ -123,6 +125,7 @@ public static class DataConfig
             if (!notify) silentDepth--;
             batchDepth--;
             NotifyChanged();
+            if (!notify && batchDepth == 0) SnapshotApplied?.Invoke();
         }
     }
 

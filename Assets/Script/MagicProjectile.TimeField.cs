@@ -5,6 +5,7 @@ using UnityEngine;
 public partial class MagicProjectile
 {
     private static readonly HashSet<MagicProjectile> timeFields = new();
+    public static bool HasTimeFields => timeFields.Count != 0;
     [Networked] private float TimeAllyMultiplier { get; set; }
     [Networked] private float TimeEnemyMultiplier { get; set; }
     [Networked] private float TimeShotMultiplier { get; set; }

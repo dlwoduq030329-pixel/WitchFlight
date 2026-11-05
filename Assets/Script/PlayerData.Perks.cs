@@ -28,9 +28,10 @@ public partial class PlayerData
     private float passiveXpTime;
     public event Action<bool, PerkId, int> PerkSelectionResult;
     public PerkStatTable PerkTable => BattleManager.Instance != null ? BattleManager.Instance.Perks : PerkStatTable.Default;
-    public int PendingPerkChoices => Mathf.Max(0, PerkChoicesEarned - PerkChoicesUsed);
-    public int PerkLevel(int slot) => slot == 1 ? PerkSlot1Level : slot == 2 ? PerkSlot2Level : 0;
-    public bool HasCommonPerk(PerkId id) => (CommonPerksMask & PerkRules.Bit(id)) != 0;
+    public bool PerksEnabled => NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsDeathMatch;
+    public int PendingPerkChoices => !PerksEnabled ? 0 : Mathf.Max(0, PerkChoicesEarned - PerkChoicesUsed);
+    public int PerkLevel(int slot) => !PerksEnabled ? 0 : slot == 1 ? PerkSlot1Level : slot == 2 ? PerkSlot2Level : 0;
+    public bool HasCommonPerk(PerkId id) => PerksEnabled && (CommonPerksMask & PerkRules.Bit(id)) != 0;
     public bool HasSpellPerk(int slot, PerkId id)
     {
         MagicType magic = slot == 1 ? magic1 : slot == 2 ? magic2 : MagicType.None;
@@ -43,7 +44,7 @@ public partial class PlayerData
         return right ? PerkRules.Candidate(magic2, PerkSlot2Level, PerkSlot1Level, RightCommonCandidate)
             : PerkRules.Candidate(magic1, PerkSlot1Level, PerkSlot2Level, LeftCommonCandidate);
     }
-    public bool CanSelectPerks => Object != null && Object.IsValid && PerksInitialized &&
+    public bool CanSelectPerks => PerksEnabled && Object != null && Object.IsValid && PerksInitialized &&
         BattleManager.Instance != null && (BattleManager.Instance.Phase == BattleStartPhase.Playing ||
         BattleManager.Instance.Phase == BattleStartPhase.Countdown || CatTutorialDirector.PracticeInputActive) && PendingPerkChoices > 0;
 
@@ -59,8 +60,15 @@ public partial class PlayerData
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
         PerkXp = PerkChoicesEarned = PerkChoicesUsed = PerkSlot1Level = PerkSlot2Level = CommonPerksMask = 0;
         PerkRevision++;
-        PerksInitialized = true;
-        perkLedger = new PerkXpLedger(); passiveXpTime = 0;
+        PerksInitialized = PerksEnabled;
+        passiveXpTime = 0;
+        if (!PerksEnabled)
+        {
+            perkLedger = null;
+            LeftCommonCandidate = RightCommonCandidate = PerkId.None;
+            return;
+        }
+        perkLedger = new PerkXpLedger();
         RefreshCommonCandidates();
     }
     private void RefreshCommonCandidates()
@@ -125,11 +133,11 @@ public partial class PlayerData
             passiveXpTime -= interval; AddPerkXp(PerkTable.passiveXp);
         }
     }
-    private bool CanAwardPerkXp() => Object != null && Object.IsValid && Object.HasStateAuthority &&
+    private bool CanAwardPerkXp() => PerksEnabled && Object != null && Object.IsValid && Object.HasStateAuthority &&
         PerksInitialized && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
     private void AddPerkXp(int amount)
     {
-        if (amount <= 0 || PerkChoicesEarned >= PerkRules.MaxChoices) return;
+        if (!PerksEnabled || amount <= 0 || PerkChoicesEarned >= PerkRules.MaxChoices) return;
         PerkXp = (int)Math.Min(100000000L,(long)PerkXp + amount);
         while (PerkChoicesEarned < PerkRules.MaxChoices && PerkXp >= PerkTable.RequiredXp(PerkChoicesEarned)) {
             PerkXp -= PerkTable.RequiredXp(PerkChoicesEarned); PerkChoicesEarned++;

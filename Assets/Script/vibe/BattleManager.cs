@@ -6,7 +6,7 @@ using UnityEngine;
 [RequireComponent(typeof(BattleIntroPresentation))]
 [RequireComponent(typeof(BattleRoundUI))]
 [RequireComponent(typeof(BattleKillFeed))]
-public class BattleManager : MonoBehaviour
+public partial class BattleManager : MonoBehaviour
 {
     [Header("Movement log collection (diagnostic builds only)")]
     [Tooltip("수집 기간에만 체크한 상태로 빌드하세요. 방장이 참가자 전원(봇 포함)의 동선을 기록하고 뒤끝 게임 로그로 업로드합니다. 해제하면 기록기를 만들지 않습니다.")]
@@ -79,13 +79,14 @@ public class BattleManager : MonoBehaviour
 
     public static BattleManager Instance => instance;
     private bool HasValidFlag => battleFlag != null && battleFlag.Object != null && battleFlag.Object.IsValid;
-    public virtual bool UsesVersusPresentation => true;
+    public bool IsDeathMatch => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch;
+    public virtual bool UsesVersusPresentation => !IsDeathMatch;
     public virtual bool UsesStandardResults => true;
     public virtual bool RecordsBattleStats => true;
-    public virtual string ObjectiveLabel => null;
-    public virtual string ModeLabel => null;
+    public virtual string ObjectiveLabel => IsDeathMatch ? "자유롭게 전투하세요" : null;
+    public virtual string ModeLabel => IsDeathMatch ? "데스매치" : null;
     public bool IsRace => RaceCourse.Instance != null;
-    public virtual BattleStartPhase Phase => IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
+    public virtual BattleStartPhase Phase => IsDeathMatch ? (NetworkGameManager.Instance.IsMigratingDeathMatch ? BattleStartPhase.WaitingForPlayers : BattleStartPhase.Playing) : IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
     public bool IsGameplayActive => Phase == BattleStartPhase.Playing ||
         (IsTraining && Phase == BattleStartPhase.TrainingTutorial && CatTutorialDirector.PracticeInputActive);
     public bool IsTraining => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
@@ -194,10 +195,12 @@ public class BattleManager : MonoBehaviour
         pendingRespawns.Clear();
         resultAnnounced = false;
         foreach (PlayerData data in playerDatas.Values)
-            if (data != null) { data.ResetMatchPerks(); data.ResetBattleStats(); if (IsRace) data.ResetRace(); }
+            if (data != null && !(IsDeathMatch && NetworkGameManager.Instance.IsRestoredDeathMatchPlayer(data.ParticipantRef))) { data.ResetMatchPerks(); data.ResetBattleStats(); if (IsRace) data.ResetRace(); }
         FindSpawnPoints();
+        if (IsDeathMatch) NetworkGameManager.Instance.SpawnDeathMatchState();
         SpawnBattlePlayers(playerPrefab);
-        if (!IsRace) SpawnFlag();
+        if (IsDeathMatch) RestoreDeathMatchRespawns();
+        if (!IsRace && !IsDeathMatch) SpawnFlag();
         if (collectMovementLogs)
             (GetComponent<BattleMovementRecorder>() ?? gameObject.AddComponent<BattleMovementRecorder>()).Begin(runner, this);
     }
@@ -248,6 +251,11 @@ public class BattleManager : MonoBehaviour
 
     protected virtual void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
     {
+        if (IsDeathMatch)
+        {
+            SpawnDeathMatchPlayer(playerRef, playerData, prefab, isRespawn);
+            return;
+        }
         if (playerData == null || !playerData.IsLoadoutInitialized || !IsConnected(playerRef))
             return;
         if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject existing) &&
@@ -412,6 +420,10 @@ public class BattleManager : MonoBehaviour
             killer != null ? killer.playerprofile : -1,
             victim != null ? victim.playerName.ToString() : $"Player {deadPlayer.PlayerId}",
             victim != null ? victim.playerprofile : -1);
+        if (IsDeathMatch && DeathMatchState.Instance != null)
+            DeathMatchState.Instance.RPC_AnnounceKill(killer != null ? killer.playerName.ToString() : "환경",
+                killer != null ? killer.playerprofile : -1, victim != null ? victim.playerName.ToString() : "플레이어",
+                victim != null ? victim.playerprofile : -1);
         battleFlag?.DropCarrier(deadPlayer, deadObject.transform.position,
             deadPilot != null && deadPilot.DiedFromAltitude);
         pendingRespawns.Add(new PendingRespawn
@@ -467,6 +479,11 @@ public class BattleManager : MonoBehaviour
                 continue;
             if (playerDatas.TryGetValue(pending.PlayerRef, out PlayerData playerData))
                 SpawnBattlePlayer(pending.PlayerRef, playerData, playerPrefab, true);
+            if (IsDeathMatch && !spawnedPlayers.ContainsKey(pending.PlayerRef))
+            {
+                pending.RespawnAt = TickTimer.CreateFromSeconds(runner, .5f);
+                continue;
+            }
             pendingRespawns.RemoveAt(index);
         }
     }

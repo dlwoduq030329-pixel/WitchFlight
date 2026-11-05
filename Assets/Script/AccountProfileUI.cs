@@ -102,6 +102,8 @@ public sealed class AccountProfileUI : MonoBehaviour
                 if (titleButton != confirmButton && titleButton != titleCategoryButton)
                     Bind(titleButton, BeginTitleSelection);
         DataConfig.Changed += RefreshFromDataConfig;
+        DataConfig.SnapshotApplied += RefreshFromDataConfig;
+        DatabaseManager.DataConfigReadyChanged += RefreshFromDataConfig;
         RefreshFromDataConfig();
     }
 
@@ -111,18 +113,14 @@ public sealed class AccountProfileUI : MonoBehaviour
         // listener executes. Permit that same click, but never a later hidden-panel call.
         disabledAtFrame = Time.frameCount;
         DataConfig.Changed -= RefreshFromDataConfig;
+        DataConfig.SnapshotApplied -= RefreshFromDataConfig;
+        DatabaseManager.DataConfigReadyChanged -= RefreshFromDataConfig;
         foreach (var listener in listeners)
             if (listener.button != null) listener.button.onClick.RemoveListener(listener.action);
         listeners.Clear();
         // DatabaseManager owns auto saving, so closing this panel does not cancel a save.
     }
 
-    private void LateUpdate()
-    {
-        // Login/logout snapshots can update DataConfig silently while this panel is open.
-        if (lastReady != ProfileReady || lastProfileIndex != DataConfig.playerprofile || lastNickname != DataConfig.playerName)
-            RefreshFromDataConfig();
-    }
 
     private TMP_Text FindNicknameText(string sectionName, string textName)
     {

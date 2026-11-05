@@ -41,6 +41,8 @@ public sealed class GameAudioContext : MonoBehaviour
     private LoginFlowController login;
     private bool lobbyReady;
     private bool scanned;
+    private bool loginLookupPending = true;
+    private static readonly Unity.Profiling.ProfilerMarker ScanMarker = new("WitchFlight.AudioContextScan");
     private float nextScan;
     private readonly AudioSceneComponents<Selectable> controls = new();
     private readonly AudioSceneComponents<RectTransform> rectangles = new();
@@ -57,12 +59,17 @@ public sealed class GameAudioContext : MonoBehaviour
         SceneManager.sceneLoaded += OnSceneLoaded;
         Scan();
     }
-    private void OnSceneLoaded(Scene scene, LoadSceneMode mode) => Scan();
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode) { loginLookupPending = true; Scan(); }
 
     private void Scan()
     {
+        using var marker = ScanMarker.Auto();
         nextScan = Time.unscaledTime + .5f;
-        if (login == null) login = FindFirstObjectByType<LoginFlowController>();
+        if (loginLookupPending)
+        {
+            loginLookupPending = false;
+            if (login == null) login = FindFirstObjectByType<LoginFlowController>();
+        }
         ScanAuthoredMusic();
         // Include inactive dropdown templates so their dynamically cloned Toggle items
         // already have input sounds on their first frame.
@@ -160,8 +167,8 @@ public sealed class GameAudioContext : MonoBehaviour
             if (binding.source != null)
             {
                 if (binding.source.isPlaying) binding.source.Stop();
-                binding.source.playOnAwake = false;
-                binding.source.enabled = false;
+                if (binding.source.playOnAwake) binding.source.playOnAwake = false;
+                if (binding.source.enabled) binding.source.enabled = false;
             }
     }
 
