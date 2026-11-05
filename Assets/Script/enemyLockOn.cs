@@ -1,5 +1,6 @@
 ﻿using Fusion;
 using UnityEngine;
+using UnityEngine.UI;
 
 // Local screen/visibility selection. The same target travels with the release input.
 public class enemyLockOn : MonoBehaviour
@@ -14,6 +15,83 @@ public class enemyLockOn : MonoBehaviour
     private NetworkObject currentTarget;
     private float nextRefreshTime;
     private readonly RaycastHit[] obstructionHits = new RaycastHit[32];
+    private Player designatedTarget;
+    private GameObject directionCanvas;
+    private RectTransform directionArrow;
+    public Player DesignatedTarget => designatedTarget;
+
+    private void Update()
+    {
+        bool active = owner != null && owner.Object != null && owner.Object.IsValid &&
+            owner.Object.HasInputAuthority && owner.IsAlive && BattleManager.Instance != null &&
+            BattleManager.Instance.IsGameplayActive;
+        if (!active)
+        {
+            designatedTarget = null;
+            SetArrowVisible(false);
+            return;
+        }
+        if (designatedTarget != null && (designatedTarget.Object == null || !designatedTarget.Object.IsValid ||
+            designatedTarget.Runner != owner.Runner || !designatedTarget.IsTargetableBy(owner))) designatedTarget = null;
+        if (Input.GetMouseButtonDown(2) && !CombatPresentation.MenuOpen &&
+            !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput && TryGetAlignedAim(out _))
+        {
+            designatedTarget = null;
+            Vector3 aim = targetCamera.WorldToScreenPoint(targetCameraFollow.GetDisplayedAimPoint());
+            float best = float.PositiveInfinity;
+            foreach (Player candidate in Player.ActiveCombatants)
+            {
+                if (candidate == null || candidate.Object == null || !candidate.Object.IsValid ||
+                    candidate.Runner != owner.Runner || !candidate.IsTargetableBy(owner)) continue;
+                Vector3 viewport = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
+                if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f ||
+                    !HasLineOfSight(targetCamera.transform.position, candidate)) continue;
+                Vector3 screen = targetCamera.WorldToScreenPoint(candidate.LockAimPoint);
+                float score = ((Vector2)(screen - aim)).sqrMagnitude;
+                if (score < best) { best = score; designatedTarget = candidate; }
+            }
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (designatedTarget == null || targetCamera == null || CombatPresentation.MenuOpen)
+        { SetArrowVisible(false); return; }
+        Vector3 point = targetCamera.WorldToViewportPoint(designatedTarget.LockAimPoint);
+        if (point.z > 0f && point.x >= 0f && point.x <= 1f && point.y >= 0f && point.y <= 1f)
+        { SetArrowVisible(false); return; }
+        if (directionCanvas == null)
+        {
+            directionCanvas = new GameObject("DesignatedTargetDirection", typeof(Canvas), typeof(CanvasScaler));
+            var canvas = directionCanvas.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 50;
+            var scaler = directionCanvas.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            var arrow = new GameObject("RedTriangleBlackOutline", typeof(RectTransform), typeof(DesignatedTargetTriangle));
+            directionArrow = arrow.GetComponent<RectTransform>();
+            directionArrow.SetParent(directionCanvas.transform, false);
+            directionArrow.sizeDelta = new Vector2(32f, 38f);
+            arrow.GetComponent<DesignatedTargetTriangle>().raycastTarget = false;
+        }
+        SetArrowVisible(true);
+        Vector2 delta = new Vector2((point.x - .5f) * targetCamera.pixelWidth, (point.y - .5f) * targetCamera.pixelHeight);
+        if (point.z < 0f) delta = -delta;
+        if (delta.sqrMagnitude < .01f) delta = Vector2.down;
+        Rect rect = ((RectTransform)directionCanvas.transform).rect;
+        Vector2 edge = new Vector2(Mathf.Max(1f, rect.width * .5f - 42f), Mathf.Max(1f, rect.height * .5f - 42f));
+        float scale = Mathf.Min(edge.x / Mathf.Max(.001f, Mathf.Abs(delta.x)), edge.y / Mathf.Max(.001f, Mathf.Abs(delta.y)));
+        directionArrow.anchoredPosition = delta * scale;
+        directionArrow.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg - 90f);
+    }
+
+    private void SetArrowVisible(bool visible)
+    {
+        if (directionCanvas != null && directionCanvas.activeSelf != visible) directionCanvas.SetActive(visible);
+    }
+    private void OnDisable() { designatedTarget = null; SetArrowVisible(false); }
+    private void OnDestroy() { if (directionCanvas != null) Destroy(directionCanvas); }
     public Player CurrentTarget => currentTarget != null ? currentTarget.GetComponent<Player>() : null;
     // Read-only camera presentation state; includes summon targets and requires no new search.
     public bool HasSelectedTarget => wasHeld && currentTarget != null && currentTarget.IsValid &&
@@ -79,6 +157,10 @@ public class enemyLockOn : MonoBehaviour
 
     private NetworkObject FindClosestVisibleEnemy(bool excludeRainTargets = false)
     {
+        if (!owner.SelectedMagicStats.TargetsAllies && designatedTarget != null &&
+            designatedTarget.Object != null && IsVisible(designatedTarget.Object) &&
+            (!excludeRainTargets || !owner.HasRainTarget(designatedTarget.Object.Id)))
+            return designatedTarget.Object;
         NetworkObject best = null;
         float bestScore = float.PositiveInfinity;
         if (owner.Runner == null) return null;
@@ -230,5 +312,26 @@ public class enemyLockOn : MonoBehaviour
             return false;
         }
         return true;
+    }
+}
+
+// Two nested triangles keep the outline crisp without a texture or an Outline mesh effect.
+public sealed class DesignatedTargetTriangle : MaskableGraphic
+{
+    protected override void OnPopulateMesh(VertexHelper mesh)
+    {
+        mesh.Clear();
+        Rect rect = rectTransform.rect;
+        AddTriangle(mesh, rect.width, rect.height, Color.black);
+        AddTriangle(mesh, rect.width * .68f, rect.height * .68f, new Color32(231, 40, 56, 255));
+    }
+
+    private static void AddTriangle(VertexHelper mesh, float width, float height, Color tint)
+    {
+        int start = mesh.currentVertCount;
+        mesh.AddVert(new Vector3(0f, height * .5f), tint, Vector2.zero);
+        mesh.AddVert(new Vector3(width * .5f, -height * .5f), tint, Vector2.zero);
+        mesh.AddVert(new Vector3(-width * .5f, -height * .5f), tint, Vector2.zero);
+        mesh.AddTriangle(start, start + 1, start + 2);
     }
 }

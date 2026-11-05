@@ -6,6 +6,46 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 {
     private static readonly ProfilerMarker flightMarker = new("WitchFlight.Player.Simulate");
     private static readonly ProfilerMarker combatMarker = new("WitchFlight.Player.AuthoritativeCombat");
+    [Header("Automatic cruise experiment")]
+    [SerializeField] private bool automaticCruise = true;
+    [SerializeField, Min(.05f)] private float glideStopSeconds = 1.5f;
+    [SerializeField, Min(.05f)] private float burstBoostSeconds = 2f;
+    [SerializeField, Min(0f)] private float burstBoostManaCost = 10f;
+    [SerializeField, Min(1f)] private float burstAccelerationMultiplier = 4f;
+    [Networked] private float GlideElapsed { get; set; }
+    [Networked] private float GlideStartSpeed { get; set; }
+    [Networked] private TickTimer BurstBoostTimer { get; set; }
+    public bool UsesAutomaticCruise => automaticCruise && !IsMatchBot && !IsTestBot;
+    public bool IsGliding => UsesAutomaticCruise && GlideElapsed > 0f;
+
+    private void ProcessCruiseInput(NetworkButtons buttons, bool allowBoost)
+    {
+        bool braking = buttons.IsSet(PlayerInputButton.Decelerate);
+        bool boostHeld = buttons.IsSet(PlayerInputButton.Boost);
+        if (!boostHeld) boostNeedsRelease = false;
+        if (braking)
+        {
+            BurstBoostTimer = TickTimer.None;
+            if (GlideElapsed <= 0f) GlideStartSpeed = Mathf.Max(0f, Speed);
+            GlideElapsed = Mathf.Min(glideStopSeconds, GlideElapsed + Runner.DeltaTime);
+            SpeedStage = 0;
+            IsBoosting = false;
+            return;
+        }
+        GlideElapsed = 0f;
+        if (allowBoost && buttons.WasPressed(previousButtons, PlayerInputButton.Boost) &&
+            !TimerIsActive(BurstBoostTimer) && !boostNeedsRelease && !IsBound && !IsHitStunned)
+        {
+            float cost = RaceCourse.Instance != null ? 0f : burstBoostManaCost *
+                (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind)));
+            if (TryConsumeMovementAp(cost))
+                BurstBoostTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.05f, burstBoostSeconds));
+            else if (Object.HasInputAuthority && Runner.IsForward) BattleHud.ShowInsufficientMana(this);
+        }
+        IsBoosting = TimerIsActive(BurstBoostTimer) && !IsBound && !IsHitStunned;
+        SpeedStage = IsBoosting ? 3 : 2;
+    }
+
     [Header("Movement")]
     [SerializeField] private float maxSpeed = 60f;
     [Tooltip("Host/Client 모드에서 내 비행을 즉시 예측합니다. 비교 테스트 시에만 꺼 주세요. 모든 빌드에서 동일하게 설정합니다.")]
@@ -340,7 +380,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         TeamIndex = RaceCourse.Instance != null ? data.RaceCompetitorTeam : data.teamIndex;
         IsAlive = true;
         Speed = 0f;
-        SpeedStage = 0;
+        SpeedStage = UsesAutomaticCruise ? 2 : 0;
+        GlideElapsed = 0f;
+        BurstBoostTimer = TickTimer.None;
         ResetItemBoost();
         LastReceivedDamage = 0f;
         LastCastMagic = MagicType.None;
@@ -387,6 +429,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         currentTurnSpeed = 0f;
         previousButtons = default;
         HeadLookAngles = Vector2.zero;
+        if (!IsAlive || IsReturningToMap || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        { BurstBoostTimer = TickTimer.None; GlideElapsed = 0f; }
         pendingMagic = MagicType.None;
         castTimer = TickTimer.None;
 
@@ -910,13 +954,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
 
-        if (buttons.WasPressed(previousButtons, PlayerInputButton.Accelerate))
+        if (!UsesAutomaticCruise && buttons.WasPressed(previousButtons, PlayerInputButton.Accelerate))
             SpeedStage = Mathf.Min(SpeedStage + 1, 3);
 
         if (buttons.WasPressed(previousButtons, PlayerInputButton.QuickBrake) && TryStartCobra())
         { TickCobra(); previousButtons = buttons; return; }
 
-        if (buttons.WasPressed(previousButtons, PlayerInputButton.Decelerate))
+        if (!UsesAutomaticCruise && buttons.WasPressed(previousButtons, PlayerInputButton.Decelerate))
         {
             SpeedStage = Mathf.Max(SpeedStage - 1, -3);
         }
@@ -930,7 +974,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (buttons.WasPressed(previousButtons, PlayerInputButton.MagicSlot3))
             SelectMagicSlot(3);
 
-        UpdateHeldBoost(buttons.IsSet(PlayerInputButton.Boost));
+        if (UsesAutomaticCruise) ProcessCruiseInput(buttons, !data.suppressCombat);
+        else UpdateHeldBoost(buttons.IsSet(PlayerInputButton.Boost));
 
         if (!IsHitStunned)
             PlayerTurn(data, buttons);
@@ -1135,6 +1180,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void ContinueWithoutActions()
     {
+        if (UsesAutomaticCruise) ProcessCruiseInput(default, false);
         if (IsBound) { Speed = 0f; KnockbackVelocity = Vector3.zero; return; }
         if (IsHitStunned)
             Speed = Mathf.MoveTowards(Speed, 0f, brakeSpeed * Runner.DeltaTime);
@@ -1161,6 +1207,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void UpdateSpeed()
     {
+        if (IsGliding)
+        {
+            // Decrease from the actual entry speed; reach zero at the configured hold time.
+            float glideSpeed = GlideStartSpeed * (1f - Mathf.Clamp01(GlideElapsed / Mathf.Max(.05f, glideStopSeconds)));
+            Speed = Mathf.Min(Mathf.Max(0f, Speed), glideSpeed);
+            return;
+        }
         float targetSpeed = flightMaxSpeed * SpeedStage / 3f;
         targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() * (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier;
 
@@ -1174,6 +1227,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         float rate = reversing || Mathf.Abs(targetSpeed) < Mathf.Abs(Speed)
             ? brakeSpeed * (1f + CommonAmount(PerkId.BrakingRune)) : stageTransitionSpeed * GetMovementMultiplier() *
                 (Mathf.Abs(SpeedStage) == 1 && Mathf.Abs(Speed) < flightMaxSpeed / 3f ? 1f + CommonAmount(PerkId.FirstWind) : 1f);
+        if (UsesAutomaticCruise && IsBoosting && targetSpeed > Speed) rate *= burstAccelerationMultiplier;
         Speed = Mathf.MoveTowards(Speed, targetSpeed, rate * Runner.DeltaTime);
     }
 
@@ -2478,7 +2532,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         SpeedStage = 0;
         Speed = 0f;
         IsBoosting = false;
-        boostNeedsRelease = true; // Holding Shift must not switch the stopped player back to stage 1.
+        BurstBoostTimer = TickTimer.None;
+        boostNeedsRelease = true; // Release Shift before another burst after hitting a wall.
         if (Vector3.Dot(KnockbackVelocity, hit.normal) < 0f)
             KnockbackVelocity = Vector3.ProjectOnPlane(KnockbackVelocity, hit.normal);
 
