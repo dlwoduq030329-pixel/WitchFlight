@@ -113,6 +113,7 @@ public partial class CameraFollow : MonoBehaviour
         // steering toward last frame's camera (which would drift while flying forward).
         Vector3 offset = isAim ? aimOffset : followOffset;
         offset.z = Mathf.Min(-0.5f, offset.z);
+        offset *= targetPlayer.WorldScaleMultiplier;
         Vector3 point = target.transform.position + mouseAimRotation * (offset + Vector3.forward * AimProjectionDistance);
         direction = (point - targetPlayer.LockAimPoint).normalized;
         up = mouseAimRotation * Vector3.up;
@@ -436,7 +437,8 @@ public partial class CameraFollow : MonoBehaviour
             mouseAimRotation = targetTransform.rotation;
             Vector3 lookAt = head != null ? head.position : targetTransform.position + Vector3.up * fallbackHeadHeight;
             Vector3 forward = Quaternion.Euler(0f, targetTransform.eulerAngles.y, 0f) * Vector3.forward;
-            Vector3 position = lookAt + forward * faceDistance + Vector3.up * faceHeightOffset;
+            float faceModelScale = targetPlayer != null ? targetPlayer.WorldScaleMultiplier : 1f;
+            Vector3 position = lookAt + (forward * faceDistance + Vector3.up * faceHeightOffset) * faceModelScale;
             Quaternion rotation = Quaternion.LookRotation(lookAt - position, Vector3.up);
             if (forceSnap || !wasFaceView)
                 transform.SetPositionAndRotation(position, rotation);
@@ -492,9 +494,11 @@ public partial class CameraFollow : MonoBehaviour
         // dolly only to the displayed camera pose, so it cannot accumulate or drift.
         float flightDistance = canKick && speedEffects != null ? speedEffects.FlightCameraDistance : 0f;
         Vector3 displayOffset = currentLocalOffset + Vector3.back * (kickDistance + flightDistance);
-        lockOnPreviewBaselinePosition = rawPosition + rawRotation * displayOffset;
+        float modelScale = targetPlayer != null ? targetPlayer.WorldScaleMultiplier : 1f;
+        lockOnPreviewBaselinePosition = rawPosition + rawRotation * (displayOffset * modelScale);
         displayOffset = ApplyLockOnPreviewOffset(displayOffset, !boundaryReturnBlending &&
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive);
+        displayOffset *= modelScale;
         Vector3 desiredPosition = rawPosition + rawRotation * displayOffset;
         if (boundaryReturnBlending)
         {

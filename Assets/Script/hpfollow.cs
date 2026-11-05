@@ -131,8 +131,8 @@ public sealed class hpfollow : MonoBehaviour
             return;
         }
 
-        Vector3 position = headAnchor != null ? headAnchor.position : transform.position + Vector3.up * 1.5f;
-        position += worldOffset;
+        Vector3 position = headAnchor != null ? headAnchor.position : transform.position + Vector3.up * (1.5f * owner.WorldScaleMultiplier);
+        position += worldOffset * owner.WorldScaleMultiplier;
         Vector3 viewport = viewCamera.WorldToViewportPoint(position);
         if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f)
         {

@@ -126,7 +126,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
     {
         if (player == null || player.Runner == null) return null;
         var table = FlightCombatTable.Default;
-        float orbitRadius = table != null ? table.spawnProtectionOrbitRadius : .8f;
+        float orbitRadius = (table != null ? table.spawnProtectionOrbitRadius : .8f) * player.WorldScaleMultiplier;
         float angle = (float)player.Runner.SimulationTime * 180f + phase;
         Vector3 facing = Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward;
         float opacityMultiplier = table != null ? table.spawnShieldOpacity : .5f;
@@ -136,7 +136,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
         effect.spawnShield = true;
         effect.spawnOrbitPhase = phase;
         effect.spawnOpacity = opacityMultiplier;
-        effect.transform.localScale = Vector3.one * (table != null ? table.spawnShieldScale : .5f);
+        effect.transform.localScale = Vector3.one * (table != null ? table.spawnShieldScale : .5f) * player.WorldScaleMultiplier;
         return effect;
     }
 
