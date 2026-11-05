@@ -96,7 +96,7 @@ public sealed class BattleAudioTable : ScriptableObject
     [Range(0f, 1f)] public float masterVolume = 1f;
     public AudioMixerGroup outputMixer;
     [Header("다가오는 마법 경고 (로컬 SFX)")]
-    public BattleSoundCue incomingMagic = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = .55f, minimumInterval = .02f };
+    public BattleSoundCue incomingMagic = new() { category = GameAudioCategory.SFX, spatialBlend = 0f, volume = 1f, minimumInterval = .02f };
     [Min(.05f)] public float incomingFarInterval = .55f;
     [Min(.05f)] public float incomingNearInterval = .14f;
     [Tooltip("실제 패링 가능 구간에 진입했을 때의 경고음 간격(초).")]
