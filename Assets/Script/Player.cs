@@ -309,6 +309,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!Object.HasStateAuthority || data == null)
             return;
 
+        DeathMatchMigrationIdentity = data.DeathMatchIdentity;
         MatchBotSlot = data.MatchBotSlot;
         HatStatEntry hatStats = GetHatStats(data.hat);
         BroomStatEntry broomStats = GetBroomStats(data.broom);
@@ -494,7 +495,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void FixedUpdateNetwork()
     {
-        if (!SimulatesMovement || LoadoutVersion <= 0)
+        if (!SimulatesMovement || LoadoutVersion <= 0 ||
+            (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch && Object.InputAuthority == PlayerRef.None))
             return;
         EnforceMapFloor();
         try { SimulateMovementTick(); }
@@ -2351,7 +2353,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public bool IsEnemyOf(Player other)
     {
-        if (other == null || other == this || !IsAlive || !other.IsAlive)
+        if (other == null || other == this || !IsAlive || !other.IsAlive ||
+            (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch &&
+             (ParticipantRef == PlayerRef.None || other.ParticipantRef == PlayerRef.None)))
             return false;
 
         if (TeamIndex > 0 && other.TeamIndex > 0)

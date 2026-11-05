@@ -23,7 +23,7 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
         {
             if (root == null) return;
             if (!root.gameObject.activeSelf) root.gameObject.SetActive(true);
-            if (root.GetSiblingIndex() != sibling) root.SetSiblingIndex(sibling);
+            if (sibling >= 0 && root.GetSiblingIndex() != sibling) root.SetSiblingIndex(sibling);
             bool changed = previous != data;
             if (changed || previousName != data.playerName)
             {
@@ -69,6 +69,9 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
     [SerializeField] private Row mine;
     [SerializeField] private Row[] enemies = Array.Empty<Row>();
     [SerializeField] private ProfileImageTable profiles;
+    [SerializeField] private GameObject scoreUI;
+    [SerializeField] private Row firstClass;
+    [SerializeField] private Row meClass;
     private readonly List<PlayerData> roster = new(NetworkGameManager.DeathMatchCapacity);
     private float nextRefresh;
     private int visibleRows = -1;
@@ -90,8 +93,11 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
     private void Awake()
     {
         if (panel != null) panel.gameObject.SetActive(false);
+        firstClass?.Hide();
+        meClass?.Hide();
         if (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsDeathMatch)
         { enabled = false; return; }
+        if (scoreUI != null) scoreUI.SetActive(false);
         if (profiles == null) profiles = ProfileImageTable.Default;
         if (mine?.root != null) { rowWidth = mine.root.rect.width; rowHeight = mine.root.rect.height; }
         mine?.Hide();
@@ -103,10 +109,10 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
         var manager = NetworkGameManager.Instance;
         bool show = manager != null && manager.IsDeathMatch && manager.Runner != null && manager.Runner.IsRunning &&
             Application.isFocused && !CombatPresentation.MenuOpen && !BattleEmoteUI.CapturesMouse && Input.GetKey(KeyCode.Tab);
-        if (panel == null) return;
-        bool opening = show && !panel.gameObject.activeSelf;
-        if (panel.gameObject.activeSelf != show) panel.gameObject.SetActive(show);
-        if (!show) return;
+        bool opening = show && panel != null && !panel.gameObject.activeSelf;
+        if (panel != null && panel.gameObject.activeSelf != show) panel.gameObject.SetActive(show);
+        if (manager == null || manager.Runner == null || !manager.Runner.IsRunning)
+        { firstClass?.Hide(); meClass?.Hide(); return; }
         if (opening || Time.unscaledTime >= nextRefresh)
         {
             nextRefresh = Time.unscaledTime + .15f;
@@ -120,12 +126,17 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
         // Registry contains connected player data even while their character is dead/despawned.
         foreach (var data in PlayerData.PerkPlayers)
             if (data != null && data.Object != null && data.Object.IsValid && data.Runner == runner &&
-                data.IsLoadoutInitialized && !data.IsMatchBot && data.DeathMatchJoinOrder > 0)
+                data.ParticipantRef != PlayerRef.None && data.IsLoadoutInitialized && !data.IsMatchBot && data.DeathMatchJoinOrder > 0)
                 roster.Add(data);
         roster.Sort(RankComparer.Instance);
         int myIndex = -1;
         for (int i = 0; i < roster.Count; i++)
             if (roster[i].ParticipantRef == runner.LocalPlayer) { myIndex = i; break; }
+        if (roster.Count > 0) firstClass?.Display(roster[0], 1, -1, profiles);
+        else firstClass?.Hide();
+        if (myIndex >= 0) meClass?.Display(roster[myIndex], myIndex + 1, -1, profiles);
+        else meClass?.Hide();
+        if (panel == null || !panel.gameObject.activeSelf) return;
         int top = Mathf.Min(10, roster.Count), enemyIndex = 0, shown = 0;
         for (int i = 0; i < top; i++)
         {

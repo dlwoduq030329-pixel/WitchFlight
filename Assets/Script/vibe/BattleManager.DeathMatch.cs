@@ -16,8 +16,8 @@ public partial class BattleManager
             data.Runner != runner || !data.IsLoadoutInitialized || spawnedPlayers.ContainsKey(data.ParticipantRef)) return;
         foreach (var pending in pendingRespawns)
             if (pending.PlayerRef == data.ParticipantRef) return;
-        data.ResetMatchPerks();
-        data.ResetBattleStats();
+        if (!NetworkGameManager.Instance.IsRestoredDeathMatchPlayer(data.ParticipantRef))
+        { data.ResetMatchPerks(); data.ResetBattleStats(); }
         SpawnBattlePlayer(data.ParticipantRef, data, playerPrefab);
     }
 
@@ -39,6 +39,24 @@ public partial class BattleManager
         spawnedPlayers[participant] = obj;
         runner.SetPlayerObject(participant, obj);
         obj.GetComponent<Player>().InitPlayer(data, respawn);
+    }
+
+    public void RestoreDeathMatchRespawns()
+    {
+        if (!IsDeathMatch || !isInitialized || runner == null || !runner.IsServer) return;
+        foreach (var pair in spawnedPlayers)
+        {
+            if (pair.Value == null || !pair.Value.IsValid) continue;
+            var pilot = pair.Value.GetComponent<Player>();
+            if (pilot == null || pilot.IsAlive) continue;
+            bool scheduled = false;
+            foreach (var pending in pendingRespawns) if (pending.PlayerRef == pair.Key) { scheduled = true; break; }
+            if (scheduled) continue;
+            float remaining = pilot.RespawnTimer.RemainingTime(runner) ?? respawnDelaySeconds;
+            pendingRespawns.Add(new PendingRespawn { PlayerRef = pair.Key, DeadObject = pair.Value,
+                DespawnAt = TickTimer.CreateFromSeconds(runner, Mathf.Min(deathDespawnDelay, remaining)),
+                RespawnAt = TickTimer.CreateFromSeconds(runner, Mathf.Max(.1f, remaining)) });
+        }
     }
 
     private bool TryDeathMatchSpawn(out Vector3 position)
