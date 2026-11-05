@@ -60,7 +60,12 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
             previous = data;
         }
 
-        public void Hide() { if (root != null && root.gameObject.activeSelf) root.gameObject.SetActive(false); }
+        public void Hide()
+        {
+            if (root != null && root.gameObject.activeSelf) root.gameObject.SetActive(false);
+            previous = null;
+            revision = profileId = titleId = -1;
+        }
     }
 
     [SerializeField] private RectTransform panel;
@@ -73,7 +78,7 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
     [SerializeField] private Row firstClass;
     [SerializeField] private Row meClass;
     private readonly List<PlayerData> roster = new(NetworkGameManager.DeathMatchCapacity);
-    private float nextRefresh;
+    private bool rankingDirty = true, tableDirty = true;
     private int visibleRows = -1;
     private Vector2 lastPanelSize;
     private float rowWidth, rowHeight;
@@ -112,15 +117,17 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
         bool opening = show && panel != null && !panel.gameObject.activeSelf;
         if (panel != null && panel.gameObject.activeSelf != show) panel.gameObject.SetActive(show);
         if (manager == null || manager.Runner == null || !manager.Runner.IsRunning)
-        { firstClass?.Hide(); meClass?.Hide(); return; }
-        if (opening || Time.unscaledTime >= nextRefresh)
+        { firstClass?.Hide(); meClass?.Hide(); rankingDirty = tableDirty = true; return; }
+        if (rankingDirty || (show && (opening || tableDirty)))
         {
-            nextRefresh = Time.unscaledTime + .15f;
-            Refresh(manager.Runner);
+            bool updateRanking = rankingDirty;
+            rankingDirty = false;
+            if (show) tableDirty = false;
+            Refresh(manager.Runner, updateRanking);
         }
     }
 
-    private void Refresh(NetworkRunner runner)
+    private void Refresh(NetworkRunner runner, bool updateRanking)
     {
         roster.Clear();
         // Registry contains connected player data even while their character is dead/despawned.
@@ -132,10 +139,13 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
         int myIndex = -1;
         for (int i = 0; i < roster.Count; i++)
             if (roster[i].ParticipantRef == runner.LocalPlayer) { myIndex = i; break; }
-        if (roster.Count > 0) firstClass?.Display(roster[0], 1, -1, profiles);
-        else firstClass?.Hide();
-        if (myIndex >= 0) meClass?.Display(roster[myIndex], myIndex + 1, -1, profiles);
-        else meClass?.Hide();
+        if (updateRanking)
+        {
+            if (roster.Count > 0) firstClass?.Display(roster[0], 1, -1, profiles);
+            else firstClass?.Hide();
+            if (myIndex >= 0) meClass?.Display(roster[myIndex], myIndex + 1, -1, profiles);
+            else meClass?.Hide();
+        }
         if (panel == null || !panel.gameObject.activeSelf) return;
         int top = Mathf.Min(10, roster.Count), enemyIndex = 0, shown = 0;
         for (int i = 0; i < top; i++)
@@ -163,5 +173,23 @@ public sealed class DeathMatchScoreboardUI : MonoBehaviour
         rowsRoot.localScale = Vector3.one * scale;
     }
 
-    private void OnDisable() { if (panel != null) panel.gameObject.SetActive(false); }
+    private void OnEnable()
+    {
+        PlayerData.DeathMatchScoreChanged += MarkDirty;
+        rankingDirty = tableDirty = true;
+    }
+
+    private void MarkDirty(bool ranking)
+    {
+        rankingDirty |= ranking;
+        tableDirty = true;
+    }
+
+    private void OnDisable()
+    {
+        PlayerData.DeathMatchScoreChanged -= MarkDirty;
+        if (panel != null) panel.gameObject.SetActive(false);
+        firstClass?.Hide();
+        meClass?.Hide();
+    }
 }

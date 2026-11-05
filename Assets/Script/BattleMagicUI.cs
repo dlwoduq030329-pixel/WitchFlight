@@ -46,6 +46,7 @@ public sealed class BattleMagicUI : MonoBehaviour
     [Tooltip("모든 마법 아이콘과 Parry Icon은 이 테이블에서 가져옵니다. 비우면 Resources/MagicStatTable을 사용합니다.")]
     [SerializeField] private MagicStatTable magicTable;
 
+    private bool cleared;
     private Player owner;
     private MagicType displayedMagic1, displayedMagic2;
     private readonly float[] previousRemaining = { -1f, -1f, -1f };
@@ -61,6 +62,7 @@ public sealed class BattleMagicUI : MonoBehaviour
 
     private void OnEnable()
     {
+        cleared = false;
         ResolveSelectedFx();
         Clear();
         magicInit();
@@ -85,6 +87,7 @@ public sealed class BattleMagicUI : MonoBehaviour
     {
         Player local = Player.LocalPlayer;
         if (!CanBind(local)) { Clear(); return; }
+        cleared = false;
         owner = local;
         displayedMagic1 = owner.GetMagicInSlot(1);
         displayedMagic2 = owner.GetMagicInSlot(2);
@@ -251,6 +254,8 @@ public sealed class BattleMagicUI : MonoBehaviour
 
     private void Clear()
     {
+        if (cleared) return;
+        cleared = true;
         for (int i = 0; i < costColorOwners.Length; i++)
             if (costColorOwners[i] != null) costColorOwners[i].color = originalCostColors[i];
         if (magic1CostPercent != null) magic1CostPercent.text = string.Empty;

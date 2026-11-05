@@ -3,7 +3,13 @@ using UnityEngine;
 
 public partial class PlayerData
 {
-    [Networked] public int EquippedTitleId { get; private set; }
+    public event System.Action EquippedTitleChanged;
+    private void NotifyEquippedTitleChanged()
+    {
+        EquippedTitleChanged?.Invoke();
+        NotifyDeathMatchStatsChanged();
+    }
+    [Networked, OnChangedRender(nameof(NotifyEquippedTitleChanged))] public int EquippedTitleId { get; private set; }
     [Networked] public NetworkString<_32> TitleMatchId { get; private set; }
     [Networked, Capacity(18)] public NetworkArray<int> TitleMagicKills => default;
     [Networked] public int TitleEmotes { get; private set; }

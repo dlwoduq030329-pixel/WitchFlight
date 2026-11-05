@@ -15,8 +15,22 @@ public sealed class PlayerTitleLabel : MonoBehaviour
     private int shown;
     private bool hasShownTitle;
     private void Awake() {label=GetComponent<TMP_Text>();}
-    private void OnEnable() {hasShownTitle=false;Refresh();}
-    private void Update() => Refresh();
+    private void OnEnable()
+    {
+        DataConfig.Changed += Refresh;
+        DataConfig.SnapshotApplied += Refresh;
+        DatabaseManager.DataConfigReadyChanged += Refresh;
+        if (player != null) player.EquippedTitleChanged += Refresh;
+        hasShownTitle = false;
+        Refresh();
+    }
+    private void OnDisable()
+    {
+        DataConfig.Changed -= Refresh;
+        DataConfig.SnapshotApplied -= Refresh;
+        DatabaseManager.DataConfigReadyChanged -= Refresh;
+        if (player != null) player.EquippedTitleChanged -= Refresh;
+    }
     private void Refresh()
     {
         int id=useLocalAccount?(TitleProgression.Ready?DataConfig.equippedTitleId:0):
@@ -25,7 +39,13 @@ public sealed class PlayerTitleLabel : MonoBehaviour
         if(label==null || (hasShownTitle && shown==id))return;
         shown=id;hasShownTitle=true;label.richText=false;label.text=TitleCatalog.Name(id);
     }
-    public void SetPlayer(PlayerData data) {player=data;useLocalAccount=false;hasShownTitle=false;Refresh();}
+    public void SetPlayer(PlayerData data)
+    {
+        if (isActiveAndEnabled && player != null) player.EquippedTitleChanged -= Refresh;
+        player=data;useLocalAccount=false;hasShownTitle=false;
+        if (isActiveAndEnabled && player != null) player.EquippedTitleChanged += Refresh;
+        Refresh();
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
