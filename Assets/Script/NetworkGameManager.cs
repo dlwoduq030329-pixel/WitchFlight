@@ -114,6 +114,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         // loadout initialization. Random matchmaking and solo training auto-start.
         if ((IsRandomMatch || IsTraining || IsDeathMatch) && IsRoomHost) CheckPlayerCount();
         RefreshRoomAdmission();
+        TickDeathMatchMigration();
         if (Time.unscaledTime >= nextWaitingStatusRefresh)
         {
             nextWaitingStatusRefresh = Time.unscaledTime + 0.25f;
@@ -500,6 +501,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 // Admission and launch enforce the selected two/four-player game size.
                 PlayerCount = IsDeathMatch ? DeathMatchCapacity : IsTraining ? 1 : RandomPlayerCount,
                 CustomPhotonAppSettings = IsDeathMatch ? DeathMatchPhotonSettings() : null,
+                ConnectionToken = IsDeathMatch ? DeathMatchConnectionToken() : null,
                 CustomLobbyName = randomMatch ? RandomLobbyName : null,
                 SessionProperties = randomMatch ? new Dictionary<string, SessionProperty>
                 {
@@ -629,6 +631,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         stopInProgress = true;
         try
         {
+            if (IsDeathMatch && IsRoomHost)
+                await Task.WhenAny(PushDeathMatchSnapshot(_runner), Task.Delay(2000));
             await ShutdownSession(_runner);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -688,6 +692,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         IsTraining = false;
         IsDeathMatch = false;
         deathMatchJoinSequence = 0;
+        deathMatchConnectionToken = null;
+        IsMigratingDeathMatch = migrationRestoring = false;
+        migrationData.Clear(); migrationCharacters.Clear(); migrationParticipants.Clear();
         spawnedPlayers.Clear();
         playerDatas.Clear();
         assignedTeamIndexes.Clear();
@@ -752,11 +759,15 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         PlayerRef player)
     {
-        if (runner != _runner || cancelRequested) return;
+        if (runner != _runner || cancelRequested || (IsDeathMatch && migrationRestoring)) return;
         randomPlayersReadyAt = -1f;
         UpdateWaitingStatus();
         if (!runner.IsServer)
             return;
+
+        if (TryRestoreDeathMatchParticipant(runner, player)) return;
+        if (IsDeathMatch && !assignedTeamIndexes.ContainsKey(player) && assignedTeamIndexes.Count + migrationData.Count >= DeathMatchCapacity)
+        { runner.Disconnect(player); return; }
 
         // Two clients may pass the connection check in the same frame. Enforce the
         // selected capacity again before reserving a team or spawning PlayerData.
@@ -798,7 +809,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // 이 시점은 Fusion 네트워크 상태값을 안전하게 기록할 수 있다.
     public void AssignTeamIndex(PlayerData data)
     {
-        if (_runner == null || !_runner.IsServer || data == null || data.Runner != _runner || data.teamIndex != 0)
+        if (_runner == null || !_runner.IsServer || data == null || data.Runner != _runner || data.teamIndex != 0 ||
+            (IsDeathMatch && data.ParticipantRef == PlayerRef.None))
             return;
 
         PlayerRef player = data.ParticipantRef;
@@ -810,7 +822,12 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         data.teamIndex = teamIndex;
-        if (IsDeathMatch) data.DeathMatchJoinOrder = ++deathMatchJoinSequence;
+        if (IsDeathMatch)
+        {
+            data.DeathMatchJoinOrder = ++deathMatchJoinSequence;
+            data.DeathMatchIdentity = DeathMatchIdentity(_runner, player);
+            nextMigrationSnapshot = 0f;
+        }
         data.camp = teamIndex == 1 ? Camp.A : Camp.B;
         if (data.IsRoomOwner) data.SetRoomMatchMode(IsDeathMatch ? BattleMatchMode.DeathMatch : IsRandomMatch ? BattleMatchMode.TwoVsTwo : roomMatchMode);
     }
@@ -831,7 +848,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     {
         // PlayerData Dictionary는 전투 Player를 생성하는 호스트만 관리한다.
         if (_runner == null || !_runner.IsServer || cancelRequested || data == null ||
-            data.Object == null || data.Runner != _runner)
+            data.Object == null || data.Runner != _runner || (IsDeathMatch && data.ParticipantRef == PlayerRef.None))
             return;
 
         PlayerRef player = data.ParticipantRef;
@@ -853,7 +870,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public void UnregisterPlayerData(
         PlayerData data)
     {
-        if (data == null || data.Object == null || data.Runner != _runner)
+        if (data == null || data.Object == null || data.Runner != _runner || (IsDeathMatch && data.ParticipantRef == PlayerRef.None))
             return;
 
         PlayerRef player =
@@ -964,7 +981,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         isGameStarting = true;
         SetMatchStatus(IsTraining ? "훈련장" : "매칭 완료");
 
-        if (!runner.IsServer)
+        if (!runner.IsServer || IsMigratingDeathMatch)
             return;
 
         BattleManager battleManager =
@@ -1061,7 +1078,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         PlayerRef player)
     {
-        if (runner != _runner || cancelRequested) return;
+        if (runner != _runner || cancelRequested || IsMigratingDeathMatch) return;
         randomPlayersReadyAt = -1f;
         UpdateWaitingStatus();
         if (!runner.IsServer)
@@ -1197,6 +1214,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         ShutdownReason shutdownReason)
     {
         if (!ReferenceEquals(runner, _runner)) return;
+        if (IsDeathMatch && (IsMigratingDeathMatch || shutdownReason == ShutdownReason.HostMigration)) return;
         // Async startup/cancellation owns cleanup until its await completes.
         if (startInProgress || stopInProgress) return;
         CleanupSession(runner);
@@ -1279,6 +1297,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         HostMigrationToken hostMigrationToken)
     {
+        MigrateDeathMatch(runner, hostMigrationToken);
     }
 
 

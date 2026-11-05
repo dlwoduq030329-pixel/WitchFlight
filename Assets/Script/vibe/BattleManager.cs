@@ -86,7 +86,7 @@ public partial class BattleManager : MonoBehaviour
     public virtual string ObjectiveLabel => IsDeathMatch ? "자유롭게 전투하세요" : null;
     public virtual string ModeLabel => IsDeathMatch ? "데스매치" : null;
     public bool IsRace => RaceCourse.Instance != null;
-    public virtual BattleStartPhase Phase => IsDeathMatch ? BattleStartPhase.Playing : IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
+    public virtual BattleStartPhase Phase => IsDeathMatch ? (NetworkGameManager.Instance.IsMigratingDeathMatch ? BattleStartPhase.WaitingForPlayers : BattleStartPhase.Playing) : IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
     public bool IsGameplayActive => Phase == BattleStartPhase.Playing ||
         (IsTraining && Phase == BattleStartPhase.TrainingTutorial && CatTutorialDirector.PracticeInputActive);
     public bool IsTraining => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
@@ -195,10 +195,11 @@ public partial class BattleManager : MonoBehaviour
         pendingRespawns.Clear();
         resultAnnounced = false;
         foreach (PlayerData data in playerDatas.Values)
-            if (data != null) { data.ResetMatchPerks(); data.ResetBattleStats(); if (IsRace) data.ResetRace(); }
+            if (data != null && !(IsDeathMatch && NetworkGameManager.Instance.IsRestoredDeathMatchPlayer(data.ParticipantRef))) { data.ResetMatchPerks(); data.ResetBattleStats(); if (IsRace) data.ResetRace(); }
         FindSpawnPoints();
         if (IsDeathMatch) NetworkGameManager.Instance.SpawnDeathMatchState();
         SpawnBattlePlayers(playerPrefab);
+        if (IsDeathMatch) RestoreDeathMatchRespawns();
         if (!IsRace && !IsDeathMatch) SpawnFlag();
         if (collectMovementLogs)
             (GetComponent<BattleMovementRecorder>() ?? gameObject.AddComponent<BattleMovementRecorder>()).Begin(runner, this);

@@ -32,6 +32,8 @@ public sealed class TimeVfxSpeed : MonoBehaviour
     }
     private void LateUpdate()
     {
+        // Most frames contain no time field: no spatial queries or animator traversal.
+        if (!MagicProjectile.HasTimeFields && multiplier == 1f) return;
         float next = runner != null && runner.IsRunning ? projectile
             ? MagicProjectile.TimeProjectileMultiplier(runner, transform.position)
             : MagicProjectile.TimeMovementMultiplier(runner, transform.position, team) : 1f;
@@ -54,7 +56,12 @@ public sealed class TimeVfxSpeed : MonoBehaviour
         for (int i = 0; i < particles.Length; i++)
             if (particles[i] != null) { var main = particles[i].main; main.simulationSpeed = particleSpeeds[i]; }
         for (int i = 0; i < animators.Length; i++)
-            if (animators[i] != null) animators[i].speed = appliedAnimatorSpeeds[i] = animatorSpeeds[i];
+            if (animators[i] != null)
+            {
+                if (!Mathf.Approximately(animators[i].speed, appliedAnimatorSpeeds[i]))
+                    animatorSpeeds[i] = animators[i].speed;
+                animators[i].speed = appliedAnimatorSpeeds[i] = animatorSpeeds[i];
+            }
         multiplier = 1f;
     }
 }

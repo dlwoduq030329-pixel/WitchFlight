@@ -186,8 +186,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     }
 
     private CombatPresentation presentation;
-    private readonly RaycastHit[] lockHits = new RaycastHit[32];
-    private readonly RaycastHit[] instantShotHits = new RaycastHit[32];
+    private RaycastHit[] lockHits = new RaycastHit[32];
+    private RaycastHit[] instantShotHits = new RaycastHit[32];
     private TickTimer nextInfoApSync;
     private TickTimer nextHitMarkerFeedback;
     private float publishedHp = float.NaN, publishedMaxHp = float.NaN;
@@ -309,6 +309,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!Object.HasStateAuthority || data == null)
             return;
 
+        DeathMatchMigrationIdentity = data.DeathMatchIdentity;
         MatchBotSlot = data.MatchBotSlot;
         HatStatEntry hatStats = GetHatStats(data.hat);
         BroomStatEntry broomStats = GetBroomStats(data.broom);
@@ -494,7 +495,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void FixedUpdateNetwork()
     {
-        if (!SimulatesMovement || LoadoutVersion <= 0)
+        if (!SimulatesMovement || LoadoutVersion <= 0 ||
+            (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch && Object.InputAuthority == PlayerRef.None))
             return;
         EnforceMapFloor();
         try { SimulateMovementTick(); }
@@ -1604,12 +1606,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             ? Physics.SphereCastNonAlloc(origin, radius, direction, instantShotHits, range, lockObstructionMask, QueryTriggerInteraction.Ignore)
             : Physics.RaycastNonAlloc(origin, direction, instantShotHits, range, lockObstructionMask, QueryTriggerInteraction.Ignore);
         RaycastHit[] hits = instantShotHits;
-        if (count == hits.Length)
+        while (count == hits.Length)
         {
-            hits = radius > 0f
-                ? Physics.SphereCastAll(origin, radius, direction, range, lockObstructionMask, QueryTriggerInteraction.Ignore)
-                : Physics.RaycastAll(origin, direction, range, lockObstructionMask, QueryTriggerInteraction.Ignore);
-            count = hits.Length;
+            // Retain expanded buffers for subsequent beam ticks and casts.
+            instantShotHits = hits = new RaycastHit[hits.Length * 2];
+            count = radius > 0f
+                ? Physics.SphereCastNonAlloc(origin, radius, direction, hits, range, lockObstructionMask, QueryTriggerInteraction.Ignore)
+                : Physics.RaycastNonAlloc(origin, direction, hits, range, lockObstructionMask, QueryTriggerInteraction.Ignore);
         }
         float nearest = range;
         Vector3 end = origin + direction * range;
@@ -2284,11 +2287,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         RaycastHit[] hits = lockHits;
         // A full buffer may omit the nearest wall: preserve correct occlusion in
         // unusually dense geometry, rather than allowing a shot through a wall.
-        if (count == lockHits.Length)
+        while (count == hits.Length)
         {
-            hits = Physics.RaycastAll(origin, direction / distance, distance,
+            lockHits = hits = new RaycastHit[hits.Length * 2];
+            count = Physics.RaycastNonAlloc(origin, direction / distance, hits, distance,
                 lockObstructionMask, QueryTriggerInteraction.Ignore);
-            count = hits.Length;
         }
 
         float nearestDistance = float.PositiveInfinity;
@@ -2351,7 +2354,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public bool IsEnemyOf(Player other)
     {
-        if (other == null || other == this || !IsAlive || !other.IsAlive)
+        if (other == null || other == this || !IsAlive || !other.IsAlive ||
+            (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch &&
+             (ParticipantRef == PlayerRef.None || other.ParticipantRef == PlayerRef.None)))
             return false;
 
         if (TeamIndex > 0 && other.TeamIndex > 0)

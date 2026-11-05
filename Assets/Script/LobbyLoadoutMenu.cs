@@ -28,6 +28,7 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     private EquipmentStatTable equipmentTable;
     private MagicStatTable magicTable;
     private bool expanded;
+    private bool wasMatching;
     private (int hat, int broom, int magic1, int magic2, float hair, bool editable, bool accountReady)? displayedLoadout;
     private bool CanEdit => SceneManager.GetActiveScene().buildIndex == 0 && manager != null && !manager.IsMatching;
 
@@ -41,6 +42,10 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     private void OnEnable()
     {
         displayedLoadout = null;
+        DataConfig.Changed += RefreshUI;
+        DataConfig.SnapshotApplied += RefreshUI;
+        DatabaseManager.DataConfigReadyChanged += RefreshUI;
+        SceneManager.activeSceneChanged += OnActiveSceneChanged;
         if (toggleButton != null) toggleButton.onClick.AddListener(TogglePanel);
         if (closeButton != null) closeButton.onClick.AddListener(ClosePanel);
         if (hatDropdown != null) hatDropdown.onValueChanged.AddListener(SetHat);
@@ -51,7 +56,12 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
         RefreshUI();
     }
 
-    private void Update() => RefreshUI();
+    private void OnActiveSceneChanged(Scene previous, Scene next) => RefreshUI();
+    private void Update()
+    {
+        bool matching = manager != null && manager.IsMatching;
+        if (matching != wasMatching) RefreshUI();
+    }
     public void TogglePanel() { expanded = !expanded; RefreshUI(); }
     public void OpenPanel() { expanded = true; RefreshUI(); }
     public void ClosePanel() { expanded = false; RefreshUI(); }
@@ -69,6 +79,7 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
 
     private void RefreshUI()
     {
+        wasMatching = manager != null && manager.IsMatching;
         bool lobby = SceneManager.GetActiveScene().buildIndex == 0;
         SetVisible(lobbyUiRoot, lobby);
         SetVisible(loadoutPanel, lobby && expanded);
@@ -131,6 +142,10 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
 
     private void OnDisable()
     {
+        DataConfig.Changed -= RefreshUI;
+        DataConfig.SnapshotApplied -= RefreshUI;
+        DatabaseManager.DataConfigReadyChanged -= RefreshUI;
+        SceneManager.activeSceneChanged -= OnActiveSceneChanged;
         if (toggleButton != null) toggleButton.onClick.RemoveListener(TogglePanel);
         if (closeButton != null) closeButton.onClick.RemoveListener(ClosePanel);
         if (hatDropdown != null) hatDropdown.onValueChanged.RemoveListener(SetHat);

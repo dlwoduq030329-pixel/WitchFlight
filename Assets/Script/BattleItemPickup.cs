@@ -38,6 +38,7 @@ public sealed class BattleItemPickup : NetworkBehaviour
     private Renderer[] renderers;
     private bool[] originalRenderingOff;
     private bool ready;
+    private bool? displayedVisibility;
     private Vector3 PickupPoint => transform.TransformPoint(pickupOffset);
     private static readonly HashSet<BattleItemPickup> activeItems = new();
     public static IEnumerable<BattleItemPickup> ActiveItems => activeItems;
@@ -47,7 +48,7 @@ public sealed class BattleItemPickup : NetworkBehaviour
         Object != null && Object.IsValid && Runner == runner && !Consumed &&
         itemType == BattleItemType.HealthPotion && healAmount > 0f;
 
-    private void OnEnable() => activeItems.Add(this);
+    private void OnEnable() { displayedVisibility = null; activeItems.Add(this); }
     private void OnDisable() => activeItems.Remove(this);
 
     private void Awake()
@@ -187,6 +188,8 @@ public sealed class BattleItemPickup : NetworkBehaviour
     {
         bool visible = ready && Object != null && Object.IsValid && !Consumed &&
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+        if (displayedVisibility == visible) return;
+        displayedVisibility = visible;
         if (visualRoot != null)
         {
             if (visualRoot.activeSelf != visible) visualRoot.SetActive(visible);

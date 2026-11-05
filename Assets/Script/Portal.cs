@@ -35,6 +35,7 @@ public sealed class Portal : MonoBehaviour
     private double visualReadyAt;
     private bool usedVisual;
     private int visualState = -1;
+    private BoxCollider portalTrigger;
 
     [Header("Presentation hook (host only)")]
     [SerializeField] private PortalUsedEvent onPortalUsed = new PortalUsedEvent();
@@ -55,7 +56,7 @@ public sealed class Portal : MonoBehaviour
     {
         entry = exit = default; rotation = Quaternion.identity;
         if (!isActiveAndEnabled || destination == null || runner == null) return false;
-        var trigger = GetComponent<BoxCollider>();
+        var trigger = portalTrigger;
         if (trigger == null || !trigger.enabled ||
             cooldownRunner == runner && !cooldownTimer.ExpiredOrNotRunning(runner)) return false;
         entry = transform.TransformPoint(trigger.center);
@@ -67,6 +68,7 @@ public sealed class Portal : MonoBehaviour
 
     private void Awake()
     {
+        portalTrigger = GetComponent<BoxCollider>();
         ConfigureTrigger();
         // Resolve designer-authored children once, including initially inactive effects.
         foreach (Transform child in GetComponentsInChildren<Transform>(true))
@@ -141,7 +143,7 @@ public sealed class Portal : MonoBehaviour
         UpdateVisual();
     }
 
-    private void Update() => UpdateVisual();
+    private void Update() { if (usedVisual) UpdateVisual(); }
 
     private void UpdateVisual()
     {
@@ -151,6 +153,7 @@ public sealed class Portal : MonoBehaviour
             double now = visualRunner.SimulationTime;
             next = now < visualReadyAt ? 1 : now < visualReadyAt + openSeconds ? 2 : 0;
         }
+        if (next == 0) usedVisual = false;
         if (next == visualState) return;
         visualState = next;
         if (idleVisual != null) idleVisual.SetActive(next == 0);

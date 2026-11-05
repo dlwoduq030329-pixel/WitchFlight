@@ -42,7 +42,13 @@ public partial class NetworkGameManager
     {
         // Each participant is their own team, so existing hostile/friendly spell checks work.
         for (int team = 1; team <= DeathMatchCapacity; team++)
-            if (!assignedTeamIndexes.ContainsValue(team)) return team;
+            {
+                bool reserved = assignedTeamIndexes.ContainsValue(team);
+                if (!reserved)
+                    foreach (var obj in migrationData.Values)
+                        if (obj != null && obj.IsValid && obj.GetComponent<PlayerData>().teamIndex == team) { reserved = true; break; }
+                if (!reserved) return team;
+            }
         return 0;
     }
 }
