@@ -12,8 +12,7 @@ public partial class Player
     [Networked] protected bool HasBurnStatus { get; set; }
     [Networked] private TickTimer FlareProtection { get; set; }
     public bool IsFlareActive => Object != null && Object.IsValid && IsAlive && TimerIsActive(FlareProtection);
-    public float LockRangeMultiplier => BattleFlag.Instance != null && BattleFlag.Instance.Runner == Runner &&
-        BattleFlag.Instance.ContainsEnemySmoke(LockAimPoint, TeamIndex) ? .7f : 1f;
+    public float LockRangeMultiplier => CombatSmoke.ContainsEnemy(Runner, LockAimPoint, TeamIndex) ? .7f : 1f;
     public float LockDurationMultiplierAgainst(Player target) => target != null && target.IsFlareActive &&
         target.IsEnemyOf(this) ? 1.2f : 1f;
     private PlayerData perkOwner;

@@ -25,10 +25,9 @@ public sealed class SmokeInteriorView : MonoBehaviour
     private void LateUpdate()
     {
         Player player = Player.LocalPlayer;
-        BattleFlag flag = BattleFlag.Instance;
         view = Camera.main;
         inside = view != null && player != null && player.Object != null && player.Object.IsValid && player.IsAlive &&
-            flag != null && flag.Runner == player.Runner && flag.ContainsSmoke(player.LockAimPoint);
+            CombatSmoke.Contains(player.Runner, player.LockAimPoint);
         if (!inside) { if (screen != null) screen.SetActive(false); return; }
         if (screen == null)
         {
