@@ -22,7 +22,11 @@ public sealed class CatBattleCompanion : MonoBehaviour
         if (table == null || owner == null || owner.Object == null || !owner.Object.IsValid) return;
         var data = PlayerData.FindPerkData(owner.Runner, owner.ParticipantRef);
         if (data == null || data.Object == null || !data.Object.IsValid || !data.IsLoadoutInitialized) return;
-        if (avatar == null) avatar = CatAvatar.Create(null, data.CatBodyIndex, data.CatEyeIndex, false);
+        if (avatar == null)
+        {
+            avatar = CatAvatar.Create(null, data.CatBodyIndex, data.CatEyeIndex, false);
+            if (avatar != null) avatar.transform.localScale *= owner.WorldScaleMultiplier;
+        }
         if (avatar == null) return;
         avatar.SetAppearance(data.CatBodyIndex, data.CatEyeIndex);
         var broom = equipment != null ? equipment.CurrentBroomObject : null;
@@ -65,7 +69,7 @@ public sealed class CatBattleCompanion : MonoBehaviour
         float y = CatSeatGeometry.SurfaceHeight(broom.transform, broom.transform.position, rotation, x, z, bounds.max.y);
         broomSeat = new GameObject("CatSeat (automatic surface)").transform;
         broomSeat.SetParent(broom.transform, false);
-        broomSeat.SetPositionAndRotation(broom.transform.position + rotation * (new Vector3(x, y, z) + table.broomSurfaceOffset), rotation);
+        broomSeat.SetPositionAndRotation(broom.transform.position + rotation * (new Vector3(x, y, z) + table.broomSurfaceOffset * owner.WorldScaleMultiplier), rotation);
         ownsSeat = true;
     }
     private void OnDisable() { if (avatar != null) avatar.SetVisible(false); initialized = false; }
