@@ -259,8 +259,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     public bool IsHiddenBySmokeFor(Player observer) => Object != null && Object.IsValid &&
         observer != null && observer.Object != null &&
         observer.Object.IsValid && observer.Runner == Runner && observer != this &&
-        TeamIndex > 0 && observer.TeamIndex > 0 && TeamIndex != observer.TeamIndex && BattleFlag.Instance != null &&
-        BattleFlag.Instance.Runner == Runner && BattleFlag.Instance.ContainsSmoke(LockAimPoint);
+        TeamIndex > 0 && observer.TeamIndex > 0 && TeamIndex != observer.TeamIndex && CombatSmoke.Contains(Runner, LockAimPoint);
     public bool HasActiveMine => Object != null && MagicProjectile.HasMineOwnedBy(ParticipantRef, Runner);
     public float MaxLockDistance => maxLockDistance;
     // Keep the shared aiming point attached to the body during inverted flight.
@@ -1333,7 +1332,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         if (stats.effect == MagicEffectKind.Smoke &&
             (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
-             BattleFlag.Instance == null || !BattleFlag.Instance.CanCreateSmoke(Runner))) return;
+             !CombatSmoke.CanCreate(Runner))) return;
         if ((stats.projectileSpeed > 0f || stats.effect == MagicEffectKind.TimeField) && !magicProjectilePrefab.IsValid) return;
 
         if (!TryConsumeAp(stats.apCost))
@@ -1400,7 +1399,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         // Full self HP must not prevent targeting an injured ally.
         if (stats.effect == MagicEffectKind.Smoke &&
             (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
-             BattleFlag.Instance == null || !BattleFlag.Instance.CanCreateSmoke(Runner))) return false;
+             !CombatSmoke.CanCreate(Runner))) return false;
         return true;
     }
 
@@ -1491,7 +1490,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else if (stats.effect == MagicEffectKind.Smoke)
         {
             // Persistent replicated area survives the caster's death/despawn.
-            if (BattleFlag.Instance != null && BattleFlag.Instance.CreateSmoke(this, stats))
+            if (CombatSmoke.Create(this, stats))
                 RPC_PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, 0f);
         }
         else if (stats.effect == MagicEffectKind.MeowFestival)

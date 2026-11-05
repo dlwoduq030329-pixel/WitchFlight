@@ -82,7 +82,7 @@ public sealed class CatSummonFeedback : MonoBehaviour
         if (!valid) { Hide(); return; }
         var table = CatCompanionTable.Default;
         bool enemy = source.ShooterTeam != local.TeamIndex;
-        bool concealed = enemy && BattleFlag.Instance != null && BattleFlag.Instance.ContainsSmoke(avatar.transform.position);
+        bool concealed = enemy && CombatSmoke.Contains(source.Runner, avatar.transform.position);
         avatar.SetVisible(!concealed);
         if (concealed) { Hide(); return; }
         Color color = enemy ? table.enemyColor : table.allyColor;
