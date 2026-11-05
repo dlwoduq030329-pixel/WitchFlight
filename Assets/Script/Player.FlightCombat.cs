@@ -96,7 +96,9 @@ public partial class Player
         CobraActive = true;
         CobraTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.2f, table.cobraSeconds));
         CobraCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(table.cobraSeconds, table.cobraCooldown));
-        SpeedStage = 0;
+        SpeedStage = 1;
+        BurstBoostTimer = TickTimer.None;
+        GlideElapsed = 0f;
         IsBoosting = false;
         boostNeedsRelease = true;
         areaAimArmed = false;
@@ -128,7 +130,11 @@ public partial class Player
             transform.rotation = CobraRotation;
             currentPitch = NormalizePitch(CobraRotation.eulerAngles.x);
             currentYaw = CobraRotation.eulerAngles.y;
-            currentAimTurnSpeed = currentTurnSpeed = Speed = 0f;
+            currentAimTurnSpeed = currentTurnSpeed = 0f;
+            SpeedStage = 1;
+            Speed = IsAlive && !IsBound && !IsHitStunned
+                ? flightMaxSpeed / 3f * GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() *
+                    (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier : 0f;
             return true;
         }
         transform.rotation = CobraRotation * Quaternion.Euler(-CobraArc(t) * (table != null ? table.cobraPitch : 80f), 0f, 0f);

@@ -12,6 +12,14 @@ public sealed class TrainingPracticeProgress
         IncreasedSpeed = SelectedSecond = Charged = false;
         lastSpeed = speed; castAtStart = casts; parryAtStart = parries; choicesAtStart = choices;
         boostSeconds = 0;
+        StoppedWhileGliding = false;
+    }
+
+    public bool StoppedWhileGliding { get; private set; }
+    public bool ObserveCruise(bool gliding, float actualSpeed)
+    {
+        if (gliding && actualSpeed <= .05f) StoppedWhileGliding = true;
+        return StoppedWhileGliding && !gliding && actualSpeed > 1f;
     }
 
     public bool Observe(CatTrainingAction action, int speed, int slot, bool locked, int casts, int parries,

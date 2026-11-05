@@ -91,10 +91,14 @@ public sealed partial class CatTutorialDirector
         bool completed = practiceProgress.Observe(CurrentPractice, player.CurrentSpeedStage, player.CurrentMagicSlot,
             player.IsFullyLocked || practiceLockedCast, player.CastSequence, player.ParrySequence, PlayerData.Local != null ? PlayerData.Local.PerkChoicesUsed : 0,
             player.IsBoosting, player.CobraActive, practiceEmote, Time.deltaTime);
+        if (CurrentPractice == CatTrainingAction.SpeedUpAndDown && player.UsesAutomaticCruise)
+            completed = practiceProgress.ObserveCruise(player.IsGliding, Mathf.Abs(player.CurrentSpeed));
         switch (CurrentPractice)
         {
             case CatTrainingAction.SpeedUpAndDown:
-                nextHint.text = practiceProgress.IncreasedSpeed ? "S로 속도 낮추기" : "속도 높이기";
+                nextHint.text = player.UsesAutomaticCruise
+                    ? (practiceProgress.StoppedWhileGliding ? "S를 떼어 자동 전진" : "S를 유지하여 감속 후 정지")
+                    : practiceProgress.IncreasedSpeed ? "S로 속도 낮추기" : "속도 높이기";
                 break;
             case CatTrainingAction.AimAndFire:
                 nextHint.text = practiceProgress.Charged ? "조준 키를 떼어 발사" : "봇을 조준해 록온 완료";
@@ -112,10 +116,10 @@ public sealed partial class CatTutorialDirector
                 nextHint.text = "Space 유지 + 좌/우클릭";
                 break;
             case CatTrainingAction.Boost:
-                nextHint.text = "전진하며 부스트 유지";
+                nextHint.text = player.UsesAutomaticCruise ? "부스트 키를 한 번 눌러 가속" : "전진하며 부스트 유지";
                 break;
             case CatTrainingAction.QuickBrake:
-                nextHint.text = player.CurrentSpeedStage < 3 ? "속도를 3단계까지 높이기" : "최고 속도에서 급제동 키";
+                nextHint.text = player.CurrentSpeedStage < 3 ? "부스트 키로 3단계 가속" : "최고 속도에서 급제동 키";
                 break;
             case CatTrainingAction.Emote:
                 nextHint.text = "감정표현 키 유지 → 방향 선택 → 떼기";
