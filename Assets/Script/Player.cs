@@ -264,6 +264,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     public float MaxLockDistance => maxLockDistance;
     // Keep the shared aiming point attached to the body during inverted flight.
     public Vector3 LockAimPoint => transform.TransformPoint(Vector3.up * lockAimHeight);
+    [Header("Character size experiment (restore checkpoint: CharacterScaleBackup_20261105)")]
+    [SerializeField, Min(.1f)] private float worldCharacterScale = 2f;
+    private Vector3 authoredCharacterScale;
+    public float WorldScaleMultiplier { get; private set; } = 1f;
     private bool networkSpawned;
     public float TimeFieldSpeed => networkSpawned && Object != null && Object.IsValid
         ? MagicProjectile.TimeMovementMultiplier(Runner, transform.position, TeamIndex) : 1f;
@@ -286,6 +290,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void Awake()
     {
+        authoredCharacterScale = transform.localScale;
         testBot = GetComponent<MagicTestBot>();
         characterController = GetComponent<CharacterController>();
         if (characterController == null)
@@ -448,6 +453,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Spawned()
     {
+        // Absolute assignment: pooled respawns and host migration must never multiply twice.
+        WorldScaleMultiplier = Mathf.Max(.1f, worldCharacterScale);
+        transform.localScale = authoredCharacterScale * WorldScaleMultiplier;
         networkSpawned = true;
         broomAnimation.Reset();
         combatants.Add(this);

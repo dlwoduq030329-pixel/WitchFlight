@@ -293,7 +293,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         visualRoot.gameObject.layer = PortraitLayer;
         visualRoot.SetParent(snapshot.Stage.transform, false);
         visualRoot.localRotation = sourceRoot.rotation;
-        visualRoot.localScale = sourceRoot.lossyScale;
+        visualRoot.localScale = sourceRoot.lossyScale / player.WorldScaleMultiplier;
         var transforms = new Dictionary<Transform, Transform> { { sourceRoot, visualRoot } };
         MaterialPropertyBlock properties = new MaterialPropertyBlock();
         Bounds visualBounds = new Bounds(sourceRoot.position, Vector3.zero);
@@ -354,7 +354,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             throw new InvalidOperationException("The player has no active visual meshes yet.");
 
         Vector3 headPosition = FindHeadPosition(player, visualBounds);
-        Vector3 target = stagePosition + headPosition - sourceRoot.position + sourceRoot.rotation * headOffset;
+        Vector3 target = stagePosition + (headPosition - sourceRoot.position) / player.WorldScaleMultiplier + sourceRoot.rotation * headOffset;
         Vector3 forward = Quaternion.AngleAxis(portraitYaw, sourceRoot.up) * sourceRoot.forward;
         var catTable = CatCompanionTable.Default;
         var catData = PlayerData.FindPerkData(player.Runner, player.ParticipantRef);

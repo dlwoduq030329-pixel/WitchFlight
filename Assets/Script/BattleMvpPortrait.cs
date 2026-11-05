@@ -67,7 +67,7 @@ public sealed class BattleMvpPortrait : MonoBehaviour
         anim.avatar = sourceAnimator.avatar;
         anim.applyRootMotion = false; anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
         anim.updateMode = AnimatorUpdateMode.UnscaledTime;
-        root.transform.localScale = player.transform.lossyScale;
+        root.transform.localScale = player.transform.lossyScale / player.WorldScaleMultiplier;
         return root;
     }
 
