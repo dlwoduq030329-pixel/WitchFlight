@@ -14,6 +14,9 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     [SerializeField] private MagicStatTable magicTable;
     [SerializeField] private RectTransform aimReticle;
     [SerializeField] private bool traceCasts = true;
+    [SerializeField, Min(.05f)] private float instantBeamSeconds = .3f;
+    [SerializeField, Min(.01f)] private float instantBeamWidth = .22f;
+    private readonly Dictionary<MagicType, RobbyInstantMagicVisual> instantBeams = new();
     [SerializeField, Range(1f, 60f)] private float lockCone = 18f;
     [Header("Copied BattleHud lock presentation")]
     [SerializeField] private Image lockChargeMarker, lockCompleteMarker;
@@ -103,6 +106,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         Cancel();
         for (int i = 0; i < shots.Count; i++) MagicVfxPool.Release(shots[i].view);
         shots.Clear(); bursts.Clear();
+        foreach (var beam in instantBeams.Values) if (beam != null) beam.gameObject.SetActive(false);
         for (int i = 0; i < orbits.Count; i++) MagicVfxPool.Release(orbits[i].view);
         orbits.Clear();
     }
@@ -358,8 +362,20 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             TraceCast($"{stats.magic}: 즉발 광선 시전 (데이터의 projectileSpeed={stats.projectileSpeed})");
             Vector3 end = origin + direction * Mathf.Max(1, stats.range);
             if (Blocked(origin, end, out Vector3 p)) end = p;
-            var beam = CombatMagicVisual.Beam(stats.magic, stats.beamVfxPrefab, stats.beamMaterial);
-            beam.SetEndpoints(origin, end); Destroy(beam.gameObject, .15f);
+            // End the visual on the dummy instead of extending through it to the far distance.
+            Vector3 offset = target.AimPoint - origin;
+            float along = Vector3.Dot(offset, direction);
+            float radius = target.Radius + Mathf.Max(0, stats.hitscanRadius);
+            if (along > 0 && along < Vector3.Distance(origin, end) &&
+                (offset - direction * along).sqrMagnitude <= radius * radius)
+                end = origin + direction * along;
+            if (!instantBeams.TryGetValue(stats.magic, out var beam) || beam == null)
+            {
+                var root = new GameObject("Lobby " + stats.magic + " instant beam (reused)");
+                beam = root.AddComponent<RobbyInstantMagicVisual>();
+                beam.Initialize(stats); instantBeams[stats.magic] = beam;
+            }
+            beam.Show(origin, end, instantBeamSeconds, instantBeamWidth);
             HitSegment(origin, end, stats.hitscanRadius, stats); return;
         }
         if (shots.Count >= 256) { TraceCast("발사 거절: 동시 투사체 상한 256"); return; }
@@ -442,6 +458,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     }
     private void OnDestroy()
     {
+        foreach (var beam in instantBeams.Values) if (beam != null) Destroy(beam.gameObject);
         if (fallbackMaterial != null) Destroy(fallbackMaterial);
     }
     private void HideLock()
