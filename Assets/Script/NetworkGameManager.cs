@@ -59,6 +59,11 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     [Header("Scene")]
     [SerializeField] private int mainSceneIndex = 0;
     [SerializeField] private int battleSceneIndex = 1;
+    [Header("Main code-room Tab toggle")]
+    [Tooltip("Main씬의 IntroAndRobby/Robby. 방 생성·입장 성공 후 Tab으로 표시/숨김합니다.")]
+    [SerializeField] private GameObject codeRoomRobby;
+    private bool robbyTabChanged, robbyBeforeTab;
+    private int robbyLookupScene = -1;
 
     [Header("Room")]
     [SerializeField] private TMP_InputField roomIdInput;
@@ -110,6 +115,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
     {
+        UpdateCodeRoomRobbyToggle();
         // Re-check after startup/scene loading completes as those callbacks can precede
         // loadout initialization. Random matchmaking and solo training auto-start.
         if ((IsRandomMatch || IsTraining || IsDeathMatch) && IsRoomHost) CheckPlayerCount();
@@ -145,6 +151,49 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         LatchButton(PlayerInputButton.MagicSlot1, ControlSettings.Down(ControlAction.MagicSlot1));
         LatchButton(PlayerInputButton.MagicSlot2, ControlSettings.Down(ControlAction.MagicSlot2));
         LatchButton(PlayerInputButton.MagicSlot3, Input.GetKeyDown(KeyCode.Alpha3));
+    }
+
+    private void UpdateCodeRoomRobbyToggle()
+    {
+        if (!IsWaitingInCodeRoom)
+        {
+            if (robbyTabChanged && codeRoomRobby != null)
+                codeRoomRobby.SetActive(robbyBeforeTab);
+            robbyTabChanged = false;
+            return;
+        }
+        if (!Input.GetKeyDown(KeyCode.Tab) || !Application.isFocused) return;
+        Scene main = SceneManager.GetSceneByPath("Assets/Scenes/Main.unity");
+        if (!main.IsValid() || !main.isLoaded) return;
+        var selected = UnityEngine.EventSystems.EventSystem.current != null
+            ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
+        if (selected != null)
+        {
+            var textInput = selected.GetComponentInParent<TMP_InputField>();
+            if (textInput != null && textInput.isFocused) return;
+            var legacyInput = selected.GetComponentInParent<UnityEngine.UI.InputField>();
+            if (legacyInput != null && legacyInput.isFocused) return;
+        }
+        // The manager survives scene changes. Rebind at most once per loaded scene,
+        // only on a Tab press, including inactive Robby objects.
+        if (codeRoomRobby == null && robbyLookupScene != main.handle)
+        {
+            robbyLookupScene = main.handle;
+            foreach (GameObject root in main.GetRootGameObjects())
+            {
+                foreach (Transform node in root.GetComponentsInChildren<Transform>(true))
+                {
+                    if (node.name != "IntroAndRobby") continue;
+                    Transform robby = node.Find("Robby");
+                    if (robby != null) { codeRoomRobby = robby.gameObject; break; }
+                }
+                if (codeRoomRobby != null) break;
+            }
+        }
+        if (codeRoomRobby == null || codeRoomRobby.scene != main) return;
+        if (!robbyTabChanged) robbyBeforeTab = codeRoomRobby.activeSelf;
+        robbyTabChanged = true;
+        codeRoomRobby.SetActive(!codeRoomRobby.activeSelf);
     }
 
     private void LatchButton(PlayerInputButton button, bool pressed)
@@ -695,6 +744,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         deathMatchConnectionToken = null;
         IsMigratingDeathMatch = migrationRestoring = false;
         migrationData.Clear(); migrationCharacters.Clear(); migrationParticipants.Clear();
+        robbyPlayers.Clear();
         spawnedPlayers.Clear();
         playerDatas.Clear();
         assignedTeamIndexes.Clear();
@@ -802,6 +852,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         // Keep it out of the scene that Fusion unloads during LoadScene.
         if (playerDataObject != null)
             runner.MakeDontDestroyOnLoad(playerDataObject.gameObject);
+
+        if (initialSceneLoaded && (runner.SceneManager == null || !runner.SceneManager.IsBusy))
+            SpawnRobbyPlayer(runner, player);
     }
 
 
@@ -956,6 +1009,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (!_runner.IsServer)
             return;
 
+        DespawnAllRobbyPlayers(_runner);
         _runner.LoadScene(
             SceneRef.FromIndex(
                 MatchSceneIndex
@@ -976,7 +1030,10 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
         IsBattleSceneLoaded = sceneIndex == MatchSceneIndex;
         if (sceneIndex != MatchSceneIndex)
+        {
+            SpawnRobbyPlayersAfterSceneLoad(runner);
             return;
+        }
         
         isGameStarting = true;
         SetMatchStatus(IsTraining ? "훈련장" : "매칭 완료");
@@ -1084,6 +1141,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (!runner.IsServer)
             return;
 
+        DespawnRobbyPlayer(runner, player);
         BattleManager.Instance?.PlayerLeft(player);
 
         if (spawnedPlayers.TryGetValue(

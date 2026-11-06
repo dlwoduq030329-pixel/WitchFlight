@@ -101,11 +101,11 @@ MonoBehaviour:
   _AwardsReady: 0
   _PraiseSequences: 
   _PraiseVoters: []
-  pickupRadius: 0.85
+  pickupRadius: 3.4
   dropClearance: 1.2
   carryOffset: {x: 0, y: 1.3, z: -0.5}
   flagVisualRoot: {fileID: 7639268800183515211}
-  carriedVisualScale: 0.35
+  carriedVisualScale: 0.7
   carriedVisualOffset: {x: -0.12, y: -0.3, z: -0.24}
   carriedVisualEuler: {x: 0, y: -15, z: 35}
   _LastCarrierTeam: 0
@@ -253,6 +253,8 @@ MonoBehaviour:
   fullWindSpeed: 60
   airDrag: 1.2
   shapeStiffness: 25
+  carriedFlutterStrength: 3
+  carriedShapeRetention: 0.65
 --- !u!82 &4301245161443745132
 AudioSource:
   m_ObjectHideFlags: 0

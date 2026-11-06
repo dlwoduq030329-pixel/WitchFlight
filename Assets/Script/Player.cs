@@ -392,6 +392,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public void InitPlayer(PlayerData data, bool isRespawn = false)
     {
+        manaBuffContacts.Clear();
         if (!Object.HasStateAuthority || data == null)
             return;
 
@@ -538,6 +539,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Spawned()
     {
+        manaBuffLayer = LayerMask.NameToLayer("ManaBuff");
+        manaBuffContacts.Clear();
         // Absolute assignment: pooled respawns and host migration must never multiply twice.
         WorldScaleMultiplier = Mathf.Max(.1f, worldCharacterScale);
         transform.localScale = authoredCharacterScale * WorldScaleMultiplier;
@@ -692,6 +695,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         TickPerkEffects();
         TickMeowFestival();
         TickTimeFieldHealing();
+        TickManaBuffArea();
         TickMagicStorm();
         TickBladeRainVolley();
         if (CatTutorialDirector.TrainingSessionActive && !IsTestBot && Object.HasStateAuthority)
@@ -2635,6 +2639,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void OnDisable()
     {
+        manaBuffContacts.Clear();
         ClearAreaAimPreview();
         if (festivalVisual != null) festivalVisual.Hide();
         if (rainVisual != null) rainVisual.Hide();
@@ -2708,6 +2713,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        manaBuffContacts.Clear();
         networkSpawned = false;
         ClearAreaAimPreview();
         if (festivalVisual != null) festivalVisual.Hide();
