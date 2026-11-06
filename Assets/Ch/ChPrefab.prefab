@@ -8643,7 +8643,6 @@ GameObject:
   m_Component:
   - component: {fileID: 5584153967063039143}
   - component: {fileID: 4440752745280166039}
-  - component: {fileID: 770098501100000002}
   m_Layer: 0
   m_Name: Skirt_rurune
   m_TagString: Untagged
@@ -8846,30 +8845,6 @@ SkinnedMeshRenderer:
     m_Center: {x: 0, y: 0, z: 0}
     m_Extent: {x: 1, y: 1, z: 1}
   m_DirtyAABB: 0
---- !u!114 &770098501100000002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3368504855408430577}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fc4a009a714b48099a2cf989fe813035, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  skirt: {fileID: 4440752745280166039}
-  motionRoot: {fileID: 5553512542147760588}
-  fullWindSpeed: 36
-  windAngle: 5
-  flutterAngle: 2
-  turnAngle: 4
-  response: 6
-  bodyAnimator: {fileID: 6501619761298650140}
-  thighFollow: 0.85
-  thighRadius: 0.105
-  clothClearance: 0.025
-  maxClearanceAngle: 18
 --- !u!1 &3369971061417872624
 GameObject:
   m_ObjectHideFlags: 0
