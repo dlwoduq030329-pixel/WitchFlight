@@ -358,11 +358,14 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     private void Update()
     {
+        RestoreSeatPose();
         if (headApplied && lookHead != null) lookHead.localRotation = headBase;
         headApplied = false;
     }
     private void LateUpdate()
     {
+        PresentInteractionHeading();
+        ApplySeatPose();
         ApplyPetReach();
         if (InteractionBusy) return;
         if (lookHead == null || Object == null || !Object.IsValid) return;
@@ -381,6 +384,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     private void StopAnimation()
     {
+        RestoreSeatPose();
         if (animationGraph.IsValid()) animationGraph.Destroy();
         if (practiceMask != null) Destroy(practiceMask);
         practiceMask = null; practiceAction = -1; practiceHolding = false; practiceWeight = 0;

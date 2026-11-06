@@ -17,9 +17,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     [SerializeField] private float verticalSensitivity = 3f;
     [Header("Lobby interaction camera")]
     [SerializeField, Min(.1f)] private float interactionCameraSeconds = .65f;
-    [SerializeField] private float seatedFocusHeight = .9f;
     private bool interactionCameraReady;
-    private float seatedCameraWeight;
     private float returnSettledSeconds;
     [Header("Lobby copy of battle lock camera presentation")]
     [SerializeField] private bool lockCameraPresentation = true;
@@ -65,7 +63,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         if (ControlsActive)
         {
             var player = PlayerRobby.LocalPlayer;
-            if (player != null && (player.InteractionFrontCamera || player.InteractionCameraReturning)) return;
+            if (player != null && player.InteractionCameraReturning) return;
             viewYaw = Mathf.Repeat(viewYaw + Input.GetAxisRaw("Mouse X") * mouseSensitivity, 360f);
             viewPitch = Mathf.Clamp(viewPitch - Input.GetAxisRaw("Mouse Y") * verticalSensitivity, pitchLimits.x, pitchLimits.y);
         }
@@ -102,16 +100,16 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         bool snap = !showing || previousTarget != target;
         if (snap) { viewYaw = player.SimulationYaw; viewPitch = 0f; }
         float cameraStep = 180f * Time.unscaledDeltaTime / Mathf.Max(.1f, interactionCameraSeconds);
-        if (player.InteractionFrontCamera || player.InteractionCameraReturning)
+        // Sitting never overrides the existing orbit. Mouse input rotates only the
+        // camera while PlayerRobby keeps the seated character's heading fixed.
+        if (player.InteractionCameraReturning)
         {
-            float desiredYaw = player.SimulationYaw + (player.InteractionFrontCamera ? 180f : 0f);
+            float desiredYaw = player.SimulationYaw;
             viewYaw = Mathf.MoveTowardsAngle(viewYaw, desiredYaw, cameraStep);
             viewPitch = Mathf.MoveTowards(viewPitch, 0, cameraStep);
         }
-        seatedCameraWeight = Mathf.MoveTowards(seatedCameraWeight, player.InteractionSeated ? 1 : 0,
-            Time.unscaledDeltaTime / Mathf.Max(.1f, interactionCameraSeconds));
         bool aligned = player.InteractionCameraReturning && Mathf.Abs(Mathf.DeltaAngle(viewYaw, player.SimulationYaw)) < .1f &&
-            Mathf.Abs(viewPitch) < .1f && seatedCameraWeight < .001f;
+            Mathf.Abs(viewPitch) < .1f;
         returnSettledSeconds = aligned ? returnSettledSeconds + Time.unscaledDeltaTime : 0;
         interactionCameraReady = aligned && returnSettledSeconds >= .15f;
         // Rotate the visible local avatar in the same frame as the camera, even if
@@ -121,7 +119,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         float blend = followSharpness <= 0f ? 1f : 1f - Mathf.Exp(-followSharpness * Time.unscaledDeltaTime);
         smoothedTargetPosition = snap ? target.position : Vector3.Lerp(smoothedTargetPosition, target.position, blend);
         Quaternion viewRotation = Quaternion.Euler(0f, viewYaw, 0f);
-        Vector3 focusOffset = new Vector3(0f, Mathf.Lerp(lookOffset.y, seatedFocusHeight, seatedCameraWeight), lookOffset.z);
+        Vector3 focusOffset = new Vector3(0f, lookOffset.y, lookOffset.z);
         Vector3 rearOffset = new Vector3(0f, followOffset.y, Mathf.Min(followOffset.z, lookOffset.z - 0.1f));
         Vector3 focus = smoothedTargetPosition + viewRotation * focusOffset;
         // Pitch orbits the camera around the head/torso pivot, never the body collider.

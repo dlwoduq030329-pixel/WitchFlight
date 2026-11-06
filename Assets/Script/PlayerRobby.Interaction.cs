@@ -9,7 +9,9 @@ public sealed partial class PlayerRobby
     [SerializeField] private AnimationClip drinkingClip, chocolateClip, pettingClip, standToSitClip, sitIdleClip, sitToStandClip;
     [SerializeField, Min(.1f)] private float seatAlignSeconds = .35f;
     [SerializeField, Min(.1f)] private float drinkTurnSeconds = .45f;
-    [Networked] private int InteractionState { get; set; } // 1 drink, 2 chocolate, 3 pet, 4 sit down, 5 seated, 6 stand, 7 camera return, 8 turn after drink
+    [SerializeField, Min(.1f)] private float petAlignSeconds = .5f;
+    [SerializeField] private bool traceInteractionTransitions = true;
+    [Networked] private int InteractionState { get; set; } // 1 drink, 2 chocolate, 3 pet, 4 sit down, 5 seated, 6 stand, 7 camera return, 8 turn after drink, 9 approach cat
     [Networked] private TickTimer InteractionTimer { get; set; }
     [Networked] private float InteractionStarted { get; set; }
     [Networked] private Vector3 InteractionPoint { get; set; }
@@ -17,7 +19,9 @@ public sealed partial class PlayerRobby
     [Networked] private Vector3 PetPoint { get; set; }
     [Networked] private float InteractionYaw { get; set; }
     [Networked] private int InteractionZoneId { get; set; }
-    public bool InteractionFrontCamera => InteractionBusy && InteractionState >= 4 && InteractionState <= 6;
+    [Networked] private Quaternion SeatRotation { get; set; }
+    [Networked] private Vector3 SeatPoint { get; set; }
+    public Vector3 SeatedCameraFocus => SeatPoint + SeatRotation * Vector3.up * .35f;
     public bool InteractionCameraReturning => InteractionBusy && InteractionState == 7;
     public bool InteractionFreeCamera => InteractionBusy && (InteractionState <= 3 || InteractionState == 8);
     public bool InteractionSeated => InteractionBusy && (InteractionState == 4 || InteractionState == 5);
@@ -30,6 +34,10 @@ public sealed partial class PlayerRobby
     private int shownInteraction;
     private float interactionWeight;
     private Transform petUpper, petLower, petHand;
+    private Transform seatHips;
+    private Vector3 unadjustedHipsPosition;
+    private Quaternion unadjustedHipsRotation;
+    private bool hipsAdjusted;
 
     public void RequestInteraction(int zoneId)
     {
@@ -51,26 +59,46 @@ public sealed partial class PlayerRobby
         InteractionYaw = SimulationYaw;
         if (state == 4)
         {
-            // SeatTarget is the avatar's ROOT/feet anchor, not the chair cushion centre.
-            InteractionPoint = zone.SeatTarget.position;
-            InteractionYaw = zone.SeatTarget.eulerAngles.y;
+            // The marker is a pelvis anchor. Its blue (+Z) arrow is the facing direction.
+            // Keep the physics root at the standing location; offset the animated skeleton.
+            SeatPoint = zone.SeatTarget.position;
+            SeatRotation = zone.SeatTarget.rotation;
+            Vector3 facing = Vector3.ProjectOnPlane(zone.SeatTarget.forward, Vector3.up);
+            InteractionYaw = facing.sqrMagnitude > .001f ? Quaternion.LookRotation(facing).eulerAngles.y : zone.SeatTarget.eulerAngles.y;
         }
         if (state == 3)
         {
+            InteractionPoint = zone.PetStandPosition;
             PetPoint = zone.CatTarget.position;
-            Vector3 facing = PetPoint - SimulationPosition; facing.y = 0;
+            Vector3 facing = PetPoint - InteractionPoint; facing.y = 0;
             if (facing.sqrMagnitude > .001f) InteractionYaw = Quaternion.LookRotation(facing).eulerAngles.y;
         }
-        ChangeInteraction(state);
+        ChangeInteraction(state == 3 ? 9 : state);
     }
 
     private void ChangeInteraction(int state)
     {
+        if (traceInteractionTransitions)
+            Debug.Log($"[Robby/Interaction] {Object.InputAuthority}: {InteractionState} -> {state}, characterYaw={SimulationYaw:F1}, actionYaw={InteractionYaw:F1}", this);
         InteractionState = state;
         InteractionStarted = (float)Runner.SimulationTime;
         InteractionTimer = state == 0 || state == 3 || state == 5 || state == 7 ? TickTimer.None :
-            TickTimer.CreateFromSeconds(Runner, state == 8 ? Mathf.Max(.1f, drinkTurnSeconds) :
+            TickTimer.CreateFromSeconds(Runner, state == 9 ? Mathf.Max(.1f, petAlignSeconds) : state == 8 ? Mathf.Max(.1f, drinkTurnSeconds) :
                 Mathf.Max(.1f, interactionClips[state - 1] != null ? interactionClips[state - 1].length : .5f));
+    }
+
+    private void PresentInteractionHeading()
+    {
+        if (!InteractionBusy) return;
+        // Apply after Animator evaluation. Do not let animated root curves or
+        // NetworkTransform presentation overwrite the interaction's facing.
+        float yaw = InteractionYaw;
+        if (InteractionState == 8)
+        {
+            float progress = Mathf.Clamp01(((float)Runner.SimulationTime - InteractionStarted) / Mathf.Max(.1f, drinkTurnSeconds));
+            yaw += 180f * Mathf.SmoothStep(0, 1, progress);
+        }
+        transform.rotation = Quaternion.Euler(0, yaw, 0);
     }
 
     private bool TickInteraction(RobbyInputData input)
@@ -88,7 +116,7 @@ public sealed partial class PlayerRobby
                     InteractionYaw = Mathf.Repeat(InteractionYaw + 180f, 360f);
                     ChangeInteraction(chocolateClip != null ? 2 : 7);
                 }
-                else ChangeInteraction(InteractionState == 1 ? 8 : InteractionState == 4 ? 5 : 7);
+                else ChangeInteraction(InteractionState == 9 ? 3 : InteractionState == 1 ? 8 : InteractionState == 4 ? 5 : 7);
             }
         }
         if (InteractionState == 0) return false;
@@ -99,7 +127,8 @@ public sealed partial class PlayerRobby
             float turn = Mathf.Clamp01(((float)Runner.SimulationTime - InteractionStarted) / Mathf.Max(.1f, drinkTurnSeconds));
             SimulationYaw = Mathf.Repeat(InteractionYaw + 180f * Mathf.SmoothStep(0, 1, turn), 360f);
         }
-        float progress = InteractionState == 4 ? Mathf.Clamp01(((float)Runner.SimulationTime - InteractionStarted) / seatAlignSeconds) : 1;
+        float progress = InteractionState == 9 ? Mathf.Clamp01(((float)Runner.SimulationTime - InteractionStarted) / Mathf.Max(.1f, petAlignSeconds)) :
+            InteractionState == 4 ? Mathf.Clamp01(((float)Runner.SimulationTime - InteractionStarted) / seatAlignSeconds) : 1;
         SimulationPosition = Vector3.Lerp(InteractionOrigin, InteractionPoint, Mathf.SmoothStep(0, 1, progress));
         SimulationVelocity = Vector3.zero;
         movementBody.useGravity = false;
@@ -134,6 +163,7 @@ public sealed partial class PlayerRobby
         shownInteraction = 0; interactionWeight = 0;
         if (avatarAnimator.isHuman)
         {
+            seatHips = avatarAnimator.GetBoneTransform(HumanBodyBones.Hips);
             petUpper = avatarAnimator.GetBoneTransform(HumanBodyBones.RightUpperArm);
             petLower = avatarAnimator.GetBoneTransform(HumanBodyBones.RightLowerArm);
             petHand = avatarAnimator.GetBoneTransform(HumanBodyBones.RightHand);
@@ -178,5 +208,32 @@ public sealed partial class PlayerRobby
             Quaternion.FromToRotation(petLower.position - shoulder, elbow - shoulder) * petUpper.rotation, reachWeight);
         petLower.rotation = Quaternion.Slerp(petLower.rotation,
             Quaternion.FromToRotation(petHand.position - petLower.position, shoulder + forward * distance - petLower.position) * petLower.rotation, reachWeight);
+    }
+
+    private void RestoreSeatPose()
+    {
+        if (hipsAdjusted && seatHips != null)
+        {
+            seatHips.localPosition = unadjustedHipsPosition;
+            seatHips.localRotation = unadjustedHipsRotation;
+        }
+        hipsAdjusted = false;
+    }
+
+    private void ApplySeatPose()
+    {
+        if (!InteractionBusy || seatHips == null || InteractionState < 4 || InteractionState > 6) return;
+        float elapsed = Mathf.Max(0, (float)Runner.SimulationTime - InteractionStarted);
+        float weight = 1;
+        if (InteractionState == 4)
+            weight = Mathf.SmoothStep(0, 1, elapsed / Mathf.Max(.1f, standToSitClip != null ? standToSitClip.length : seatAlignSeconds));
+        else if (InteractionState == 6)
+            weight = 1 - Mathf.SmoothStep(0, 1, elapsed / Mathf.Max(.1f, sitToStandClip != null ? sitToStandClip.length : seatAlignSeconds));
+        unadjustedHipsPosition = seatHips.localPosition;
+        unadjustedHipsRotation = seatHips.localRotation;
+        Quaternion tilt = SeatRotation * Quaternion.Inverse(Quaternion.Euler(0, InteractionYaw, 0));
+        seatHips.SetPositionAndRotation(Vector3.Lerp(seatHips.position, SeatPoint, weight),
+            Quaternion.Slerp(seatHips.rotation, tilt * seatHips.rotation, weight));
+        hipsAdjusted = true;
     }
 }

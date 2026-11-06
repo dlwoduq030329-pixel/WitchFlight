@@ -9,7 +9,10 @@ public sealed class RobbyInteractionZone : MonoBehaviour
     [SerializeField] private Action action;
     [Tooltip("고양이의 손을 댈 위치(머리 등)를 지정합니다.")]
     [SerializeField] private Transform catTarget;
-    [Tooltip("앉을 때 플레이어 루트/발 기준 위치와 바라볼 방향. 의자 방석 중심이 아닙니다.")]
+    [Tooltip("쓰다듬기 전에 플레이어가 이동할 월드 좌표")]
+    [SerializeField] private Vector3 petStandPosition = new Vector3(-.226276651f, -.000351765542f, -41.1113319f);
+    public Vector3 PetStandPosition => petStandPosition;
+    [Tooltip("엉덩이(Hips)가 놓일 위치. 파란 화살표(+Z)가 앉아서 바라볼 방향이며 Transform 회전도 적용합니다.")]
     [SerializeField] private Transform seatTarget;
     private Collider volume;
     private readonly HashSet<Collider> localContacts = new();
