@@ -237,6 +237,17 @@ public sealed class MagicStatTable : ScriptableObject
         return iceFollowUp ? iceImpactShardVfxPrefab : projectileSatelliteVfxPrefab;
     }
 
+    [Header("Homing flight exhaustion (Fire / Ice / Binding)")]
+    public bool homingExhaustion = true;
+    [Tooltip("초당 최초 속도 대비 손실 비율")]
+    [Range(0f, 1f)] public float homingSpeedLossPerSecond = .12f;
+    [Tooltip("실제로 회전한 1도당 최초 속도 대비 손실 비율")]
+    [Min(0f)] public float homingSpeedLossPerDegree = .002f;
+    [Range(.01f, .9f)] public float homingFallThreshold = .2f;
+    [Min(.1f)] public float homingFallGravity = 18f;
+    [Min(.1f)] public float homingFallDrag = 1.5f;
+    [Min(.1f)] public float homingFallLifetime = 12f;
+
     [Header("Local projectile prediction (visual only; server decides hits)")]
     public bool predictLocalProjectiles = true;
     [Tooltip("서버 확인을 받지 못한 임시 투사체를 제거할 때까지의 시간입니다.")]
@@ -302,13 +313,13 @@ public sealed class MagicStatTable : ScriptableObject
             case MagicType.Fire:
                 e.effect = MagicEffectKind.DirectDamage; e.damage = 45; e.apCost = 45;
                 e.range = 130f; e.cooldownSeconds = 3.75f; e.lockChargeSeconds = 0.8f;
-                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 176; e.projectileLifetime = 5f;
+                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 220; e.projectileLifetime = 5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "높은 피해의 유도 마법. 길게 록온한 뒤 버튼을 놓아 발사합니다."; break;
             case MagicType.Ice:
                 e.effect = MagicEffectKind.SlowDamage; e.damage = 25; e.apCost = 30;
                 e.range = 90f; e.cooldownSeconds = 2.7f; e.lockChargeSeconds = 0.35f;
-                e.projectileSpeed = 76.5f; e.projectileTurnSpeed = 256;
+                e.projectileSpeed = 76.5f; e.projectileTurnSpeed = 320;
                 e.movementMultiplier = 0.4f; e.effectDuration = 2.5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "빠르게 록온하여 발사합니다. 적중한 적의 이동 속도를 낮춥니다."; break;
@@ -342,7 +353,7 @@ public sealed class MagicStatTable : ScriptableObject
             case MagicType.Binding:
                 e.effect = MagicEffectKind.Binding; e.apCost = 50; e.cooldownSeconds = 18;
                 e.range = 142.5f; e.effectDuration = 3; e.lockChargeSeconds = 0.6f;
-                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 240;
+                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 300;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "록온 후 유도 마법을 발사합니다. 피해 없이 3초 동안 적의 이동을 막습니다."; break;
             case MagicType.Curse:
