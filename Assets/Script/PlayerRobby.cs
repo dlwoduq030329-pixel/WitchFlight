@@ -205,6 +205,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
         if (!ActivePlayers.Contains(this)) ActivePlayers.Add(this);
         if (Object.HasInputAuthority) LocalPlayer = this;
         StartAnimation();
+        StartLobbyAppearance();
     }
 
     // Called only after an authoritative ball contact actually applied a kick.
@@ -397,6 +398,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        StopLobbyAppearance();
         RobbyMagicPractice.Instance?.RemoveRemoteCaster(GetInstanceID());
         ReleasePhysics();
         ActivePlayers.Remove(this);
@@ -406,6 +408,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     private void OnDestroy()
     {
+        StopLobbyAppearance();
         ReleasePhysics();
         ActivePlayers.Remove(this);
         if (LocalPlayer == this) LocalPlayer = null;

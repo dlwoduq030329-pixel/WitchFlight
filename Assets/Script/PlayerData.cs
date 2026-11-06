@@ -115,6 +115,17 @@ public partial class PlayerData : NetworkBehaviour
         hatIndex = (int)hat, broomIndex = (int)broom, wandIndex = wandIndex
     };
 
+    internal void ApplyLobbyAppearanceConfig(PlayerConfig config)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || !IsLoadoutInitialized ||
+            NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsWaitingInCodeRoom) return;
+        config = config.Sanitized();
+        hat = NormalizeHat((HatType)config.hatIndex); broom = NormalizeBroom((BroomType)config.broomIndex);
+        hairStylePreset = config.hairStylePreset; bangsLength = config.bangsLength;
+        bangsDirection = config.bangsDirection; sideHairLength = config.sideHairLength; ahogeLength = config.ahogeLength;
+        hairColor = config.hairColor; clothColor = config.clothColor; eyeColor = config.eyeColor; wandIndex = config.wandIndex;
+    }
+
 
 
     [Networked, OnChangedRender(nameof(NotifyDeathMatchRankingChanged))] public bool IsLoadoutInitialized { get; private set; }

@@ -5507,6 +5507,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 770098501100000001}
   - component: {fileID: 5553512542147760588}
   - component: {fileID: 6501619761298650140}
   - component: {fileID: 5048588117757004521}
@@ -5622,6 +5623,13 @@ MonoBehaviour:
   practiceRaiseSeconds: 0.25
   headPitchLimit: 40
   animationBlendSeconds: 0.12
+  lobbyAppearance: {fileID: 770098501100000001}
+  lobbyHats:
+  - {fileID: 0}
+  - {fileID: 8132279307764973}
+  - {fileID: 6280950415935578687}
+  - {fileID: 2074922683260364664}
+
 --- !u!114 &9072680371855534988
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -25757,4 +25765,42 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 1716154798868109688, guid: 11a1ed608be0eea459e822250f08cbe8, type: 3}
   m_PrefabInstance: {fileID: 9107549282597231950}
+  m_PrefabAsset: {fileID: 0}
+
+--- !u!114 &770098501100000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1810222910671885908}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e4dd8ced7ea41b49e2b80bd715c1a10, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bangsRenderer: {fileID: 0}
+  sideHairRenderer: {fileID: 0}
+  hairColorTargets: []
+  clothColorTargets: []
+  eyeColorTargets: []
+  eyeTexturePresets: {fileID: 0}
+  maxHairLength: 10
+
+--- !u!1 &8132279307764973 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 661408889563746074, guid: eebf2ebbd1a996a40a14ba89329a4e94, type: 3}
+  m_PrefabInstance: {fileID: 662362995898256375}
+  m_PrefabAsset: {fileID: 0}
+
+--- !u!1 &6280950415935578687 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7626773755904283660, guid: 25b68198813aec84b925a4de33d942a7, type: 3}
+  m_PrefabInstance: {fileID: 4539018687467550259}
+  m_PrefabAsset: {fileID: 0}
+
+--- !u!1 &2074922683260364664 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3233312635153220562, guid: 42ef421c3a979a64da123d35ca0ddc19, type: 3}
+  m_PrefabInstance: {fileID: 3464556303428707498}
   m_PrefabAsset: {fileID: 0}
