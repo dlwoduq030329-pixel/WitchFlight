@@ -179,6 +179,47 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private bool controllerNeedsRenderReset;
     private PlayerAppearance appearance;
     private Animator animator;
+    [Header("Aim spell head hits")]
+    [SerializeField] private Transform damageHeadBone;
+    [SerializeField] private Vector3 damageHeadOffset = Vector3.zero;
+    [SerializeField, Min(0.01f)] private float damageHeadRadius = 0.22f;
+    [SerializeField, Min(1f)] private float visionHeadMultiplier = 4f;
+    [SerializeField, Min(1f)] private float darkHeadMultiplier = 2f;
+    [SerializeField, Min(1f)] private float bladeHeadMultiplier = 3f;
+    private bool damageHeadResolved;
+
+    // Invoked only for an already confirmed direct hit on the authority. No extra colliders,
+    // scene searches per frame, or client-supplied headshot flags.
+    public MagicStatEntry ResolveHeadHit(MagicStatEntry stats, Vector3 origin, Vector3 direction,
+        float contactDistance, float castRadius)
+    {
+        float multiplier = stats.magic == MagicType.Vision ? visionHeadMultiplier :
+            stats.magic == MagicType.Dark ? darkHeadMultiplier :
+            stats.magic == MagicType.Blade ? bladeHeadMultiplier : 1f;
+        if (multiplier <= 1f || stats.requiresTarget || direction.sqrMagnitude < .0001f) return stats;
+        if (!damageHeadResolved)
+        {
+            damageHeadResolved = true;
+            if (damageHeadBone == null && animator != null && animator.isHuman && animator.avatar != null && animator.avatar.isValid)
+                damageHeadBone = animator.GetBoneTransform(HumanBodyBones.Head);
+            if (damageHeadBone == null)
+                foreach (Transform bone in GetComponentsInChildren<Transform>(true))
+                    if (bone.name == "Head" && (damageHeadBone == null || bone.childCount > damageHeadBone.childCount))
+                        damageHeadBone = bone;
+        }
+        if (damageHeadBone == null) return stats;
+        Vector3 center = damageHeadBone.TransformPoint(damageHeadOffset);
+        float radius = damageHeadRadius * WorldScaleMultiplier;
+        // Blade's wide body sweep must not turn a torso hit into a head hit.
+        float allowance = Mathf.Min(Mathf.Max(0f, castRadius), .05f * WorldScaleMultiplier);
+        Vector3 ray = direction.normalized;
+        float distance = Vector3.Dot(center - origin, ray);
+        float limit = Mathf.Max(0f, contactDistance) + Mathf.Max(0f, castRadius) + radius * 2f;
+        if (distance < 0f || distance > limit) return stats;
+        if ((center - (origin + ray * distance)).sqrMagnitude <= (radius + allowance) * (radius + allowance))
+            stats.damage *= multiplier;
+        return stats;
+    }
     private TimeVfxSpeed timeAnimationClock;
     [Networked] private NetworkButtons previousButtons { get; set; }
     private int lastMagicSlot = -1;
@@ -1625,7 +1666,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else if (victim != null && victim.IsEnemyOf(this))
         {
             int hit = victim.HitSequence;
-            victim.ReceiveMagicHit(stats, ParticipantRef, Object.Id, direction);
+            victim.ReceiveMagicHit(victim.ResolveHeadHit(stats, origin, direction,
+                Vector3.Distance(origin, end), stats.hitscanRadius), ParticipantRef, Object.Id, direction);
             if (victim.HitSequence == hit) ResetVisionMiss(stats);
         }
         else { ResetVisionMiss(stats); NotifyFaceMiss(); }

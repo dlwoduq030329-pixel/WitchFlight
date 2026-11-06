@@ -151,7 +151,7 @@ public partial class MagicProjectile : NetworkBehaviour
             if (IsMine)
                 SettleMine();
             else
-                Impact(transform.position, overlap.GetComponentInParent<Player>());
+                Impact(transform.position, overlap.GetComponentInParent<Player>(), headTraceOrigin: transform.position);
             return;
         }
         bool collided = TryGetCollision(step, out RaycastHit hit);
@@ -163,12 +163,13 @@ public partial class MagicProjectile : NetworkBehaviour
         }
         if (collided)
         {
+            Vector3 sweepOrigin = transform.position;
             next = transform.position + direction * Mathf.Max(0f, hit.distance - 0.02f);
             transform.position = next;
             if (IsMine)
                 SettleMine();
             else
-                Impact(next, hit.collider.GetComponentInParent<Player>());
+                Impact(next, hit.collider.GetComponentInParent<Player>(), headTraceOrigin: sweepOrigin);
             return;
         }
 
@@ -366,7 +367,7 @@ public partial class MagicProjectile : NetworkBehaviour
         }
     }
 
-    private void Impact(Vector3 point, Player directHit = null, MagicProjectile summonHit = null)
+    private void Impact(Vector3 point, Player directHit = null, MagicProjectile summonHit = null, Vector3? headTraceOrigin = null)
     {
         if (Finished)
             return;
@@ -397,7 +398,11 @@ public partial class MagicProjectile : NetworkBehaviour
                 RPC_Impact(point, Magic);
                 return;
             }
-            directHit.ReceiveMagicHit(stats, Shooter, ShooterId, direction);
+            MagicStatEntry hitStats = headTraceOrigin.HasValue
+                ? directHit.ResolveHeadHit(stats, headTraceOrigin.Value, direction,
+                    Vector3.Distance(headTraceOrigin.Value, point), stats.projectileRadius)
+                : stats;
+            directHit.ReceiveMagicHit(hitStats, Shooter, ShooterId, direction);
             if (ConstructKind == MagicConstructKind.SummonBolt && !directHit.IsAlive &&
                 Runner.TryFindObject(ShooterId, out NetworkObject catOwner) && catOwner != null)
                 catOwner.GetComponent<Player>()?.NotifySummonKillAudio(point);
