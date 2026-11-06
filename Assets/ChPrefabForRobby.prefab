@@ -5507,8 +5507,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 770098501100000001}
   - component: {fileID: 5553512542147760588}
+  - component: {fileID: 770098501100000001}
   - component: {fileID: 6501619761298650140}
   - component: {fileID: 5048588117757004521}
   - component: {fileID: 9072680371855534988}
@@ -5545,6 +5545,25 @@ Transform:
   - {fileID: 862026100900000002}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &770098501100000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1810222910671885908}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e4dd8ced7ea41b49e2b80bd715c1a10, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bangsRenderer: {fileID: 0}
+  sideHairRenderer: {fileID: 0}
+  hairColorTargets: []
+  clothColorTargets: []
+  eyeColorTargets: []
+  eyeTexturePresets: {fileID: 0}
+  maxHairLength: 10
 --- !u!95 &6501619761298650140
 Animator:
   serializedVersion: 7
@@ -5579,6 +5598,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a63b9061bdd9454298cda90018a53ee9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  lobbyAppearance: {fileID: 770098501100000001}
+  lobbyHats:
+  - {fileID: 0}
+  - {fileID: 8132279307764973}
+  - {fileID: 6280950415935578687}
+  - {fileID: 2074922683260364664}
+  - {fileID: 0}
   drinkingClip: {fileID: -203655887218126122, guid: ee144e88088f6c0459cd5e3cbfea66ae, type: 3}
   chocolateClip: {fileID: 7400000, guid: 4d0fd0b93691e56499974d3ec2cb18c9, type: 2}
   pettingClip: {fileID: -203655887218126122, guid: 76214cd1c9507314e866fa6e1c3745a7, type: 3}
@@ -5586,6 +5612,9 @@ MonoBehaviour:
   sitIdleClip: {fileID: -203655887218126122, guid: 54c933d55a53fe346ae46aff26b9aa18, type: 3}
   sitToStandClip: {fileID: -203655887218126122, guid: 92d6c3179d0c8d441a3c24b2ed549bfc, type: 3}
   seatAlignSeconds: 0.35
+  drinkTurnSeconds: 0.45
+  petAlignSeconds: 0.5
+  traceInteractionTransitions: 1
   _SimulationPosition: {x: 0, y: 0, z: 0}
   _SimulationYaw: 0
   movementBody: {fileID: 7606144210567726246}
@@ -5623,13 +5652,6 @@ MonoBehaviour:
   practiceRaiseSeconds: 0.25
   headPitchLimit: 40
   animationBlendSeconds: 0.12
-  lobbyAppearance: {fileID: 770098501100000001}
-  lobbyHats:
-  - {fileID: 0}
-  - {fileID: 8132279307764973}
-  - {fileID: 6280950415935578687}
-  - {fileID: 2074922683260364664}
-
 --- !u!114 &9072680371855534988
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8375,6 +8397,8 @@ GameObject:
   m_Component:
   - component: {fileID: 5584153967063039143}
   - component: {fileID: 4440752745280166039}
+  - component: {fileID: 770098501100000002}
+  - component: {fileID: 770098501100000003}
   m_Layer: 0
   m_Name: Skirt_rurune
   m_TagString: Untagged
@@ -8577,6 +8601,30 @@ SkinnedMeshRenderer:
     m_Center: {x: 0, y: 0, z: 0}
     m_Extent: {x: 1, y: 1, z: 1}
   m_DirtyAABB: 0
+--- !u!114 &770098501100000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3368504855408430577}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc4a009a714b48099a2cf989fe813035, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  skirt: {fileID: 4440752745280166039}
+  motionRoot: {fileID: 5553512542147760588}
+  fullWindSpeed: 36
+  windAngle: 5
+  flutterAngle: 2
+  turnAngle: 4
+  response: 6
+  bodyAnimator: {fileID: 6501619761298650140}
+  thighFollow: 0.85
+  thighRadius: 0.105
+  clothClearance: 0.025
+  maxClearanceAngle: 18
 --- !u!1 &3369971061417872624
 GameObject:
   m_ObjectHideFlags: 0
@@ -24370,6 +24418,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: eebf2ebbd1a996a40a14ba89329a4e94, type: 3}
+--- !u!1 &8132279307764973 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 661408889563746074, guid: eebf2ebbd1a996a40a14ba89329a4e94, type: 3}
+  m_PrefabInstance: {fileID: 662362995898256375}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &3450170371731955272 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2796832189898560959, guid: eebf2ebbd1a996a40a14ba89329a4e94, type: 3}
@@ -24794,6 +24847,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 42ef421c3a979a64da123d35ca0ddc19, type: 3}
+--- !u!1 &2074922683260364664 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3233312635153220562, guid: 42ef421c3a979a64da123d35ca0ddc19, type: 3}
+  m_PrefabInstance: {fileID: 3464556303428707498}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &2508228667048581600 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1358845965948468554, guid: 42ef421c3a979a64da123d35ca0ddc19, type: 3}
@@ -25147,6 +25205,11 @@ PrefabInstance:
 --- !u!4 &1622478007905631631 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2916615483933707196, guid: 25b68198813aec84b925a4de33d942a7, type: 3}
+  m_PrefabInstance: {fileID: 4539018687467550259}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &6280950415935578687 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7626773755904283660, guid: 25b68198813aec84b925a4de33d942a7, type: 3}
   m_PrefabInstance: {fileID: 4539018687467550259}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &4638918843344760242
@@ -25766,41 +25829,31 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1716154798868109688, guid: 11a1ed608be0eea459e822250f08cbe8, type: 3}
   m_PrefabInstance: {fileID: 9107549282597231950}
   m_PrefabAsset: {fileID: 0}
-
---- !u!114 &770098501100000001
+--- !u!114 &770098501100000003
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1810222910671885908}
+  m_GameObject: {fileID: 3368504855408430577}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9e4dd8ced7ea41b49e2b80bd715c1a10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  bangsRenderer: {fileID: 0}
-  sideHairRenderer: {fileID: 0}
-  hairColorTargets: []
-  clothColorTargets: []
-  eyeColorTargets: []
-  eyeTexturePresets: {fileID: 0}
-  maxHairLength: 10
-
---- !u!1 &8132279307764973 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 661408889563746074, guid: eebf2ebbd1a996a40a14ba89329a4e94, type: 3}
-  m_PrefabInstance: {fileID: 662362995898256375}
-  m_PrefabAsset: {fileID: 0}
-
---- !u!1 &6280950415935578687 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 7626773755904283660, guid: 25b68198813aec84b925a4de33d942a7, type: 3}
-  m_PrefabInstance: {fileID: 4539018687467550259}
-  m_PrefabAsset: {fileID: 0}
-
---- !u!1 &2074922683260364664 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 3233312635153220562, guid: 42ef421c3a979a64da123d35ca0ddc19, type: 3}
-  m_PrefabInstance: {fileID: 3464556303428707498}
-  m_PrefabAsset: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: ca74e0d6603a4c3b8e02be97896b993d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  skirt: {fileID: 4440752745280166039}
+  bodyAnimator: {fileID: 6501619761298650140}
+  motionRoot: {fileID: 5553512542147760588}
+  localPlayerOnly: 1
+  pinnedTopFraction: 0.18
+  hemTravel: 0.25
+  solverFrequency: 60
+  damping: 0.65
+  bendingStiffness: 0.5
+  thighRadius: 0.105
+  shinRadius: 0.065
+  armRadius: 0.045
+  handRadius: 0.065
+  clearance: 0.012
+  windStrength: 0.4
+  maxWind: 8

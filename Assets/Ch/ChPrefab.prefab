@@ -5594,13 +5594,23 @@ MonoBehaviour:
   _RainVolleyStep: 0
   _CatHitSequence: 0
   _CatKillSequence: 0
+  _DeathMatchMigrationIdentity:
+    _length: 0
+    _data:
+      Data: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
   _CobraActive: 0
   _PortalEntryPosition: {x: 0, y: 0, z: 0}
+  manaBuffRecoveryPerSecond: 10
   _StormShotsRemaining: 0
   _MatchBotSlot: 0
   _FestivalOrigin: {x: 0, y: 0, z: 0}
   _FestivalSequence: 0
   _SubmergedSeconds: 0
+  automaticCruise: 1
+  glideStopSeconds: 1.5
+  burstBoostSeconds: 2
+  burstBoostManaCost: 10
+  burstAccelerationMultiplier: 4
   maxSpeed: 60
   enableMovementPrediction: 1
   mousePitchSensitivity: 2.5
@@ -5608,6 +5618,7 @@ MonoBehaviour:
   wallDamage: 20
   wallDamageCooldown: 0.5
   collisionRadius: 0.22
+  wallSlideSideRatio: 0.5
   collisionHeight: 1.2
   baseAcceleration: 60
   equipmentStatTable: {fileID: 11400000, guid: a949750258cc43b4aa2e9b6b2ab4ed68, type: 2}
@@ -5641,6 +5652,7 @@ MonoBehaviour:
     enabled: 1
     blendSeconds: 0.06
     quickActionSeconds: 0.25
+    attackRaiseSeconds: 0.25
     parryStartSeconds: 0.08
     parryEndSeconds: 0.12
     alternateParryAnimations: 1
@@ -5680,6 +5692,13 @@ MonoBehaviour:
   equipment: {fileID: 0}
   _PortalExitSequence: 0
   _PortalExitRotation: {x: 0, y: 0, z: 0, w: 0}
+  damageHeadBone: {fileID: 0}
+  damageHeadOffset: {x: 0, y: 0, z: 0}
+  damageHeadRadius: 0.22
+  visionHeadMultiplier: 4
+  darkHeadMultiplier: 2
+  bladeHeadMultiplier: 3
+  worldCharacterScale: 2
 --- !u!114 &9072680371855534988
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5805,6 +5824,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   deathFadeSeconds: 2
   hitFlashSeconds: 0.18
+  manaPotionVfxPrefab: {fileID: 0}
+  manaPotionVfxAnchor: {fileID: 0}
+  manaPotionVfxOffset: {x: 0, y: 1, z: 0}
+  manaPotionVfxEuler: {x: 0, y: 0, z: 0}
+  manaPotionVfxScale: 1
+  manaPotionVfxDuration: 1.5
   statusEffectVfxViews:
   - status: 1
     vfxPrefab: {fileID: 5310361573421146954, guid: 138510276a9931c4abde295e7d1cf0a2, type: 3}
@@ -8618,6 +8643,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5584153967063039143}
   - component: {fileID: 4440752745280166039}
+  - component: {fileID: 770098501100000002}
   m_Layer: 0
   m_Name: Skirt_rurune
   m_TagString: Untagged
@@ -8820,6 +8846,30 @@ SkinnedMeshRenderer:
     m_Center: {x: 0, y: 0, z: 0}
     m_Extent: {x: 1, y: 1, z: 1}
   m_DirtyAABB: 0
+--- !u!114 &770098501100000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3368504855408430577}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc4a009a714b48099a2cf989fe813035, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  skirt: {fileID: 4440752745280166039}
+  motionRoot: {fileID: 5553512542147760588}
+  fullWindSpeed: 36
+  windAngle: 5
+  flutterAngle: 2
+  turnAngle: 4
+  response: 6
+  bodyAnimator: {fileID: 6501619761298650140}
+  thighFollow: 0.85
+  thighRadius: 0.105
+  clothClearance: 0.025
+  maxClearanceAngle: 18
 --- !u!1 &3369971061417872624
 GameObject:
   m_ObjectHideFlags: 0
