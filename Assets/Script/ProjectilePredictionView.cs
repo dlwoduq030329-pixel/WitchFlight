@@ -18,6 +18,9 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     private int inputTick;
     private float createdAt, launchAt, travelled;
     private Vector3 direction, correction;
+    private float flightSpeedFraction = 1f;
+    private bool flightExhausted;
+    private Vector3 fallingVelocity;
     private bool predictedStop, predictedImpact, confirmedImpact;
     private bool hasSource;
     private GameObject content;
@@ -175,6 +178,17 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             float dt = Mathf.Min(remaining, 1f / 60f);
             remaining -= dt;
             dt *= MagicProjectile.TimeProjectileMultiplier(runner, transform.position);
+            if (flightExhausted)
+            {
+                float drag = Mathf.Exp(-Mathf.Max(0f, table.homingFallDrag) * dt);
+                fallingVelocity.x *= drag;
+                fallingVelocity.z *= drag;
+                fallingVelocity += Vector3.down * Mathf.Max(.1f, table.homingFallGravity) * dt;
+                transform.position += fallingVelocity * dt;
+                if (fallingVelocity.sqrMagnitude > .0001f) transform.rotation = Quaternion.LookRotation(fallingVelocity);
+                continue;
+            }
+            Vector3 previousDirection = direction;
             if (target != null && target.Object != null && target.Object.IsValid && target.IsAlive)
                 direction = MagicProjectile.ResolveHomingDirection(stats.requiresTarget, direction,
                     target.LockAimPoint - transform.position, stats.projectileTurnSpeed, dt);
@@ -182,11 +196,22 @@ public sealed class ProjectilePredictionView : MonoBehaviour
                 direction = MagicProjectile.ResolveHomingDirection(stats.requiresTarget, direction,
                     summonTarget.transform.position - transform.position, stats.projectileTurnSpeed, dt);
             float limit = stats.effect == MagicEffectKind.Mine ? stats.placementDistance : stats.range;
-            float step = Mathf.Min(stats.projectileSpeed * dt, Mathf.Max(0f, limit - travelled));
+            bool exhaustion = stats.requiresTarget && MagicProjectile.UsesFlightExhaustion(stats.magic, table);
+            if (exhaustion)
+            {
+                flightSpeedFraction = MagicProjectile.DrainFlightSpeed(flightSpeedFraction, previousDirection, direction, dt, table);
+                if (flightSpeedFraction <= table.homingFallThreshold || travelled >= limit - .001f)
+                {
+                    flightExhausted = true;
+                    fallingVelocity = direction * stats.projectileSpeed * flightSpeedFraction;
+                    continue;
+                }
+            }
+            float step = Mathf.Min(stats.projectileSpeed * (exhaustion ? flightSpeedFraction : 1f) * dt, Mathf.Max(0f, limit - travelled));
             Vector3 next = Sweep(transform.position, transform.position + direction * step, out bool hit);
             travelled += step;
             transform.SetPositionAndRotation(next, Quaternion.LookRotation(direction));
-            if (hit || travelled >= limit - 0.001f)
+            if (hit || (!exhaustion && travelled >= limit - 0.001f))
             {
                 predictedStop = stats.effect == MagicEffectKind.Mine;
                 predictedImpact = !predictedStop;
@@ -199,7 +224,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
 
     private void UpdateFormation()
     {
-        if (table == null || !table.projectileFormationEnabled || owner == null ||
+        if (flightExhausted || (hasSource && source.FlightExhausted) || table == null || !table.projectileFormationEnabled || owner == null ||
             stats.projectileSpeed <= 0f || stats.effect == MagicEffectKind.Mine || stats.magic == MagicType.Blade || stats.magic == MagicType.MagicStorm ||
             (hasSource && source.ConstructKind == MagicConstructKind.SummonBolt))
         {
@@ -228,6 +253,9 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     private Vector3 GetConfirmedPosition()
     {
         Vector3 position = source.transform.position;
+        // Exhaustion changes speed and may enter a ballistic fall. Use interpolated server
+        // poses instead of extrapolating an obsolete constant-speed homing trajectory.
+        if (source.HasFlightExhaustion) return position;
         if (!source.Object.HasInputAuthority || source.Object.HasStateAuthority || source.Settled ||
             (table != null && !table.predictLocalProjectiles)) return position;
         float lead = BoundedLead((float)(runner.LocalRenderTime - runner.RemoteRenderTime),

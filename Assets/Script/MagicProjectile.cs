@@ -18,6 +18,50 @@ public partial class MagicProjectile : NetworkBehaviour
     [Networked] public bool Finished { get; protected set; }
     [Networked] public int PredictionInputTick { get; protected set; }
     [Networked] public float TravelledDistance { get; protected set; }
+    [Networked] public float FlightSpeedFraction { get; protected set; }
+    [Networked] public bool FlightExhausted { get; protected set; }
+    [Networked] private bool ExhaustionEnabled { get; set; }
+    private Vector3 fallingVelocity;
+    private Suimono.Core.SuimonoModule fallingWater;
+    private MagicStatTable flightSettings;
+
+    public static bool UsesFlightExhaustion(MagicType magic, MagicStatTable table) =>
+        table != null && table.homingExhaustion &&
+        (magic == MagicType.Fire || magic == MagicType.Ice || magic == MagicType.Binding);
+
+    public static float DrainFlightSpeed(float fraction, Vector3 before, Vector3 after, float dt, MagicStatTable table) =>
+        Mathf.Max(0f, fraction - Mathf.Max(0f, table.homingSpeedLossPerSecond) * dt -
+            Vector3.Angle(before, after) * Mathf.Max(0f, table.homingSpeedLossPerDegree));
+
+    public bool HasFlightExhaustion => ConstructKind == MagicConstructKind.Projectile && ExhaustionEnabled;
+
+    private void ExhaustFlight()
+    {
+        if (FlightExhausted) return;
+        FlightExhausted = true;
+        TargetId = default;
+        fallingVelocity = direction * stats.projectileSpeed * FlightSpeedFraction;
+        // One lookup when entering the fall, never a repeated scene search.
+        fallingWater = FindFirstObjectByType<Suimono.Core.SuimonoModule>();
+        Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f, flightSettings.homingFallLifetime));
+        NotifyShooterFaceMiss();
+    }
+
+    private void TickExhaustedFlight(float dt)
+    {
+        float drag = Mathf.Exp(-Mathf.Max(0f, flightSettings.homingFallDrag) * dt);
+        fallingVelocity.x *= drag;
+        fallingVelocity.z *= drag;
+        fallingVelocity += Vector3.down * Mathf.Max(.1f, flightSettings.homingFallGravity) * dt;
+        Vector3 step = fallingVelocity * dt;
+        Vector3 next = transform.position + step;
+        bool waterHit = fallingWater != null && fallingWater.isActiveAndEnabled &&
+            fallingWater.TryGetSurfaceHeight(next, out float seaY) && next.y <= seaY;
+        if (waterHit || (step.sqrMagnitude > .000001f &&
+            TryBladeWallHit(transform.position, step.normalized, step.magnitude, collisionHits, out _)))
+        { Runner.Despawn(Object); return; }
+        if (step.sqrMagnitude > .000001f) transform.SetPositionAndRotation(next, Quaternion.LookRotation(step));
+    }
     [Networked] protected TickTimer Lifetime { get; set; }
     [Networked] protected TickTimer ArmTimer { get; set; }
 
@@ -61,6 +105,12 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         ConstructKind = MagicConstructKind.Projectile;
         stats = entry;
+        flightSettings = MagicStatTable.Default;
+        ExhaustionEnabled = entry.requiresTarget && UsesFlightExhaustion(entry.magic, flightSettings);
+        FlightSpeedFraction = 1f;
+        FlightExhausted = false;
+        fallingVelocity = Vector3.zero;
+        fallingWater = null;
         timeLifetimeRemainder = 0f;
         stormAimDirection = Vector3.zero;
         if (entry.magic == MagicType.MagicStorm)
@@ -113,17 +163,20 @@ public partial class MagicProjectile : NetworkBehaviour
         float flightDelta = TimeFlightStep();
         if (Lifetime.Expired(Runner))
         {
+            if (!Finished && HasFlightExhaustion && !FlightExhausted)
+            { ExhaustFlight(); return; }
             if (!Finished && !IsMine && stats.effect == MagicEffectKind.AreaDamage)
                 Impact(transform.position);
             else
             {
-                if (!Finished && !IsMine) NotifyShooterFaceMiss();
+                if (!Finished && !IsMine && !FlightExhausted) NotifyShooterFaceMiss();
                 Runner.Despawn(Object);
             }
             return;
         }
         if (Finished)
             return;
+        if (FlightExhausted) { TickExhaustedFlight(flightDelta); return; }
         if (IsMine && Settled)
         {
             CheckMine();
@@ -133,6 +186,7 @@ public partial class MagicProjectile : NetworkBehaviour
         if (Magic == MagicType.MagicStorm)
             direction = Vector3.RotateTowards(direction, stormAimDirection,
                 stats.projectileTurnSpeed * Mathf.Deg2Rad * flightDelta, 0f).normalized;
+        Vector3 previousDirection = direction;
         Player target = FindTarget();
         MagicProjectile summonTarget = FindSummonTargetById();
         if ((target != null || summonTarget != null) && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
@@ -143,8 +197,14 @@ public partial class MagicProjectile : NetworkBehaviour
                     stats.projectileTurnSpeed, flightDelta);
         }
 
+        if (HasFlightExhaustion)
+        {
+            FlightSpeedFraction = DrainFlightSpeed(FlightSpeedFraction, previousDirection, direction, flightDelta, flightSettings);
+            if (FlightSpeedFraction <= flightSettings.homingFallThreshold)
+            { ExhaustFlight(); return; }
+        }
         float limit = IsMine ? stats.placementDistance : stats.range;
-        float step = Mathf.Min(stats.projectileSpeed * flightDelta, Mathf.Max(0f, limit - TravelledDistance));
+        float step = Mathf.Min(stats.projectileSpeed * (HasFlightExhaustion ? FlightSpeedFraction : 1f) * flightDelta, Mathf.Max(0f, limit - TravelledDistance));
         Vector3 next = transform.position + direction * step;
         if (TryGetInitialOverlap(out Collider overlap))
         {
@@ -177,6 +237,7 @@ public partial class MagicProjectile : NetworkBehaviour
         TravelledDistance += step;
         if (TravelledDistance >= limit - 0.001f)
         {
+            if (HasFlightExhaustion) { ExhaustFlight(); return; }
             if (IsMine)
                 SettleMine();
             else
@@ -544,7 +605,7 @@ public partial class MagicProjectile : NetworkBehaviour
     {
         if (observer == null || observer.Object == null || !observer.Object.IsValid ||
             Object == null || !Object.IsValid || Runner != observer.Runner || Finished ||
-            IsMine || IsConstruct || Settled || ShooterTeam == observer.TeamIndex) return false;
+            IsMine || IsConstruct || Settled || FlightExhausted || ShooterTeam == observer.TeamIndex) return false;
         if (!TargetId.Equals(default(NetworkId))) return TargetId.Equals(observer.Object.Id);
         return TryGetImpactTime(observer, out _);
     }
@@ -556,8 +617,9 @@ public partial class MagicProjectile : NetworkBehaviour
         seconds = float.PositiveInfinity;
         if (observer == null || observer.Object == null || !observer.Object.IsValid ||
             Object == null || !Object.IsValid || Runner != observer.Runner || Finished || IsMine || IsConstruct || Settled ||
-            ShooterTeam == observer.TeamIndex) return false;
+            ShooterTeam == observer.TeamIndex || FlightExhausted) return false;
         MagicStatEntry entry = PresentationStats;
+        if (HasFlightExhaustion) entry.projectileSpeed *= FlightSpeedFraction;
         entry.projectileSpeed *= TimeProjectileMultiplier(Runner, transform.position);
         if (entry.projectileSpeed <= 0f) return false;
         Vector3 offset = transform.position - observer.LockAimPoint;
