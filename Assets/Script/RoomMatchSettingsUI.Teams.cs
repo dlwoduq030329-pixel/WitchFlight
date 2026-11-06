@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,6 +22,13 @@ public sealed partial class RoomMatchSettingsUI
 
     private void LateUpdate()
     {
+        foreach (linkuserinfo info in linkuserinfo.LoadedBridges)
+            if (info != null && info.UsesTeamCards)
+            {
+                // The authored cards own selection; do not overlay legacy dropdowns.
+                OnDisable();
+                return;
+            }
         PlayerData local = PlayerData.Local;
         bool show = manager != null && manager.IsWaitingInCodeRoom &&
             BattleMatchRules.IsTeamMode(manager.CurrentMatchMode) && local != null &&

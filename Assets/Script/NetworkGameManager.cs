@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 
 using Fusion;
@@ -369,7 +369,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // Host-authoritative team changes. PlayerData's owner-only RPC supplies the requester.
     public bool TrySetWaitingTeam(PlayerData data, int team)
     {
-        if (!IsRoomHost || !IsWaitingInCodeRoom || !BattleMatchRules.IsTeamMode(CurrentMatchMode) ||
+        if (!IsRoomHost || !IsWaitingInCodeRoom || IsRaceMode || IsRaidMode ||
             (team != 1 && team != 2) || data == null || data.Object == null || !data.Object.IsValid ||
             !data.Object.HasStateAuthority || data.Runner != _runner || !data.IsLoadoutInitialized)
             return false;
@@ -384,7 +384,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         foreach (PlayerRef participant in _runner.ActivePlayers)
             if (participant != player && assignedTeamIndexes.TryGetValue(participant, out int assigned) && assigned == team)
                 others++;
-        if (others >= 2) return false;
+        if (others >= RequiredPlayerCount / 2) return false;
         assignedTeamIndexes[player] = team;
         data.teamIndex = team;
         data.camp = team == 1 ? Camp.A : Camp.B;

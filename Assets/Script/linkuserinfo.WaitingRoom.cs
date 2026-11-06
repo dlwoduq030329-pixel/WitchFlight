@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Fusion;
 using TMPro;
 using UnityEngine;
@@ -78,6 +78,7 @@ public sealed partial class linkuserinfo
     public Image GetCodeWaitingRoomProfile(PlayerRef player)
     {
         if (!waitingRoomInitialized || CodeWaitingRoomPanel == null) return null;
+        if (UsesTeamCards) return participantCards.TryGetValue(player, out var card) ? card.profile : null;
         int index = waitingParticipants.IndexOf(player);
         return index >= 0 && waitingRoomSlots != null && index < waitingRoomSlots.Length
             ? waitingRoomSlots[index]?.profileImage : null;
@@ -85,6 +86,7 @@ public sealed partial class linkuserinfo
 
     public RectTransform GetCodeWaitingRoomCard(PlayerRef player)
     {
+        if (UsesTeamCards) return waitingRoomInitialized && participantCards.TryGetValue(player, out var card) ? card.root as RectTransform : null;
         int index = waitingParticipants.IndexOf(player);
         return waitingRoomInitialized && index >= 0 && waitingRoomSlots != null && index < waitingRoomSlots.Length
             ? waitingRoomSlots[index]?.slotRoot?.GetComponent<RectTransform>() : null;
