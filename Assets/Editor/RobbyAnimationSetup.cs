@@ -26,6 +26,9 @@ internal static class RobbyAnimationSetup
             AnimationClip walk = Prepare("Walking.fbx", true);
             AnimationClip kick = Prepare("Kick Soccerball.fbx", false);
             AnimationClip run = Prepare("Running.fbx", true);
+            AnimationClip right = Prepare("Right Strafe Walk.fbx", true);
+            AnimationClip left = Prepare("Left Strafe Walk.fbx", true);
+            AnimationClip backward = Prepare("Walking Backwards.fbx", true);
             if (walk == null || kick == null) return;
             GameObject root = PrefabUtility.LoadPrefabContents(Prefab);
             try
@@ -37,14 +40,23 @@ internal static class RobbyAnimationSetup
                     var walkProperty = data.FindProperty("walkClip");
                     var kickProperty = data.FindProperty("kickClip");
                     var runProperty = data.FindProperty("runClip");
+                    var rightProperty = data.FindProperty("rightStrafeClip");
+                    var leftProperty = data.FindProperty("leftStrafeClip");
+                    var backwardProperty = data.FindProperty("backwardClip");
                     if (walkProperty.objectReferenceValue == walk && kickProperty.objectReferenceValue == kick &&
-                        (run == null || runProperty.objectReferenceValue == run)) return;
+                        (run == null || runProperty.objectReferenceValue == run) &&
+                        (right == null || rightProperty.objectReferenceValue == right) &&
+                        (left == null || leftProperty.objectReferenceValue == left) &&
+                        (backward == null || backwardProperty.objectReferenceValue == backward)) return;
                     walkProperty.objectReferenceValue = walk;
                     kickProperty.objectReferenceValue = kick;
                     if (run != null) runProperty.objectReferenceValue = run;
+                    if (right != null) rightProperty.objectReferenceValue = right;
+                    if (left != null) leftProperty.objectReferenceValue = left;
+                    if (backward != null) backwardProperty.objectReferenceValue = backward;
                     data.ApplyModifiedPropertiesWithoutUndo();
                     PrefabUtility.SaveAsPrefabAsset(root, Prefab);
-                    Debug.Log("[Robby animation] Humanoid Walking/Running/Kick Soccerball connected to ChPrefabForRobby. Root motion is baked in place; height uses feet.");
+                    Debug.Log("[Robby animation] Humanoid Walking/Running/Strafe/Backward/Kick connected to ChPrefabForRobby. Root motion is baked in place; height uses feet.");
                     return;
                 }
             }

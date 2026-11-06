@@ -49,6 +49,7 @@ public sealed class PlayerRobby : NetworkBehaviour
     [SerializeField] private AnimationClip walkClip;
     [SerializeField] private AnimationClip runClip;
     [SerializeField] private AnimationClip kickClip;
+    [SerializeField] private AnimationClip rightStrafeClip, leftStrafeClip, backwardClip;
     [Header("Copied battle action clips, upper body only")]
     [SerializeField] private AnimationClip practiceEquip, practiceStart, practiceLoop, practiceEnd;
     [SerializeField, Min(.01f)] private float practiceRaiseSeconds = .25f;
@@ -91,6 +92,10 @@ public sealed class PlayerRobby : NetworkBehaviour
     [SerializeField, Min(0.01f)] private float animationBlendSeconds = 0.12f;
     [Networked] private NetworkBool IsWalking { get; set; }
     [Networked] private NetworkBool IsRunning { get; set; }
+    [Networked] private Vector2 LocalMove { get; set; }
+    private readonly AnimationClipPlayable[] directionalPlayables = new AnimationClipPlayable[3];
+    private readonly AnimationClip[] directionalClips = new AnimationClip[3];
+    private Vector4 directionWeights = new Vector4(1, 0, 0, 0);
     private PlayableGraph animationGraph;
     private AnimationMixerPlayable animationMixer;
     private AnimationClipPlayable idlePlayable, walkPlayable, kickPlayable, runPlayable;
@@ -117,6 +122,7 @@ public sealed class PlayerRobby : NetworkBehaviour
         if (input.hasHeading) { SimulationYaw = Mathf.Repeat(input.yaw, 360f); LookPitch = Mathf.Clamp(input.pitch, -70f, 70f); }
         Quaternion rotation = Quaternion.Euler(0f, SimulationYaw, 0f);
         Vector2 move = Vector2.ClampMagnitude(input.move, 1f);
+        LocalMove = move;
         IsWalking = move.sqrMagnitude > 0.001f && moveSpeed > 0f;
         Vector3 direction = rotation * new Vector3(move.x, 0f, move.y);
         bool moving = move.sqrMagnitude > 0.001f;
@@ -237,7 +243,7 @@ public sealed class PlayerRobby : NetworkBehaviour
             Debug.LogWarning("[PlayerRobby] Walk/Kick must be Humanoid clips retargeted from their source rig. Incompatible clips use Idle to prevent the character sinking.", this);
         avatarAnimator.applyRootMotion = false;
         animationGraph = PlayableGraph.Create("Robby Idle Walk Run Kick");
-        animationMixer = AnimationMixerPlayable.Create(animationGraph, 4);
+        animationMixer = AnimationMixerPlayable.Create(animationGraph, 7);
         idlePlayable = AnimationClipPlayable.Create(animationGraph, idleClip);
         walkPlayable = AnimationClipPlayable.Create(animationGraph, walkCompatible ? walkClip : idleClip);
         kickPlayable = AnimationClipPlayable.Create(animationGraph, kickCompatible ? kickClip : idleClip);
@@ -246,6 +252,17 @@ public sealed class PlayerRobby : NetworkBehaviour
         animationGraph.Connect(walkPlayable, 0, animationMixer, 1);
         animationGraph.Connect(kickPlayable, 0, animationMixer, 2);
         animationGraph.Connect(runPlayable, 0, animationMixer, 3);
+        directionalClips[0] = rightStrafeClip;
+        directionalClips[1] = leftStrafeClip;
+        directionalClips[2] = backwardClip;
+        for (int i = 0; i < 3; i++)
+        {
+            var clip = directionalClips[i];
+            if (clip == null || (avatarAnimator.isHuman && !clip.isHumanMotion))
+                directionalClips[i] = walkCompatible ? walkClip : idleClip;
+            directionalPlayables[i] = AnimationClipPlayable.Create(animationGraph, directionalClips[i]);
+            animationGraph.Connect(directionalPlayables[i], 0, animationMixer, 4 + i);
+        }
         animationMixer.SetInputWeight(0, 1f);
         var output = AnimationPlayableOutput.Create(animationGraph, "Lobby pose", avatarAnimator);
         output.SetSourcePlayable(animationMixer);
@@ -284,15 +301,27 @@ public sealed class PlayerRobby : NetworkBehaviour
         LoopClip(idlePlayable, idleClip);
         LoopClip(walkPlayable, walkCompatible ? walkClip : idleClip);
         LoopClip(runPlayable, runCompatible ? runClip : idleClip);
+        for (int i = 0; i < 3; i++) LoopClip(directionalPlayables[i], directionalClips[i]);
         if (kickPlaying && kickPlayable.GetTime() >= kickClip.length) kickPlaying = false;
         float step = Time.deltaTime / Mathf.Max(0.01f, animationBlendSeconds);
         walkWeight = Mathf.MoveTowards(walkWeight, IsWalking && walkCompatible ? 1f : 0f, step);
         kickWeight = Mathf.MoveTowards(kickWeight, kickPlaying ? 1f : 0f, step);
-        runWeight = Mathf.MoveTowards(runWeight, IsRunning && runCompatible ? 1f : 0f, step);
+        // Blend diagonal walking without rotating the body away from the camera heading.
+        Vector4 desired = new Vector4(Mathf.Max(0, LocalMove.y), Mathf.Max(0, LocalMove.x),
+            Mathf.Max(0, -LocalMove.x), Mathf.Max(0, -LocalMove.y));
+        float sum = desired.x + desired.y + desired.z + desired.w;
+        if (sum > .001f) directionWeights = Vector4.Lerp(directionWeights, desired / sum, Mathf.Clamp01(step));
+        runWeight = Mathf.MoveTowards(runWeight, IsRunning && runCompatible && LocalMove.y > 0 ? 1f : 0f, step);
+        float directionalWeight = walkWeight * (1f - runWeight) * (1f - kickWeight);
         animationMixer.SetInputWeight(0, (1f - walkWeight) * (1f - kickWeight));
-        animationMixer.SetInputWeight(1, walkWeight * (1f - runWeight) * (1f - kickWeight));
+        animationMixer.SetInputWeight(1, directionalWeight * directionWeights.x);
         animationMixer.SetInputWeight(2, kickWeight);
         animationMixer.SetInputWeight(3, walkWeight * runWeight * (1f - kickWeight));
+        for (int i = 0; i < 3; i++)
+        {
+            animationMixer.SetInputWeight(4 + i, directionalWeight * directionWeights[i + 1]);
+            directionalPlayables[i].SetSpeed(IsRunning ? Mathf.Max(1f, runSpeed / Mathf.Max(.01f, moveSpeed)) : 1f);
+        }
         if (practiceLayers.IsValid())
         {
             practiceElapsed += Time.deltaTime;
@@ -337,6 +366,7 @@ public sealed class PlayerRobby : NetworkBehaviour
         headApplied = false;
         kickPlaying = false;
         walkWeight = kickWeight = runWeight = 0f;
+        directionWeights = new Vector4(1, 0, 0, 0);
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
