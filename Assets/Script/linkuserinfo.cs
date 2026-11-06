@@ -191,6 +191,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
     {
         NetworkGameManager manager = NetworkGameManager.Instance;
         bool waiting = manager != null && manager.IsWaitingInCodeRoom && waitingRoomInitialized;
+        UpdateRoomBackdrops(manager != null && manager.IsWaitingInCodeRoom);
         // Do not let hiding a panel disable its own controller (or the network manager).
         if (waitingRoomPanel != null && !transform.IsChildOf(waitingRoomPanel.transform) &&
             (manager == null || !manager.transform.IsChildOf(waitingRoomPanel.transform)) &&
@@ -207,6 +208,11 @@ public sealed partial class linkuserinfo : MonoBehaviour
     {
         PlayerData owner = players.Find(data => IsReady(data) && data.IsRoomOwner);
         bool waiting = manager != null && manager.IsWaitingInCodeRoom && IsReady(localPlayerData) && owner != null;
+        if (RefreshTeamCards(manager, runner, owner, waiting))
+        {
+            waitingRoomInitialized = waiting;
+            return;
+        }
         // Populate before opening the panel: never flash the previous room's title/profile.
         waitingRoomInitialized = false;
         if (roomkeepername != null)
@@ -492,6 +498,8 @@ public sealed partial class linkuserinfo : MonoBehaviour
         players.Clear();
         waitingParticipants.Clear();
         RefreshWaitingRoom(null, null);
+        ReleaseTeamCards();
+        RestoreRoomBackdrops();
         if (waitingRoomStartButton != null) waitingRoomStartButton.interactable = false;
         states.Clear();
         previousStates.Clear();
