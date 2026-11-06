@@ -27,17 +27,20 @@ internal static class RobbyMagicPracticeSetup
         var existing = canvas.GetComponent(practiceType);
         if (existing != null && new SerializedObject(existing).FindProperty("target").objectReferenceValue != null) return;
         var aim = cat.GetComponentsInChildren<Transform>(true).FirstOrDefault(x => x.name == "LockOnPos");
-        var bone = cat.GetComponentsInChildren<Transform>(true).FirstOrDefault(x => x.name == "Bone");
+        var roots = cat.GetComponentsInChildren<Transform>(true)
+            .Where(x => x.name == "Armature" || x.name == "Armature.001").ToArray();
         var sliders = canvas.GetComponentsInChildren<Slider>(true);
         var first = sliders.FirstOrDefault(x => x.name == "SkillSlider01");
         var second = sliders.FirstOrDefault(x => x.name == "SkillSlider02");
-        if (aim == null || bone == null || first == null || second == null)
-        { Debug.LogWarning("[Robby practice] LockOnPos, Bone, SkillSlider01/02 references are required."); return; }
+        if (aim == null || roots.Length != 2 || first == null || second == null)
+        { Debug.LogWarning("[Robby practice] LockOnPos, both Armatures, SkillSlider01/02 references are required."); return; }
         bool dirty = scene.isDirty;
         var dummy = cat.GetComponent(dummyType) ?? Undo.AddComponent(cat.gameObject, dummyType);
         var d = new SerializedObject(dummy);
         d.FindProperty("lockOnPos").objectReferenceValue = aim;
-        d.FindProperty("springBone").objectReferenceValue = bone;
+        var springs = d.FindProperty("springRoots"); springs.arraySize = roots.Length;
+        for (int i = 0; i < roots.Length; i++) springs.GetArrayElementAtIndex(i).objectReferenceValue = roots[i];
+        d.FindProperty("springBone").objectReferenceValue = null;
         d.ApplyModifiedProperties();
         var controller = existing ?? Undo.AddComponent(canvas.gameObject, practiceType);
         var data = new SerializedObject(controller);
