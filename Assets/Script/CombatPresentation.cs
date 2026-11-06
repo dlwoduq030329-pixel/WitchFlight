@@ -218,6 +218,8 @@ public sealed class CombatPresentation : MonoBehaviour
 
         if (!initialized)
         {
+            var deathSettings = FlightCombatTable.Default;
+            if (deathSettings != null) DefeatBurstVfx.Prewarm(deathSettings.deathBurstPrefab);
             lastHit = owner.HitSequence;
             lastDeath = owner.DeathSequence;
             lastParry = owner.ParrySequence;
@@ -367,6 +369,7 @@ public sealed class CombatPresentation : MonoBehaviour
             FallingDefeatVisual.Spawn(owner, table);
             return;
         }
+        if (table != null) DefeatBurstVfx.Show(table.deathBurstPrefab, owner.LockAimPoint, null);
         foreach (Visual visual in visuals)
         {
             if (visual.renderer == null || visual.fading != null)

@@ -49,6 +49,8 @@ public sealed class FlightCombatTable : ScriptableObject
     [Min(.1f)] public float deathWaterSinkSpeed = 2.5f;
     [Tooltip("시체가 수면을 통과할 때 한 번만 재생. 비우면 기존 수면 파문을 사용합니다.")]
     public GameObject deathWaterSplashPrefab;
+    [Tooltip("처치 섬광·연기 프리팹. 실제 조명과 연기 강도는 프리팹의 DefeatBurstVfx에서 조절합니다.")]
+    public GameObject deathBurstPrefab;
     [Header("Portal presentation (+Z normal)")]
     public GameObject portalEntryPrefab;
     public GameObject portalExitPrefab;

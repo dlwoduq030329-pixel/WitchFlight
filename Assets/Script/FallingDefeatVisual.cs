@@ -63,7 +63,12 @@ public sealed class FallingDefeatVisual : MonoBehaviour
             CameraManager.Instance != null)
             CameraManager.Instance.GetComponent<CameraFollow>()?.ObserveFallingDeath(player, body);
         if (droppedBroom.transform.childCount == 0) Destroy(droppedBroom.gameObject);
+        if (body.bodyRenderers.Count > 0)
+            DefeatBurstVfx.Show(settings.deathBurstPrefab, body.EffectCenter, body);
     }
+
+    // Hip particle is the stable centre of the falling body, without scanning renderer bounds.
+    public Vector3 EffectCenter => joints.Count > 0 ? joints[0].position : transform.position;
 
     private static FallingDefeatVisual Create(string label, Transform source, float acceleration, float lifetime)
     {
