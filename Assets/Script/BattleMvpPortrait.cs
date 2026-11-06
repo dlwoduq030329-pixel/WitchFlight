@@ -25,6 +25,11 @@ public sealed class BattleMvpPortrait : MonoBehaviour
         Animator sourceAnimator = player.GetComponentInChildren<Animator>(true);
         if (sourceAnimator == null || !sourceAnimator.isHuman || sourceAnimator.avatar == null) return null;
         var root = new GameObject("MVP character visual cache");
+        var appearanceSnapshot = root.AddComponent<BattleMvpAppearanceSnapshot>();
+        var data = PlayerData.FindPerkData(player.Runner, player.ParticipantRef);
+        if (data != null && data.IsLoadoutInitialized)
+        { appearanceSnapshot.config = data.GetPlayerConfig(); appearanceSnapshot.hasConfig = true; }
+        var materialCopies = new Dictionary<Material, Material>();
         root.SetActive(false);
         root.layer = Layer;
         var map = new Dictionary<Transform, Transform> { [player.transform] = root.transform };
@@ -56,7 +61,21 @@ public sealed class BattleMvpPortrait : MonoBehaviour
                 target = copy.gameObject.AddComponent<MeshRenderer>();
             }
             else continue;
-            target.sharedMaterials = source.sharedMaterials;
+            var sourceMaterials = source.sharedMaterials;
+            var cachedMaterials = new Material[sourceMaterials.Length];
+            for (int i = 0; i < sourceMaterials.Length; i++)
+            {
+                var original = sourceMaterials[i];
+                if (original == null) continue;
+                if (!materialCopies.TryGetValue(original, out var material))
+                {
+                    material = new Material(original) { name = original.name };
+                    materialCopies.Add(original, material);
+                    appearanceSnapshot.ownedMaterials.Add(material);
+                }
+                cachedMaterials[i] = material;
+            }
+            target.sharedMaterials = cachedMaterials;
             target.shadowCastingMode = ShadowCastingMode.Off; target.receiveShadows = false;
             target.lightProbeUsage = LightProbeUsage.Off; target.reflectionProbeUsage = ReflectionProbeUsage.Off;
             var block = new MaterialPropertyBlock(); source.GetPropertyBlock(block); target.SetPropertyBlock(block);
@@ -97,6 +116,9 @@ public sealed class BattleMvpPortrait : MonoBehaviour
         model.SetActive(true);
         view.animator = model.GetComponentInChildren<Animator>();
         view.StartPose();
+        var snapshot = model.GetComponent<BattleMvpAppearanceSnapshot>();
+        if (snapshot != null && snapshot.hasConfig)
+            model.AddComponent<PlayerAppearance>().ApplyPlayerConfig(snapshot.config);
         view.chest = view.animator.GetBoneTransform(HumanBodyBones.Chest);
         view.upperArm = view.animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
         view.forearm = view.animator.GetBoneTransform(HumanBodyBones.RightLowerArm);

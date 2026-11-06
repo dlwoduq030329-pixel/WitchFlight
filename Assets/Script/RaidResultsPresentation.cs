@@ -123,11 +123,19 @@ public sealed class RaidResultsPresentation : MonoBehaviour
             if (data == null || data.Object == null || !data.Object.IsValid || data.Runner != network.Runner) continue;
             int key = data.ParticipantRef.RawEncoded;
             catCache[key] = (data.CatBodyIndex, data.CatEyeIndex);
-            if (characterCache.ContainsKey(key)) continue;
+            if (characterCache.TryGetValue(key, out var existing))
+            {
+                var snapshot = existing != null ? existing.GetComponent<BattleMvpAppearanceSnapshot>() : null;
+                if (snapshot != null && snapshot.config.Equals(data.GetPlayerConfig())) continue;
+            }
             var player = Player.FindInRunner(data.Runner, data.ParticipantRef);
             if (player == null || !player.IsAlive || !player.IsPresentationReady) continue;
             GameObject cache = BattleMvpPortrait.CacheCharacter(player);
-            if (cache != null) { cache.transform.SetParent(transform, false); characterCache.Add(key, cache); }
+            if (cache != null)
+            {
+                if (existing != null) Destroy(existing);
+                cache.transform.SetParent(transform, false); characterCache[key] = cache;
+            }
         }
     }
 
