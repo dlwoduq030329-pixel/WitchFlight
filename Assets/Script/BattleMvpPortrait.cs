@@ -90,6 +90,9 @@ public sealed class BattleMvpPortrait : MonoBehaviour
         var view = root.AddComponent<BattleMvpPortrait>();
         view.table = BattleResultsTable.Default;
         GameObject model = Instantiate(template, root.transform);
+        // Instantiate does not carry runtime MaterialPropertyBlocks. The cached template
+        // owns each participant's hair/cloth colors and eye texture overrides.
+        CopyAppearanceOverrides(template, model);
         model.transform.localPosition = Vector3.zero; model.transform.localRotation = Quaternion.identity;
         model.SetActive(true);
         view.animator = model.GetComponentInChildren<Animator>();
@@ -134,6 +137,28 @@ public sealed class BattleMvpPortrait : MonoBehaviour
         light.transform.SetParent(root.transform, false); light.transform.position = center + new Vector3(0, 1, 3);
         light.type = LightType.Point; light.range = 8; light.intensity = 2; light.cullingMask = 1 << Layer;
         return view;
+    }
+
+    private static void CopyAppearanceOverrides(GameObject template, GameObject model)
+    {
+        // These arrays have the same hierarchy/component order: model is a direct clone.
+        // Resolve once at creation, never in portrait Update or LateUpdate.
+        Renderer[] originals = template.GetComponentsInChildren<Renderer>(true);
+        Renderer[] copies = model.GetComponentsInChildren<Renderer>(true);
+        var block = new MaterialPropertyBlock();
+        for (int i = 0; i < originals.Length && i < copies.Length; i++)
+        {
+            block.Clear();
+            originals[i].GetPropertyBlock(block);
+            copies[i].SetPropertyBlock(block.isEmpty ? null : block);
+            int count = originals[i].sharedMaterials.Length;
+            for (int slot = 0; slot < count; slot++)
+            {
+                block.Clear();
+                originals[i].GetPropertyBlock(block, slot);
+                copies[i].SetPropertyBlock(block.isEmpty ? null : block, slot);
+            }
+        }
     }
 
     private void StartPose()

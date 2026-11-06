@@ -79,7 +79,9 @@ public sealed class BattleItemPickup : NetworkBehaviour
         if (!Object.HasStateAuthority) return;
         BattleManager battle = BattleManager.Instance;
         BattleFlag flag = BattleFlag.Instance;
-        if (battle == null || flag == null || flag.Object == null || !flag.Object.IsValid || flag.Runner != Runner)
+        bool deathMatch = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch;
+        if (battle == null || (!deathMatch &&
+            (flag == null || flag.Object == null || !flag.Object.IsValid || flag.Runner != Runner)))
         {
             previousPositions.Clear();
             return;
