@@ -15,8 +15,9 @@ public sealed class BattleItemPickup : NetworkBehaviour
     [SerializeField, Min(0f)] private float healAmount = 40f;
     [Tooltip("MP 포션의 고정 회복량. 최대 마나를 넘지 않으며 마나가 가득 찼으면 획득하지 않습니다.")]
     [SerializeField, Min(0f)] private float manaRestoreAmount = 40f;
-    [Tooltip("부스터 이동속도 배율. 1.3이면 30% 증가. 재획득 시 배율을 중첩하지 않습니다.")]
+    [Tooltip("이전 단계식 이동/봇용 배율. 자동 비행 플레이어는 이 값 대신 Shift와 동일한 부스트를 받습니다.")]
     [SerializeField, Min(1f)] private float speedMultiplier = 1.3f;
+    [Tooltip("이전 단계식 이동/봇용 지속시간. 자동 비행은 Player의 Burst Boost Seconds를 사용합니다.")]
     [SerializeField, Min(0.1f)] private float boostDurationSeconds = 5f;
     [Header("Pickup / respawn")]
     [Tooltip("획득 판정 반경(월드 단위). 모델 배율과 독립적이며 선택 시 구로 표시됩니다.")]

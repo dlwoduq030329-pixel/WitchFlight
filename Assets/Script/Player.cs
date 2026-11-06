@@ -39,11 +39,22 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             float cost = RaceCourse.Instance != null ? 0f : burstBoostManaCost *
                 (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind)));
             if (TryConsumeMovementAp(cost))
-                BurstBoostTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.05f, burstBoostSeconds));
+                StartCruiseBoost();
             else if (Object.HasInputAuthority && Runner.IsForward) BattleHud.ShowInsufficientMana(this);
         }
         IsBoosting = TimerIsActive(BurstBoostTimer) && !IsBound && !IsHitStunned;
         SpeedStage = IsBoosting ? 3 : 2;
+    }
+
+    // Shared by Shift and booster pickups. Repeated activation refreshes the burst,
+    // without multiplying speed bonuses or shortening an existing longer burst.
+    private void StartCruiseBoost()
+    {
+        float remaining = BurstBoostTimer.RemainingTime(Runner) ?? 0f;
+        BurstBoostTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(remaining, Mathf.Max(.05f, burstBoostSeconds)));
+        GlideElapsed = 0f;
+        IsBoosting = !IsBound && !IsHitStunned;
+        if (IsBoosting) SpeedStage = 3;
     }
 
     [Header("Movement")]
@@ -56,6 +67,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [SerializeField] private float wallDamage = 20f;
     [SerializeField] private float wallDamageCooldown = 0.5f;
     [SerializeField] private float collisionRadius = 0.22f;
+    [Tooltip("좌우 각 반쪽에서 스침을 허용하는 바깥쪽 비율. 0.5면 전체 너비의 양 끝 25%씩 허용하고 가운데 50%는 충돌 영역입니다. 월드 스케일 자동 반영. 0이면 기존 충돌 판정.")]
+    [SerializeField, Range(0f, .8f)] private float wallSlideSideRatio = .5f;
     [SerializeField] private float collisionHeight = 1.2f;
     [SerializeField] private float baseAcceleration = 60f;
     [SerializeField] private EquipmentStatTable equipmentStatTable;
@@ -2612,6 +2625,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             hit.collider.GetComponentInParent<Player>() != null || hit.collider.GetComponentInParent<MagicProjectile>() != null)
             return;
 
+        // CharacterController.Move already resolves the solid wall and slides along
+        // it. A side graze must not turn that slide into a stage reset/damage event.
+        // Do not disable collision or issue another Move from this callback.
+        if (IsSideWallGraze(hit)) return;
+
         bool continuingContact = TimerIsActive(WallContactTimer);
         WallContactTimer = TickTimer.CreateFromSeconds(Runner, .25f);
         var flightTable = FlightCombatTable.Default;
@@ -2644,6 +2662,25 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         RPC_PlayBattleSound(BattleSound.WallCrash);
         PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordWallCrash();
         TakeDamage(wallDamage, PlayerRef.None);
+    }
+
+    private bool IsSideWallGraze(ControllerColliderHit hit)
+    {
+        if (wallSlideSideRatio <= 0f || characterController == null) return false;
+        Vector3 scale = transform.lossyScale;
+        float radius = characterController.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+        if (radius <= .0001f) return false;
+        // Each half of the body has width radius. Ignore the outer half of each
+        // half at the default 0.5 ratio, independent of model/world scale.
+        float toleratedWidth = radius * Mathf.Clamp(wallSlideSideRatio, 0f, .8f);
+        Vector3 center = transform.TransformPoint(characterController.center);
+        float lateralContact = Mathf.Abs(Vector3.Dot(hit.point - center, transform.right));
+        if (lateralContact < radius - toleratedWidth) return false;
+        // A front-facing wall remains a crash, even if its first contact is a mesh seam
+        // near the side of the capsule. Only actual oblique/side contacts qualify.
+        float headOn = -Vector3.Dot(hit.moveDirection.normalized, hit.normal);
+        float sideNormal = Mathf.Abs(Vector3.Dot(hit.normal, transform.right));
+        return headOn < .85f && sideNormal >= .5f;
     }
 
     public override void Render()
