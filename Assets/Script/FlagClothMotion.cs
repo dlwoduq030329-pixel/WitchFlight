@@ -9,6 +9,11 @@ public sealed class FlagClothMotion : MonoBehaviour
     [Min(1f)] public float fullWindSpeed=60f;
     [Min(0f)] public float airDrag=1.2f;
     [Min(0f)] public float shapeStiffness=25f;
+    [Header("Carried flutter exaggeration")]
+    [Tooltip("이동 바람에 의한 펄럭임의 힘. 1은 기존 강도입니다.")]
+    [Min(0f)] public float carriedFlutterStrength=3f;
+    [Tooltip("이동할 때 천이 원래 모양을 유지하려는 힘의 배율. 낮을수록 더 크게 휘어집니다. 1은 기존 값입니다.")]
+    [Range(.1f,1f)] public float carriedShapeRetention=.65f;
     private const int Columns=13, Rows=9;
     private Mesh mesh, sourceMesh;
     private Vector3[] rest, vertices, gridRest, points, previous, anchors;
@@ -68,6 +73,8 @@ public sealed class FlagClothMotion : MonoBehaviour
         float frameTime=Mathf.Min(dt,.0667f);
         MeasuredSpeed=(pos-lastPosition).magnitude/dt;
         wind=Mathf.Lerp(wind,carried?Mathf.Clamp01(MeasuredSpeed/Mathf.Max(1,fullWindSpeed)):0,1-Mathf.Exp(-8*frameTime));
+        float stiffness=shapeStiffness*Mathf.Lerp(1f,carried?carriedShapeRetention:1f,wind);
+        float flutterForce=1f+25f*wind*(carried?carriedFlutterStrength:1f);
         int steps=Mathf.Clamp(Mathf.CeilToInt(frameTime*120),1,8);float h=frameTime/steps;
         // Fixed-size substeps with velocity rescaling avoid render-frame-rate dependence.
         for(int step=0;step<steps;step++)
@@ -84,8 +91,8 @@ public sealed class FlagClothMotion : MonoBehaviour
                 velocity=Vector3.ClampMagnitude(velocity,180);
                 Vector3 air=Vector3.right*.35f-velocity;
                 float u=(i%Columns)/(float)(Columns-1);
-                Vector3 acceleration=Physics.gravity+air*airDrag+(anchors[i]-points[i])*shapeStiffness;
-                acceleration+=normal*(Mathf.Sin(phase-u*8+i*.13f)*(1+25*wind)*u);
+                Vector3 acceleration=Physics.gravity+air*airDrag+(anchors[i]-points[i])*stiffness;
+                acceleration+=normal*(Mathf.Sin(phase-u*8+i*.13f)*flutterForce*u);
                 Vector3 old=points[i];points[i]+=velocity*h+Vector3.ClampMagnitude(acceleration,200)*h*h;previous[i]=old;
             }
             for(int pass=0;pass<10;pass++)

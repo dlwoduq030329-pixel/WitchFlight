@@ -8,6 +8,47 @@ public sealed class CombatPresentation : MonoBehaviour
 {
     [SerializeField, Min(0.1f)] private float deathFadeSeconds = 2f;
     [SerializeField, Min(0.01f)] private float hitFlashSeconds = 0.18f;
+    [Header("Mana potion pickup VFX")]
+    [Tooltip("MP 포션 획득 시 재생할 외형 프리팹. NetworkObject 없이 제작하세요. 비우면 효과를 생성하지 않습니다.")]
+    [SerializeField] private GameObject manaPotionVfxPrefab;
+    [Tooltip("비우면 플레이어 루트에 부착합니다.")]
+    [SerializeField] private Transform manaPotionVfxAnchor;
+    [SerializeField] private Vector3 manaPotionVfxOffset = Vector3.up;
+    [SerializeField] private Vector3 manaPotionVfxEuler;
+    [SerializeField, Min(.01f)] private float manaPotionVfxScale = 1f;
+    [SerializeField, Min(.05f)] private float manaPotionVfxDuration = 1.5f;
+    private GameObject manaPotionVfx;
+    private float manaPotionVfxUntil;
+
+    public void ShowManaPotionPickup()
+    {
+        if (!isActiveAndEnabled || manaPotionVfxPrefab == null || owner == null ||
+            owner.Object == null || !owner.Object.IsValid || !owner.IsAlive) return;
+        ClearManaPotionVfx();
+        Transform anchor = manaPotionVfxAnchor != null ? manaPotionVfxAnchor : transform;
+        manaPotionVfx = MagicVfxPool.Rent(manaPotionVfxPrefab, anchor.TransformPoint(manaPotionVfxOffset),
+            anchor.rotation * Quaternion.Euler(manaPotionVfxEuler), anchor);
+        if (manaPotionVfx == null) return;
+        manaPotionVfx.transform.localScale *= manaPotionVfxScale;
+        manaPotionVfxUntil = Time.time + Mathf.Max(.05f, manaPotionVfxDuration);
+        RearThreatCamera.ExcludeLocalEffect(manaPotionVfx, owner);
+        manaPotionVfx.SetActive(!owner.IsHiddenBySmokeFor(Player.LocalPlayer));
+    }
+
+    private void ClearManaPotionVfx()
+    {
+        if (manaPotionVfx != null) MagicVfxPool.Release(manaPotionVfx);
+        manaPotionVfx = null;
+    }
+
+    private void UpdateManaPotionVfx()
+    {
+        if (manaPotionVfx == null) return;
+        if (Time.time >= manaPotionVfxUntil || owner == null || owner.Object == null || !owner.Object.IsValid || !owner.IsAlive)
+        { ClearManaPotionVfx(); return; }
+        bool visible = !owner.IsHiddenBySmokeFor(Player.LocalPlayer);
+        if (manaPotionVfx.activeSelf != visible) manaPotionVfx.SetActive(visible);
+    }
 
     [Header("Status effect world VFX (visible to all viewers; concealed by smoke)")]
     [Tooltip("상태이상에 걸린 이 캐릭터에게 붙이는 외형 VFX입니다. 피해자의 화면 UI는 BattleHud > Status Effect Views에서 별도로 연결하세요.")]
@@ -171,6 +212,7 @@ public sealed class CombatPresentation : MonoBehaviour
         UpdateEnemyOutline();
         UpdateLockCompleteVfx();
         UpdateStatusEffectVfx();
+        UpdateManaPotionVfx();
         if (owner == null || owner.Object == null || !owner.Object.IsValid)
             return;
 
@@ -293,6 +335,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void OnDisable()
     {
+        ClearManaPotionVfx();
         for (int i = 0; i < spawnShields.Length; i++)
         {
             if (spawnShields[i] != null) MagicVfxPool.Release(spawnShields[i].gameObject);
