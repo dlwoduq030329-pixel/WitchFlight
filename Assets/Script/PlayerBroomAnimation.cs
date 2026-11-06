@@ -9,6 +9,9 @@ public sealed class PlayerBroomAnimation
     [SerializeField, Min(0f)] private float blendSeconds = 0.06f;
     [Tooltip("공격 시작/종료, 무기 교체, 피격, 부활 모션의 최대 재생 시간입니다. 긴 원본 모션을 빠르게 재생하여 조작에 뒤처지지 않게 합니다.")]
     [SerializeField, Min(0.05f)] private float quickActionSeconds = 0.25f;
+    [Tooltip("봉을 최대로 드는 AttackStart 전체 재생 시간. 실제 마법 발사는 이 준비 동작 이후에 실행됩니다.")]
+    [SerializeField, Min(.01f)] private float attackRaiseSeconds = .25f;
+    public float AttackRaiseSeconds => Mathf.Max(.01f, attackRaiseSeconds);
     [SerializeField, Min(0.01f)] private float parryStartSeconds = 0.08f;
     [SerializeField, Min(0.01f)] private float parryEndSeconds = 0.12f;
     [Tooltip("접수된 패링마다 같은 손을 몸 쪽으로 당기는 동작/위로 드는 동작을 교대로 재생합니다.")]
@@ -126,6 +129,7 @@ public sealed class PlayerBroomAnimation
         if (!available[index]) return 0.01f;
         float length = ClipLength(index);
         if (!hasSpeedParameter) return length;
+        if (motion == BroomMotion.AttackStart) return AttackRaiseSeconds;
         float cap = motion switch
         {
             BroomMotion.ParryStart => parryStartSeconds,

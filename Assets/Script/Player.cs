@@ -238,7 +238,17 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private float boostMultiplier { get; set; }
     [Networked] private float boostApCostPerSecond { get; set; }
     [Networked] private bool boostNeedsRelease { get; set; }
-    private MagicType pendingMagic;
+    [Networked] private MagicType pendingMagic { get; set; }
+    private float pendingRaiseRemaining, weaponRaiseHeldSeconds;
+    private Vector3 pendingAreaPoint;
+    [Networked] private bool channelRaising { get; set; }
+    private float channelRaiseRemaining;
+    private bool predictedRaisePending;
+    private float predictedRaiseRemaining, predictedCastDelay;
+    private MagicStatEntry predictedRaiseStats;
+    private Player predictedRaiseTarget;
+    private MagicProjectile predictedRaiseSummon;
+    private int predictedRaiseTick;
     private NetworkId pendingTargetId;
     private TickTimer castTimer;
     private int castInputTick, pendingInputTick;
@@ -1095,6 +1105,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         bool pressed = buttons.WasPressed(previousButtons, PlayerInputButton.Lock);
         bool released = !held && previousButtons.IsSet(PlayerInputButton.Lock);
         MagicStatEntry stats = SelectedMagicStats;
+        if (held) weaponRaiseHeldSeconds += Runner.DeltaTime * TimeFieldSpeed;
+        else if (!released) weaponRaiseHeldSeconds = 0f;
 
         if (!held) channelNeedsRelease = false;
         if (IsHitStunned) { areaAimArmed = false; StopChannel(); ClearLockTargetInternal(); return; }
@@ -1220,7 +1232,31 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         Player target = null;
         MagicProjectile summon = null;
         if (stats.requiresTarget && !TryGetMagicTarget(LockTargetId, out target, out summon, out _)) return;
-        ProjectilePredictionView.Predict(this, target, stats, Runner.Tick.Raw, summon);
+        float raised = stats.requiresTarget ? LockProgress * Mathf.Max(0, stats.lockChargeSeconds) : 0;
+        float remaining = Mathf.Max(0, broomAnimation.AttackRaiseSeconds - raised);
+        if (remaining <= 0 && stats.castSeconds <= 0)
+            ProjectilePredictionView.Predict(this, target, stats, Runner.Tick.Raw, summon);
+        else if (!predictedRaisePending)
+        {
+            predictedRaisePending = true;
+            predictedRaiseRemaining = remaining;
+            predictedCastDelay = Mathf.Max(0, stats.castSeconds);
+            predictedRaiseStats = stats; predictedRaiseTarget = target; predictedRaiseSummon = summon;
+            predictedRaiseTick = Runner.Tick.Raw;
+        }
+    }
+
+    private void UpdatePredictedWandRelease()
+    {
+        if (!predictedRaisePending) return;
+        if (!IsAlive || IsHitStunned || IsReturningToMap || CombatPresentation.MenuOpen ||
+            GetSelectedMagic() != predictedRaiseStats.magic || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        { predictedRaisePending = false; return; }
+        predictedRaiseRemaining -= Time.deltaTime * TimeFieldSpeed;
+        predictedCastDelay -= Time.deltaTime;
+        if (predictedRaiseRemaining > .00001f || predictedCastDelay > .00001f) return;
+        predictedRaisePending = false;
+        ProjectilePredictionView.Predict(this, predictedRaiseTarget, predictedRaiseStats, predictedRaiseTick, predictedRaiseSummon);
     }
 
     private void ContinueWithoutActions()
@@ -1459,15 +1495,19 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         stats.perkCast = CastSequence;
         stats.perkAttacker = ParticipantRef;
         stats.titleCastId=stats.effect == MagicEffectKind.BladeVolley ? 0 : PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleCast(stats.magic,summon!=null)??0;
-        if (stats.castSeconds > 0f && !stats.TargetsAllies && stats.effect != MagicEffectKind.Flare && stats.effect != MagicEffectKind.Smoke &&
-            stats.effect != MagicEffectKind.DelayedArea && stats.effect != MagicEffectKind.PursuitSummon)
+        float raised = stats.requiresTarget ? Mathf.Min(weaponRaiseHeldSeconds, LockProgress * Mathf.Max(0f, stats.lockChargeSeconds)) :
+            stats.effect == MagicEffectKind.DelayedArea ? weaponRaiseHeldSeconds : 0f;
+        float raiseRemaining = Mathf.Max(0f, broomAnimation.AttackRaiseSeconds - raised);
+        if (stats.castSeconds > 0f || raiseRemaining > 0f)
         {
             pendingMagic = selectedMagic;
             pendingPerkStats = stats;
             pendingInputTick = castInputTick;
             pendingAimDirection = castAimDirection;
-            pendingTargetId = stats.requiresTarget ? LockTargetId : default;
-            castTimer = TickTimer.CreateFromSeconds(Runner, stats.castSeconds);
+            pendingTargetId = stats.requiresTarget || stats.TargetsAllies ? LockTargetId : default;
+            pendingAreaPoint = confirmedAreaPoint;
+            pendingRaiseRemaining = raiseRemaining;
+            castTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, stats.castSeconds));
         }
         else
         {
@@ -1554,6 +1594,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             pendingMagic = MagicType.None;
             return;
         }
+        pendingRaiseRemaining = Mathf.Max(0, pendingRaiseRemaining - Runner.DeltaTime * TimeFieldSpeed);
+        if (pendingRaiseRemaining > .00001f) return;
         if (!castTimer.Expired(Runner))
             return;
 
@@ -1563,6 +1605,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         MagicProjectile summon = null;
         if (stats.requiresTarget && !TryGetMagicTarget(pendingTargetId, out target, out summon, out _))
             return;
+        if (stats.TargetsAllies) TryGetMagicTarget(pendingTargetId, out target, out _, out _);
+        if (stats.effect == MagicEffectKind.DelayedArea) confirmedAreaPoint = pendingAreaPoint;
         castInputTick = pendingInputTick;
         castAimDirection = pendingAimDirection;
         CastMagic(stats, target, summon);
@@ -1774,6 +1818,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             IsMatchBot && IsFiniteDirection(aimDirection) && aimDirection.sqrMagnitude > .001f
                 ? aimDirection.normalized : transform.forward, out target, out summon);
 
+        if (!IsChanneling)
+        {
+            if (!channelRaising) { channelRaising = true; channelRaiseRemaining = broomAnimation.AttackRaiseSeconds; }
+            channelRaiseRemaining = Mathf.Max(0, channelRaiseRemaining - Runner.DeltaTime * TimeFieldSpeed);
+            if (channelRaiseRemaining > .00001f) return;
+        }
         float perSecond = stats.ChannelManaPerSecond(MaxAp);
         float paidTime = perSecond > 0f ? Mathf.Min(Runner.DeltaTime, NowAp / perSecond) : Runner.DeltaTime;
         if (paidTime <= 0.000001f) { NotifyManaFailure(); StopChannel(); channelNeedsRelease = true; return; }
@@ -1832,6 +1882,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void StopChannel()
     {
         if (!Object.HasStateAuthority) return;
+        channelRaising = false; channelRaiseRemaining = 0f;
         if (ChannelMagic != MagicType.None)
         {
             int index = (int)ChannelMagic;
@@ -2597,6 +2648,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Render()
     {
+        UpdatePredictedWandRelease();
         if (!IsAlive && DeathSequence > 0 && characterController != null)
             characterController.enabled = false;
         ApplyReplicatedLoadout();
@@ -2690,7 +2742,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             Playing = battle != null && battle.IsGameplayActive,
             TopSpeed = broomAnimation.UseFastPose(SpeedStage, Mathf.Abs(Speed) / Mathf.Max(1f, flightMaxSpeed)),
             Disarmed = CurrentMagicSlot == 3,
-            Attacking = LockProgress > 0f || IsChanneling || areaAimArmed || bladeSwing.IsActive || IsMagicStormActive,
+            Attacking = predictedRaisePending || pendingMagic != MagicType.None || channelRaising || RainCharging || RainFiring || LockProgress > 0f || IsChanneling || areaAimArmed || bladeSwing.IsActive || IsMagicStormActive,
             Parrying = IsParrying,
             Respawning = TimerIsActive(RespawnAnimationTimer),
             WeaponKey = CurrentMagicSlot * 100 + (int)GetSelectedMagic(),

@@ -13,6 +13,14 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     [SerializeField] private Vector3 lookOffset = new Vector3(0f, 1.5f, 0f);
     [SerializeField, Min(0f)] private float followSharpness = 10f;
     [SerializeField, Min(0f)] private float mouseSensitivity = 3f;
+    [SerializeField] private Vector2 pitchLimits = new Vector2(-65f, 70f);
+    [SerializeField] private float verticalSensitivity = 3f;
+    [Header("Lobby copy of battle lock camera presentation")]
+    [SerializeField] private bool lockCameraPresentation = true;
+    [SerializeField] private float lockSideOffset = .9f, lockForwardOffset = 1.2f, lockFovReduction = 7f;
+    [SerializeField, Min(.01f)] private float lockBlendSeconds = .2f;
+    private float baseFov, lockWeight;
+    private Vector3 targetingPosition;
     [Header("Lobby camera obstruction")]
     [SerializeField] private LayerMask obstructionLayers = ~0;
     [SerializeField, Min(0.01f)] private float obstructionRadius = 0.25f;
@@ -20,7 +28,13 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     private readonly RaycastHit[] obstructionHits = new RaycastHit[64];
 
     private static RobbyPlayerCamera instance;
-    private float pendingYaw;
+    public static bool CanUsePractice => instance != null && instance.ControlsActive;
+    public static Camera PracticeCamera => instance != null ? instance.followCamera : null;
+    public static Vector3 TargetingPosition => instance != null ? instance.targetingPosition : Vector3.zero;
+    private float viewYaw;
+    private float viewPitch;
+    private Vector3 smoothedTargetPosition;
+    private float obstructionFraction = 1f;
     private CursorLockMode previousCursorLock;
     private bool previousCursorVisible;
 
@@ -30,6 +44,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     private void Awake()
     {
         instance = this;
+        if (followCamera != null) baseFov = followCamera.fieldOfView;
         if (followCamera != null) followCamera.enabled = false;
         if (followListener != null) followListener.enabled = false;
     }
@@ -41,22 +56,27 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
 
     private void Update()
     {
-        if (ControlsActive) pendingYaw += Input.GetAxisRaw("Mouse X") * mouseSensitivity;
-        else pendingYaw = 0f;
+        if (ControlsActive)
+        {
+            viewYaw = Mathf.Repeat(viewYaw + Input.GetAxisRaw("Mouse X") * mouseSensitivity, 360f);
+            viewPitch = Mathf.Clamp(viewPitch - Input.GetAxisRaw("Mouse Y") * verticalSensitivity, pitchLimits.x, pitchLimits.y);
+        }
     }
 
     public static RobbyInputData ConsumeInput()
     {
         var camera = instance;
         if (camera == null) return default;
-        if (!camera.ControlsActive) { camera.pendingYaw = 0f; return default; }
+        if (!camera.ControlsActive) return default;
         var input = new RobbyInputData
         {
             move = new Vector2((Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f),
                 (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f)),
-            yaw = camera.pendingYaw
+            yaw = camera.viewYaw,
+            pitch = camera.viewPitch,
+            hasHeading = true,
+            sprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)
         };
-        camera.pendingYaw = 0f;
         return input;
     }
 
@@ -69,15 +89,37 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         if (!visible) { SetShowing(false); previousTarget = null; return; }
 
         Transform target = player.transform;
-        Vector3 position = target.position + target.rotation * followOffset;
         bool snap = !showing || previousTarget != target;
+        if (snap) { viewYaw = player.SimulationYaw; viewPitch = 0f; }
+        // Rotate the visible local avatar in the same frame as the camera, even if
+        // no Fusion tick has run this frame. Never orbit around a stationary avatar.
+        player.PresentLocalViewHeading(viewYaw);
+        player.PresentLocalLookPitch(viewPitch);
         float blend = followSharpness <= 0f ? 1f : 1f - Mathf.Exp(-followSharpness * Time.unscaledDeltaTime);
-        Vector3 focus = target.position + lookOffset;
-        Vector3 candidate = snap ? position : Vector3.Lerp(transform.position, position, blend);
-        // Check AFTER smoothing so sideways movement/rotation cannot leave the camera
-        // behind a wall. Pull inward immediately, ease outward via the normal follow.
-        transform.position = ResolveObstruction(focus, candidate, target);
+        smoothedTargetPosition = snap ? target.position : Vector3.Lerp(smoothedTargetPosition, target.position, blend);
+        Quaternion viewRotation = Quaternion.Euler(0f, viewYaw, 0f);
+        Vector3 focusOffset = new Vector3(0f, lookOffset.y, lookOffset.z);
+        Vector3 rearOffset = new Vector3(0f, followOffset.y, Mathf.Min(followOffset.z, lookOffset.z - 0.1f));
+        Vector3 focus = smoothedTargetPosition + viewRotation * focusOffset;
+        // Pitch orbits the camera around the head/torso pivot, never the body collider.
+        Vector3 candidate = focus + Quaternion.Euler(viewPitch, viewYaw, 0f) * (rearOffset - focusOffset);
+        targetingPosition = candidate;
+        float desiredLock = lockCameraPresentation ? Mathf.SmoothStep(0, 1, RobbyMagicPractice.DisplayedLockProgress) : 0;
+        lockWeight = Mathf.Lerp(lockWeight, desiredLock, 1 - Mathf.Exp(-3 * Time.deltaTime / Mathf.Max(.01f, lockBlendSeconds)));
+        Quaternion orbit = Quaternion.Euler(viewPitch, viewYaw, 0f);
+        Vector3 shoulder = orbit * Vector3.right * (lockSideOffset * lockWeight);
+        focus += shoulder;
+        candidate += shoulder + orbit * Vector3.forward * Mathf.Min(lockForwardOffset * lockWeight, Vector3.Distance(candidate, focus) * .5f);
+        if (followCamera != null) followCamera.fieldOfView = Mathf.Max(15, baseFov - lockFovReduction * lockWeight);
+        Vector3 safe = ResolveObstruction(focus, candidate, target);
+        float desiredDistance = Vector3.Distance(focus, candidate);
+        float safeFraction = desiredDistance > 0.001f ? Vector3.Distance(focus, safe) / desiredDistance : 1f;
+        obstructionFraction = snap || safeFraction < obstructionFraction
+            ? safeFraction : Mathf.Lerp(obstructionFraction, safeFraction, blend);
+        transform.position = Vector3.Lerp(focus, candidate, obstructionFraction);
         Vector3 direction = focus - transform.position;
+        // Even when a wall pushes the camera onto its pivot, mouse yaw must not freeze.
+        if (direction.sqrMagnitude <= 0.0001f) direction = viewRotation * (focusOffset - rearOffset);
         if (direction.sqrMagnitude > 0.0001f)
             transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
         previousTarget = target;
@@ -130,7 +172,8 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         }
         else
         {
-            pendingYaw = 0f;
+            lockWeight = 0;
+            if (followCamera != null) followCamera.fieldOfView = baseFov;
             Cursor.lockState = previousCursorLock;
             Cursor.visible = previousCursorVisible;
             if (mainCamera != null) mainCamera.enabled = mainCameraWasEnabled;
