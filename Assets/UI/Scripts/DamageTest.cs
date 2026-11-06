@@ -24,6 +24,6 @@ public class DamageTest : MonoBehaviour
     {
         //hitMarker.OnHit();
         //hitMarker.OnHit("default");
-        hitMarker.OnHit("letal");
+        hitMarker.OnHit("Head");
     }
 }
