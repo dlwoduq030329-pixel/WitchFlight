@@ -373,6 +373,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private Vector3 authoredCharacterScale;
     public float WorldScaleMultiplier { get; private set; } = 1f;
     private bool networkSpawned;
+    public bool IsVisualBoostActive => networkSpawned && Object != null && Object.IsValid && IsBoosting;
     public float TimeFieldSpeed => networkSpawned && Object != null && Object.IsValid
         ? MagicProjectile.TimeMovementMultiplier(Runner, transform.position, TeamIndex) : 1f;
     public Vector3 MagicCastPosition => magicCastRoot != null ? magicCastRoot.position : LockAimPoint;
