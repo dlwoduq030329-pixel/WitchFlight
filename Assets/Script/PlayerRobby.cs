@@ -7,6 +7,7 @@ public struct RobbyInputData : INetworkInput
 {
     public Vector2 move;
     public float yaw;
+    public float pitch;
     public NetworkBool hasHeading;
     public NetworkBool sprint;
 }
@@ -19,8 +20,23 @@ public sealed class PlayerRobby : NetworkBehaviour
     public static PlayerRobby LocalPlayer { get; private set; }
     [Networked] public Vector3 SimulationPosition { get; private set; }
     [Networked] public float SimulationYaw { get; private set; }
+    [Networked] private float LookPitch { get; set; }
     [Networked] private Vector3 SimulationVelocity { get; set; }
     [SerializeField] private Rigidbody movementBody;
+    [Header("Lobby practice only (existing staff objects)")]
+    [SerializeField] private GameObject[] practiceStaffs;
+    [SerializeField] private Transform practiceMagicRoot;
+    public Transform PracticeMagicRoot => practiceMagicRoot;
+    public void SelectPracticeStaff(MagicType magic)
+    {
+        if (practiceStaffs == null) return;
+        for (int i = 0; i < practiceStaffs.Length; i++)
+            if (practiceStaffs[i] != null) practiceStaffs[i].SetActive(false);
+        int index = (int)magic;
+        if (index >= practiceStaffs.Length) index = 1; // New magic shares the default staff model.
+        if (index > 0 && index < practiceStaffs.Length && practiceStaffs[index] != null)
+            practiceStaffs[index].SetActive(true);
+    }
     private RobbyPhysicsSimulation physicsSimulation;
     private bool physicsRegistered;
     private CapsuleCollider contactCapsule;
@@ -33,6 +49,45 @@ public sealed class PlayerRobby : NetworkBehaviour
     [SerializeField] private AnimationClip walkClip;
     [SerializeField] private AnimationClip runClip;
     [SerializeField] private AnimationClip kickClip;
+    [Header("Copied battle action clips, upper body only")]
+    [SerializeField] private AnimationClip practiceEquip, practiceStart, practiceLoop, practiceEnd;
+    [SerializeField, Min(.01f)] private float practiceRaiseSeconds = .25f;
+    public float PracticeRaiseRemaining => !practiceMixer.IsValid() || practiceAction == 2 ? 0f :
+        practiceAction == 1 ? Mathf.Max(0, practiceRaiseSeconds - practiceElapsed) : practiceRaiseSeconds;
+    public void PreparePracticeRelease()
+    {
+        practiceHolding = true;
+        if (practiceAction != 1 && practiceAction != 2) SetPracticeAction(1);
+    }
+    public void FinishPracticeRelease() { practiceHolding = false; SetPracticeAction(3); }
+    [SerializeField, Range(0f, 65f)] private float headPitchLimit = 40f;
+    private AnimationLayerMixerPlayable practiceLayers;
+    private AnimationMixerPlayable practiceMixer;
+    private readonly AnimationClipPlayable[] practiceClips = new AnimationClipPlayable[4];
+    private AvatarMask practiceMask;
+    private int practiceAction = -1;
+    private float practiceElapsed, practiceWeight;
+    private bool practiceHolding;
+    private Transform lookHead;
+    private Quaternion headBase;
+    private bool headApplied;
+    private float localLookPitch, smoothedLookPitch;
+    public void PresentLocalLookPitch(float pitch) => localLookPitch = pitch;
+    public void SetPracticeCasting(bool holding)
+    {
+        if (practiceHolding == holding) return;
+        practiceHolding = holding;
+        SetPracticeAction(holding ? 1 : 3);
+    }
+    public void PlayPracticeCast() { practiceHolding = false; SetPracticeAction(1); }
+    public void PlayPracticeEquip() { practiceHolding = false; SetPracticeAction(0); }
+    private void SetPracticeAction(int action)
+    {
+        if (!practiceMixer.IsValid()) return;
+        practiceAction = action; practiceElapsed = 0;
+        practiceClips[action].SetTime(0);
+        for (int i = 0; i < 4; i++) practiceMixer.SetInputWeight(i, i == action ? 1 : 0);
+    }
     [SerializeField, Min(0.01f)] private float animationBlendSeconds = 0.12f;
     [Networked] private NetworkBool IsWalking { get; set; }
     [Networked] private NetworkBool IsRunning { get; set; }
@@ -59,7 +114,7 @@ public sealed class PlayerRobby : NetworkBehaviour
         if (manager == null || !manager.IsWaitingInCodeRoom) input = default;
         // Absolute view heading survives missing input ticks and rollback. Never
         // derive the next input heading from a physics/Animator presentation pose.
-        if (input.hasHeading) SimulationYaw = Mathf.Repeat(input.yaw, 360f);
+        if (input.hasHeading) { SimulationYaw = Mathf.Repeat(input.yaw, 360f); LookPitch = Mathf.Clamp(input.pitch, -70f, 70f); }
         Quaternion rotation = Quaternion.Euler(0f, SimulationYaw, 0f);
         Vector2 move = Vector2.ClampMagnitude(input.move, 1f);
         IsWalking = move.sqrMagnitude > 0.001f && moveSpeed > 0f;
@@ -194,6 +249,31 @@ public sealed class PlayerRobby : NetworkBehaviour
         animationMixer.SetInputWeight(0, 1f);
         var output = AnimationPlayableOutput.Create(animationGraph, "Lobby pose", avatarAnimator);
         output.SetSourcePlayable(animationMixer);
+        lookHead = avatarAnimator.isHuman ? avatarAnimator.GetBoneTransform(HumanBodyBones.Head) : null;
+        if (practiceEquip != null && practiceStart != null && practiceLoop != null && practiceEnd != null)
+        {
+            practiceMask = new AvatarMask();
+            for (int i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++) practiceMask.SetHumanoidBodyPartActive((AvatarMaskBodyPart)i, false);
+            practiceMask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Body, true);
+            practiceMask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.LeftArm, true);
+            practiceMask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.RightArm, true);
+            practiceMask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.LeftFingers, true);
+            practiceMask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.RightFingers, true);
+            practiceMixer = AnimationMixerPlayable.Create(animationGraph, 4);
+            var clips = new[] { practiceEquip, practiceStart, practiceLoop, practiceEnd };
+            for (int i = 0; i < 4; i++)
+            {
+                practiceClips[i] = AnimationClipPlayable.Create(animationGraph, clips[i]);
+                if (i != 2) practiceClips[i].SetSpeed(clips[i].length / (i == 1 ? Mathf.Max(.01f, practiceRaiseSeconds) : .25f));
+                animationGraph.Connect(practiceClips[i], 0, practiceMixer, i);
+            }
+            practiceLayers = AnimationLayerMixerPlayable.Create(animationGraph, 2);
+            animationGraph.Connect(animationMixer, 0, practiceLayers, 0);
+            animationGraph.Connect(practiceMixer, 0, practiceLayers, 1);
+            practiceLayers.SetLayerMaskFromAvatarMask(1, practiceMask);
+            practiceLayers.SetInputWeight(0, 1);
+            output.SetSourcePlayable(practiceLayers);
+        }
         animationGraph.Play();
     }
 
@@ -213,6 +293,33 @@ public sealed class PlayerRobby : NetworkBehaviour
         animationMixer.SetInputWeight(1, walkWeight * (1f - runWeight) * (1f - kickWeight));
         animationMixer.SetInputWeight(2, kickWeight);
         animationMixer.SetInputWeight(3, walkWeight * runWeight * (1f - kickWeight));
+        if (practiceLayers.IsValid())
+        {
+            practiceElapsed += Time.deltaTime;
+            if (practiceAction == 2) LoopClip(practiceClips[2], practiceLoop);
+            else if (practiceAction >= 0 && practiceElapsed >= (practiceAction == 1 ? practiceRaiseSeconds : .25f))
+            {
+                if (practiceAction == 1) SetPracticeAction(practiceHolding ? 2 : 3);
+                else practiceAction = -1;
+            }
+            practiceWeight = Mathf.MoveTowards(practiceWeight, practiceAction >= 0 ? 1f : 0f, step);
+            practiceLayers.SetInputWeight(1, practiceWeight * (1 - kickWeight));
+        }
+    }
+
+    private void Update()
+    {
+        if (headApplied && lookHead != null) lookHead.localRotation = headBase;
+        headApplied = false;
+    }
+    private void LateUpdate()
+    {
+        if (lookHead == null || Object == null || !Object.IsValid) return;
+        float pitch = Object.HasInputAuthority ? localLookPitch : LookPitch;
+        smoothedLookPitch = Mathf.Lerp(smoothedLookPitch, Mathf.Clamp(pitch, -headPitchLimit, headPitchLimit), 1 - Mathf.Exp(-12 * Time.deltaTime));
+        headBase = lookHead.localRotation;
+        lookHead.rotation = Quaternion.AngleAxis(smoothedLookPitch, transform.right) * lookHead.rotation;
+        headApplied = true;
     }
 
     private static void LoopClip(AnimationClipPlayable playable, AnimationClip clip)
@@ -224,6 +331,10 @@ public sealed class PlayerRobby : NetworkBehaviour
     private void StopAnimation()
     {
         if (animationGraph.IsValid()) animationGraph.Destroy();
+        if (practiceMask != null) Destroy(practiceMask);
+        practiceMask = null; practiceAction = -1; practiceHolding = false; practiceWeight = 0;
+        if (headApplied && lookHead != null) lookHead.localRotation = headBase;
+        headApplied = false;
         kickPlaying = false;
         walkWeight = kickWeight = runWeight = 0f;
     }
