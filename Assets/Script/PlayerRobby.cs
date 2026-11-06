@@ -10,14 +10,29 @@ public struct RobbyInputData : INetworkInput
     public float pitch;
     public NetworkBool hasHeading;
     public NetworkBool sprint;
+    public NetworkBool standRequested;
+    public NetworkBool interactionCameraReady;
 }
 
 // Lobby-only movement. Uses its own input type, never the battle Player/input data.
 [DisallowMultipleComponent]
-public sealed class PlayerRobby : NetworkBehaviour
+public sealed partial class PlayerRobby : NetworkBehaviour
 {
     internal static readonly System.Collections.Generic.List<PlayerRobby> ActivePlayers = new();
     public static PlayerRobby LocalPlayer { get; private set; }
+    // Lobby presentation events only: never enter battle damage or projectile code.
+    public void SendPracticeEvent(byte kind, MagicType magic, Vector3 origin, Vector3 direction, bool guided = false)
+    {
+        if (Object != null && Object.IsValid && Object.HasInputAuthority)
+            RPC_PracticeEvent(kind, (int)magic, origin, direction, guided);
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
+    private void RPC_PracticeEvent(byte kind, int magic, Vector3 origin, Vector3 direction, NetworkBool guided)
+    {
+        if (Object.HasInputAuthority) return; // The sender already presented this event.
+        RobbyMagicPractice.Instance?.ReceivePracticeEvent(this, kind, (MagicType)magic, origin, direction, guided);
+    }
     [Networked] public Vector3 SimulationPosition { get; private set; }
     [Networked] public float SimulationYaw { get; private set; }
     [Networked] private float LookPitch { get; set; }
@@ -117,6 +132,8 @@ public sealed class PlayerRobby : NetworkBehaviour
         GetInput(out RobbyInputData input);
         var manager = NetworkGameManager.Instance;
         if (manager == null || !manager.IsWaitingInCodeRoom) input = default;
+        if (TickInteraction(input)) return;
+        movementBody.useGravity = true;
         // Absolute view heading survives missing input ticks and rollback. Never
         // derive the next input heading from a physics/Animator presentation pose.
         if (input.hasHeading) { SimulationYaw = Mathf.Repeat(input.yaw, 360f); LookPitch = Mathf.Clamp(input.pitch, -70f, 70f); }
@@ -150,6 +167,7 @@ public sealed class PlayerRobby : NetworkBehaviour
 
     internal void PresentLocalViewHeading(float yaw)
     {
+        if (InteractionBusy) return;
         if (Object == null || !Object.IsValid || !Object.HasInputAuthority) return;
         // Presentation only, after Animator/NetworkTransform have evaluated. Position
         // still comes exclusively from Rigidbody physics. The same absolute heading
@@ -291,12 +309,14 @@ public sealed class PlayerRobby : NetworkBehaviour
             practiceLayers.SetInputWeight(0, 1);
             output.SetSourcePlayable(practiceLayers);
         }
+        BuildInteractionGraph(output);
         animationGraph.Play();
     }
 
     public override void Render()
     {
         if (!animationGraph.IsValid()) return;
+        RenderInteraction();
         // Walk's source clip is not marked Loop; wrap this instance without editing the shared asset.
         LoopClip(idlePlayable, idleClip);
         LoopClip(walkPlayable, walkCompatible ? walkClip : idleClip);
@@ -338,11 +358,16 @@ public sealed class PlayerRobby : NetworkBehaviour
 
     private void Update()
     {
+        RestoreSeatPose();
         if (headApplied && lookHead != null) lookHead.localRotation = headBase;
         headApplied = false;
     }
     private void LateUpdate()
     {
+        PresentInteractionHeading();
+        ApplySeatPose();
+        ApplyPetReach();
+        if (InteractionBusy) return;
         if (lookHead == null || Object == null || !Object.IsValid) return;
         float pitch = Object.HasInputAuthority ? localLookPitch : LookPitch;
         smoothedLookPitch = Mathf.Lerp(smoothedLookPitch, Mathf.Clamp(pitch, -headPitchLimit, headPitchLimit), 1 - Mathf.Exp(-12 * Time.deltaTime));
@@ -359,6 +384,7 @@ public sealed class PlayerRobby : NetworkBehaviour
 
     private void StopAnimation()
     {
+        RestoreSeatPose();
         if (animationGraph.IsValid()) animationGraph.Destroy();
         if (practiceMask != null) Destroy(practiceMask);
         practiceMask = null; practiceAction = -1; practiceHolding = false; practiceWeight = 0;
@@ -371,6 +397,7 @@ public sealed class PlayerRobby : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        RobbyMagicPractice.Instance?.RemoveRemoteCaster(GetInstanceID());
         ReleasePhysics();
         ActivePlayers.Remove(this);
         if (LocalPlayer == this) LocalPlayer = null;

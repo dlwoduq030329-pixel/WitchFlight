@@ -8,6 +8,41 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(200)] // Read the muzzle after animation and the lobby camera's LateUpdate.
 public sealed class RobbyMagicPractice : MonoBehaviour
 {
+    public static RobbyMagicPractice Instance { get; private set; }
+    // 0 projectile, 1 cast, 2 impact, 3 channel sample, 4 thunder burst,
+    // 5 rain circle, 6 area warning. Only discrete events cross the network.
+    public void ReceivePracticeEvent(PlayerRobby caster, byte kind, MagicType magic, Vector3 origin, Vector3 direction, bool guided)
+    {
+        if (magicTable == null || target == null || !isActiveAndEnabled) return;
+        var stats = magicTable.GetStats(magic);
+        switch (kind)
+        {
+            case 0: Fire(stats, origin, direction, guided, true, caster.GetInstanceID()); break;
+            case 1:
+                caster.SelectPracticeStaff(magic);
+                caster.PlayPracticeCast();
+                Play(stats.castVfxPrefab, origin, Quaternion.LookRotation(direction), stats.vfxLifetime);
+                BattleAudio.PlayMagic(magic, MagicSound.Cast, origin);
+                break;
+            case 2:
+                target.Hit(direction);
+                CombatPresentation.ShowImpact(origin, magic);
+                break;
+            case 3:
+                ShowBeam(stats, caster.GetInstanceID(), origin, direction, Mathf.Max(.1f, stats.channelTickSeconds * 1.5f));
+                break;
+            case 4: MagicAreaVisual.ThunderBurst(origin, stats); break;
+            case 5:
+                Play(stats.rainCircleVfxPrefab, origin, Quaternion.LookRotation(direction),
+                    10 * Mathf.Max(.01f, stats.rainBladeInterval) + .5f);
+                break;
+            case 6:
+                var warning = MagicAreaVisual.Create(stats.areaWarningVfxPrefab, "Lobby thunder warning (remote)");
+                warning.SetArea(origin, stats.radius, new Color(1, 0, 0, .3f), 0);
+                Destroy(warning.gameObject, Mathf.Max(.1f, stats.strikeDelay));
+                break;
+        }
+    }
     public static float DisplayedLockProgress { get; private set; }
     [SerializeField] private RobbyPracticeDummy target;
     [SerializeField] private Slider[] skillSliders = new Slider[2];
@@ -16,7 +51,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     [SerializeField] private bool traceCasts = true;
     [SerializeField, Min(.05f)] private float instantBeamSeconds = .3f;
     [SerializeField, Min(.01f)] private float instantBeamWidth = .22f;
-    private readonly Dictionary<MagicType, RobbyInstantMagicVisual> instantBeams = new();
+    private readonly Dictionary<(int caster, MagicType magic), RobbyInstantMagicVisual> instantBeams = new();
     [SerializeField, Range(1f, 60f)] private float lockCone = 18f;
     [Header("Copied BattleHud lock presentation")]
     [SerializeField] private Image lockChargeMarker, lockCompleteMarker;
@@ -58,6 +93,8 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         public float expires;
         public MagicStatEntry stats;
         public bool guided;
+        public bool remote;
+        public int caster;
     }
     private struct Burst
     {
@@ -69,6 +106,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     }
     private void Awake()
     {
+        Instance = this;
         canvas = GetComponent<Canvas>();
         if (magicTable == null) magicTable = MagicStatTable.Default;
         festivalPrefab = Resources.Load<GameObject>("MeowFestivalVisual");
@@ -147,6 +185,8 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         if (canvas != null && !active && canvas.enabled) canvas.enabled = false;
         TickShots(); TickBursts();
         TickOrbits();
+        if (PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.InteractionBusy)
+        { if (held || pendingRelease) Cancel(); return; }
         if (!active) return;
         if (owner != PlayerRobby.LocalPlayer)
         {
@@ -213,7 +253,11 @@ public sealed class RobbyMagicPractice : MonoBehaviour
                 Vector3 end = AimEnd(stats);
                 channel.SetEndpoints(Origin, end);
                 if (Time.time >= nextChannel)
-                { HitSegment(Origin, end, stats.hitscanRadius, stats); nextChannel = Time.time + Mathf.Max(.05f, stats.channelTickSeconds); }
+                {
+                    owner.SendPracticeEvent(3, stats.magic, Origin, end);
+                    HitSegment(Origin, end, stats.hitscanRadius, stats);
+                    nextChannel = Time.time + Mathf.Max(.05f, stats.channelTickSeconds);
+                }
             }
         }
         if (held && Input.GetMouseButtonUp(0))
@@ -283,6 +327,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     private void ExecuteCast(MagicStatEntry stats)
     {
         Vector3 origin = Origin, direction = AimDirection(stats);
+        owner.SendPracticeEvent(1, stats.magic, origin, direction);
         Play(stats.castVfxPrefab, origin, Quaternion.LookRotation(direction), stats.vfxLifetime);
         BattleAudio.PlayMagic(stats.magic, MagicSound.Cast, origin);
         switch (stats.effect)
@@ -302,12 +347,14 @@ public sealed class RobbyMagicPractice : MonoBehaviour
                 {
                     Vector3 p = origin - owner.transform.forward + owner.transform.right * (i % 2 == 0 ? -1 : 1) * (1 + i / 2 * .6f) + Vector3.up * (i / 2 * .5f);
                     Play(stats.rainCircleVfxPrefab, p, owner.transform.rotation, 10 * Mathf.Max(.01f, stats.rainBladeInterval) + .5f);
+                    owner.SendPracticeEvent(5, stats.magic, p, owner.transform.forward);
                     bursts.Add(new Burst { stats = stats, origin = p, direction = (target.AimPoint - p).normalized,
                         remaining = 10, next = Time.time, interval = Mathf.Max(.01f, stats.rainBladeInterval), guided = true });
                 }
                 break;
             case MagicEffectKind.DelayedArea:
                 Vector3 center = AimEnd(stats);
+                owner.SendPracticeEvent(6, stats.magic, center, Vector3.zero);
                 var warning = MagicAreaVisual.Create(stats.areaWarningVfxPrefab, "Lobby thunder warning");
                 warning.SetArea(center, stats.radius, new Color(1, 0, 0, .3f), 0);
                 Destroy(warning.gameObject, Mathf.Max(.1f, stats.strikeDelay));
@@ -342,6 +389,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             if (b.stats.effect == MagicEffectKind.DelayedArea)
             {
                 MagicAreaVisual.ThunderBurst(b.origin, b.stats);
+                if (owner != null) owner.SendPracticeEvent(4, b.stats.magic, b.origin, Vector3.zero);
                 if (target != null && Vector3.Distance(b.origin, target.AimPoint) <= b.stats.radius + target.Radius) Impact(b.stats, b.origin);
             }
             else
@@ -354,9 +402,11 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             else { b.next = Time.time + b.interval; bursts[i] = b; }
         }
     }
-    private void Fire(MagicStatEntry stats, Vector3 origin, Vector3 direction, bool guided)
+    private void Fire(MagicStatEntry stats, Vector3 origin, Vector3 direction, bool guided, bool remote = false, int caster = 0)
     {
         if (direction.sqrMagnitude < .001f) { TraceCast("발사 거절: 에임 방향 길이가 0"); return; }
+        if (stats.projectileSpeed > 0 && shots.Count >= 256) return;
+        if (!remote && owner != null) owner.SendPracticeEvent(0, stats.magic, origin, direction, guided);
         if (stats.projectileSpeed <= 0)
         {
             TraceCast($"{stats.magic}: 즉발 광선 시전 (데이터의 projectileSpeed={stats.projectileSpeed})");
@@ -369,20 +419,14 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             if (along > 0 && along < Vector3.Distance(origin, end) &&
                 (offset - direction * along).sqrMagnitude <= radius * radius)
                 end = origin + direction * along;
-            if (!instantBeams.TryGetValue(stats.magic, out var beam) || beam == null)
-            {
-                var root = new GameObject("Lobby " + stats.magic + " instant beam (reused)");
-                beam = root.AddComponent<RobbyInstantMagicVisual>();
-                beam.Initialize(stats); instantBeams[stats.magic] = beam;
-            }
-            beam.Show(origin, end, instantBeamSeconds, instantBeamWidth);
-            HitSegment(origin, end, stats.hitscanRadius, stats); return;
+            ShowBeam(stats, caster, origin, end, instantBeamSeconds);
+            HitSegment(origin, end, stats.hitscanRadius, stats, !remote); return;
         }
         if (shots.Count >= 256) { TraceCast("발사 거절: 동시 투사체 상한 256"); return; }
         var view = MagicVfxPool.Rent(stats.projectileVfxPrefab != null ? stats.projectileVfxPrefab : fallbackProjectile, origin, Quaternion.LookRotation(direction));
         if (view == null) view = MagicVfxPool.Rent(fallbackProjectile, origin, Quaternion.LookRotation(direction));
         shots.Add(new Shot { view = view, position = origin, direction = direction, guided = guided,
-            expires = Time.time + Mathf.Max(.1f, stats.projectileLifetime), stats = stats });
+            expires = Time.time + Mathf.Max(.1f, stats.projectileLifetime), stats = stats, remote = remote, caster = caster });
         if (traceCasts && Time.unscaledTime >= nextProjectileTrace)
         {
             nextProjectileTrace = Time.unscaledTime + .5f; // Do not flood the console for a volley.
@@ -400,25 +444,53 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             Vector3 end = shot.position + shot.direction * shot.stats.projectileSpeed * Time.deltaTime;
             bool wall = Blocked(shot.position, end, out Vector3 wallPoint);
             if (wall) end = wallPoint;
-            bool hit = HitSegment(shot.position, end, shot.stats.projectileRadius, shot.stats);
+            bool hit = HitSegment(shot.position, end, shot.stats.projectileRadius, shot.stats, !shot.remote);
             if (wall || hit) { MagicVfxPool.Release(shot.view); shots.RemoveAt(i); continue; }
             shot.position = end;
             if (shot.view != null) shot.view.transform.SetPositionAndRotation(end, Quaternion.LookRotation(shot.direction));
             shots[i] = shot;
         }
     }
-    private bool HitSegment(Vector3 start, Vector3 end, float radius, MagicStatEntry stats)
+    private void ShowBeam(MagicStatEntry stats, int caster, Vector3 origin, Vector3 end, float seconds)
+    {
+        var key = (caster, stats.magic);
+        if (!instantBeams.TryGetValue(key, out var beam) || beam == null)
+        {
+            var root = new GameObject("Lobby " + stats.magic + " instant beam (reused)");
+            beam = root.AddComponent<RobbyInstantMagicVisual>();
+            beam.Initialize(stats); instantBeams[key] = beam;
+        }
+        beam.Show(origin, end, seconds, instantBeamWidth);
+    }
+    public void RemoveRemoteCaster(int caster)
+    {
+        for (int i = shots.Count - 1; i >= 0; i--)
+            if (shots[i].remote && shots[i].caster == caster)
+            { MagicVfxPool.Release(shots[i].view); shots.RemoveAt(i); }
+        // Allocate only on departure, never during the frame/update path.
+        var keys = new List<(int caster, MagicType magic)>();
+        foreach (var pair in instantBeams)
+            if (pair.Key.caster == caster)
+            {
+                if (pair.Value != null) Destroy(pair.Value.gameObject);
+                keys.Add(pair.Key);
+            }
+        foreach (var key in keys) instantBeams.Remove(key);
+    }
+    private bool HitSegment(Vector3 start, Vector3 end, float radius, MagicStatEntry stats, bool applyImpact = true)
     {
         if (target == null || !target.gameObject.activeInHierarchy || stats.TargetsAllies) return false;
         Vector3 delta = end - start;
         float t = delta.sqrMagnitude > .00001f ? Mathf.Clamp01(Vector3.Dot(target.AimPoint - start, delta) / delta.sqrMagnitude) : 0;
         if (Vector3.Distance(start + delta * t, target.AimPoint) > target.Radius + radius) return false;
-        Impact(stats, start); return true;
+        if (applyImpact) Impact(stats, start);
+        return true;
     }
     private void Impact(MagicStatEntry stats, Vector3 from)
     {
         target.Hit(target.AimPoint - from);
         CombatPresentation.ShowImpact(target.AimPoint, stats.magic);
+        if (owner != null) owner.SendPracticeEvent(2, stats.magic, target.AimPoint, target.AimPoint - from);
     }
     private bool Blocked(Vector3 start, Vector3 end, out Vector3 point)
     {
@@ -458,6 +530,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     }
     private void OnDestroy()
     {
+        if (Instance == this) Instance = null;
         foreach (var beam in instantBeams.Values) if (beam != null) Destroy(beam.gameObject);
         if (fallbackMaterial != null) Destroy(fallbackMaterial);
     }

@@ -208,10 +208,10 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
     private void EnsureAvatar()
     {
         if (avatar != null) { avatar.SetAppearance(body, eyes); return; }
-        GameObject existing = null;
-        if (!trainingScene) foreach (var cat in FindObjectsByType<WitchCatAppearance>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            if (cat.gameObject.scene == gameObject.scene) { existing = cat.gameObject; break; }
-        avatar = CatAvatar.Create(null, body, eyes, true, existing);
+        // The director owns this portrait/lobby companion. Never adopt an authored
+        // world cat: portrait setup reparents it, changes its layer and visibility,
+        // and OnDestroy destroys it. World interaction cats must stay in the map.
+        avatar = CatAvatar.Create(null, body, eyes, true);
     }
     private void BuildPortrait()
     {

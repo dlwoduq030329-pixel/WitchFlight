@@ -29,6 +29,12 @@ internal static class RobbyAnimationSetup
             AnimationClip right = Prepare("Right Strafe Walk.fbx", true);
             AnimationClip left = Prepare("Left Strafe Walk.fbx", true);
             AnimationClip backward = Prepare("Walking Backwards.fbx", true);
+            var interactionNames = new[] { "drinkingClip", "chocolateClip", "pettingClip", "standToSitClip", "sitIdleClip", "sitToStandClip" };
+            var interactionClips = new[] {
+                Prepare("Drinking.fbx", false),
+                AssetDatabase.LoadAssetAtPath<AnimationClip>("Assets/Animations/Art/Kaguya!_Chocolate.anim"),
+                Prepare("Petting.fbx", true), Prepare("Stand To Sit.fbx", false, true),
+                Prepare("Sitting Idle.fbx", true, true), Prepare("Sit To Stand.fbx", false, true) };
             if (walk == null || kick == null) return;
             GameObject root = PrefabUtility.LoadPrefabContents(Prefab);
             try
@@ -37,13 +43,20 @@ internal static class RobbyAnimationSetup
                 {
                     if (component == null || component.GetType().Name != "PlayerRobby") continue;
                     var data = new SerializedObject(component);
+                    bool interactionsChanged = false;
+                    for (int i = 0; i < interactionNames.Length; i++)
+                    {
+                        var property = data.FindProperty(interactionNames[i]);
+                        if (property != null && interactionClips[i] != null && property.objectReferenceValue != interactionClips[i])
+                        { property.objectReferenceValue = interactionClips[i]; interactionsChanged = true; }
+                    }
                     var walkProperty = data.FindProperty("walkClip");
                     var kickProperty = data.FindProperty("kickClip");
                     var runProperty = data.FindProperty("runClip");
                     var rightProperty = data.FindProperty("rightStrafeClip");
                     var leftProperty = data.FindProperty("leftStrafeClip");
                     var backwardProperty = data.FindProperty("backwardClip");
-                    if (walkProperty.objectReferenceValue == walk && kickProperty.objectReferenceValue == kick &&
+                    if (!interactionsChanged && walkProperty.objectReferenceValue == walk && kickProperty.objectReferenceValue == kick &&
                         (run == null || runProperty.objectReferenceValue == run) &&
                         (right == null || rightProperty.objectReferenceValue == right) &&
                         (left == null || leftProperty.objectReferenceValue == left) &&
@@ -65,7 +78,7 @@ internal static class RobbyAnimationSetup
         catch (Exception exception) { Debug.LogException(exception); }
     }
 
-    private static AnimationClip Prepare(string filename, bool loop)
+    private static AnimationClip Prepare(string filename, bool loop, bool seated = false)
     {
         string path = Folder + filename;
         var importer = AssetImporter.GetAtPath(path) as ModelImporter;
@@ -80,15 +93,15 @@ internal static class RobbyAnimationSetup
         foreach (var clip in clips)
         {
             changed |= clip.loopTime != loop || clip.loopPose != loop || !clip.lockRootRotation ||
-                !clip.lockRootHeightY || !clip.lockRootPositionXZ || !clip.heightFromFeet ||
-                clip.keepOriginalPositionY || clip.keepOriginalPositionXZ || clip.keepOriginalOrientation;
+                !clip.lockRootHeightY || !clip.lockRootPositionXZ || clip.heightFromFeet == seated ||
+                clip.keepOriginalPositionY != seated || clip.keepOriginalPositionXZ || clip.keepOriginalOrientation;
             clip.loopTime = loop;
             clip.loopPose = loop;
             clip.lockRootRotation = true;
             clip.lockRootHeightY = true;
             clip.lockRootPositionXZ = true;
-            clip.heightFromFeet = true;
-            clip.keepOriginalPositionY = false;
+            clip.heightFromFeet = !seated;
+            clip.keepOriginalPositionY = seated;
             clip.keepOriginalPositionXZ = false;
             clip.keepOriginalOrientation = false;
         }

@@ -15,6 +15,10 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     [SerializeField, Min(0f)] private float mouseSensitivity = 3f;
     [SerializeField] private Vector2 pitchLimits = new Vector2(-65f, 70f);
     [SerializeField] private float verticalSensitivity = 3f;
+    [Header("Lobby interaction camera")]
+    [SerializeField, Min(.1f)] private float interactionCameraSeconds = .65f;
+    private bool interactionCameraReady;
+    private float returnSettledSeconds;
     [Header("Lobby copy of battle lock camera presentation")]
     [SerializeField] private bool lockCameraPresentation = true;
     [SerializeField] private float lockSideOffset = .9f, lockForwardOffset = 1.2f, lockFovReduction = 7f;
@@ -58,6 +62,8 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     {
         if (ControlsActive)
         {
+            var player = PlayerRobby.LocalPlayer;
+            if (player != null && player.InteractionCameraReturning) return;
             viewYaw = Mathf.Repeat(viewYaw + Input.GetAxisRaw("Mouse X") * mouseSensitivity, 360f);
             viewPitch = Mathf.Clamp(viewPitch - Input.GetAxisRaw("Mouse Y") * verticalSensitivity, pitchLimits.x, pitchLimits.y);
         }
@@ -75,7 +81,9 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
             yaw = camera.viewYaw,
             pitch = camera.viewPitch,
             hasHeading = true,
-            sprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)
+            sprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift),
+            standRequested = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.D),
+            interactionCameraReady = PlayerRobby.LocalPlayer.InteractionCameraReturning && camera.interactionCameraReady
         };
         return input;
     }
@@ -91,6 +99,19 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         Transform target = player.transform;
         bool snap = !showing || previousTarget != target;
         if (snap) { viewYaw = player.SimulationYaw; viewPitch = 0f; }
+        float cameraStep = 180f * Time.unscaledDeltaTime / Mathf.Max(.1f, interactionCameraSeconds);
+        // Sitting never overrides the existing orbit. Mouse input rotates only the
+        // camera while PlayerRobby keeps the seated character's heading fixed.
+        if (player.InteractionCameraReturning)
+        {
+            float desiredYaw = player.SimulationYaw;
+            viewYaw = Mathf.MoveTowardsAngle(viewYaw, desiredYaw, cameraStep);
+            viewPitch = Mathf.MoveTowards(viewPitch, 0, cameraStep);
+        }
+        bool aligned = player.InteractionCameraReturning && Mathf.Abs(Mathf.DeltaAngle(viewYaw, player.SimulationYaw)) < .1f &&
+            Mathf.Abs(viewPitch) < .1f;
+        returnSettledSeconds = aligned ? returnSettledSeconds + Time.unscaledDeltaTime : 0;
+        interactionCameraReady = aligned && returnSettledSeconds >= .15f;
         // Rotate the visible local avatar in the same frame as the camera, even if
         // no Fusion tick has run this frame. Never orbit around a stationary avatar.
         player.PresentLocalViewHeading(viewYaw);
@@ -104,7 +125,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         // Pitch orbits the camera around the head/torso pivot, never the body collider.
         Vector3 candidate = focus + Quaternion.Euler(viewPitch, viewYaw, 0f) * (rearOffset - focusOffset);
         targetingPosition = candidate;
-        float desiredLock = lockCameraPresentation ? Mathf.SmoothStep(0, 1, RobbyMagicPractice.DisplayedLockProgress) : 0;
+        float desiredLock = lockCameraPresentation && !player.InteractionBusy ? Mathf.SmoothStep(0, 1, RobbyMagicPractice.DisplayedLockProgress) : 0;
         lockWeight = Mathf.Lerp(lockWeight, desiredLock, 1 - Mathf.Exp(-3 * Time.deltaTime / Mathf.Max(.01f, lockBlendSeconds)));
         Quaternion orbit = Quaternion.Euler(viewPitch, viewYaw, 0f);
         Vector3 shoulder = orbit * Vector3.right * (lockSideOffset * lockWeight);
