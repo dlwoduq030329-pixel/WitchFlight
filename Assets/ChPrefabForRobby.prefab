@@ -5553,7 +5553,7 @@ Animator:
   m_GameObject: {fileID: 1810222910671885908}
   m_Enabled: 1
   m_Avatar: {fileID: 9000000, guid: bbd1ddc987dc3d646aa8d77be2cad481, type: 3}
-  m_Controller: {fileID: 9100000, guid: 2a8308601f1a23a4084256874566ae9f, type: 2}
+  m_Controller: {fileID: 0}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
@@ -5578,6 +5578,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   moveSpeed: 5
+  avatarAnimator: {fileID: 6501619761298650140}
+  idleClip: {fileID: 7400000, guid: d011bf4c00c71e542954e04bf7e9a72a, type: 2}
+  walkClip: {fileID: 7400000, guid: 7978c3799163fae479600938f44ac5d1, type: 2}
+  kickClip: {fileID: 7400000, guid: 367fee5ba70e9be4699e2375e0ab5054, type: 2}
+  animationBlendSeconds: 0.12
 --- !u!114 &9072680371855534988
 MonoBehaviour:
   m_ObjectHideFlags: 0

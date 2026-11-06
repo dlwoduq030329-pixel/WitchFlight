@@ -39,6 +39,7 @@ public sealed class RobbyBeachBall : NetworkBehaviour
         // Set a consistent kick speed instead of stacking unlimited impulses.
         body.linearVelocity = away.normalized * kickSpeed + Vector3.up * upwardSpeed;
         body.WakeUp();
+        player.PlayBallKick();
         nextKickTime = Time.time + contactCooldown;
     }
 
