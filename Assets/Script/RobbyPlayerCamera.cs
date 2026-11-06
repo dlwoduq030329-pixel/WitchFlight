@@ -20,7 +20,9 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     private readonly RaycastHit[] obstructionHits = new RaycastHit[64];
 
     private static RobbyPlayerCamera instance;
-    private float pendingYaw;
+    private float viewYaw;
+    private Vector3 smoothedTargetPosition;
+    private float obstructionFraction = 1f;
     private CursorLockMode previousCursorLock;
     private bool previousCursorVisible;
 
@@ -41,22 +43,22 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
 
     private void Update()
     {
-        if (ControlsActive) pendingYaw += Input.GetAxisRaw("Mouse X") * mouseSensitivity;
-        else pendingYaw = 0f;
+        if (ControlsActive) viewYaw = Mathf.Repeat(viewYaw + Input.GetAxisRaw("Mouse X") * mouseSensitivity, 360f);
     }
 
     public static RobbyInputData ConsumeInput()
     {
         var camera = instance;
         if (camera == null) return default;
-        if (!camera.ControlsActive) { camera.pendingYaw = 0f; return default; }
+        if (!camera.ControlsActive) return default;
         var input = new RobbyInputData
         {
             move = new Vector2((Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f),
                 (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f)),
-            yaw = camera.pendingYaw
+            yaw = camera.viewYaw,
+            hasHeading = true,
+            sprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)
         };
-        camera.pendingYaw = 0f;
         return input;
     }
 
@@ -69,15 +71,27 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         if (!visible) { SetShowing(false); previousTarget = null; return; }
 
         Transform target = player.transform;
-        Vector3 position = target.position + target.rotation * followOffset;
         bool snap = !showing || previousTarget != target;
+        if (snap) viewYaw = player.SimulationYaw;
+        // Rotate the visible local avatar in the same frame as the camera, even if
+        // no Fusion tick has run this frame. Never orbit around a stationary avatar.
+        player.PresentLocalViewHeading(viewYaw);
         float blend = followSharpness <= 0f ? 1f : 1f - Mathf.Exp(-followSharpness * Time.unscaledDeltaTime);
-        Vector3 focus = target.position + lookOffset;
-        Vector3 candidate = snap ? position : Vector3.Lerp(transform.position, position, blend);
-        // Check AFTER smoothing so sideways movement/rotation cannot leave the camera
-        // behind a wall. Pull inward immediately, ease outward via the normal follow.
-        transform.position = ResolveObstruction(focus, candidate, target);
+        smoothedTargetPosition = snap ? target.position : Vector3.Lerp(smoothedTargetPosition, target.position, blend);
+        Quaternion viewRotation = Quaternion.Euler(0f, viewYaw, 0f);
+        Vector3 focusOffset = new Vector3(0f, lookOffset.y, lookOffset.z);
+        Vector3 rearOffset = new Vector3(0f, followOffset.y, Mathf.Min(followOffset.z, lookOffset.z - 0.1f));
+        Vector3 focus = smoothedTargetPosition + viewRotation * focusOffset;
+        Vector3 candidate = smoothedTargetPosition + viewRotation * rearOffset;
+        Vector3 safe = ResolveObstruction(focus, candidate, target);
+        float desiredDistance = Vector3.Distance(focus, candidate);
+        float safeFraction = desiredDistance > 0.001f ? Vector3.Distance(focus, safe) / desiredDistance : 1f;
+        obstructionFraction = snap || safeFraction < obstructionFraction
+            ? safeFraction : Mathf.Lerp(obstructionFraction, safeFraction, blend);
+        transform.position = Vector3.Lerp(focus, candidate, obstructionFraction);
         Vector3 direction = focus - transform.position;
+        // Even when a wall pushes the camera onto its pivot, mouse yaw must not freeze.
+        if (direction.sqrMagnitude <= 0.0001f) direction = viewRotation * (focusOffset - rearOffset);
         if (direction.sqrMagnitude > 0.0001f)
             transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
         previousTarget = target;
@@ -130,7 +144,6 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         }
         else
         {
-            pendingYaw = 0f;
             Cursor.lockState = previousCursorLock;
             Cursor.visible = previousCursorVisible;
             if (mainCamera != null) mainCamera.enabled = mainCameraWasEnabled;
