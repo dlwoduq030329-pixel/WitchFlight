@@ -46,9 +46,10 @@ public partial class Player
     [Networked] private TickTimer ItemBoostTimer { get; set; }
     [Networked] private float ItemBoostMultiplier { get; set; }
 
-    public bool HasItemSpeedBoost => IsAlive && TimerIsActive(ItemBoostTimer);
+    public bool HasItemSpeedBoost => IsAlive && TimerIsActive(ItemBoostTimer) &&
+        (!UsesAutomaticCruise || TimerIsActive(BurstBoostTimer));
     public float ItemSpeedBoostRemaining => HasItemSpeedBoost
-        ? Mathf.Max(0f, ItemBoostTimer.RemainingTime(Runner) ?? 0f) : 0f;
+        ? Mathf.Max(0f, (UsesAutomaticCruise ? BurstBoostTimer : ItemBoostTimer).RemainingTime(Runner) ?? 0f) : 0f;
 
     internal bool CanReceiveBattleItem(BattleItemType type)
     {
@@ -79,6 +80,16 @@ public partial class Player
             RPC_ManaPotionPickup();
             return true;
         }
+        if (UsesAutomaticCruise)
+        {
+            // Free Shift burst: same duration, acceleration, speed stage and replicated
+            // IsBoosting presentation. Braking/wall collisions still cancel it normally.
+            StartCruiseBoost();
+            ItemBoostMultiplier = 1f;
+            ItemBoostTimer = BurstBoostTimer;
+            RPC_PlayBattleSound(BattleSound.BoosterPickup);
+            return true;
+        }
         if (!IsPositiveFiniteItemValue(multiplier) || multiplier <= 1f ||
             !IsPositiveFiniteItemValue(seconds)) return false;
 
@@ -104,7 +115,7 @@ public partial class Player
 
     private float GetItemSpeedMultiplier()
     {
-        return HasItemSpeedBoost ? Mathf.Max(1f, ItemBoostMultiplier) : 1f;
+        return !UsesAutomaticCruise && HasItemSpeedBoost ? Mathf.Max(1f, ItemBoostMultiplier) : 1f;
     }
 
     private void ResetItemBoost()
