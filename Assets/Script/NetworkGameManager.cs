@@ -1170,6 +1170,11 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         NetworkInput input)
     {
+        if (IsWaitingInCodeRoom)
+        {
+            input.Set(RobbyPlayerCamera.ConsumeInput());
+            return;
+        }
         NetworkInputData data =
             new NetworkInputData();
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
