@@ -35,6 +35,7 @@ MonoBehaviour:
     displayBoostCostLabel: 
     broom: 2
     maxHp: 180
+    ramDamageOverride: 0
     maxSpeed: 39
     turnSpeed: 95
     turnAcceleration: 14
@@ -92,6 +93,7 @@ MonoBehaviour:
     displayBoostCostLabel: "\uB0AE\uC74C"
     broom: 1
     maxHp: 200
+    ramDamageOverride: 0
     maxSpeed: 37.05
     turnSpeed: 120
     turnAcceleration: 10.35
@@ -117,6 +119,7 @@ MonoBehaviour:
     displayBoostCostLabel: "\uC911\uAC04"
     broom: 2
     maxHp: 150
+    ramDamageOverride: 0
     maxSpeed: 39
     turnSpeed: 95
     turnAcceleration: 14
@@ -141,6 +144,7 @@ MonoBehaviour:
     displayBoostCostLabel: "\uB192\uC74C"
     broom: 3
     maxHp: 100
+    ramDamageOverride: 0
     maxSpeed: 42.9
     turnSpeed: 77.625
     turnAcceleration: 8.1
@@ -152,18 +156,21 @@ MonoBehaviour:
     boostApCostPerSecond: 34.5
     boostDuration: 0.6
     boostCooldown: 1.1
-  - displayName: "로봇 청소기"
-    description: "평소 속도는 느리지만 선회력이 높고, 부스트로 순간적인 최고 속도를 내는 로봇 청소기입니다."
+  - displayName: "\uB85C\uBD07 \uCCAD\uC18C\uAE30"
+    description: "\uD3C9\uC18C \uC18D\uB3C4\uB294 \uB290\uB9AC\uC9C0\uB9CC \uC120\uD68C\uB825\uC774
+      \uB192\uACE0, \n\uBD80\uC2A4\uD2B8\uB85C \uC21C\uAC04\uC801\uC778 \uCD5C\uACE0
+      \uC18D\uB3C4\uB97C \uB0B4\uB294 \uB85C\uBD07 \uCCAD\uC18C\uAE30\uC785\uB2C8\uB2E4."
     displayMaxHp: 0.42
     displaySpeed: 0.25
     displayTurnSpeed: 1
     displayBoostCost: 1
-    displaySpeedLabel: "느림"
-    displayTurnSpeedLabel: "빠름"
-    displayMaxHpLabel: "낮음"
-    displayBoostCostLabel: "높음"
+    displaySpeedLabel: "\uB290\uB9BC"
+    displayTurnSpeedLabel: "\uBE60\uB984"
+    displayMaxHpLabel: "\uB0AE\uC74C"
+    displayBoostCostLabel: "\uB192\uC74C"
     broom: 4
     maxHp: 120
+    ramDamageOverride: 0
     maxSpeed: 32
     turnSpeed: 135
     turnAcceleration: 14
@@ -175,16 +182,18 @@ MonoBehaviour:
     boostApCostPerSecond: 40
     boostDuration: 0.45
     boostCooldown: 1.5
-  - displayName: "청소기"
-    description: "높은 체력과 선회력으로 접근하여 몸통 충돌 피해 100을 주는 육탄형 청소기입니다."
+  - displayName: "\uCCAD\uC18C\uAE30"
+    description: "\uB192\uC740 \uCCB4\uB825\uACFC \uC120\uD68C\uB825\uC744 \uAC00\uC9C0\uACE0
+      \uC788\uC2B5\uB2C8\uB2E4.\n\uC801\uC5D0\uAC8C \uCDA9\uB3CC\uD560 \uACBD\uC6B0
+      100\uC758 \uD53C\uD574\uB97C \uC90D\uB2C8\uB2E4."
     displayMaxHp: 0.8
     displaySpeed: 0.25
     displayTurnSpeed: 1
     displayBoostCost: 0.8696
-    displaySpeedLabel: "느림"
-    displayTurnSpeedLabel: "빠름"
-    displayMaxHpLabel: "높음"
-    displayBoostCostLabel: "중간"
+    displaySpeedLabel: "\uB290\uB9BC"
+    displayTurnSpeedLabel: "\uBE60\uB984"
+    displayMaxHpLabel: "\uB192\uC74C"
+    displayBoostCostLabel: "\uC911\uAC04"
     broom: 5
     maxHp: 170
     ramDamageOverride: 100
