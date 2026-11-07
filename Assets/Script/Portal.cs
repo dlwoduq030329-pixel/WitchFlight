@@ -13,6 +13,8 @@ public sealed class Portal : MonoBehaviour
 
     [Tooltip("Place an empty Transform at the desired arrival position, outside portal triggers and walls.")]
     [SerializeField] private Transform destination;
+    [Tooltip("함께 닫히고 열릴 포탈. 비우면 Destination 자신 또는 부모의 Portal을 시작 시 한 번 연결합니다.")]
+    [SerializeField] private Portal connectedPortal;
     [Header("Exit direction")]
     [Tooltip("도착 시 바라볼 방향입니다. 빈 오브젝트의 파란색 +Z 축을 벽 반대쪽으로 향하게 하세요. 비워두면 Destination의 회전을 사용합니다. 이 오브젝트의 위치는 사용하지 않습니다.")]
     [SerializeField] private Transform exitDirection;
@@ -33,6 +35,7 @@ public sealed class Portal : MonoBehaviour
     [SerializeField, HideInInspector] private string visualId;
     private NetworkRunner visualRunner;
     private double visualReadyAt;
+    private float visualOpenSeconds;
     private bool usedVisual;
     private int visualState = -1;
     private BoxCollider portalTrigger;
@@ -58,7 +61,7 @@ public sealed class Portal : MonoBehaviour
         if (!isActiveAndEnabled || destination == null || runner == null) return false;
         var trigger = portalTrigger;
         if (trigger == null || !trigger.enabled ||
-            cooldownRunner == runner && !cooldownTimer.ExpiredOrNotRunning(runner)) return false;
+            !IsReady(runner) || connectedPortal != null && !connectedPortal.IsReady(runner)) return false;
         entry = transform.TransformPoint(trigger.center);
         GetExitPose(out exit, out rotation);
         return true;
@@ -70,6 +73,9 @@ public sealed class Portal : MonoBehaviour
     {
         portalTrigger = GetComponent<BoxCollider>();
         ConfigureTrigger();
+        if (connectedPortal == null && destination != null)
+            connectedPortal = destination.GetComponentInParent<Portal>();
+        if (connectedPortal == this) connectedPortal = null;
         // Resolve designer-authored children once, including initially inactive effects.
         foreach (Transform child in GetComponentsInChildren<Transform>(true))
         {
@@ -105,40 +111,49 @@ public sealed class Portal : MonoBehaviour
             cooldownRunner = player.Runner;
             cooldownTimer = TickTimer.None;
         }
-        if (!cooldownTimer.ExpiredOrNotRunning(cooldownRunner))
+        if (!IsReady(cooldownRunner) || connectedPortal != null && !connectedPortal.IsReady(cooldownRunner))
             return;
         GetExitPose(out Vector3 exitPosition, out Quaternion exitRotation);
         if (!player.TryQueuePortalTeleport(exitPosition, exitRotation, reentryDelay))
             return;
 
-        // One cooldown per portal, shared by all players, including simultaneous entrants.
-        cooldownTimer = TickTimer.CreateFromSeconds(cooldownRunner, Mathf.Max(0f, cooldownSeconds));
+        // One host-approved deadline for BOTH ends. Apply before invoking any callback
+        // so a simultaneous entrant at the other portal cannot bypass the cooldown.
+        float pairCooldown = Mathf.Max(0f, cooldownSeconds,
+            connectedPortal != null ? connectedPortal.cooldownSeconds : 0f);
+        float pairOpen = Mathf.Max(0f, openSeconds, connectedPortal != null ? connectedPortal.openSeconds : 0f);
+        double readyAt = player.Runner.SimulationTime + pairCooldown;
+        StartVisualCooldown(player.Runner, readyAt, pairOpen);
+        if (connectedPortal != null) connectedPortal.StartVisualCooldown(player.Runner, readyAt, pairOpen);
 
         // [연출 추가 위치] 여기에 포탈 사용 이펙트/사운드를 연결하세요.
         // On Portal Used Inspector 이벤트로도 연결할 수 있습니다.
         // 호스트에서 사용 승인 직후 호출되며, 실제 이동은 다음 Fusion 틱에 적용됩니다.
-        // 다른 클라이언트에도 연출을 보이려면 별도로 RPC/네트워크 연출을 전달해야 합니다.
+        // 두 포탈 ID와 동일한 종료 시각을 한 번의 RPC로 모든 클라이언트에 전달합니다.
         if (!string.IsNullOrEmpty(visualId))
-            player.PresentPortalUse(visualId, player.Runner.SimulationTime + Mathf.Max(0f, cooldownSeconds));
-        else
-            StartVisualCooldown(player.Runner, player.Runner.SimulationTime + Mathf.Max(0f, cooldownSeconds));
+            player.PresentPortalUse(visualId, connectedPortal != null ? connectedPortal.visualId : string.Empty, readyAt, pairOpen);
         onPortalUsed.Invoke(player);
     }
 
-    public static void PresentUse(string id, NetworkRunner runner, double readyAt)
+    private bool IsReady(NetworkRunner runner) => cooldownRunner != runner || cooldownTimer.ExpiredOrNotRunning(runner);
+
+    public static void PresentUse(string id, string otherId, NetworkRunner runner, double readyAt, float openingSeconds)
     {
         foreach (Portal portal in activePortals)
-            if (portal != null && portal.visualId == id)
+            if (portal != null &&
+                (portal.visualId == id || !string.IsNullOrEmpty(otherId) && portal.visualId == otherId))
             {
-                portal.StartVisualCooldown(runner, readyAt);
-                return;
+                portal.StartVisualCooldown(runner, readyAt, openingSeconds);
             }
     }
 
-    private void StartVisualCooldown(NetworkRunner runner, double readyAt)
+    private void StartVisualCooldown(NetworkRunner runner, double readyAt, float openingSeconds)
     {
+        cooldownRunner = runner;
+        cooldownTimer = TickTimer.CreateFromSeconds(runner, Mathf.Max(0f, (float)(readyAt - runner.SimulationTime)));
         visualRunner = runner;
         visualReadyAt = readyAt;
+        visualOpenSeconds = Mathf.Max(0f, openingSeconds);
         usedVisual = true;
         UpdateVisual();
     }
@@ -151,7 +166,7 @@ public sealed class Portal : MonoBehaviour
         if (usedVisual && visualRunner != null && visualRunner.IsRunning)
         {
             double now = visualRunner.SimulationTime;
-            next = now < visualReadyAt ? 1 : now < visualReadyAt + openSeconds ? 2 : 0;
+            next = now < visualReadyAt ? 1 : now < visualReadyAt + visualOpenSeconds ? 2 : 0;
         }
         if (next == 0) usedVisual = false;
         if (next == visualState) return;
