@@ -28,6 +28,7 @@ public partial class PlayerData
         BattleWallCrashes = 0;
         lastRecordedDeathObject = default;
         ResetTitleMatch();
+        ResetMissions();
         BattleStatsRevision++;
     }
 
@@ -35,6 +36,7 @@ public partial class PlayerData
     private float nextWaterLookup;
     private void TickBattleActivity()
     {
+        RecordMission(MissionObjective.CombatMinutes, Runner.DeltaTime / 60f);
         if (!CanRecordBattleStats) return;
         Player player = Player.FindInRunner(Runner, ParticipantRef);
         if (player == null || !player.IsAlive) return;
@@ -64,6 +66,7 @@ public partial class PlayerData
         RecordTitleHit(source);
         RecordTitleUnblockedHit(attacker);
         if (!IsEnemyForStats(source) || !source.CanRecordBattleStats) return;
+        RecordMissionDamage(source, actualHpLost);
         source.BattleDamageDealt = Mathf.Min(100000000f, source.BattleDamageDealt + actualHpLost);
         source.BattleStatsRevision++;
     }
@@ -74,6 +77,7 @@ public partial class PlayerData
         lastRecordedDeathObject = characterId;
         BattleDeaths++;
         RecordTitleDeath(killer, magic, altitude);
+        RecordMissionDeath(killer);
         BattleStatsRevision++;
         if (!IsEnemyForStats(killer) || !killer.CanRecordBattleStats) return;
         killer.BattleKills++;

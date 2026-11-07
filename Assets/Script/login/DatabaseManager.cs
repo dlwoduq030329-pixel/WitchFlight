@@ -42,6 +42,7 @@ public partial class DatabaseManager : MonoBehaviour
         public int playerprofile;
         public int equippedTitleId;
         public string titleProgressJson = "{}";
+        public string missionState = "";
         // Stable one-based IDs. Zero means this account has not received a cat yet.
         public int catBodyIndex;
         public int catEyeIndex;
@@ -447,6 +448,7 @@ public partial class DatabaseManager : MonoBehaviour
         bool preserveTitles = IsAutoSavePending;
         int pendingTitle = DataConfig.equippedTitleId;
         string pendingProgress = DataConfig.titleProgressJson;
+        string pendingMissions = DataConfig.missionState;
         int pendingMoney = DataConfig.money;
         string pendingInventory = DataConfig.itemInventoryJson;
         ApplyToDataConfig(currentPlayerSetting);
@@ -455,11 +457,13 @@ public partial class DatabaseManager : MonoBehaviour
             using var silent = DataConfig.BeginChangeBatch(false);
             DataConfig.equippedTitleId = pendingTitle;
             DataConfig.titleProgressJson = pendingProgress;
+            DataConfig.missionState = pendingMissions;
             DataConfig.money = pendingMoney;
             DataConfig.itemInventoryJson = pendingInventory;
         }
         IsDataConfigReady = true;
         TitleProgression.OnProfileLoaded();
+        MissionProgression.Load();
         LastError = string.Empty;
         return true;
     }
@@ -668,6 +672,7 @@ public partial class DatabaseManager : MonoBehaviour
             setting.emoteDownId = currentPlayerSetting.emoteDownId; setting.emoteLeftId = currentPlayerSetting.emoteLeftId;
             setting.equippedTitleId = currentPlayerSetting.equippedTitleId;
             setting.titleProgressJson = currentPlayerSetting.titleProgressJson;
+            setting.missionState = currentPlayerSetting.missionState;
             setting.money = currentPlayerSetting.money;
             setting.itemInventoryJson = currentPlayerSetting.itemInventoryJson;
         }
@@ -814,6 +819,7 @@ public partial class DatabaseManager : MonoBehaviour
         param.Add("itemInventoryJson", setting.itemInventoryJson);
         param.Add("equippedTitleId", setting.equippedTitleId);
         param.Add("titleProgressJson", setting.titleProgressJson ?? "{}");
+        param.Add("missionState", setting.missionState ?? "");
         param.Add("catBodyIndex", setting.catBodyIndex);
         param.Add("catEyeIndex", setting.catEyeIndex);
         param.Add("catTutorialCompleted", setting.catTutorialCompleted);
@@ -869,6 +875,7 @@ public partial class DatabaseManager : MonoBehaviour
             currentPlayerSetting?.itemInventoryJson ?? ItemInventory.InitialJson;
         setting.equippedTitleId = DataConfig.equippedTitleId;
         setting.titleProgressJson = DataConfig.titleProgressJson;
+        setting.missionState = DataConfig.missionState;
         // Cosmetic UI / nickname saves must never reroll or clear the account's cat.
         setting.catBodyIndex = currentPlayerSetting?.catBodyIndex ?? 0;
         setting.catEyeIndex = currentPlayerSetting?.catEyeIndex ?? 0;
@@ -910,6 +917,7 @@ public partial class DatabaseManager : MonoBehaviour
             playerprofile = Mathf.Max(0, ReadInt(row, "playerprofile", 0)),
             equippedTitleId = ReadInt(row, "equippedTitleId", 0),
             titleProgressJson = ReadString(row, "titleProgressJson", "{}"),
+            missionState = ReadString(row, "missionState", ""),
             catBodyIndex = ReadInt(row, "catBodyIndex", 0),
             catEyeIndex = ReadInt(row, "catEyeIndex", 0),
             catTutorialCompleted = ReadInt(row, "catTutorialCompleted", 0) == 1 ? 1 : 0,
@@ -1017,6 +1025,7 @@ public partial class DatabaseManager : MonoBehaviour
         DataConfig.emoteDownId = setting.emoteDownId; DataConfig.emoteLeftId = setting.emoteLeftId;
         DataConfig.equippedTitleId = setting.equippedTitleId;
         DataConfig.titleProgressJson = setting.titleProgressJson;
+        DataConfig.missionState = setting.missionState;
         DataConfig.money = setting.money;
         DataConfig.itemInventoryJson = setting.itemInventoryJson;
         // Reuse the existing backend column; no duplicate playerName column is needed.

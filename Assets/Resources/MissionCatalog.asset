@@ -11,12 +11,14 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 17ea4054f3564751bfa66e508cfdd215, type: 3}
   m_Name: MissionCatalog
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   missions:
   - missionId: daily_first_flight
     period: 0
-    displayName: "오늘의 첫 비행"
-    description: "경기 {target}회 완료하기"
+    displayName: "\uC624\uB298\uC758 \uCCAB \uBE44\uD589"
+    sprite: {fileID: 21300000, guid: 7364dcc70e05ed84197fa0b08653d8e1, type: 3}
+    description: "\uACBD\uAE30 {target}\uD68C \uC644\uB8CC\uD558\uAE30"
+    shortDescription: "\uACBD\uAE30 1\uD68C \uC644\uB8CC\uD558\uAE30"
     objective: 0
     target: 1
     rewardCurrency: 100
@@ -25,8 +27,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: daily_play_01
     period: 0
-    displayName: "마녀의 일과"
-    description: "경기 {target}회 완료하기"
+    displayName: "\uB9C8\uB140\uC758 \uC77C\uACFC"
+    sprite: {fileID: 21300000, guid: 4a23b886018e353448da49c40f713858, type: 3}
+    description: "\uACBD\uAE30 {target}\uD68C \uC644\uB8CC\uD558\uAE30"
+    shortDescription: "\uACBD\uAE30 3\uD68C \uC644\uB8CC\uD558\uAE30"
     objective: 0
     target: 3
     rewardCurrency: 200
@@ -35,8 +39,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: daily_damage_01
     period: 0
-    displayName: "마법 실전 연습"
-    description: "적에게 피해 누적 {target} 주기"
+    displayName: "\uB9C8\uBC95 \uC2E4\uC804 \uC5F0\uC2B5"
+    sprite: {fileID: 21300000, guid: 79e57094eb3f4da46b7b21510a53cecb, type: 3}
+    description: "\uC801\uC5D0\uAC8C \uD53C\uD574 \uB204\uC801 {target} \uC8FC\uAE30"
+    shortDescription: "\uC801\uC5D0\uAC8C \uD53C\uD574 \uC8FC\uAE30"
     objective: 1
     target: 3000
     rewardCurrency: 150
@@ -45,8 +51,11 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: daily_kill_assist_01
     period: 0
-    displayName: "놓치지 않을 거야"
-    description: "적 처치 또는 처치 도움 {target}회 달성하기"
+    displayName: "\uB193\uCE58\uC9C0 \uC54A\uC744 \uAC70\uC57C"
+    sprite: {fileID: 21300000, guid: cfde581968e39b042aa04fc71a154e85, type: 3}
+    description: "\uC801 \uCC98\uCE58 \uB610\uB294 \uCC98\uCE58 \uB3C4\uC6C0 {target}\uD68C
+      \uB2EC\uC131\uD558\uAE30"
+    shortDescription: "\uCC98\uCE58 \uD639\uC740 \uB3C4\uC6C0"
     objective: 2
     target: 5
     rewardCurrency: 150
@@ -55,8 +64,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: daily_items_01
     period: 0
-    displayName: "전장 보급"
-    description: "전투 중 아이템 {target}개 획득하기"
+    displayName: "\uC804\uC7A5 \uBCF4\uAE09"
+    sprite: {fileID: 21300000, guid: 5f0f4b4ca995ec24ea5fee033f90c819, type: 3}
+    description: "\uC804\uD22C \uC911 \uC544\uC774\uD15C {target}\uAC1C \uD68D\uB4DD\uD558\uAE30"
+    shortDescription: "\uC544\uC774\uD15C \uD719\uB4DD\uD558\uAE30"
     objective: 3
     target: 5
     rewardCurrency: 100
@@ -65,8 +76,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_play_01
     period: 1
-    displayName: "꾸준한 마녀"
-    description: "경기 {target}회 완료하기"
+    displayName: "\uAFB8\uC900\uD55C \uB9C8\uB140"
+    sprite: {fileID: 21300000, guid: 88d3009651524724fab128e5f0a2dc7f, type: 3}
+    description: "\uACBD\uAE30 {target}\uD68C \uC644\uB8CC\uD558\uAE30"
+    shortDescription: "\uACBD\uAE30 \uC644\uB8CC"
     objective: 0
     target: 15
     rewardCurrency: 1000
@@ -75,8 +88,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_damage_01
     period: 1
-    displayName: "마력의 흔적"
-    description: "적에게 누적 피해 {target} 주기"
+    displayName: "\uB9C8\uB825\uC758 \uD754\uC801"
+    sprite: {fileID: 21300000, guid: 2068d2a82a4595f40acaaf94c824dcbe, type: 3}
+    description: "\uC801\uC5D0\uAC8C \uB204\uC801 \uD53C\uD574 {target} \uC8FC\uAE30"
+    shortDescription: "\uC801\uC5D0\uAC8C \uD53C\uD574 \uC8FC\uAE30"
     objective: 1
     target: 40000
     rewardCurrency: 1000
@@ -85,8 +100,11 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_kill_assist_01
     period: 1
-    displayName: "전장의 해결사"
-    description: "적 처치 또는 처치 도움 {target}회 달성하기"
+    displayName: "\uC804\uC7A5\uC758 \uD574\uACB0\uC0AC"
+    sprite: {fileID: 21300000, guid: d3d34eb934c2bfe4984a69691e303588, type: 3}
+    description: "\uC801 \uCC98\uCE58 \uB610\uB294 \uCC98\uCE58 \uB3C4\uC6C0 {target}\uD68C
+      \uB2EC\uC131\uD558\uAE30"
+    shortDescription: "\uCC98\uCE58 \uB610\uB294 \uCC98\uCE58 \uB3C4\uC6C0"
     objective: 2
     target: 60
     rewardCurrency: 1000
@@ -95,8 +113,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_wins_01
     period: 1
-    displayName: "승리를 향해서"
-    description: "경기 {target}회 승리하기"
+    displayName: "\uC2B9\uB9AC\uB97C \uD5A5\uD574\uC11C"
+    sprite: {fileID: 21300000, guid: 849f2fd85ba55d54180448cde5f5e2b9, type: 3}
+    description: "\uACBD\uAE30 {target}\uD68C \uC2B9\uB9AC\uD558\uAE30"
+    shortDescription: "\uACBD\uAE30 \uC2B9\uB9AC"
     objective: 4
     target: 5
     rewardCurrency: 1000
@@ -105,8 +125,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_minutes_01
     period: 1
-    displayName: "끝까지 날아라"
-    description: "전투 누적 플레이 {target}분 달성하기"
+    displayName: "\uB05D\uAE4C\uC9C0 \uB0A0\uC544\uB77C"
+    sprite: {fileID: 21300000, guid: 5d34edad46964344e8e9ff2c3446d607, type: 3}
+    description: "\uC804\uD22C \uB204\uC801 \uD50C\uB808\uC774 {target}\uBD84 \uB2EC\uC131\uD558\uAE30"
+    shortDescription: "\uC804\uD22C \uD50C\uB808\uC774 \uC2DC\uAC04(\uBD84)"
     objective: 5
     target: 120
     rewardCurrency: 1000
@@ -115,8 +137,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_items_01
     period: 1
-    displayName: "보급품 수집가"
-    description: "전투 중 아이템 {target}개 획득하기"
+    displayName: "\uBCF4\uAE09\uD488 \uC218\uC9D1\uAC00"
+    sprite: {fileID: 21300000, guid: 781eb6e09b494dc44b436fc37aeb700e, type: 3}
+    description: "\uC804\uD22C \uC911 \uC544\uC774\uD15C {target}\uAC1C \uD68D\uB4DD\uD558\uAE30"
+    shortDescription: "\uC804\uD22C \uC544\uC774\uD15C \uD68D\uB4DD"
     objective: 3
     target: 40
     rewardCurrency: 1000
@@ -125,8 +149,10 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_parry_01
     period: 1
-    displayName: "빈틈없는 방어"
-    description: "패링 {target}회 성공하기"
+    displayName: "\uBE48\uD2C8\uC5C6\uB294 \uBC29\uC5B4"
+    sprite: {fileID: 21300000, guid: ef1e30937c5dd2047beb13ada55897ae, type: 3}
+    description: "\uD328\uB9C1 {target}\uD68C \uC131\uACF5\uD558\uAE30"
+    shortDescription: "\uD328\uB9C1 \uC131\uACF5"
     objective: 6
     target: 15
     rewardCurrency: 1000
@@ -135,8 +161,11 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_magic_hits_01
     period: 1
-    displayName: "마법 연구 주간"
-    description: "서로 다른 공격 마법 {target}종으로 각각 적중 {requiredHitsPerMagic}회 달성하기"
+    displayName: "\uB9C8\uBC95 \uC5F0\uAD6C \uC8FC\uAC04"
+    sprite: {fileID: 21300000, guid: 2117fff1365f5bf4aa66a825456506fa, type: 3}
+    description: "\uC11C\uB85C \uB2E4\uB978 \uACF5\uACA9 \uB9C8\uBC95 {target}\uC885\uC73C\uB85C
+      \uAC01\uAC01 \uC801\uC911 {requiredHitsPerMagic}\uD68C \uB2EC\uC131\uD558\uAE30"
+    shortDescription: "\uB9C8\uBC95\uBCC4 {requiredHitsPerMagic}\uD68C \uC801\uC911"
     objective: 7
     target: 4
     rewardCurrency: 1000
@@ -145,8 +174,11 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_play_days_01
     period: 1
-    displayName: "다시 일어서는 마녀"
-    description: "서로 다른 날에 경기 완료 {target}일 달성하기"
+    displayName: "\uB2E4\uC2DC \uC77C\uC5B4\uC11C\uB294 \uB9C8\uB140"
+    sprite: {fileID: 21300000, guid: 92a17e4bde9c96045a59310d7cd73fa2, type: 3}
+    description: "\uC11C\uB85C \uB2E4\uB978 \uB0A0\uC5D0 \uACBD\uAE30 \uC644\uB8CC
+      {target}\uC77C \uB2EC\uC131\uD558\uAE30"
+    shortDescription: "\uC11C\uB85C \uB2E4\uB978 \uB0A0\uC5D0 \uACBD\uAE30 \uC644\uB8CC"
     objective: 8
     target: 4
     rewardCurrency: 1000
@@ -155,8 +187,11 @@ MonoBehaviour:
     requiredHitsPerMagic: 10
   - missionId: weekly_match_contribution_01
     period: 1
-    displayName: "숙련된 전투원"
-    description: "서로 다른 경기 {target}회에서 처치 또는 처치 도움 달성하기"
+    displayName: "\uC219\uB828\uB41C \uC804\uD22C\uC6D0"
+    sprite: {fileID: 21300000, guid: 2117fff1365f5bf4aa66a825456506fa, type: 3}
+    description: "\uC11C\uB85C \uB2E4\uB978 \uACBD\uAE30 {target}\uD68C\uC5D0\uC11C
+      \uCC98\uCE58 \uB610\uB294 \uCC98\uCE58 \uB3C4\uC6C0 \uB2EC\uC131\uD558\uAE30"
+    shortDescription: "\uCC98\uCE58\uC5D0 \uAE30\uC5EC\uD55C \uACBD\uAE30"
     objective: 9
     target: 8
     rewardCurrency: 1000

@@ -53,7 +53,7 @@ public sealed class RaidMinion : MagicProjectile
         if (!Object.HasStateAuthority || !IsLiveSummon || team == ShooterTeam || hit.damage <= 0 || float.IsNaN(hit.damage) || float.IsInfinity(hit.damage)) return false;
         float before = Health;
         Health = Mathf.Max(0, Health - hit.damage);
-        boss.RecordDealt(attacker, before - Health, Health <= 0f);
+        boss.RecordDealt(attacker, before - Health, Health <= 0f, hit.magic);
         if (Health <= 0) { Active = false; Finished = true; }
         if (Runner.TryFindObject(attacker, out var source) && source != null) source.GetComponent<Player>()?.ConfirmSummonHit();
         return true;

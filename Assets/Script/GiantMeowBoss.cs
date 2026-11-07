@@ -458,7 +458,7 @@ public sealed partial class GiantMeowBoss : NetworkBehaviour
         float before = Health;
         if (Absorbing) AbsorbedDamage += hit.damage;
         else Health = Mathf.Max(0, Health - hit.damage * (Exposed ? settings.exposureDamageMultiplier : 1f));
-        RecordDealt(attacker, before - Health, Health <= 0f);
+        RecordDealt(attacker, before - Health, Health <= 0f, hit.magic);
         if (Runner.TryFindObject(attacker, out var source) && source != null) source.GetComponent<Player>()?.ConfirmSummonHit();
         if (Health <= 0)
             EndRaid();
@@ -467,6 +467,8 @@ public sealed partial class GiantMeowBoss : NetworkBehaviour
     private void EndRaid()
     {
         CaptureRaidAwards();
+        foreach(var data in PlayerData.PerkPlayers)
+            if(data!=null && data.Runner==Runner) data.CompleteMissions(Health<=0);
         Phase = BattleStartPhase.Ended;
         WallState = 0;
         for (int i = 0; i < shots.Length; i++)

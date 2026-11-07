@@ -44,7 +44,7 @@ public sealed partial class GiantMeowBoss
             return;
         }
     }
-    public void RecordDealt(NetworkId attacker, float damage, bool killed)
+    public void RecordDealt(NetworkId attacker, float damage, bool killed, MagicType magic = MagicType.None)
     {
         if (!Object.HasStateAuthority || damage <= 0f || !Runner.TryFindObject(attacker, out var obj) || obj == null) return;
         var player = obj.GetComponent<RaidPlayer>();
@@ -53,6 +53,10 @@ public sealed partial class GiantMeowBoss
         {
             var row = Results[i];
             if (row.Player != player.ParticipantRef) continue;
+            var data = PlayerData.FindPerkData(Runner, player.ParticipantRef);
+            data?.RecordMission(MissionObjective.DamageDealt, damage);
+            data?.RecordMissionMagicHit(magic);
+            if(killed)data?.RecordMission(MissionObjective.KillOrAssist);
             row.Damage += damage;
             if (killed) row.Kills++;
             Results.Set(i, row);
