@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using Fusion;
@@ -389,6 +389,25 @@ public sealed class BattleResultsPresentation : MonoBehaviour
         canvas.additionalShaderChannels |= AdditionalCanvasShaderChannels.TexCoord1 |
             AdditionalCanvasShaderChannels.Normal | AdditionalCanvasShaderChannels.Tangent;
         if (root.GetComponent<GraphicRaycaster>() == null) root.AddComponent<GraphicRaycaster>();
+        // These particles use ordinary renderers, so the Canvas order must also
+        // be reflected in their sorting settings when the results panel is raised.
+        var particles = root.GetComponentsInChildren<ParticleSystem>(true);
+        int lowestOrder = int.MaxValue;
+        foreach (var particle in particles)
+        {
+            var main = particle.main;
+            main.useUnscaledTime = true;
+            var renderer = particle.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null) lowestOrder = Mathf.Min(lowestOrder, renderer.sortingOrder);
+        }
+        int orderOffset = lowestOrder <= canvas.sortingOrder ? canvas.sortingOrder + 1 - lowestOrder : 0;
+        foreach (var particle in particles)
+        {
+            var renderer = particle.GetComponent<ParticleSystemRenderer>();
+            if (renderer == null) continue;
+            renderer.sortingLayerID = canvas.sortingLayerID;
+            renderer.sortingOrder += orderOffset;
+        }
     }
     private static void Replay(GameObject root)
     {
