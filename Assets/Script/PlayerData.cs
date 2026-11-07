@@ -104,6 +104,7 @@ public partial class PlayerData : NetworkBehaviour
     [Networked] public Color hairColor { get; private set; } = Color.white;
     [Networked] public Color clothColor { get; private set; } = Color.white;
     [Networked] public Color eyeColor { get; private set; } = Color.white;
+    [Networked] public Color eyePaletteColor { get; private set; }
     [Networked] public int wandIndex { get; private set; }
     public int hairLength => Mathf.RoundToInt(bangsLength);
 
@@ -111,7 +112,7 @@ public partial class PlayerData : NetworkBehaviour
     {
         hairStylePreset = hairStylePreset, bangsLength = bangsLength, bangsDirection = bangsDirection,
         sideHairLength = sideHairLength, ahogeLength = ahogeLength,
-        hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor,
+        hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor, eyePaletteColor = eyePaletteColor,
         hatIndex = (int)hat, broomIndex = (int)broom, wandIndex = wandIndex
     };
 
@@ -124,6 +125,7 @@ public partial class PlayerData : NetworkBehaviour
         hairStylePreset = config.hairStylePreset; bangsLength = config.bangsLength;
         bangsDirection = config.bangsDirection; sideHairLength = config.sideHairLength; ahogeLength = config.ahogeLength;
         hairColor = config.hairColor; clothColor = config.clothColor; eyeColor = config.eyeColor; wandIndex = config.wandIndex;
+        eyePaletteColor = config.eyePaletteColor;
     }
 
 
@@ -188,6 +190,7 @@ public partial class PlayerData : NetworkBehaviour
         hairColor = selectedConfig.hairColor;
         clothColor = selectedConfig.clothColor;
         eyeColor = selectedConfig.eyeColor;
+        eyePaletteColor = selectedConfig.eyePaletteColor;
         wandIndex = selectedConfig.wandIndex;
         playerprofile = Mathf.Max(0, selectedProfile);
         CatBodyIndex = Mathf.Clamp(catBody, 1, 7);

@@ -37,6 +37,11 @@ public class PlayerAppearance : MonoBehaviour
     private readonly List<ColorTarget> detectedHairColorTargets = new List<ColorTarget>();
     private readonly List<ColorTarget> detectedClothColorTargets = new List<ColorTarget>();
     private readonly List<ColorTarget> detectedEyeColorTargets = new List<ColorTarget>();
+    private RenderTexture paletteEyeTexture;
+    private Material paletteEyeMaterial;
+    private Texture paletteEyeSource;
+    private Color paletteEyeLastColor;
+    private bool paletteEyeWasFourWhite;
 
     private void OnEnable()
     {
@@ -91,7 +96,7 @@ public class PlayerAppearance : MonoBehaviour
         ApplySideHairLength(config.sideHairLength);
         ApplyHairColor(config.hairColor);
         ApplyClothColor(config.clothColor);
-        ApplyEyeColor(config.eyeColor);
+        ApplyEyeColor(config.eyeColor, config.eyePaletteColor);
     }
 
     // Per-renderer overrides keep other characters and shared material assets unchanged.
@@ -108,6 +113,9 @@ public class PlayerAppearance : MonoBehaviour
     }
 
     public void ApplyEyeColor(Color color)
+        => ApplyEyeColor(color, new Color(1, 1, 1, 0));
+
+    public void ApplyEyeColor(Color color, Color paletteColor)
     {
         EyeTexturePresetTable table = eyeTexturePresets != null ? eyeTexturePresets : EyeTexturePresetTable.Default;
         if (table == null || !table.TryResolve(color, out EyeTexturePresetTable.Preset preset))
@@ -117,6 +125,8 @@ public class PlayerAppearance : MonoBehaviour
             missingEyeColorWarningShown = true;
             return;
         }
+        Texture eyeTexture = paletteColor.a > 0.5f
+            ? GetPaletteEyeTexture(preset.texture, paletteColor, table.IsFourWhite(color)) : preset.texture;
         IEnumerable<ColorTarget> targets = eyeColorTargets != null && eyeColorTargets.Length > 0
             ? eyeColorTargets : DetectColorTargets(detectedEyeColorTargets,
                 (renderer, material) => renderer.name == "Body" && material.name == "body" &&
@@ -136,12 +146,12 @@ public class PlayerAppearance : MonoBehaviour
             if (!material.HasProperty("_Main2ndTex") || !material.HasProperty("_Color2nd")) continue;
             target.renderer.GetPropertyBlock(hairColorBlock, index);
             // 여기는 홍채 색을 곱하지 않습니다. 완성된 눈 텍스처를 교체하고 틴트는 흰색 유지.
-            hairColorBlock.SetTexture("_Main2ndTex", preset.texture);
+            hairColorBlock.SetTexture("_Main2ndTex", eyeTexture);
             hairColorBlock.SetColor("_Color2nd", Color.white);
             target.renderer.SetPropertyBlock(hairColorBlock, index);
             if (presentation != null)
             {
-                presentation.SetAppearanceLayerTexture(target.renderer, index, "_Main2ndTex", preset.texture);
+                presentation.SetAppearanceLayerTexture(target.renderer, index, "_Main2ndTex", eyeTexture);
                 presentation.SetAppearanceLayerColor(target.renderer, index, "_Color2nd", Color.white);
             }
             applied = true;
@@ -149,6 +159,37 @@ public class PlayerAppearance : MonoBehaviour
         if (!applied && !missingEyeColorWarningShown)
             Debug.LogWarning("PlayerAppearance: Eye Color Targets의 Body Renderer와 눈 머티리얼 슬롯을 확인해주세요.", this);
         missingEyeColorWarningShown = !applied;
+    }
+
+    private Texture GetPaletteEyeTexture(Texture source, Color tint, bool fourWhite)
+    {
+        if (paletteEyeMaterial == null)
+        {
+            var shader = Resources.Load<Shader>("EyePaletteTint");
+            if (shader == null) return source;
+            paletteEyeMaterial = new Material(shader) { hideFlags = HideFlags.DontSave };
+        }
+        bool created = paletteEyeTexture == null || !paletteEyeTexture.IsCreated();
+        if (paletteEyeTexture == null)
+            paletteEyeTexture = new RenderTexture(512, 512, 0, RenderTextureFormat.ARGB32)
+            { name = "Eye palette (cached)", hideFlags = HideFlags.DontSave, wrapMode = TextureWrapMode.Clamp };
+        if (created) paletteEyeTexture.Create();
+        if (created || paletteEyeSource != source || paletteEyeLastColor != tint || paletteEyeWasFourWhite != fourWhite)
+        {
+            paletteEyeMaterial.SetColor("_PaletteColor", tint);
+            paletteEyeMaterial.SetFloat("_PupilOnly", fourWhite ? 1 : 0);
+            var previous = RenderTexture.active;
+            try { Graphics.Blit(source, paletteEyeTexture, paletteEyeMaterial); }
+            finally { RenderTexture.active = previous; }
+            paletteEyeSource = source; paletteEyeLastColor = tint; paletteEyeWasFourWhite = fourWhite;
+        }
+        return paletteEyeTexture;
+    }
+
+    private void OnDestroy()
+    {
+        if (paletteEyeTexture != null) { paletteEyeTexture.Release(); Destroy(paletteEyeTexture); }
+        if (paletteEyeMaterial != null) Destroy(paletteEyeMaterial);
     }
 
     private void ApplyColorTargets(IEnumerable<ColorTarget> targets, Color color, string defaultProperty,

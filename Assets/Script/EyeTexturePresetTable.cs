@@ -17,6 +17,17 @@ public sealed class EyeTexturePresetTable : ScriptableObject
     [SerializeField] private Preset[] presets;
     [Tooltip("Read-only compatibility entries for old saved keys, not selectable button indices.")]
     [SerializeField] private Preset[] legacyPresets;
+    [Header("Palette eye shapes (indices in Presets)")]
+    [SerializeField] private int fourWhitePresetIndex = 2;
+    [SerializeField] private int sparklingPresetIndex = 0;
+    public bool TryGetPaletteShape(bool fourWhite, out Preset preset)
+        => TryGetPreset(fourWhite ? fourWhitePresetIndex : sparklingPresetIndex, out preset);
+    public bool IsFourWhite(Color key)
+    {
+        if (!TryGetPaletteShape(true, out var preset)) return false;
+        Color32 a = key, b = preset.savedColorKey;
+        return a.r == b.r && a.g == b.g && a.b == b.b;
+    }
     private static EyeTexturePresetTable defaultTable;
     public int Count => presets != null ? presets.Length : 0;
     public static EyeTexturePresetTable Default
