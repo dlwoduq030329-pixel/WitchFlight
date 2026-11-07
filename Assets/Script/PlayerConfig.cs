@@ -46,7 +46,7 @@ public struct PlayerConfig : INetworkStruct
         value.eyePaletteColor = SanitizeColor(eyePaletteColor);
         value.hatIndex = hatIndex >= (int)HatType.Classic && hatIndex <= (int)HatType.Cosmic
             ? hatIndex : (int)HatType.Classic;
-        value.broomIndex = broomIndex >= (int)BroomType.Slow && broomIndex <= (int)BroomType.Speed
+        value.broomIndex = broomIndex >= (int)BroomType.Slow && broomIndex <= (int)BroomType.Robot
             ? broomIndex : (int)BroomType.Standard;
         value.wandIndex = Mathf.Max(0, wandIndex);
         return value;

@@ -10,6 +10,7 @@ public class PlayerEquipment : MonoBehaviour
 
     [Header("Pre-placed scene objects (BroomType enum index order)")]
     [SerializeField] private GameObject[] broomPrefabs;
+    [SerializeField] private RobotRidingPose robotRidingPose;
 
     private GameObject magicStaff1;
     private GameObject magicStaff2;
@@ -88,6 +89,7 @@ public class PlayerEquipment : MonoBehaviour
         currentMagicSlot = 0;
         ChangeMagic(slot);
         SetOnlyActive(broomPrefabs, visible ? currentBroomIndex : 0);
+        UpdateRobotRidingPose();
         if (!visible) SetAllInactive(magicStaffPrefabs);
     }
 
@@ -179,6 +181,13 @@ public class PlayerEquipment : MonoBehaviour
     {
         currentBroomIndex = index;
         SetOnlyActive(broomPrefabs, flightEquipmentVisible ? index : 0);
+        UpdateRobotRidingPose();
+    }
+
+    private void UpdateRobotRidingPose()
+    {
+        if (robotRidingPose != null)
+            robotRidingPose.SetRiding(flightEquipmentVisible && currentBroomIndex == (int)BroomType.Robot);
     }
 
     private GameObject FindMagicObject(MagicType magic)

@@ -107,9 +107,9 @@ public sealed class EquipmentStatTable : ScriptableObject
     [Tooltip("Classic, Twisted, Elemental 세 모자의 AP 능력치를 편집합니다.")]
     public HatStatEntry[] hats = new HatStatEntry[3];
 
-    [Header("Brooms (3)")]
-    [Tooltip("Slow(체력·부스트 효율), Standard(최고 선회력·편한 가감속), Speed(최고 속도)의 능력치를 편집합니다.")]
-    public BroomStatEntry[] brooms = new BroomStatEntry[3];
+    [Header("Brooms")]
+    [Tooltip("Slow(체력·부스트 효율), Standard(최고 선회력·편한 가감속), Speed(최고 속도), Robot(로봇 청소기)의 능력치를 편집합니다.")]
+    public BroomStatEntry[] brooms = new BroomStatEntry[4];
 
     public HatStatEntry GetHatStats(HatType selectedHat)
     {

@@ -100,7 +100,7 @@ public sealed class MatchBotSettings : ScriptableObject
         if (configured != null) foreach (var entry in configured)
         {
             int id = System.Convert.ToInt32(entry);
-            if (id < 1 || id > (hat ? (int)HatType.Cosmic : (int)BroomType.Speed)) continue;
+            if (id < 1 || id > (hat ? (int)HatType.Cosmic : (int)BroomType.Robot)) continue;
             int used = 0;
             if (teammates != null) foreach (var other in teammates)
                 if ((hat ? other.hatIndex : other.broomIndex) == id) used++;
