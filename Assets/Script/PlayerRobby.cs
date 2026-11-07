@@ -30,6 +30,9 @@ public sealed partial class PlayerRobby : NetworkBehaviour
     [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
     private void RPC_PracticeEvent(byte kind, int magic, Vector3 origin, Vector3 direction, NetworkBool guided)
     {
+        // Apply gameplay once on the host, including casts made by the host itself.
+        if (Object.HasStateAuthority)
+            RobbyMagicPractice.Instance?.ApplyAuthoritativeBallHit(this, kind, (MagicType)magic, origin, direction);
         if (Object.HasInputAuthority) return; // The sender already presented this event.
         RobbyMagicPractice.Instance?.ReceivePracticeEvent(this, kind, (MagicType)magic, origin, direction, guided);
     }

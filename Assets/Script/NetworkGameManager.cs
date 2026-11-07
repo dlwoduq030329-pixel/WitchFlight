@@ -162,7 +162,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             robbyTabChanged = false;
             return;
         }
-        if (!Input.GetKeyDown(KeyCode.Tab) || !Application.isFocused) return;
+        if (!Input.GetKeyDown(KeyCode.Tab) || !Application.isFocused || MainRoomChatUI.BlocksLobbyInput) return;
         Scene main = SceneManager.GetSceneByPath("Assets/Scenes/Main.unity");
         if (!main.IsValid() || !main.isLoaded) return;
         var selected = UnityEngine.EventSystems.EventSystem.current != null

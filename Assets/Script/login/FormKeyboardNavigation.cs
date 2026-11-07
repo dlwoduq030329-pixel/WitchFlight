@@ -65,6 +65,7 @@ public sealed class FormKeyboardNavigation : MonoBehaviour
 
     private bool IsCurrentForm()
     {
+        if (MainRoomChatUI.BlocksLobbyInput) return false;
         if (!isActiveAndEnabled || !gameObject.activeInHierarchy) return false;
         foreach (FormKeyboardNavigation other in activeForms)
             if (other != null && other != this && other.isActiveAndEnabled && other.gameObject.activeInHierarchy &&

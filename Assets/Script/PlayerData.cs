@@ -318,9 +318,9 @@ public partial class PlayerData : NetworkBehaviour
         if (hasState && Object != null && Object.HasInputAuthority) TitleProgression.Observe(this, true);
         perkPlayers.Remove(this);
         NotifyDeathMatchRankingChanged();
-        if (Local == this) Local = null;
+        if (Local == this) { MainRoomChatUI.LeftRoom(runner); Local = null; }
         NetworkGameManager.Instance?.UnregisterPlayerData(this);
     }
 
-    private void OnDestroy() { if (perkPlayers.Remove(this)) NotifyDeathMatchRankingChanged(); if (Local == this) Local = null; }
+    private void OnDestroy() { if (perkPlayers.Remove(this)) NotifyDeathMatchRankingChanged(); if (Local == this) { MainRoomChatUI.LeftRoom(Runner); Local = null; } }
 }

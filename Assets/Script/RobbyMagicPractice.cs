@@ -4,11 +4,39 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Lobby-only sandbox. No Player, BattleManager, rewards, debuffs or PvP hit registration.
-// Uses the equipped IDs and the same balancing/VFX assets; all hits have one allowed target.
+// Uses equipped IDs and shared balancing/VFX assets; dummy hits and lobby ball impulses only.
 [DefaultExecutionOrder(200)] // Read the muzzle after animation and the lobby camera's LateUpdate.
 public sealed class RobbyMagicPractice : MonoBehaviour
 {
     public static RobbyMagicPractice Instance { get; private set; }
+    internal void ApplyAuthoritativeBallHit(PlayerRobby caster, byte kind, MagicType magic, Vector3 origin, Vector3 aim)
+    {
+        if ((kind != 0 && kind != 3 && kind != 4) || magicTable == null || caster == null ||
+            !caster.Object.HasStateAuthority || NetworkGameManager.Instance == null ||
+            !NetworkGameManager.Instance.IsWaitingInCodeRoom) return;
+        var stats = magicTable.GetStats(magic);
+        if (!CanPushBall(stats)) return;
+        if (kind == 4)
+        {
+            if (stats.effect == MagicEffectKind.DelayedArea)
+                RobbyBeachBall.ApplyAreaMagicHit(caster.Runner, origin, stats.radius, magic);
+            return;
+        }
+        // Travelling shots apply their impulse at contact, never at cast time.
+        if (kind == 0 ? stats.projectileSpeed > 0 || stats.IsChanneled : !stats.IsChanneled) return;
+        Vector3 direction = kind == 3 ? aim - origin : aim;
+        float length = direction.magnitude;
+        if (!(length > .0001f) || float.IsInfinity(length)) return;
+        direction /= length;
+        // Channel endpoints already stop on geometry; include the contact surface.
+        float distance = kind == 3 ? Mathf.Min(length + .02f, Mathf.Max(1, stats.range)) : Mathf.Max(1, stats.range);
+        Vector3 end = ResolveInstantEnd(stats, origin, direction, distance, out var ball);
+        if (ball != null && ball.Runner == caster.Runner)
+            ball.ApplyMagicHit(direction, end, magic, kind == 3 ? Mathf.Clamp(stats.channelTickSeconds, .02f, 1f) : 1f);
+    }
+    internal static bool CanPushBall(MagicStatEntry stats) => stats.magic != MagicType.None &&
+        !stats.requiresTarget && !stats.TargetsAllies && stats.effect != MagicEffectKind.Flare &&
+        stats.effect != MagicEffectKind.Smoke && stats.effect != MagicEffectKind.TimeField;
     // 0 projectile, 1 cast, 2 impact, 3 channel sample, 4 thunder burst,
     // 5 rain circle, 6 area warning. Only discrete events cross the network.
     public void ReceivePracticeEvent(PlayerRobby caster, byte kind, MagicType magic, Vector3 origin, Vector3 direction, bool guided)
@@ -17,7 +45,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         var stats = magicTable.GetStats(magic);
         switch (kind)
         {
-            case 0: Fire(stats, origin, direction, guided, true, caster.GetInstanceID()); break;
+            case 0: Fire(stats, origin, direction, guided, true, caster.GetInstanceID(), caster); break;
             case 1:
                 caster.SelectPracticeStaff(magic);
                 caster.PlayPracticeCast();
@@ -72,7 +100,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     private Transform castRoot;
     private int selected, bladeLeft;
     private float charge, bladeUntil, nextBlade, nextChannel;
-    private bool held, visible;
+    private bool held, visible, inputActive;
     private bool acquiredLock;
     private bool pendingRelease, pendingBlade;
     private MagicStatEntry pendingStats;
@@ -95,6 +123,8 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         public bool guided;
         public bool remote;
         public int caster;
+        public Fusion.NetworkRunner ballRunner;
+        public bool applyBallImpact;
     }
     private struct Burst
     {
@@ -136,6 +166,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             slider.interactable = false; slider.minValue = 0; slider.maxValue = 1;
         }
         RefreshLoadout();
+        SetPracticeVisible(false);
     }
     private void OnEnable() { DataConfig.Changed += RefreshLoadout; }
     private void OnDisable()
@@ -177,12 +208,25 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         }
     }
     private Vector3 Origin => castRoot.position;
+    private void SetPracticeVisible(bool value)
+    {
+        visible = value;
+        // This Canvas also owns chat and interaction UI. Only hide our own HUD.
+        foreach (var slider in skillSliders)
+            if (slider != null) slider.gameObject.SetActive(value);
+        if (aimReticle != null) aimReticle.gameObject.SetActive(value);
+        if (!value) HideLock();
+    }
     private void LateUpdate()
     {
+        // Shared lobby Canvas visibility follows room membership, never keyboard focus.
+        bool inRoom = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsWaitingInCodeRoom;
+        if (canvas != null && canvas.enabled != inRoom) canvas.enabled = inRoom;
         bool active = RobbyPlayerCamera.CanUsePractice && target != null && magicTable != null &&
             PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.PracticeMagicRoot != null;
-        if (visible != active) { visible = active; if (canvas != null) canvas.enabled = active; if (!active) Cancel(); }
-        if (canvas != null && !active && canvas.enabled) canvas.enabled = false;
+        bool show = RobbyPlayerCamera.ShowsLobbyAvatar && target != null && magicTable != null;
+        if (visible != show) SetPracticeVisible(show);
+        if (inputActive != active) { inputActive = active; if (!active) Cancel(); }
         TickShots(); TickBursts();
         TickOrbits();
         if (PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.InteractionBusy)
@@ -402,7 +446,8 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             else { b.next = Time.time + b.interval; bursts[i] = b; }
         }
     }
-    private void Fire(MagicStatEntry stats, Vector3 origin, Vector3 direction, bool guided, bool remote = false, int caster = 0)
+    private void Fire(MagicStatEntry stats, Vector3 origin, Vector3 direction, bool guided, bool remote = false, int caster = 0,
+        PlayerRobby source = null)
     {
         if (direction.sqrMagnitude < .001f) { TraceCast("발사 거절: 에임 방향 길이가 0"); return; }
         if (stats.projectileSpeed > 0 && shots.Count >= 256) return;
@@ -410,23 +455,19 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         if (stats.projectileSpeed <= 0)
         {
             TraceCast($"{stats.magic}: 즉발 광선 시전 (데이터의 projectileSpeed={stats.projectileSpeed})");
-            Vector3 end = origin + direction * Mathf.Max(1, stats.range);
-            if (Blocked(origin, end, out Vector3 p)) end = p;
-            // End the visual on the dummy instead of extending through it to the far distance.
-            Vector3 offset = target.AimPoint - origin;
-            float along = Vector3.Dot(offset, direction);
-            float radius = target.Radius + Mathf.Max(0, stats.hitscanRadius);
-            if (along > 0 && along < Vector3.Distance(origin, end) &&
-                (offset - direction * along).sqrMagnitude <= radius * radius)
-                end = origin + direction * along;
+            Vector3 end = ResolveInstantEnd(stats, origin, direction.normalized, Mathf.Max(1, stats.range), out var ball);
             ShowBeam(stats, caster, origin, end, instantBeamSeconds);
-            HitSegment(origin, end, stats.hitscanRadius, stats, !remote); return;
+            if (ball == null) HitSegment(origin, end, stats.hitscanRadius, stats, !remote);
+            return;
         }
         if (shots.Count >= 256) { TraceCast("발사 거절: 동시 투사체 상한 256"); return; }
         var view = MagicVfxPool.Rent(stats.projectileVfxPrefab != null ? stats.projectileVfxPrefab : fallbackProjectile, origin, Quaternion.LookRotation(direction));
         if (view == null) view = MagicVfxPool.Rent(fallbackProjectile, origin, Quaternion.LookRotation(direction));
-        shots.Add(new Shot { view = view, position = origin, direction = direction, guided = guided,
-            expires = Time.time + Mathf.Max(.1f, stats.projectileLifetime), stats = stats, remote = remote, caster = caster });
+        var shooter = source != null ? source : owner;
+        shots.Add(new Shot { view = view, position = origin, direction = direction.normalized, guided = guided,
+            expires = Time.time + Mathf.Max(.1f, stats.projectileLifetime), stats = stats, remote = remote, caster = caster,
+            ballRunner = shooter != null ? shooter.Runner : null,
+            applyBallImpact = shooter != null && shooter.Object != null && shooter.Object.IsValid && shooter.Object.HasStateAuthority });
         if (traceCasts && Time.unscaledTime >= nextProjectileTrace)
         {
             nextProjectileTrace = Time.unscaledTime + .5f; // Do not flood the console for a volley.
@@ -444,6 +485,15 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             Vector3 end = shot.position + shot.direction * shot.stats.projectileSpeed * Time.deltaTime;
             bool wall = Blocked(shot.position, end, out Vector3 wallPoint);
             if (wall) end = wallPoint;
+            if (CanPushBall(shot.stats) && RobbyBeachBall.TryMagicContact(shot.ballRunner, shot.position, end,
+                shot.stats.projectileRadius, out var ball, out float ballFraction) &&
+                (!RobbyBeachBall.TrySphereContact(shot.position, end, target.AimPoint,
+                    target.Radius + Mathf.Max(0, shot.stats.projectileRadius), out float dummyFraction) || ballFraction < dummyFraction))
+            {
+                Vector3 contact = Vector3.Lerp(shot.position, end, ballFraction);
+                if (shot.applyBallImpact) ball.ApplyMagicHit(shot.direction, contact, shot.stats.magic, 1f);
+                MagicVfxPool.Release(shot.view); shots.RemoveAt(i); continue;
+            }
             bool hit = HitSegment(shot.position, end, shot.stats.projectileRadius, shot.stats, !shot.remote);
             if (wall || hit) { MagicVfxPool.Release(shot.view); shots.RemoveAt(i); continue; }
             shot.position = end;
@@ -492,8 +542,31 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         CombatPresentation.ShowImpact(target.AimPoint, stats.magic);
         if (owner != null) owner.SendPracticeEvent(2, stats.magic, target.AimPoint, target.AimPoint - from);
     }
-    private bool Blocked(Vector3 start, Vector3 end, out Vector3 point)
+    private Vector3 ResolveInstantEnd(MagicStatEntry stats, Vector3 origin, Vector3 direction, float distance, out RobbyBeachBall ball)
     {
+        Vector3 end = origin + direction * distance;
+        ball = null;
+        if (Blocked(origin, end, out Vector3 point, out Collider obstacle))
+        {
+            end = point;
+            // One lookup at the actual impact, never a per-frame scene search.
+            ball = obstacle.GetComponentInParent<RobbyBeachBall>();
+        }
+        if (target != null && target.gameObject.activeInHierarchy)
+        {
+            Vector3 offset = target.AimPoint - origin;
+            float along = Vector3.Dot(offset, direction);
+            float hitRadius = target.Radius + Mathf.Max(0, stats.hitscanRadius);
+            if (along > 0 && along < Vector3.Distance(origin, end) &&
+                (offset - direction * along).sqrMagnitude <= hitRadius * hitRadius)
+            { end = origin + direction * along; ball = null; }
+        }
+        return end;
+    }
+    private bool Blocked(Vector3 start, Vector3 end, out Vector3 point) => Blocked(start, end, out point, out _);
+    private bool Blocked(Vector3 start, Vector3 end, out Vector3 point, out Collider obstacle)
+    {
+        obstacle = null;
         point = end; Vector3 delta = end - start; float distance = delta.magnitude;
         if (distance < .0001f) return false;
         int count = Physics.RaycastNonAlloc(start, delta / distance, hits, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
@@ -501,12 +574,12 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             var hit = hits[i];
-            if (hit.collider == null || hit.transform.IsChildOf(target.transform)) continue;
+            if (hit.collider == null || target != null && hit.transform.IsChildOf(target.transform)) continue;
             bool avatar = false;
             foreach (var player in PlayerRobby.ActivePlayers)
                 if (player != null && hit.transform.IsChildOf(player.transform)) { avatar = true; break; }
             if (avatar || hit.distance >= distance) continue;
-            distance = hit.distance; point = hit.point; blocked = true;
+            distance = hit.distance; point = hit.point; obstacle = hit.collider; blocked = true;
         }
         return blocked;
     }

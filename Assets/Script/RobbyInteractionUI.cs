@@ -25,6 +25,8 @@ public sealed class RobbyInteractionUI : MonoBehaviour
     }
     private void Update()
     {
+        // Keep the existing prompt visible, but do not interpret typed E as interaction.
+        if (MainRoomChatUI.BlocksLobbyInput) return;
         var player = PlayerRobby.LocalPlayer;
         RobbyInteractionZone next = null;
         if (player != null && !player.InteractionBusy && RobbyPlayerCamera.CanUsePractice)
