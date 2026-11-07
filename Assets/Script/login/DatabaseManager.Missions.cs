@@ -8,7 +8,7 @@ public partial class DatabaseManager
     public bool TryClaimMission(string id, out string message)
     {
         message="";
-        if(!CanAutoSave || claimingMission || IsVoicePurchaseInProgress) { message="계정 정보를 확인해주세요."; return false; }
+        if(!CanAutoSave || claimingMission || IsVoicePurchaseInProgress || IsPalettePurchaseInProgress) { message="계정 정보를 확인해주세요."; return false; }
         MissionProgression.EnsurePeriods();
         if(IsAutoSavePending) { message="진행 기록 저장 중입니다. 잠시 후 다시 눌러주세요."; return false; }
         var definition=MissionProgression.Find(id);

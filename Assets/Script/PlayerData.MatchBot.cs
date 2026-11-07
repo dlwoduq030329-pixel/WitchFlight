@@ -20,6 +20,7 @@ public partial class PlayerData
         bangsLength = config.bangsLength; bangsDirection = config.bangsDirection;
         sideHairLength = config.sideHairLength; ahogeLength = config.ahogeLength;
         hairColor = config.hairColor; clothColor = config.clothColor; eyeColor = config.eyeColor;
+        eyePaletteColor = config.eyePaletteColor;
         wandIndex = config.wandIndex;
         playerName = $"마녀 BOT {slot}";
         magic1 = MagicType.Fire; magic2 = MagicType.Flare;

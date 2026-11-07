@@ -201,7 +201,11 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         }
         Color key = preset.savedColorKey;
         key.a = 1f;
-        DataConfig.eyeColor = key;
+        using (DataConfig.BeginChangeBatch())
+        {
+            DataConfig.eyeColor = key;
+            DataConfig.eyePaletteColor = new Color(1, 1, 1, 0);
+        }
     }
 
     public void SetClothColor(Color color)
@@ -220,7 +224,11 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         if (table == null || !table.TryResolve(color, out EyeTexturePresetTable.Preset preset)) return;
         Color key = preset.savedColorKey;
         key.a = 1f;
-        DataConfig.eyeColor = key;
+        using (DataConfig.BeginChangeBatch())
+        {
+            DataConfig.eyeColor = key;
+            DataConfig.eyePaletteColor = new Color(1, 1, 1, 0);
+        }
     }
 
     private void RefreshCustomizationUI()

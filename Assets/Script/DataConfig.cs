@@ -89,6 +89,8 @@ public static class DataConfig
     public static Color hairColor { get => _hairColor; set => SetValue(ref _hairColor, value); }
     public static Color clothColor { get => _clothColor; set => SetValue(ref _clothColor, value); }
     public static Color eyeColor { get => _eyeColor; set => SetValue(ref _eyeColor, value); }
+    private static Color _eyePaletteColor = new Color(1, 1, 1, 0);
+    public static Color eyePaletteColor { get => _eyePaletteColor; set => SetValue(ref _eyePaletteColor, value); }
     public static int wandIndex { get => _wandIndex; set => SetValue(ref _wandIndex, value); }
 
     private static void SetValue<T>(ref T field, T value)
@@ -142,7 +144,7 @@ public static class DataConfig
     {
         hairStylePreset = hairStylePreset, bangsLength = bangsLength,
         bangsDirection = bangsDirection, sideHairLength = sideHairLength, ahogeLength = ahogeLength,
-        hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor,
+        hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor, eyePaletteColor = eyePaletteColor,
         hatIndex = hatIndex, broomIndex = broomIndex, wandIndex = wandIndex
     }.Sanitized();
 
@@ -158,6 +160,7 @@ public static class DataConfig
         hairColor = config.hairColor;
         clothColor = config.clothColor;
         eyeColor = config.eyeColor;
+        eyePaletteColor = config.eyePaletteColor;
         hatIndex = config.hatIndex;
         broomIndex = config.broomIndex;
         wandIndex = config.wandIndex;

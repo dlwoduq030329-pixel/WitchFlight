@@ -55,13 +55,14 @@ public partial class DatabaseManager : MonoBehaviour
         public Color hairColor = Color.white;
         public Color clothColor = Color.white;
         public Color eyeColor = Color.white;
+        public Color eyePaletteColor = new Color(1, 1, 1, 0);
         public int wandIndex;
 
         public PlayerConfig GetPlayerConfig() => new PlayerConfig
         {
             hairStylePreset = hairStylePreset, bangsLength = bangsLength, bangsDirection = bangsDirection,
             sideHairLength = sideHairLength, ahogeLength = ahogeLength,
-            hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor,
+            hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor, eyePaletteColor = eyePaletteColor,
             hatIndex = hatIndex, broomIndex = broomIndex, wandIndex = wandIndex
         }.Sanitized();
 
@@ -76,6 +77,7 @@ public partial class DatabaseManager : MonoBehaviour
             hairColor = config.hairColor;
             clothColor = config.clothColor;
             eyeColor = config.eyeColor;
+            eyePaletteColor = config.eyePaletteColor;
             hatIndex = config.hatIndex;
             broomIndex = config.broomIndex;
             wandIndex = config.wandIndex;
@@ -122,6 +124,7 @@ public partial class DatabaseManager : MonoBehaviour
     public void ClearSession()
     {
         dataSessionVersion++;
+        IsPalettePurchaseInProgress = false;
         autoSaveDirty = autoSaveInFlight = false;
         nextAutoSaveTime = 0f;
         autoSaveFailures = 0;
@@ -167,7 +170,7 @@ public partial class DatabaseManager : MonoBehaviour
 
     private bool CanAutoSave => Backend.IsInitialized && Backend.IsLogin && IsDataConfigReady &&
         IsPlayerSettingLoaded && loadedUserInDate == Backend.UserInDate && HasPlayerSetting();
-    internal bool CanModifyAccountData => CanAutoSave;
+    internal bool CanModifyAccountData => CanAutoSave && !IsPalettePurchaseInProgress;
 
     private void OnDataConfigChanged()
     {
@@ -187,7 +190,7 @@ public partial class DatabaseManager : MonoBehaviour
     {
         // One snapshot per frame, and at most one request in flight. Further edits
         // are coalesced into the next snapshot instead of producing stale writes.
-        if (!autoSaveDirty || autoSaveInFlight || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
+        if (!autoSaveDirty || autoSaveInFlight || IsPalettePurchaseInProgress || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
         if (string.IsNullOrWhiteSpace(DataConfig.playerName))
         {
             nextAutoSaveTime = Time.unscaledTime + Mathf.Max(0.5f, autoSaveRetryDelay);
@@ -624,6 +627,7 @@ public partial class DatabaseManager : MonoBehaviour
 
     private void SaveCurrentSettingCore(string nickname, bool registeringNickname)
     {
+        if (IsPalettePurchaseInProgress) { Fail("색상 변경 저장 중입니다. 잠시 후 다시 저장해주세요."); return; }
         LastSaveSucceeded = false;
         LastError = string.Empty;
         if (autoSaveInFlight)
@@ -835,6 +839,9 @@ public partial class DatabaseManager : MonoBehaviour
         param.Add("hairColor", "#" + ColorUtility.ToHtmlStringRGBA(config.hairColor));
         param.Add("clothColor", "#" + ColorUtility.ToHtmlStringRGBA(config.clothColor));
         param.Add("eyeColor", "#" + ColorUtility.ToHtmlStringRGBA(config.eyeColor));
+        // Legacy users need no new column until they first purchase a custom eye color.
+        if (config.eyePaletteColor.a > 0.5f || (currentPlayerSetting != null && currentPlayerSetting.eyePaletteColor.a > 0.5f))
+            param.Add("eyePaletteColor", "#" + ColorUtility.ToHtmlStringRGBA(config.eyePaletteColor));
         // Wand appearance is not persisted; the account schema omits wandIndex.
         // Schema-defined LoginPlayerData stores bangsLength only. ReadPlayerSetting
         // still accepts legacy hairLength rows, but new writes must not require that column.
@@ -929,6 +936,7 @@ public partial class DatabaseManager : MonoBehaviour
             hairColor = ReadColor(row, "hairColor"),
             clothColor = ReadColor(row, "clothColor"),
             eyeColor = ReadColor(row, "eyeColor"),
+            eyePaletteColor = ReadEyePaletteColor(row),
             wandIndex = ReadInt(row, "wandIndex", 0)
         };
         setting.SetPlayerConfig(setting.GetPlayerConfig());
@@ -968,14 +976,14 @@ public partial class DatabaseManager : MonoBehaviour
     // True means accepted locally; LastSaveSucceeded / IsAutoSavePending report persistence.
     public bool TryAddMoney(int amount)
     {
-        if (!CanAutoSave || amount <= 0 || DataConfig.money > int.MaxValue - amount) return false;
+        if (!CanModifyAccountData || amount <= 0 || DataConfig.money > int.MaxValue - amount) return false;
         DataConfig.money += amount;
         return true;
     }
 
     public bool TrySpendMoney(int amount)
     {
-        if (!CanAutoSave || amount <= 0 || DataConfig.money < amount) return false;
+        if (!CanModifyAccountData || amount <= 0 || DataConfig.money < amount) return false;
         DataConfig.money -= amount;
         return true;
     }
@@ -1071,6 +1079,12 @@ public partial class DatabaseManager : MonoBehaviour
     {
         string html = ReadString(row, key, string.Empty);
         return !string.IsNullOrEmpty(html) && ColorUtility.TryParseHtmlString(html, out Color color) ? color : Color.white;
+    }
+
+    private static Color ReadEyePaletteColor(JsonData row)
+    {
+        string html = ReadString(row, "eyePaletteColor", "#FFFFFF00");
+        return ColorUtility.TryParseHtmlString(html, out Color color) ? color : new Color(1, 1, 1, 0);
     }
 
     private static int NormalizeMagicIndex(int value, int fallback)

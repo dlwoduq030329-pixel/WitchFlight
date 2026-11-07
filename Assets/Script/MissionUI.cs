@@ -82,7 +82,7 @@ public sealed class MissionUI : MonoBehaviour
             if(row.description!=null)row.description.text=d.description.Replace("{target}",d.target.ToString()).Replace("{requiredHitsPerMagic}",d.requiredHitsPerMagic.ToString())+
                 $" ({Mathf.Min(d.target,Mathf.FloorToInt(state.progress))}/{d.target})";
             if(row.confirm!=null)row.confirm.interactable=MissionProgression.Ready && !state.claimed && state.progress>=d.target;
-            if(row.label!=null)row.label.text=state.claimed?"수령 완료":state.progress>=d.target?"보상받기":"진행 중";
+            if(row.label!=null)row.label.text=state.claimed?"수령 완료":state.progress>=d.target?$"보상 받기\n+{d.rewardCurrency}":"진행 중";
         }
     }
     private void Claim(Row row)

@@ -12,6 +12,7 @@ public sealed class BattleResultsPresentation : MonoBehaviour
     [SerializeField] private GameObject gameOverUI;
     [SerializeField] private GameObject mvpUI;
     [SerializeField] private TMP_Text content, damage, takenDamage, kill, death;
+    private TMP_Text rewardTotal, rewardKills, rewardDamage;
     [SerializeField] private Button nextButton, mainButton;
     [SerializeField] private BattleResultsTable settings;
     [Serializable] public sealed class AwardPanel
@@ -173,6 +174,12 @@ public sealed class BattleResultsPresentation : MonoBehaviour
         var defeat = Find(gameOverUI.transform, "Defeat"); if (defeat != null) defeat.gameObject.SetActive(!won);
         var data = PlayerData.Local;
         CaptureAwards();
+        float dealt = data != null ? data.BattleDamageDealt : 0f;
+        int kills = data != null ? data.BattleKills : 0;
+        Set(rewardTotal, $"X{BattleMatchRewards.Calculate(dealt, kills)}");
+        Set(rewardKills, $"+{Math.Max(0, kills)} x100");
+        double displayedDamage = float.IsNaN(dealt) || float.IsInfinity(dealt) ? 0d : Math.Floor(Math.Max(0d, dealt));
+        Set(rewardDamage, $"+{displayedDamage:0} / 10");
         float[] values = { data != null ? data.BattleDamageDealt : 0, data != null ? data.BattleDamageTaken : 0,
             data != null ? data.BattleKills : 0, data != null ? data.BattleDeaths : 0 };
         reveal = StartCoroutine(RevealStats(values));
@@ -317,6 +324,9 @@ public sealed class BattleResultsPresentation : MonoBehaviour
             if (takenDamage == null) takenDamage = FindText(gameOverUI, "TakenDamage");
             if (kill == null) kill = FindText(gameOverUI, "Kill");
             if (death == null) death = FindText(gameOverUI, "Death");
+            rewardTotal = FindText(gameOverUI, "BosangText");
+            rewardKills = Find(gameOverUI.transform, "WhyBosangText01", "WhyBosangText1")?.GetComponent<TMP_Text>();
+            rewardDamage = Find(gameOverUI.transform, "WhyBosangText02", "WhyBosangText2")?.GetComponent<TMP_Text>();
             if (nextButton == null) nextButton = Find(gameOverUI.transform, "NextButton", "ConfirmButton")?.GetComponent<Button>();
             Bind(nextButton, ShowMvp);
             if (nextButton != null) Set(nextButton.GetComponentInChildren<TMP_Text>(true), "다음");
