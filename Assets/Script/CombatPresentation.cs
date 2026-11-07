@@ -8,6 +8,10 @@ public sealed class CombatPresentation : MonoBehaviour
 {
     [SerializeField, Min(0.1f)] private float deathFadeSeconds = 2f;
     [SerializeField, Min(0.01f)] private float hitFlashSeconds = 0.18f;
+    [Header("Death magic readability (visual only)")]
+    [SerializeField, Min(.01f)] private float darkBeamWidth = .95f;
+    [SerializeField, Min(.05f)] private float darkBeamSeconds = .32f;
+    [SerializeField, Min(.01f)] private float darkCastScale = 1.35f;
     [Header("Mana potion pickup VFX")]
     [Tooltip("MP 포션 획득 시 재생할 외형 프리팹. NetworkObject 없이 제작하세요. 비우면 효과를 생성하지 않습니다.")]
     [SerializeField] private GameObject manaPotionVfxPrefab;
@@ -603,7 +607,9 @@ public sealed class CombatPresentation : MonoBehaviour
             if (owner != null) TimeVfxSpeed.Bind(beam.gameObject, owner.Runner, owner.TeamIndex, false);
             beam.SetEndpoints(origin, end);
             if (followMuzzle) beam.FollowInstantMuzzle(owner, end);
-            MagicVfxPool.Release(beam.gameObject, 0.2f);
+            float beamSeconds = magic == MagicType.Dark ? darkBeamSeconds : .2f;
+            if (magic == MagicType.Dark) beam.SetReadability(darkBeamWidth, beamSeconds);
+            MagicVfxPool.Release(beam.gameObject, beamSeconds);
         }
         ShowImpact(end, magic, owner);
     }
@@ -613,6 +619,7 @@ public sealed class CombatPresentation : MonoBehaviour
         GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation, null, owner);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
         if (view != null && ShouldFollowInstantMuzzle(stats)) InstantCastMuzzleFollow.Bind(view, owner);
+        if (view != null && stats.magic == MagicType.Dark) view.transform.localScale *= darkCastScale;
         if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
         else SpawnPulse(origin, MagicColor(stats.magic), stats.effect == MagicEffectKind.Healing ? 2f : 0.7f, 0.25f, owner);
     }

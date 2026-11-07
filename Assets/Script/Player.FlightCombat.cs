@@ -3,16 +3,16 @@ using UnityEngine;
 
 public partial class Player
 {
-    public void PresentPortalUse(string id, double readyAt)
+    public void PresentPortalUse(string id, string otherId, double readyAt, float openingSeconds)
     {
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
-        RPC_PortalVisual(id, readyAt);
+        RPC_PortalVisual(id, otherId, readyAt, openingSeconds);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_PortalVisual(string id, double readyAt)
+    private void RPC_PortalVisual(string id, string otherId, double readyAt, float openingSeconds)
     {
-        Portal.PresentUse(id, Runner, readyAt);
+        Portal.PresentUse(id, otherId, Runner, readyAt, openingSeconds);
     }
 
     [Networked] private TickTimer SpawnProtectionTimer { get; set; }
