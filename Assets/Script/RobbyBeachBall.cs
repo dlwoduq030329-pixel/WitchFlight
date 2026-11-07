@@ -6,6 +6,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class RobbyBeachBall : NetworkBehaviour
 {
+    private static readonly System.Collections.Generic.List<RobbyBeachBall> activeBalls = new();
     [SerializeField] private Rigidbody body;
     [SerializeField] private RobbyGoal goal;
     [SerializeField, Min(0.1f)] private float goalResetSeconds = 2f;
@@ -17,6 +18,10 @@ public sealed class RobbyBeachBall : NetworkBehaviour
     [SerializeField, Min(0f)] private float kickSpeed = 8f;
     [SerializeField, Min(0f)] private float upwardSpeed = 3f;
     [SerializeField, Min(0f)] private float contactCooldown = 0.2f;
+    [Header("Lobby magic impact")]
+    [SerializeField, Min(0f)] private float magicHitSpeed = 8f;
+    [SerializeField, Min(0f)] private float magicLiftSpeed = .5f;
+    [SerializeField, Min(.1f)] private float magicMaxSpeed = 18f;
     [SerializeField, Range(0f, 1f)] private float bounce = 0.5f;
     [SerializeField, Min(0f)] private float airDrag = 0.25f;
     [SerializeField, Min(0f)] private float groundDrag = 1.5f;
@@ -55,6 +60,58 @@ public sealed class RobbyBeachBall : NetworkBehaviour
         }
         // A ball has no input owner, so explicitly opt this proxy into resimulation.
         Runner.SetIsSimulated(Object, true);
+        if (!activeBalls.Contains(this)) activeBalls.Add(this);
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState) => activeBalls.Remove(this);
+    private void OnDestroy() => activeBalls.Remove(this);
+
+    private Vector3 WorldCenter => transform.TransformPoint(sphere.center);
+
+    // Sweep the whole travelled segment so fast bullets and the blade's sides hit too.
+    internal static bool TrySphereContact(Vector3 start, Vector3 end, Vector3 center, float hitRadius, out float fraction)
+    {
+        fraction = 0f;
+        Vector3 delta = end - start, offset = start - center;
+        float c = offset.sqrMagnitude - hitRadius * hitRadius;
+        if (c <= 0f) return true;
+        float a = delta.sqrMagnitude;
+        if (a < .0000001f) return false;
+        float b = Vector3.Dot(offset, delta);
+        float discriminant = b * b - a * c;
+        if (b >= 0f || discriminant < 0f) return false;
+        fraction = (-b - Mathf.Sqrt(discriminant)) / a;
+        return fraction >= 0f && fraction <= 1f;
+    }
+
+    internal static bool TryMagicContact(NetworkRunner runner, Vector3 start, Vector3 end, float shotRadius,
+        out RobbyBeachBall ball, out float fraction)
+    {
+        ball = null; fraction = float.PositiveInfinity;
+        foreach (var candidate in activeBalls)
+        {
+            if (candidate == null || !candidate.isActiveAndEnabled || candidate.Object == null ||
+                !candidate.Object.IsValid || candidate.Runner != runner || candidate.sphere == null || !candidate.sphere.enabled) continue;
+            if (!TrySphereContact(start, end, candidate.WorldCenter, candidate.radius + Mathf.Max(0, shotRadius), out float t) ||
+                t >= fraction) continue;
+            fraction = t; ball = candidate;
+        }
+        return ball != null;
+    }
+
+    internal static void ApplyAreaMagicHit(NetworkRunner runner, Vector3 center, float areaRadius, MagicType magic)
+    {
+        foreach (var ball in activeBalls)
+        {
+            if (ball == null || !ball.isActiveAndEnabled || ball.Object == null || !ball.Object.IsValid ||
+                !ball.Object.HasStateAuthority || ball.Runner != runner || ball.sphere == null || !ball.sphere.enabled) continue;
+            Vector3 away = ball.WorldCenter - center;
+            float reach = Mathf.Max(0, areaRadius) + ball.radius;
+            if (away.sqrMagnitude > reach * reach) continue;
+            Vector3 outward = Vector3.ProjectOnPlane(away, Vector3.up);
+            if (outward.sqrMagnitude < .0001f) outward = Vector3.forward;
+            ball.ApplyMagicHit(outward, ball.WorldCenter - outward.normalized * ball.radius, magic, 1f);
+        }
     }
 
     public override void FixedUpdateNetwork()
@@ -123,6 +180,21 @@ public sealed class RobbyBeachBall : NetworkBehaviour
     private void RPC_Goal(float seconds) { if (goal != null) goal.Celebrate(seconds); }
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_NetImpact(Vector3 point, Vector3 velocity) { if (goal != null) goal.HitNet(point, velocity); }
+
+    internal void ApplyMagicHit(Vector3 direction, Vector3 point, MagicType magic, float strength)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || GoalReset.IsRunning ||
+            direction.sqrMagnitude < .0001f) return;
+        // The Rigidbody is kinematic: use the same networked velocity as walking kicks.
+        // Rolling, gravity, wall bounces and goal reset continue in FixedUpdateNetwork.
+        Velocity = Vector3.ClampMagnitude(Velocity +
+            (direction.normalized * magicHitSpeed + Vector3.up * magicLiftSpeed) * Mathf.Clamp01(strength), magicMaxSpeed);
+        KickCooldown = TickTimer.CreateFromSeconds(Runner, contactCooldown);
+        RPC_MagicImpact(point, (int)magic);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_MagicImpact(Vector3 point, int magic) => CombatPresentation.ShowImpact(point, (MagicType)magic);
 
     private void TryKick(Vector3 center)
     {
