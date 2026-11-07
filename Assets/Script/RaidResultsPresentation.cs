@@ -152,6 +152,9 @@ public sealed class RaidResultsPresentation : MonoBehaviour
         var defeat = Find(gameOverUI.transform, "Defeat"); if (defeat != null) defeat.gameObject.SetActive(!director.Cleared);
         var data = PlayerData.Local;
         var result = data != null ? director.Boss.ResultFor(data.ParticipantRef) : default;
+        if (data != null && !data.IsMatchBot && result.Player == data.ParticipantRef)
+            BattleMatchRewards.Request("raid:" + director.Boss.Runner.GetInstanceID() + ":" + director.Boss.Object.Id,
+                result.Damage, result.Kills);
         reveal = StartCoroutine(RevealStats(new[] { result.Damage, result.Taken, (float)result.Kills, (float)result.Deaths }));
     }
 
