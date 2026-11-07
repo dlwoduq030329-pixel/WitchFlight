@@ -33,6 +33,8 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
 
     private static RobbyPlayerCamera instance;
     public static bool CanUsePractice => instance != null && instance.ControlsActive;
+    // Chat blocks controls, not the lobby HUD or the camera's existing view.
+    public static bool ShowsLobbyAvatar => instance != null && instance.showing;
     public static Camera PracticeCamera => instance != null ? instance.followCamera : null;
     public static Vector3 TargetingPosition => instance != null ? instance.targetingPosition : Vector3.zero;
     private float viewYaw;
@@ -54,6 +56,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     }
 
     private bool ControlsActive => showing && Application.isFocused &&
+        !MainRoomChatUI.BlocksLobbyInput &&
         Cursor.lockState == CursorLockMode.Locked && robbyUI != null && !robbyUI.activeInHierarchy &&
         NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsWaitingInCodeRoom &&
         PlayerRobby.LocalPlayer != null;

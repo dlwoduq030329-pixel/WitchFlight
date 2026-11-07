@@ -72,7 +72,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     private Transform castRoot;
     private int selected, bladeLeft;
     private float charge, bladeUntil, nextBlade, nextChannel;
-    private bool held, visible;
+    private bool held, visible, inputActive;
     private bool acquiredLock;
     private bool pendingRelease, pendingBlade;
     private MagicStatEntry pendingStats;
@@ -136,6 +136,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             slider.interactable = false; slider.minValue = 0; slider.maxValue = 1;
         }
         RefreshLoadout();
+        SetPracticeVisible(false);
     }
     private void OnEnable() { DataConfig.Changed += RefreshLoadout; }
     private void OnDisable()
@@ -177,12 +178,25 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         }
     }
     private Vector3 Origin => castRoot.position;
+    private void SetPracticeVisible(bool value)
+    {
+        visible = value;
+        // This Canvas also owns chat and interaction UI. Only hide our own HUD.
+        foreach (var slider in skillSliders)
+            if (slider != null) slider.gameObject.SetActive(value);
+        if (aimReticle != null) aimReticle.gameObject.SetActive(value);
+        if (!value) HideLock();
+    }
     private void LateUpdate()
     {
+        // Shared lobby Canvas visibility follows room membership, never keyboard focus.
+        bool inRoom = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsWaitingInCodeRoom;
+        if (canvas != null && canvas.enabled != inRoom) canvas.enabled = inRoom;
         bool active = RobbyPlayerCamera.CanUsePractice && target != null && magicTable != null &&
             PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.PracticeMagicRoot != null;
-        if (visible != active) { visible = active; if (canvas != null) canvas.enabled = active; if (!active) Cancel(); }
-        if (canvas != null && !active && canvas.enabled) canvas.enabled = false;
+        bool show = RobbyPlayerCamera.ShowsLobbyAvatar && target != null && magicTable != null;
+        if (visible != show) SetPracticeVisible(show);
+        if (inputActive != active) { inputActive = active; if (!active) Cancel(); }
         TickShots(); TickBursts();
         TickOrbits();
         if (PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.InteractionBusy)
