@@ -18,6 +18,8 @@ public sealed class CombatTransientEffect : MonoBehaviour
     private Material[] materials;
     private Color[] colors;
     private Mesh[] meshes;
+    private Player muzzleOwner;
+    private Vector3 fixedBeamEnd, beamDirection;
 
     public void Initialize(float lifetime, Vector3 from, Vector3 to, Material[] ownedMaterials,
         Mesh[] ownedMeshes = null, float fadeSeconds = -1f)
@@ -68,17 +70,32 @@ public sealed class CombatTransientEffect : MonoBehaviour
         effect.gameObject.SetActive(true);
     }
 
-    public static void PlayBeam(Vector3 origin, Vector3 end, Color color, Player owner = null)
+    public static void PlayBeam(Vector3 origin, Vector3 end, Color color, Player owner = null, bool followMuzzle = false)
     {
         CombatTransientEffect effect = Acquire(PoolKind.Beam);
         RearThreatCamera.ExcludeLocalEffect(effect.gameObject, owner);
         effect.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         effect.beamLine.SetPosition(0, origin);
         effect.beamLine.SetPosition(1, end);
+        effect.muzzleOwner = followMuzzle ? owner : null;
+        effect.fixedBeamEnd = end;
+        effect.beamDirection = (end - origin).normalized;
         effect.materials[0].color = color;
         effect.Initialize(0.16f, Vector3.one, Vector3.one, effect.materials);
         effect.gameObject.SetActive(true);
     }
+
+    private void LateUpdate()
+    {
+        if (muzzleOwner == null) return;
+        if (muzzleOwner.Object == null || !muzzleOwner.Object.IsValid || !muzzleOwner.IsAlive ||
+            Vector3.Dot(fixedBeamEnd - muzzleOwner.MagicCastPosition, beamDirection) <= 0f)
+        { ReturnOrDestroy(); return; }
+        beamLine.SetPosition(0, muzzleOwner.MagicCastPosition);
+        beamLine.SetPosition(1, fixedBeamEnd);
+    }
+
+    private void OnDisable() => muzzleOwner = null;
 
     private static CombatTransientEffect Acquire(PoolKind kind)
     {
