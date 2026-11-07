@@ -3,7 +3,7 @@ Set-Location (Split-Path $PSScriptRoot -Parent)
 $tour = Get-Content Assets/Script/Camera/BattleMapTour.cs -Raw
 $flag = Get-Content Assets/Script/BattleFlag.cs -Raw
 function Method($text,$name) {
- $m=[regex]::Match($text,'(?ms)^    (?:internal|private) (?:static )?\w+ '+$name+'\([^{}]*\)\r?\n    \{.*?^    \}')
+ $m=[regex]::Match($text,'(?ms)^    (?:internal|private|public) (?:static )?\w+ '+$name+'\([^{}]*\)\r?\n    \{.*?^    \}')
  if(!$m.Success){throw "Missing $name"};$m.Value.Replace('private ','public ').Replace('internal ','public ')
 }
 $enum = [regex]::Match($flag,'public enum BattleStartPhase[^\r\n]+').Value
@@ -17,7 +17,9 @@ namespace TourChecks {
   public static float Clamp01(float x)=>Math.Clamp(x,0,1);
   public static int FloorToInt(float x)=>(int)Math.Floor(x);
  }
- public class Clock {public float time;}
+ public enum PlayerRef {None, Local, Other}
+ public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;}
+ public class Clock {public float time;public bool IsRunning=true;public PlayerRef LocalPlayer=PlayerRef.Local;public System.Collections.Generic.List<PlayerRef> ActivePlayers=new(){PlayerRef.Local};}
  public struct TickTimer {
   public static TickTimer None => default;
   public float end;public bool Expired(Clock c)=>c.time>=end;
@@ -26,6 +28,7 @@ namespace TourChecks {
  public class BattleManager {public static BattleManager Instance=new();public bool AutoStartWhenReady,IsTraining;public void startGame(){}}
  public static class CatTutorialDirector {public static bool TrainingGuideRequired=false;}
  public class Probe {
+  public NetworkObject Object=new();public bool mapTourSkipRequested;
   public int RoundNumber=1; public bool mapTourStarted; public float TourMoveSeconds=3,TourFadeSeconds=.6f,introSeconds=5,matchSeconds=160;
   public BattleStartPhase Phase=BattleStartPhase.Intro;public TickTimer PhaseTimer=new(){end=5};
   public Clock Runner=new();public bool ready=true,startRequested=true;public int resets,starts;public int WorldPosition;
@@ -33,7 +36,7 @@ namespace TourChecks {
   void ResetPreparation(){Phase=BattleStartPhase.WaitingForPlayers;resets++;}
   void BeginMatch(int p,float t){Phase=BattleStartPhase.Playing;starts++;}
 '@
-$stub += $duration + (Method $tour 'SampleTimeline') + (Method $flag 'TickPreparation') + (Method $flag 'BeginTrainingGuideOrCountdown')
+$stub += $duration + (Method $tour 'SampleTimeline') + (Method $flag 'RequestLocalMapTourSkip') + (Method $flag 'CanSkipLocalMapTour') + (Method $flag 'TickPreparation') + (Method $flag 'BeginTrainingGuideOrCountdown')
 $stub += '}' + $enum
 $stub += @'
  public static class Tests {
@@ -54,6 +57,23 @@ $stub += @'
    p.Runner.time=13.3f;p.TickPreparation();Check(p.Phase==BattleStartPhase.Countdown&&Near(p.PhaseTimer.end,16.3f),"training tour restores full countdown");
    p.Runner.time=16.4f;p.TickPreparation();Check(p.Phase==BattleStartPhase.Playing,"training starts after optional tour");
    BattleManager.Instance.IsTraining=false;
+   p=new Probe{Phase=BattleStartPhase.MapTour};p.Runner.time=1;
+   Check(p.RequestLocalMapTourSkip(),"solo host can request skip with bot slots");
+   Check(p.Phase==BattleStartPhase.MapTour,"input queues skip until simulation tick");
+   p.TickPreparation();Check(p.Phase==BattleStartPhase.Countdown&&Near(p.PhaseTimer.end,4)&&!p.mapTourSkipRequested,"skip keeps full 321 countdown");
+   Check(!p.RequestLocalMapTourSkip(),"countdown cannot be skipped");
+   p=new Probe();Check(!p.RequestLocalMapTourSkip(),"VS cannot be skipped");
+   p=new Probe{Phase=BattleStartPhase.MapTour};p.Runner.ActivePlayers.Add(PlayerRef.Other);
+   Check(!p.RequestLocalMapTourSkip(),"another human blocks skip");p.TickPreparation();Check(p.Phase==BattleStartPhase.MapTour,"online tour stays active");
+   p.Runner.ActivePlayers.Remove(PlayerRef.Other);Check(p.RequestLocalMapTourSkip(),"sole remaining human can skip");
+   p.Runner.ActivePlayers.Add(PlayerRef.Other);p.TickPreparation();Check(p.Phase==BattleStartPhase.MapTour,"host rechecks membership before applying skip");
+   p=new Probe{Phase=BattleStartPhase.MapTour};p.Object.HasStateAuthority=false;Check(!p.RequestLocalMapTourSkip(),"client cannot mutate host phase");
+   p=new Probe{Phase=BattleStartPhase.MapTour};p.Runner.LocalPlayer=PlayerRef.None;Check(!p.RequestLocalMapTourSkip(),"no local human cannot request skip");
+   p=new Probe{Phase=BattleStartPhase.MapTour};p.Object.IsValid=false;Check(!p.RequestLocalMapTourSkip(),"unspawned flag guarded");
+   BattleManager.Instance.IsTraining=true;CatTutorialDirector.TrainingGuideRequired=true;
+   p=new Probe{Phase=BattleStartPhase.MapTour};Check(p.RequestLocalMapTourSkip(),"training can skip tour");p.TickPreparation();
+   Check(p.Phase==BattleStartPhase.TrainingTutorial,"skip preserves required training guide");
+   BattleManager.Instance.IsTraining=false;CatTutorialDirector.TrainingGuideRequired=false;
    for(int round=2;round<=3;round++) {
     p=new Probe{RoundNumber=round,Phase=BattleStartPhase.WaitingForPlayers};
     p.TickPreparation();Check(p.Phase==BattleStartPhase.Intro&&Near(p.PhaseTimer.end,5),"later round still has full VS "+round);

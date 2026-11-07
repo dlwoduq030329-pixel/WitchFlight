@@ -140,6 +140,7 @@ public partial class DatabaseManager : MonoBehaviour
         LastSaveSucceeded = false;
         LastError = string.Empty;
         DataConfig.ResetToDefaults();
+        ResetAttendance();
     }
 
 
@@ -159,18 +160,20 @@ public partial class DatabaseManager : MonoBehaviour
 
         DontDestroyOnLoad(gameObject);
         DataConfig.Changed += OnDataConfigChanged;
+        DataConfigReadyChanged += TryStartAttendance;
     }
 
     private void OnDestroy()
     {
         DataConfig.Changed -= OnDataConfigChanged;
+        DataConfigReadyChanged -= TryStartAttendance;
         dataSessionVersion++;
         if (Instance == this) Instance = null;
     }
 
     private bool CanAutoSave => Backend.IsInitialized && Backend.IsLogin && IsDataConfigReady &&
         IsPlayerSettingLoaded && loadedUserInDate == Backend.UserInDate && HasPlayerSetting();
-    internal bool CanModifyAccountData => CanAutoSave && !IsPalettePurchaseInProgress;
+    internal bool CanModifyAccountData => CanAutoSave && !IsPalettePurchaseInProgress && !IsAttendanceInProgress;
 
     private void OnDataConfigChanged()
     {
@@ -190,7 +193,7 @@ public partial class DatabaseManager : MonoBehaviour
     {
         // One snapshot per frame, and at most one request in flight. Further edits
         // are coalesced into the next snapshot instead of producing stale writes.
-        if (!autoSaveDirty || autoSaveInFlight || IsPalettePurchaseInProgress || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
+        if (!autoSaveDirty || autoSaveInFlight || IsPalettePurchaseInProgress || IsAttendanceInProgress || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
         if (string.IsNullOrWhiteSpace(DataConfig.playerName))
         {
             nextAutoSaveTime = Time.unscaledTime + Mathf.Max(0.5f, autoSaveRetryDelay);
@@ -237,6 +240,7 @@ public partial class DatabaseManager : MonoBehaviour
         LastError = string.Empty;
         autoSaveFailures = 0;
         nextAutoSaveTime = 0f;
+        TryStartAttendance();
     }
 
     private void AutoSaveFailed(string error)
@@ -468,6 +472,7 @@ public partial class DatabaseManager : MonoBehaviour
         TitleProgression.OnProfileLoaded();
         MissionProgression.Load();
         LastError = string.Empty;
+        RequestAttendanceCheck();
         return true;
     }
 
@@ -627,7 +632,7 @@ public partial class DatabaseManager : MonoBehaviour
 
     private void SaveCurrentSettingCore(string nickname, bool registeringNickname)
     {
-        if (IsPalettePurchaseInProgress) { Fail("색상 변경 저장 중입니다. 잠시 후 다시 저장해주세요."); return; }
+        if (IsPalettePurchaseInProgress || IsAttendanceInProgress) { Fail("재화 정보 저장 중입니다. 잠시 후 다시 저장해주세요."); return; }
         LastSaveSucceeded = false;
         LastError = string.Empty;
         if (autoSaveInFlight)
