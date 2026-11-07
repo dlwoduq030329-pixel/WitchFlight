@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // Presentation only: the host's existing player capsule remains the ram hitbox.
-// Both bones and their weights are authored; no runtime mesh copies or physics rigs.
+// Bones and weights are authored; no runtime mesh copies or physics rigs.
 [DefaultExecutionOrder(35)]
 [DisallowMultipleComponent]
 public sealed class CleanerRidingMotion : MonoBehaviour
@@ -11,6 +11,7 @@ public sealed class CleanerRidingMotion : MonoBehaviour
 
     [Header("Canister and flexible hose")]
     [SerializeField] private Transform bodyBone;
+    [SerializeField] private Transform hoseBone;
     [SerializeField] private SkinnedMeshRenderer bodyRenderer;
     [SerializeField] private Vector3 bodyPivot = new Vector3(0f, .65f, 0f);
     [SerializeField, Min(0f)] private float idleSwing = 6f;
@@ -26,13 +27,36 @@ public sealed class CleanerRidingMotion : MonoBehaviour
     [SerializeField, Range(.05f, .95f)] private float springDamping = .18f;
     [SerializeField, Range(1f, 150f)] private float maximumTilt = 120f;
     [Tooltip("청소기 메시의 로컬 단위입니다. 몸체가 호스에서 너무 멀리 벗어나지 않도록 제한합니다.")]
-    [SerializeField, Min(0f)] private float maximumBodyOffset = 2.5f;
+    [SerializeField, Min(0f)] private float maximumBodyOffset = 3.5f;
+    [Header("Flexible hose and customization hanging pose")]
+    [SerializeField] private Vector3 hoseGrip = new Vector3(1.32f, 3.85f, 1.25f);
+    [SerializeField] private Vector3 hosePivot = new Vector3(1.1730744f, .9508752f, .1100258f);
+    [SerializeField] private Vector3 bodyHosePort = new Vector3(0f, .55f, 1.2f);
+    [SerializeField, Min(0f)] private float hoseSwing = .9f;
+    [Tooltip("캐릭터 로컬 단위로 지정하는 손잡이 아래 몸체 중심 거리입니다.")]
+    [SerializeField, Min(.1f)] private float previewHangDistance = .85f;
+    [SerializeField, Min(0f)] private float previewHoseSlack = .2f;
 
     private Player player;
     private Vector3 lastPosition, lastForward;
     private float motion, bank, phase;
     private Vector3 filteredVelocity, bodyOffset, offsetVelocity, bodyAngles, angularVelocity;
     private bool sampled;
+    private bool customizationPreview;
+
+    public void SetCustomizationPreview(bool value)
+    {
+        if (customizationPreview == value) return;
+        customizationPreview = value;
+        ResetInertia();
+        sampled = false;
+        if (value && isActiveAndEnabled) ApplyHangingPose();
+        if (!value)
+        {
+            if (bodyBone != null) bodyBone.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            if (hoseBone != null) hoseBone.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+        }
+    }
 
     private void Awake()
     {
@@ -44,6 +68,7 @@ public sealed class CleanerRidingMotion : MonoBehaviour
     {
         sampled = false;
         ResetInertia();
+        if (customizationPreview) ApplyHangingPose();
     }
 
     private void ResetInertia()
@@ -54,6 +79,7 @@ public sealed class CleanerRidingMotion : MonoBehaviour
     private void OnDisable()
     {
         if (bodyBone != null) bodyBone.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+        if (hoseBone != null) hoseBone.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
         motion = bank = phase = 0f;
         ResetInertia();
         sampled = false;
@@ -62,6 +88,11 @@ public sealed class CleanerRidingMotion : MonoBehaviour
     private void LateUpdate()
     {
         // Never reposition the equipment root: animation moves the left-hand mount.
+        if (customizationPreview)
+        {
+            ApplyHangingPose();
+            return;
+        }
         Transform frame = characterRoot != null ? characterRoot : transform;
         Vector3 position = frame.position, forward = frame.forward;
         float dt = Time.deltaTime;
@@ -112,6 +143,34 @@ public sealed class CleanerRidingMotion : MonoBehaviour
         Limit(ref bodyAngles, ref angularVelocity, maximumTilt);
         Quaternion rotation = Quaternion.Euler(bodyAngles);
         bodyBone.SetLocalPositionAndRotation(bodyPivot - rotation * bodyPivot + bodyOffset, rotation);
+        if (hoseBone != null)
+        {
+            Quaternion hoseRotation = Quaternion.SlerpUnclamped(Quaternion.identity, rotation, .5f);
+            Vector3 looseSwing = new Vector3(Mathf.Sin(phase * .7f), Mathf.Sin(phase * .8f), Mathf.Cos(phase))
+                * (hoseSwing * motion * (boosting ? 1.5f : 1f));
+            hoseBone.SetLocalPositionAndRotation(hosePivot - hoseRotation * hosePivot + bodyOffset * .6f + looseSwing,
+                hoseRotation);
+        }
+    }
+
+    private void ApplyHangingPose()
+    {
+        if (bodyBone == null) return;
+        Transform frame = characterRoot != null ? characterRoot : transform;
+        float scale = Mathf.Abs(frame.lossyScale.y);
+        Vector3 anchor = transform.TransformPoint(hoseGrip);
+        Vector3 center = transform.InverseTransformPoint(anchor + Vector3.down * (previewHangDistance * scale));
+        Vector3 forward = Vector3.ProjectOnPlane(frame.forward, Vector3.up);
+        if (forward.sqrMagnitude < .001f) forward = Vector3.forward;
+        Quaternion rotation = Quaternion.Inverse(transform.rotation) * Quaternion.LookRotation(forward, Vector3.up);
+        Vector3 translation = center - rotation * bodyPivot;
+        bodyBone.SetLocalPositionAndRotation(translation, rotation);
+        if (hoseBone == null) return;
+        Vector3 port = translation + rotation * bodyHosePort;
+        Vector3 middle = (hoseGrip + port) * .5f
+            + transform.InverseTransformVector(Vector3.down * (previewHoseSlack * scale));
+        Quaternion hoseRotation = Quaternion.Slerp(Quaternion.identity, rotation, .5f);
+        hoseBone.SetLocalPositionAndRotation(middle - hoseRotation * hosePivot, hoseRotation);
     }
 
     // Closed-form damped spring: frame-rate independent, no physics objects or substep loop.

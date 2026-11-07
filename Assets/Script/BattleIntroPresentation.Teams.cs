@@ -122,11 +122,12 @@ public sealed partial class BattleIntroPresentation
 
     private void SetTeamUIPhase(BattleStartPhase phase)
     {
-        bool visible = IsTeamBattle && (phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro);
-        if (visible) EnsureTeamIntroUI();
+        bool preparing = IsTeamBattle && (phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro);
+        bool visible = preparing && phase == BattleStartPhase.Intro;
+        if (preparing) EnsureTeamIntroUI();
         if (teammateProfileRoot != null) teammateProfileRoot.SetActive(visible);
         if (secondEnemyProfileRoot != null) secondEnemyProfileRoot.SetActive(visible);
-        if (!visible && restoreIntroUserInfo)
+        if (!preparing && restoreIntroUserInfo)
         {
             restoreIntroUserInfo = false;
             if (introUserInfo != null) introUserInfo.enabled = true;

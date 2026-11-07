@@ -11,6 +11,7 @@ public class PlayerEquipment : MonoBehaviour
     [Header("Pre-placed scene objects (BroomType enum index order)")]
     [SerializeField] private GameObject[] broomPrefabs;
     [SerializeField] private RobotRidingPose robotRidingPose;
+    [SerializeField] private CleanerRidingMotion cleanerRidingMotion;
 
     private GameObject magicStaff1;
     private GameObject magicStaff2;
@@ -51,6 +52,7 @@ public class PlayerEquipment : MonoBehaviour
     public void BindToDataConfig()
     {
         followsDataConfig = true;
+        if (cleanerRidingMotion != null) cleanerRidingMotion.SetCustomizationPreview(true);
         hasLocalLoadout = false;
         DataConfig.Changed -= ApplyFromDataConfig;
         if (isActiveAndEnabled) DataConfig.Changed += ApplyFromDataConfig;
@@ -60,6 +62,7 @@ public class PlayerEquipment : MonoBehaviour
     public void UnbindFromDataConfig()
     {
         followsDataConfig = false;
+        if (cleanerRidingMotion != null) cleanerRidingMotion.SetCustomizationPreview(false);
         hasLocalLoadout = false;
         DataConfig.Changed -= ApplyFromDataConfig;
     }

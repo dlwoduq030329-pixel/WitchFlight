@@ -31,6 +31,7 @@ Transform:
   m_LocalScale: {x: 0.22700748, y: 0.22700748, z: 0.22700748}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 908110800000000007}
   - {fileID: 908110800000000002}
   - {fileID: 908110800000000004}
   m_Father: {fileID: 0}
@@ -87,18 +88,19 @@ SkinnedMeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
-  m_Quality: 2
+  m_Quality: 4
   m_UpdateWhenOffscreen: 0
   m_SkinnedMotionVectors: 1
   m_Mesh: {fileID: 4300000, guid: 78f020bad27dc254db0938004b211999, type: 2}
   m_Bones:
   - {fileID: 908110800000000002}
   - {fileID: 908110800000000004}
+  - {fileID: 908110800000000007}
   m_BlendShapeWeights: []
   m_RootBone: {fileID: 908110800000000002}
   m_AABB:
     m_Center: {x: 0.8074, y: 2.1819, z: 2.4192}
-    m_Extent: {x: 6.4531, y: 7.194, z: 8.4889}
+    m_Extent: {x: 8.4531, y: 9.194, z: 10.4889}
   m_DirtyAABB: 0
 --- !u!1 &908110800000000001
 GameObject:
@@ -176,6 +178,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   characterRoot: {fileID: 0}
   bodyBone: {fileID: 908110800000000004}
+  hoseBone: {fileID: 908110800000000007}
   bodyRenderer: {fileID: 8349934428347082007}
   bodyPivot: {x: 0, y: 0.65, z: 0}
   idleSwing: 6
@@ -189,4 +192,41 @@ MonoBehaviour:
   springFrequency: 1.4
   springDamping: 0.18
   maximumTilt: 120
-  maximumBodyOffset: 2.5
+  maximumBodyOffset: 3.5
+  hoseGrip: {x: 1.32, y: 3.85, z: 1.25}
+  hosePivot: {x: 1.1730743646621704, y: 0.9508752226829529, z: 0.1100258082151413}
+  bodyHosePort: {x: 0, y: 0.55, z: 1.2}
+  hoseSwing: 0.9
+  previewHangDistance: 0.85
+  previewHoseSlack: 0.2
+--- !u!1 &908110800000000006
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 908110800000000007}
+  m_Layer: 0
+  m_Name: Cleaner_Hose
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &908110800000000007
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908110800000000006}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8907744344150630452}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
