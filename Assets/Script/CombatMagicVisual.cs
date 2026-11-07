@@ -19,6 +19,19 @@ public sealed class CombatMagicVisual : MonoBehaviour
     private float spawnOpacity = 1f;
     private Player instantMuzzleOwner;
     private Vector3 instantBeamEnd, instantBeamDirection;
+    private float readableBeamSeconds, readableBeamElapsed;
+    private TimeVfxSpeed readableClock;
+
+    public void SetReadability(float width, float seconds)
+    {
+        if (line == null) return;
+        line.startWidth = width;
+        line.endWidth = width * .65f;
+        line.startColor = line.endColor = Color.white;
+        readableBeamSeconds = Mathf.Max(.05f, seconds);
+        readableBeamElapsed = 0f;
+        readableClock = GetComponent<TimeVfxSpeed>();
+    }
 
     public void FollowInstantMuzzle(Player owner, Vector3 end)
     {
@@ -285,6 +298,12 @@ public sealed class CombatMagicVisual : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (readableBeamSeconds > 0f && line != null)
+        {
+            readableBeamElapsed += Time.deltaTime * (readableClock != null ? readableClock.Multiplier : 1f);
+            float alpha = 1f - Mathf.InverseLerp(readableBeamSeconds * .6f, readableBeamSeconds, readableBeamElapsed);
+            line.startColor = line.endColor = new Color(1f, 1f, 1f, alpha);
+        }
         if (instantMuzzleOwner != null)
         {
             if (instantMuzzleOwner.Object == null || !instantMuzzleOwner.Object.IsValid || !instantMuzzleOwner.IsAlive ||

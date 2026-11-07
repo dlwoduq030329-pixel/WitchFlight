@@ -14,7 +14,7 @@ public sealed class AccountProfileUI : MonoBehaviour
     {
         [Tooltip("ProfileImageTable의 번호입니다. 버튼의 배치 순서와는 관계없습니다.")]
         [Min(0)] public int profileIndex;
-        [Tooltip("변경할 프로필 이미지 버튼입니다. 기존 팝업 열기 OnClick은 그대로 유지됩니다.")]
+        [Tooltip("클릭하면 즉시 적용·저장하는 프로필 이미지 버튼입니다. 팝업 열기 OnClick은 연결하지 마세요.")]
         public Button button;
         [Tooltip("버튼 안의 ProfileImage를 연결하세요. 배경/테두리 Image가 아닙니다.")]
         public Image icon;
@@ -30,11 +30,11 @@ public sealed class AccountProfileUI : MonoBehaviour
     [SerializeField] private TMP_Text welcomeNicknameText;
     [Header("Account session")]
     [SerializeField] private Button logoutButton;
-    [Header("Profile choices (selection only)")]
-    [Tooltip("이미지 버튼은 변경할 번호만 선택합니다. 확정 전에는 현재 프로필이나 저장 데이터가 바뀌지 않습니다.")]
+    [Header("Profile choices (apply on click)")]
+    [Tooltip("이미지 클릭 즉시 현재 프로필 변경, 자동 저장 및 방 내 동기화를 실행합니다.")]
     [SerializeField] private ProfileChoice[] profileChoices = Array.Empty<ProfileChoice>();
     [Header("Shared confirmation")]
-    [Tooltip("프로필/칭호 공용 확정 버튼입니다. 프로필을 선택한 경우에만 프로필 변경을 실행하며, 버튼의 활성/비활성은 변경하지 않습니다.")]
+    [Tooltip("칭호 장착에 사용하는 기존 확정 버튼입니다. 프로필 변경은 이미지 클릭으로 즉시 적용합니다.")]
     [SerializeField] private Button confirmButton;
     [Header("Shared popup selection context")]
     [Tooltip("프로필 목록을 여는 버튼입니다. 목록을 다시 열면 이전 미확정 선택을 취소합니다.")]
@@ -94,7 +94,6 @@ public sealed class AccountProfileUI : MonoBehaviour
                 Bind(choice.button, action);
             }
         }
-        Bind(confirmButton, ConfirmSelectedProfile);
         Bind(profileCategoryButton, CancelSelection);
         Bind(titleCategoryButton, BeginTitleSelection);
         if (titleChoicesRoot != null)
@@ -153,16 +152,17 @@ public sealed class AccountProfileUI : MonoBehaviour
         LoginManager.Instance.LogoutAndReloadScene();
     }
 
-    // Image buttons only choose a pending profile. Authored OnClick opens the popup.
+    // Reuse the validated save/network path immediately; no confirmation UI for profiles.
     public void SelectProfile(int profileIndex)
     {
         GetComponent<AccountTitleUI>()?.CancelSelection();
         CancelSelection();
         if (!isActiveAndEnabled || !ValidateSelection(profileIndex)) return;
         selectedProfileIndex = profileIndex;
+        ConfirmSelectedProfile();
     }
 
-    // The one shared confirm button applies whichever image was selected most recently.
+    // Kept as a public entry point for compatibility; SelectProfile invokes it directly.
     public void ConfirmSelectedProfile()
     {
         if (!isActiveAndEnabled && disabledAtFrame != Time.frameCount) return;
