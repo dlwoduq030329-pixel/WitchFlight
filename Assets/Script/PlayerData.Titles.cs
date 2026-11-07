@@ -46,9 +46,10 @@ public partial class PlayerData
     }
     public void CompleteTitleMatch(int winningTeam=0)
     {
+        CompleteMissions(winningTeam > 0 && winningTeam == teamIndex);
         if(NetworkGameManager.Instance!=null && NetworkGameManager.Instance.IsTraining)return;
         if(Object!=null && Object.IsValid && Object.HasStateAuthority && !string.IsNullOrEmpty(TitleMatchId.ToString()))
-        {CompleteTitleChallenges(winningTeam);TitleMatchCompleted=true;}
+        {CompleteTitleChallenges(winningTeam);MissionWon = winningTeam > 0 && winningTeam == teamIndex;TitleMatchCompleted=true;}
     }
     public void RecordTitleEmote() { if(CanRecordTitles)TitleEmotes++; }
     public void RecordTitleHealthPack() { if(CanRecordTitles)TitleHealthPacks++; }
@@ -94,6 +95,7 @@ public partial class PlayerData
                 }
             }
             TitleProgression.Observe(this);
+            MissionProgression.Observe(this);
             titleFinalSaved=TitleMatchCompleted && TitleProgression.Ready;
         }
     }

@@ -165,6 +165,7 @@ public sealed class RaceCourse : MonoBehaviour
         {
             standings[i].SetRaceResult(i + 1, false);
             standings[i].CloseRace();
+            standings[i].CompleteMissions(i == 0);
         }
     }
 

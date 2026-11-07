@@ -158,6 +158,7 @@ public sealed class BattleItemPickup : NetworkBehaviour
             !player.TryApplyBattleItem(itemType, healAmount, speedMultiplier, boostDurationSeconds, manaRestoreAmount)) return false;
         // Consumed is written in the same authority tick as the effect: only one player wins.
         Consumed = true;
+        PlayerData.FindPerkData(Runner, player.ParticipantRef)?.RecordMission(MissionObjective.ItemCollected);
         if (itemType == BattleItemType.HealthPotion)
             PlayerData.FindPerkData(Runner, player.ParticipantRef)?.RecordTitleHealthPack();
         RespawnAt = respawnSeconds > 0f && !float.IsInfinity(respawnSeconds)

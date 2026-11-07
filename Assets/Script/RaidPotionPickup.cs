@@ -50,6 +50,7 @@ public sealed class RaidPotionPickup : NetworkBehaviour
             float distance = BattleFlag.SegmentDistanceSquared(before, center, PickupPosition - halfAxis, PickupPosition + halfAxis, out var contact);
             if (distance > (radius + pickupRadius) * (radius + pickupRadius) || !MagicProjectile.HasSummonSight(contact, PickupPosition)) continue;
             if (!player.TryApplyBattleItem(itemType, boss.Settings.potionRestoreAmount, 1f, 0f, boss.Settings.potionRestoreAmount)) continue;
+            PlayerData.FindPerkData(Runner, player.ParticipantRef)?.RecordMission(MissionObjective.ItemCollected);
             Available = false;
             NextLocation = TickTimer.CreateFromSeconds(Runner, boss.Settings.potionRespawnSeconds);
             previous.Clear();

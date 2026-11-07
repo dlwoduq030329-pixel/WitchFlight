@@ -1929,6 +1929,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         {
             PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleUnblockedHit(attacker);
             PlayerData.FindPerkData(Runner,attacker)?.RecordTitleCastHit(stats.titleCastId);
+        PlayerData.FindPerkData(Runner,attacker)?.RecordMissionMagicHit(stats.magic);
             bool wasBound = IsBound;
             BindingTimer = TickTimer.CreateFromSeconds(Runner, StatusPerkDuration(stats.effectDuration));
             if (!wasBound && IsBound) PlayerData.FindPerkData(Runner,attacker)?.AwardPerkBinding(this);
@@ -1944,6 +1945,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         TakeDamage(stats.damage, attacker, stats.magic, false, stats.knockbackForce, stats.hitStunSeconds, attackerId);
         if (HitSequence == hitBefore) return;
         PlayerData.FindPerkData(Runner,attacker)?.RecordTitleCastHit(stats.titleCastId);
+        PlayerData.FindPerkData(Runner,attacker)?.RecordMissionMagicHit(stats.magic);
         NotifyConfirmedMagicHit(attacker, attackerId);
         OnAcceptedPerkHit(stats, perkSource, attackerId);
         if (IsAlive && stats.effect == MagicEffectKind.BladeVolley) ApplyWound(stats);
@@ -2127,6 +2129,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void RegisterParry(Vector3 incomingDirection, PlayerRef attacker, NetworkId attackerId)
     {
         PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleBlock(attacker);
+        PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordMission(MissionObjective.ParrySuccess);
         // A confirmed block lets the next input restart parry immediately; missed attempts retain their cooldown.
         ParryCooldown = TickTimer.None;
         // Reverse the actual travel vector, not the shooter's current location (homing shots can curve).

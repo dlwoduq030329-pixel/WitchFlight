@@ -37,6 +37,8 @@ public static class DataConfig
         }
     }
     private static int _equippedTitleId;
+    private static string _missionState = "";
+    public static string missionState { get => _missionState; internal set => SetValue(ref _missionState, value ?? ""); }
     private static string _titleProgressJson = "{}";
     public static int equippedTitleId { get => _equippedTitleId; set => SetValue(ref _equippedTitleId, value); }
     public static string titleProgressJson { get => _titleProgressJson; set => SetValue(ref _titleProgressJson, value ?? "{}"); }
@@ -171,6 +173,7 @@ public static class DataConfig
         itemInventoryJson = ItemInventory.EmptyJson;
         equippedTitleId = 0;
         titleProgressJson = "{}";
+        missionState = "";
         catTutorialCompleted = 0;
         playerprofile = 0;
         magic1Index = (int)MagicType.Fire;

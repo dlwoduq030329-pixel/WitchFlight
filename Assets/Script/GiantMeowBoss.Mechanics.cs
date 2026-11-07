@@ -70,7 +70,7 @@ public sealed partial class GiantMeowBoss
             float.IsNaN(attack.damage) || float.IsInfinity(attack.damage) || attack.damage <= 0f) return false;
         float before = CoreHealth[index];
         CoreHealth.Set(index, Mathf.Max(0f, before - attack.damage));
-        RecordDealt(attacker, before - CoreHealth[index], false);
+        RecordDealt(attacker, before - CoreHealth[index], false, attack.magic);
         if (Runner.TryFindObject(attacker, out var source) && source != null) source.GetComponent<Player>()?.ConfirmSummonHit();
         if (RemainingCores == 0)
         {
