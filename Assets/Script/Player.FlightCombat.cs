@@ -65,15 +65,25 @@ public partial class Player
             RamCooldown = other.RamCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f, table.ramCooldown));
             bool counter = counterSpeed >= table.minimumRamSpeed;
             // Capture both outcomes before either pilot can die. Contacts never parry.
+            float attackDamage = GetBodyRamDamage(table);
+            float counterDamage = counter ? other.GetBodyRamDamage(table) : 0f;
             if (!other.IsSpawnProtected) other.DropCarriedFlag();
             if (counter && !IsSpawnProtected) DropCarriedFlag();
-            other.TakeDamage(table.ramDamage, ParticipantRef, MagicType.None, false,
+            other.TakeDamage(attackDamage, ParticipantRef, MagicType.None, false,
                 table.ramKnockback, table.ramStun, Object.Id);
-            if (counter) TakeDamage(table.ramDamage, other.ParticipantRef, MagicType.None, false,
+            if (counter) TakeDamage(counterDamage, other.ParticipantRef, MagicType.None, false,
                 table.ramKnockback, table.ramStun, other.Object.Id);
             RPC_PlayBattleSound(BattleSound.BodyRam);
             break;
         }
+    }
+
+    private float GetBodyRamDamage(FlightCombatTable table)
+    {
+        // Only queried on a confirmed host-authoritative contact, never every tick.
+        float damage = equipmentStatTable != null
+            ? equipmentStatTable.GetBroomStats(Broom).ramDamageOverride : 0f;
+        return damage > 0f ? damage : table.ramDamage;
     }
 
     private void DropCarriedFlag()

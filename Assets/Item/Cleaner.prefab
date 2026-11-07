@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8907744344150630452}
-  - component: {fileID: 2732206757691710480}
+  - component: {fileID: 908110800000000005}
   - component: {fileID: 8349934428347082007}
   m_Layer: 0
   m_Name: Cleaner
@@ -17,7 +17,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &8907744344150630452
 Transform:
   m_ObjectHideFlags: 0
@@ -30,19 +30,13 @@ Transform:
   m_LocalPosition: {x: -0, y: 0, z: 0}
   m_LocalScale: {x: 0.22700748, y: 0.22700748, z: 0.22700748}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 908110800000000002}
+  - {fileID: 908110800000000004}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &2732206757691710480
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5123052261582974795}
-  m_Mesh: {fileID: 4651090514169150127, guid: 404b820894fc3da4da5b74dadc3e35b5, type: 3}
---- !u!23 &8349934428347082007
-MeshRenderer:
+--- !u!137 &8349934428347082007
+SkinnedMeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -93,3 +87,106 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+  m_Quality: 2
+  m_UpdateWhenOffscreen: 0
+  m_SkinnedMotionVectors: 1
+  m_Mesh: {fileID: 4300000, guid: 78f020bad27dc254db0938004b211999, type: 2}
+  m_Bones:
+  - {fileID: 908110800000000002}
+  - {fileID: 908110800000000004}
+  m_BlendShapeWeights: []
+  m_RootBone: {fileID: 908110800000000002}
+  m_AABB:
+    m_Center: {x: 0.8074, y: 2.1819, z: 2.4192}
+    m_Extent: {x: 6.4531, y: 7.194, z: 8.4889}
+  m_DirtyAABB: 0
+--- !u!1 &908110800000000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 908110800000000002}
+  m_Layer: 0
+  m_Name: Cleaner_Wand
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &908110800000000002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908110800000000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8907744344150630452}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &908110800000000003
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 908110800000000004}
+  m_Layer: 0
+  m_Name: Cleaner_Body
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &908110800000000004
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908110800000000003}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8907744344150630452}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &908110800000000005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5123052261582974795}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc0a75e8255940d4a07ddc2df9c22419, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  characterRoot: {fileID: 0}
+  bodyBone: {fileID: 908110800000000004}
+  bodyRenderer: {fileID: 8349934428347082007}
+  bodyPivot: {x: 0, y: 0.65, z: 0}
+  idleSwing: 6
+  flightSwing: 48
+  boostSwing: 96
+  bobDistance: 0.36
+  frequency: 1.3
+  response: 6
+  accelerationPull: 0.05
+  accelerationTilt: 1.1
+  springFrequency: 1.4
+  springDamping: 0.18
+  maximumTilt: 120
+  maximumBodyOffset: 2.5

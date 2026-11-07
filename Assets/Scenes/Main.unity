@@ -98462,6 +98462,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3639000843308811576}
   - component: {fileID: 480545815564089535}
+  - component: {fileID: 897650132268093471}
   m_Layer: 5
   m_Name: Hair
   m_TagString: Untagged
@@ -169756,7 +169757,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
+  m_Sprite: {fileID: 1207712523, guid: 72a30c00e709abc478ad8b219e006dcc, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -279536,6 +279537,13 @@ MonoBehaviour:
     description: "\uD3C9\uC18C \uC18D\uB3C4\uB294 \uB290\uB9AC\uC9C0\uB9CC \uC120\uD68C\uB825\uC774
       \uB192\uACE0, \uBD80\uC2A4\uD2B8\uB85C \uC21C\uAC04\uC801\uC778 \uCD5C\uACE0
       \uC18D\uB3C4\uB97C \uB0B4\uB294 \uAE30\uCCB4\uC785\uB2C8\uB2E4."
+  - broom: 5
+    button: {fileID: 7464862128528443896}
+    buttonImage: {fileID: 1372832532025081332}
+    icon: {fileID: 1207712523, guid: 72a30c00e709abc478ad8b219e006dcc, type: 3}
+    displayName: "\uCCAD\uC18C\uAE30"
+    description: "\uB192\uC740 \uCCB4\uB825\uACFC \uC120\uD68C\uB825\uC744 \uAC00\uC9C4
+      \uBAB8\uD1B5 \uCDA9\uB3CC \uD2B9\uD654 \uAE30\uCCB4\uC785\uB2C8\uB2E4."
   broomSlotButton: {fileID: 388536319060154485}
   broomSlotImage: {fileID: 1667526741061212082}
   broomSlotHighlight: {fileID: 0}
@@ -308201,6 +308209,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Cleaner
       objectReference: {fileID: 0}
+    - target: {fileID: 5123052261582974795, guid: 8a45378f9db00ee4b9acc44f38b7b763, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8907744344150630452, guid: 8a45378f9db00ee4b9acc44f38b7b763, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0
@@ -308492,7 +308504,7 @@ GameObject:
   - component: {fileID: 8055168635989071613}
   - component: {fileID: 7464862128528443896}
   m_Layer: 5
-  m_Name: Button02
+  m_Name: Cleaner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -330087,7 +330099,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!137 &6326936644513709423
 SkinnedMeshRenderer:
   m_ObjectHideFlags: 0
@@ -368226,29 +368238,17 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1296895765236367200}
-        m_TargetAssemblyTypeName: UnityEngine.UI.Image, UnityEngine.UI
-        m_MethodName: set_sprite
-        m_Mode: 2
-        m_Arguments:
-          m_ObjectArgument: {fileID: 21300000, guid: ef4551506fae90b44960c569a6873402, type: 3}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Sprite, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-      - m_Target: {fileID: 2894958548898456452}
-        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
-        m_MethodName: SetActive
-        m_Mode: 6
+      - m_Target: {fileID: 4747885275329853014}
+        m_TargetAssemblyTypeName: MagicCustomizationUI, Assembly-CSharp
+        m_MethodName: SelectBroomSlot
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
-          m_BoolArgument: 1
+          m_BoolArgument: 0
         m_CallState: 2
 --- !u!222 &7464980784321403694
 CanvasRenderer:
@@ -444422,6 +444422,19 @@ RectTransform:
   m_AnchoredPosition: {x: 250, y: 180.20001}
   m_SizeDelta: {x: 500, y: 106}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &897650132268093471
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 186953223675875542}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e97f73af852a4fdfab293245b598db60, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  preview: {fileID: 1900010003}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -20,6 +20,7 @@ public class PlayerEquipment : MonoBehaviour
     private int currentHatIndex;
     private int currentBroomIndex;
     private bool flightEquipmentVisible = true;
+    private bool broomPreviewHidden;
     private bool weaponVisible = true;
     private bool followsDataConfig;
     private bool hasLocalLoadout;
@@ -88,7 +89,7 @@ public class PlayerEquipment : MonoBehaviour
         int slot = currentMagicSlot;
         currentMagicSlot = 0;
         ChangeMagic(slot);
-        SetOnlyActive(broomPrefabs, visible ? currentBroomIndex : 0);
+        SetOnlyActive(broomPrefabs, visible && !broomPreviewHidden ? currentBroomIndex : 0);
         UpdateRobotRidingPose();
         if (!visible) SetAllInactive(magicStaffPrefabs);
     }
@@ -180,14 +181,23 @@ public class PlayerEquipment : MonoBehaviour
     public void EquipBroom(int index)
     {
         currentBroomIndex = index;
-        SetOnlyActive(broomPrefabs, flightEquipmentVisible ? index : 0);
+        SetOnlyActive(broomPrefabs, flightEquipmentVisible && !broomPreviewHidden ? index : 0);
+        UpdateRobotRidingPose();
+    }
+
+    // Local customization visibility only; never changes or saves the equipped craft.
+    public void SetBroomPreviewHidden(bool hidden)
+    {
+        if (broomPreviewHidden == hidden) return;
+        broomPreviewHidden = hidden;
+        SetOnlyActive(broomPrefabs, flightEquipmentVisible && !hidden ? currentBroomIndex : 0);
         UpdateRobotRidingPose();
     }
 
     private void UpdateRobotRidingPose()
     {
         if (robotRidingPose != null)
-            robotRidingPose.SetRiding(flightEquipmentVisible && currentBroomIndex == (int)BroomType.Robot);
+            robotRidingPose.SetRiding(flightEquipmentVisible && !broomPreviewHidden && currentBroomIndex == (int)BroomType.Robot);
     }
 
     private GameObject FindMagicObject(MagicType magic)
