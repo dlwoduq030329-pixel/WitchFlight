@@ -46,7 +46,7 @@ public class EyeTexturePresetTable {
 public partial class DatabaseManager {
  const string TABLE_NAME="test";
  bool CanAutoSave=>IsDataConfigReady;
- public bool IsDataConfigReady=true,IsVoicePurchaseInProgress,claimingMission,IsAutoSavePending;
+ public bool IsDataConfigReady=true,IsVoicePurchaseInProgress,IsAttendanceInProgress,claimingMission,IsAutoSavePending;
  public bool HasLoadedProfile=true,LastSaveSucceeded;
  public string LastError;
  int dataSessionVersion;

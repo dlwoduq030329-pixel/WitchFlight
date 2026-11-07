@@ -18,7 +18,7 @@ public partial class DatabaseManager
         if (target < ColorPaletteTarget.Clothes || target > ColorPaletteTarget.Eyes)
         { completed(false, "색상 변경 대상을 확인해주세요."); return; }
         if (!CanAutoSave) { completed(false, "로그인 정보를 확인해주세요."); return; }
-        if (IsPalettePurchaseInProgress || IsVoicePurchaseInProgress || claimingMission || IsAutoSavePending)
+        if (IsPalettePurchaseInProgress || IsAttendanceInProgress || IsVoicePurchaseInProgress || claimingMission || IsAutoSavePending)
         { completed(false, "계정 정보 저장 중입니다. 잠시 후 다시 눌러주세요."); return; }
         if (float.IsNaN(color.r) || float.IsNaN(color.g) || float.IsNaN(color.b) ||
             float.IsInfinity(color.r) || float.IsInfinity(color.g) || float.IsInfinity(color.b))

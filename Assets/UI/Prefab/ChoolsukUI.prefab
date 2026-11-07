@@ -520,12 +520,12 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 64
-  m_fontSizeBase: 64
+  m_fontSize: 32
+  m_fontSizeBase: 32
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
-  m_fontSizeMax: 72
+  m_fontSizeMax: 32
   m_fontStyle: 0
   m_HorizontalAlignment: 1
   m_VerticalAlignment: 256
@@ -817,6 +817,7 @@ GameObject:
   - component: {fileID: 9071535852052614500}
   - component: {fileID: 7620370199570179087}
   - component: {fileID: 3164281517828950898}
+  - component: {fileID: 908111100000000001}
   m_Layer: 5
   m_Name: ChoolsukUI
   m_TagString: Untagged
@@ -4214,7 +4215,7 @@ MonoBehaviour:
     m_RotationOrder: 4
   loopType: 0
   loops: 1
-  id: Circle
+  id: FadeChul
   isRelative: 0
   isFrom: 0
   isIndependentUpdate: 0
@@ -4659,6 +4660,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 908111300000000002}
   - {fileID: 5041949879979384323}
   m_Father: {fileID: 6144651694528478504}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -4748,31 +4750,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1688393091465142309}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 4987245433248816655}
-        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
-        m_MethodName: SetActive
-        m_Mode: 6
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 1
-        m_CallState: 2
-      - m_Target: {fileID: 799624960414309139}
-        m_TargetAssemblyTypeName: DG.Tweening.DOTweenAnimation, Assembly-CSharp-firstpass
-        m_MethodName: DORestartAllById
-        m_Mode: 5
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: ChulSuccess
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!1 &5582005336627441202
 GameObject:
   m_ObjectHideFlags: 0
@@ -7517,3 +7495,119 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_HorizontalFit: 2
   m_VerticalFit: 2
+--- !u!114 &908111100000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1136979069455470195}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65cf1c4dac4846c6806445efc479e458, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  rewards: {fileID: 11400000, guid: 30241f00df9b4959bc656431caa4651c, type: 2}
+  days:
+  - rewardText: {fileID: 6006167169980507736}
+    icon: {fileID: 609998528132581717}
+    check: {fileID: 4347401290785463364}
+  - rewardText: {fileID: 7633994916879765835}
+    icon: {fileID: 8073692262514745197}
+    check: {fileID: 2035292733687222000}
+  - rewardText: {fileID: 2032943627201641780}
+    icon: {fileID: 3700166519708630339}
+    check: {fileID: 4565871670997004309}
+  - rewardText: {fileID: 7568585520973184791}
+    icon: {fileID: 6208323622607376583}
+    check: {fileID: 2821853797253042982}
+  - rewardText: {fileID: 3147873627804836053}
+    icon: {fileID: 5672555089019943308}
+    check: {fileID: 7507230163573881303}
+  - rewardText: {fileID: 5624031854438094355}
+    icon: {fileID: 8420872369053895093}
+    check: {fileID: 373976831978003529}
+  - rewardText: {fileID: 758808672282600703}
+    icon: {fileID: 7811769040970187835}
+    check: {fileID: 151031382742686366}
+  checkButton: {fileID: 1924880658588800131}
+  buttonText: {fileID: 697097330629124068}
+  successPopup: {fileID: 4987245433248816655}
+  successText: {fileID: 7156651595391737405}
+  checkImage: {fileID: 908111300000000001}
+  successEntrance: {fileID: 799624960414309139}
+--- !u!1 &908111300000000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 908111300000000002}
+  - component: {fileID: 908111300000000003}
+  - component: {fileID: 908111300000000004}
+  m_Layer: 5
+  m_Name: CheckImage
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!224 &908111300000000002
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908111300000000001}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2073755543436724491}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0.5}
+  m_AnchorMax: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 20, y: 0}
+  m_SizeDelta: {x: 28, y: 28}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &908111300000000003
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908111300000000001}
+  m_CullTransparentMesh: 1
+--- !u!114 &908111300000000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908111300000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 21300000, guid: 97cd56c4ee6fd28419335204377baff3, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 1
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
