@@ -17,6 +17,15 @@ public sealed class CombatMagicVisual : MonoBehaviour
     private bool spawnShield;
     private float spawnOrbitPhase;
     private float spawnOpacity = 1f;
+    private Player instantMuzzleOwner;
+    private Vector3 instantBeamEnd, instantBeamDirection;
+
+    public void FollowInstantMuzzle(Player owner, Vector3 end)
+    {
+        instantMuzzleOwner = owner;
+        instantBeamEnd = end;
+        instantBeamDirection = (end - owner.MagicCastPosition).normalized;
+    }
     private LineRenderer shieldRim;
     private LineRenderer shieldImpactRing;
     private Color shieldRimColor;
@@ -276,6 +285,13 @@ public sealed class CombatMagicVisual : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (instantMuzzleOwner != null)
+        {
+            if (instantMuzzleOwner.Object == null || !instantMuzzleOwner.Object.IsValid || !instantMuzzleOwner.IsAlive ||
+                Vector3.Dot(instantBeamEnd - instantMuzzleOwner.MagicCastPosition, instantBeamDirection) <= 0f)
+            { MagicVfxPool.Release(gameObject); return; }
+            SetEndpoints(instantMuzzleOwner.MagicCastPosition, instantBeamEnd);
+        }
         if (expires <= 0f) return;
         if (follow == null || follow.Object == null || !follow.Object.IsValid || !follow.IsAlive ||
             follow.IsHiddenBySmokeFor(Player.LocalPlayer) || BattleManager.Instance == null ||

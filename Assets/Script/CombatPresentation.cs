@@ -575,9 +575,13 @@ public sealed class CombatPresentation : MonoBehaviour
 
     public void ShowCast(MagicType magic, Vector3 origin, Vector3 end)
     {
+        MagicStatEntry stats = OwnerStats(magic);
+        bool followMuzzle = ShouldFollowInstantMuzzle(stats);
+        // RPC coordinates are simulation-time positions; the rendered caster may
+        // already have advanced. Only re-anchor presentation, never the confirmed hit.
+        if (followMuzzle) origin = owner.MagicCastPosition;
         BattleAudio.PlayMagic(magic, MagicSound.Cast, origin, transform);
         ClearLockCompleteVfx();
-        MagicStatEntry stats = OwnerStats(magic);
         // Utility effects have their own fallback; the optional cast effect is additive.
         bool utility = stats.effect == MagicEffectKind.Flare || stats.effect == MagicEffectKind.Smoke;
         if (!utility || stats.castVfxPrefab != null) ShowCastVfx(stats, origin);
@@ -591,13 +595,14 @@ public sealed class CombatPresentation : MonoBehaviour
         if (stats.projectileSpeed > 0f || stats.IsChanneled || stats.effect == MagicEffectKind.Healing ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon) return;
         if (stats.beamVfxPrefab == null && stats.beamMaterial == null)
-            CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic), owner);
+            CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic), owner, followMuzzle);
         else
         {
             CombatMagicVisual beam = CombatMagicVisual.Beam(magic, stats.beamVfxPrefab, stats.beamMaterial);
             RearThreatCamera.ExcludeLocalEffect(beam.gameObject, owner);
             if (owner != null) TimeVfxSpeed.Bind(beam.gameObject, owner.Runner, owner.TeamIndex, false);
             beam.SetEndpoints(origin, end);
+            if (followMuzzle) beam.FollowInstantMuzzle(owner, end);
             MagicVfxPool.Release(beam.gameObject, 0.2f);
         }
         ShowImpact(end, magic, owner);
@@ -607,9 +612,15 @@ public sealed class CombatPresentation : MonoBehaviour
     {
         GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation, null, owner);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
+        if (view != null && ShouldFollowInstantMuzzle(stats)) InstantCastMuzzleFollow.Bind(view, owner);
         if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
         else SpawnPulse(origin, MagicColor(stats.magic), stats.effect == MagicEffectKind.Healing ? 2f : 0.7f, 0.25f, owner);
     }
+
+    private bool ShouldFollowInstantMuzzle(MagicStatEntry stats) =>
+        owner != null && owner.Object != null && owner.Object.IsValid && owner.IsAlive &&
+        (stats.magic == MagicType.Vision || stats.magic == MagicType.Dark) &&
+        stats.projectileSpeed <= 0f && !stats.IsChanneled;
 
     private void UpdateChannelVisual()
     {
