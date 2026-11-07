@@ -22,6 +22,7 @@ public partial class PlayerData
     private double previousTitleHit = double.NegativeInfinity;
     private float nextTitleSync;
     private bool titleFinalSaved;
+    private string rewardedMatchId;
     private bool CanRecordTitles => CanRecordBattleStats && !IsMatchBot && !BattleManager.Instance.IsTraining && !BattleManager.Instance.IsRace && BattleManager.Instance.RecordsBattleStats;
 
     public void SetEquippedTitle(int id)
@@ -83,6 +84,15 @@ public partial class PlayerData
         if(TitleMatchCompleted && !titleFinalSaved || Time.unscaledTime>=nextTitleSync)
         {
             nextTitleSync=Time.unscaledTime+1f;
+            if (TitleMatchCompleted && !IsMatchBot && DatabaseManager.Instance != null && DatabaseManager.Instance.HasLoadedProfile)
+            {
+                string match = TitleMatchId.ToString();
+                if (!string.IsNullOrEmpty(match) && rewardedMatchId != match)
+                {
+                    BattleMatchRewards.Request(match, BattleDamageDealt, BattleKills);
+                    rewardedMatchId = match;
+                }
+            }
             TitleProgression.Observe(this);
             titleFinalSaved=TitleMatchCompleted && TitleProgression.Ready;
         }

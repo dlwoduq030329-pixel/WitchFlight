@@ -1,0 +1,165 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 17ea4054f3564751bfa66e508cfdd215, type: 3}
+  m_Name: MissionCatalog
+  m_EditorClassIdentifier:
+  missions:
+  - missionId: daily_first_flight
+    period: 0
+    displayName: "오늘의 첫 비행"
+    description: "경기 {target}회 완료하기"
+    objective: 0
+    target: 1
+    rewardCurrency: 100
+    sortOrder: 1
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: daily_play_01
+    period: 0
+    displayName: "마녀의 일과"
+    description: "경기 {target}회 완료하기"
+    objective: 0
+    target: 3
+    rewardCurrency: 200
+    sortOrder: 2
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: daily_damage_01
+    period: 0
+    displayName: "마법 실전 연습"
+    description: "적에게 피해 누적 {target} 주기"
+    objective: 1
+    target: 3000
+    rewardCurrency: 150
+    sortOrder: 3
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: daily_kill_assist_01
+    period: 0
+    displayName: "놓치지 않을 거야"
+    description: "적 처치 또는 처치 도움 {target}회 달성하기"
+    objective: 2
+    target: 5
+    rewardCurrency: 150
+    sortOrder: 4
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: daily_items_01
+    period: 0
+    displayName: "전장 보급"
+    description: "전투 중 아이템 {target}개 획득하기"
+    objective: 3
+    target: 5
+    rewardCurrency: 100
+    sortOrder: 5
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_play_01
+    period: 1
+    displayName: "꾸준한 마녀"
+    description: "경기 {target}회 완료하기"
+    objective: 0
+    target: 15
+    rewardCurrency: 1000
+    sortOrder: 1
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_damage_01
+    period: 1
+    displayName: "마력의 흔적"
+    description: "적에게 누적 피해 {target} 주기"
+    objective: 1
+    target: 40000
+    rewardCurrency: 1000
+    sortOrder: 2
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_kill_assist_01
+    period: 1
+    displayName: "전장의 해결사"
+    description: "적 처치 또는 처치 도움 {target}회 달성하기"
+    objective: 2
+    target: 60
+    rewardCurrency: 1000
+    sortOrder: 3
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_wins_01
+    period: 1
+    displayName: "승리를 향해서"
+    description: "경기 {target}회 승리하기"
+    objective: 4
+    target: 5
+    rewardCurrency: 1000
+    sortOrder: 4
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_minutes_01
+    period: 1
+    displayName: "끝까지 날아라"
+    description: "전투 누적 플레이 {target}분 달성하기"
+    objective: 5
+    target: 120
+    rewardCurrency: 1000
+    sortOrder: 5
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_items_01
+    period: 1
+    displayName: "보급품 수집가"
+    description: "전투 중 아이템 {target}개 획득하기"
+    objective: 3
+    target: 40
+    rewardCurrency: 1000
+    sortOrder: 6
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_parry_01
+    period: 1
+    displayName: "빈틈없는 방어"
+    description: "패링 {target}회 성공하기"
+    objective: 6
+    target: 15
+    rewardCurrency: 1000
+    sortOrder: 7
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_magic_hits_01
+    period: 1
+    displayName: "마법 연구 주간"
+    description: "서로 다른 공격 마법 {target}종으로 각각 적중 {requiredHitsPerMagic}회 달성하기"
+    objective: 7
+    target: 4
+    rewardCurrency: 1000
+    sortOrder: 8
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_play_days_01
+    period: 1
+    displayName: "다시 일어서는 마녀"
+    description: "서로 다른 날에 경기 완료 {target}일 달성하기"
+    objective: 8
+    target: 4
+    rewardCurrency: 1000
+    sortOrder: 9
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_match_contribution_01
+    period: 1
+    displayName: "숙련된 전투원"
+    description: "서로 다른 경기 {target}회에서 처치 또는 처치 도움 달성하기"
+    objective: 9
+    target: 8
+    rewardCurrency: 1000
+    sortOrder: 10
+    enabled: 1
+    requiredHitsPerMagic: 10
