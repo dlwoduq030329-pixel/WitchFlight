@@ -41,6 +41,7 @@ public partial class Player
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
         BattleFlag.GetCapsule(this, out Vector3 center, out Vector3 half, out float radius);
         Vector3 startCenter = center + start - end;
+        float contactMultiplier = IsBoosting ? Mathf.Max(1f, table.boostRamContactMultiplier) : 1f;
         foreach (Player other in ActiveCombatants)
         {
             if (other == null || other == this || other.Object == null || !other.Object.IsValid ||
@@ -54,6 +55,8 @@ public partial class Player
             if (attackSpeed < table.minimumRamSpeed) continue;
             float combined = radius + targetRadius;
             int steps = Mathf.Clamp(Mathf.CeilToInt((end - start).magnitude / Mathf.Max(.1f, combined * .4f)), 1, 24);
+            // Widen only enemy ram contact; keep movement colliders and sweep sampling unchanged.
+            combined *= contactMultiplier;
             bool contact = false;
             for (int step = 0; step <= steps; step++)
             {
@@ -65,15 +68,25 @@ public partial class Player
             RamCooldown = other.RamCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f, table.ramCooldown));
             bool counter = counterSpeed >= table.minimumRamSpeed;
             // Capture both outcomes before either pilot can die. Contacts never parry.
+            float attackDamage = GetBodyRamDamage(table);
+            float counterDamage = counter ? other.GetBodyRamDamage(table) : 0f;
             if (!other.IsSpawnProtected) other.DropCarriedFlag();
             if (counter && !IsSpawnProtected) DropCarriedFlag();
-            other.TakeDamage(table.ramDamage, ParticipantRef, MagicType.None, false,
+            other.TakeDamage(attackDamage, ParticipantRef, MagicType.None, false,
                 table.ramKnockback, table.ramStun, Object.Id);
-            if (counter) TakeDamage(table.ramDamage, other.ParticipantRef, MagicType.None, false,
+            if (counter) TakeDamage(counterDamage, other.ParticipantRef, MagicType.None, false,
                 table.ramKnockback, table.ramStun, other.Object.Id);
             RPC_PlayBattleSound(BattleSound.BodyRam);
             break;
         }
+    }
+
+    private float GetBodyRamDamage(FlightCombatTable table)
+    {
+        // Only queried on a confirmed host-authoritative contact, never every tick.
+        float damage = equipmentStatTable != null
+            ? equipmentStatTable.GetBroomStats(Broom).ramDamageOverride : 0f;
+        return damage > 0f ? damage : table.ramDamage;
     }
 
     private void DropCarriedFlag()

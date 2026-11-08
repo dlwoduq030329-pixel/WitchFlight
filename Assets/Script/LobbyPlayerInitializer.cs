@@ -66,6 +66,14 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
     [SerializeField] private UnityEvent<string> onSaveFailed = new UnityEvent<string>();
 
     public PlayerConfig CurrentConfig { get; private set; }
+    private bool hidePreviewBroom;
+
+    public void SetBroomPreviewHidden(bool hidden)
+    {
+        hidePreviewBroom = hidden;
+        RefreshEquipmentVisibility();
+        if (equipment != null) equipment.SetBroomPreviewHidden(hidden);
+    }
 
     private void OnEnable()
     {
@@ -102,7 +110,10 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
     private void RefreshEquipmentVisibility()
     {
         if (equipment == null && characterSearchRoot != null)
+        {
             equipment = characterSearchRoot.GetComponentInChildren<PlayerEquipment>(true);
+            if (equipment != null) equipment.SetBroomPreviewHidden(hidePreviewBroom);
+        }
         if (equipment != null)
         {
             equipment.SetFlightEquipmentVisible(customizationPanel != null && customizationPanel.activeInHierarchy);

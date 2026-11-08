@@ -49,6 +49,9 @@ public struct BroomStatEntry
     [Tooltip("이 빗자루를 착용했을 때의 HP 최대치입니다.")]
     public float maxHp;
 
+    [Min(0f), Tooltip("몸통 충돌 피해. 0이면 FlightCombatTable의 공통 피해를 사용합니다.")]
+    public float ramDamageOverride;
+
     [Min(0.01f)]
     [Tooltip("W/S 3단계에서의 전진·후진 최대 이동 속도(m/s)입니다.")]
     public float maxSpeed;
@@ -107,9 +110,9 @@ public sealed class EquipmentStatTable : ScriptableObject
     [Tooltip("Classic, Twisted, Elemental 세 모자의 AP 능력치를 편집합니다.")]
     public HatStatEntry[] hats = new HatStatEntry[3];
 
-    [Header("Brooms (3)")]
-    [Tooltip("Slow(체력·부스트 효율), Standard(최고 선회력·편한 가감속), Speed(최고 속도)의 능력치를 편집합니다.")]
-    public BroomStatEntry[] brooms = new BroomStatEntry[3];
+    [Header("Brooms")]
+    [Tooltip("Slow(체력·부스트 효율), Standard(최고 선회력·편한 가감속), Speed(최고 속도), Robot(로봇 청소기), Cleaner(육탄형 청소기)의 능력치를 편집합니다.")]
+    public BroomStatEntry[] brooms = new BroomStatEntry[5];
 
     public HatStatEntry GetHatStats(HatType selectedHat)
     {
