@@ -65,6 +65,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     private bool reportedSnapshotFailure;
     private int displayedCountdown = -1;
     private bool displayedTeamMode;
+    private bool displayPrepared;
+    private GameObject localProfileRoot, opponentProfileRoot;
     private readonly List<IntroTween> introTweens = new();
     private sealed class IntroTween
     {
@@ -74,10 +76,34 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void Awake()
     {
-        PrepareTeamProfileMotion();
-        // Capture before SetUIPhase activates VSUI and runs its DOTweenAnimation.Awake.
-        PrepareIntroTweens();
+        PrepareBeforeDisplay();
         SetUIPhase(BattleStartPhase.WaitingForPlayers);
+    }
+
+    // Called by the scene's early initializer before an initially active VSUI can autoplay.
+    // Keep this controller's late execution order: portrait baking must follow animation.
+    internal void PrepareBeforeDisplay()
+    {
+        if (displayPrepared || introPanel == null) return;
+        displayPrepared = true;
+        PrepareTeamProfileMotion();
+        localProfileRoot = FindVSChild(introPanel.transform, "PlayerProfile")?.gameObject;
+        opponentProfileRoot = FindVSChild(introPanel.transform, "EnemyProfile")?.gameObject;
+        if (teammateProfileRoot == null)
+            teammateProfileRoot = FindVSChild(introPanel.transform, "PlayerProfile (1)")?.gameObject;
+        if (secondEnemyProfileRoot == null)
+            secondEnemyProfileRoot = FindVSChild(introPanel.transform, "EnemyProfile (1)")?.gameObject;
+        PrepareIntroTweens();
+        SetProfileVisibility(false);
+    }
+
+    private void SetProfileVisibility(bool visible)
+    {
+        if (localProfileRoot != null) localProfileRoot.SetActive(visible);
+        if (opponentProfileRoot != null)
+            opponentProfileRoot.SetActive(visible && BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 1);
+        if (teammateProfileRoot != null) teammateProfileRoot.SetActive(visible && IsTeamBattle);
+        if (secondEnemyProfileRoot != null) secondEnemyProfileRoot.SetActive(visible && IsTeamBattle);
     }
 
     private void PrepareIntroTweens()
@@ -105,6 +131,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             if (animation.tween != null && animation.tween.IsActive())
             {
                 animation.tween.SetAutoKill(false);
+                animation.tween.ForceInit();
                 animation.tween.Rewind();
             }
         }
@@ -189,6 +216,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         }
 
         ApplySoloProfileLabels(local, opponent);
+        // Hidden cards can still be populated; readiness must not depend on their visibility.
+        if (introUserInfo != null && !introUserInfo.isActiveAndEnabled) introUserInfo.RefreshUserInfo();
 
         bool solo = battle.ExpectedPlayerCount <= 1;
         if (soloText != null)
@@ -206,9 +235,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
         if (phase == BattleStartPhase.WaitingForPlayers && localSnapshot.IsReady &&
             (solo || opponentSnapshot.IsReady) &&
-            (introUserInfo == null || (introUserInfo.isActiveAndEnabled &&
-             introUserInfo.HasUserInfoFor(local.ParticipantRef,
-                 solo ? default : opponent.ParticipantRef, !solo))))
+            (introUserInfo == null || introUserInfo.HasUserInfoFor(local.ParticipantRef,
+                 solo ? default : opponent.ParticipantRef, !solo)))
             local.ReportBattleSceneReady();
     }
 
@@ -526,6 +554,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             bool containsActiveText = countdown && countdownText != null && countdownText.transform.IsChildOf(introPanel.transform);
             introPanel.SetActive((!training && (waiting || intro)) || containsActiveText);
         }
+        SetProfileVisibility(!training && intro);
         UpdatePortraitVisibility(phase);
         if (soloText != null)
             soloText.gameObject.SetActive(intro && BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount <= 1);
@@ -567,7 +596,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     private void UpdatePortraitVisibility(BattleStartPhase phase)
     {
         bool training = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
-        bool visible = !training && (phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro);
+        bool visible = !training && phase == BattleStartPhase.Intro;
         if (localPortrait != null)
             localPortrait.enabled = visible && localPortrait.texture != null;
         if (opponentPortrait != null)

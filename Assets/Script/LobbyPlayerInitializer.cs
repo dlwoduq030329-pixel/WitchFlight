@@ -66,6 +66,14 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
     [SerializeField] private UnityEvent<string> onSaveFailed = new UnityEvent<string>();
 
     public PlayerConfig CurrentConfig { get; private set; }
+    private bool hidePreviewBroom;
+
+    public void SetBroomPreviewHidden(bool hidden)
+    {
+        hidePreviewBroom = hidden;
+        RefreshEquipmentVisibility();
+        if (equipment != null) equipment.SetBroomPreviewHidden(hidden);
+    }
 
     private void OnEnable()
     {
@@ -102,7 +110,10 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
     private void RefreshEquipmentVisibility()
     {
         if (equipment == null && characterSearchRoot != null)
+        {
             equipment = characterSearchRoot.GetComponentInChildren<PlayerEquipment>(true);
+            if (equipment != null) equipment.SetBroomPreviewHidden(hidePreviewBroom);
+        }
         if (equipment != null)
         {
             equipment.SetFlightEquipmentVisible(customizationPanel != null && customizationPanel.activeInHierarchy);
@@ -201,7 +212,11 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         }
         Color key = preset.savedColorKey;
         key.a = 1f;
-        DataConfig.eyeColor = key;
+        using (DataConfig.BeginChangeBatch())
+        {
+            DataConfig.eyeColor = key;
+            DataConfig.eyePaletteColor = new Color(1, 1, 1, 0);
+        }
     }
 
     public void SetClothColor(Color color)
@@ -220,7 +235,11 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         if (table == null || !table.TryResolve(color, out EyeTexturePresetTable.Preset preset)) return;
         Color key = preset.savedColorKey;
         key.a = 1f;
-        DataConfig.eyeColor = key;
+        using (DataConfig.BeginChangeBatch())
+        {
+            DataConfig.eyeColor = key;
+            DataConfig.eyePaletteColor = new Color(1, 1, 1, 0);
+        }
     }
 
     private void RefreshCustomizationUI()

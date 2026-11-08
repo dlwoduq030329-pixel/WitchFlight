@@ -63,6 +63,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     private bool startRequested;
     private float introSeconds;
     private bool mapTourStarted;
+    private bool mapTourSkipRequested;
     private float matchSeconds;
     private float initialFlagHeight;
     private float fallStopHeight;
@@ -131,6 +132,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         TourMoveSeconds = Mathf.Max(0f, tourMoveSeconds);
         TourFadeSeconds = Mathf.Max(0.05f, tourFadeSeconds);
         mapTourStarted = false;
+        mapTourSkipRequested = false;
         roundFlagPosition = position;
         magicChangeSeconds = Mathf.Max(1f, changeSeconds);
         AllowedMagicChanges = Mathf.Clamp(changeLimit, 1, 2);
@@ -191,9 +193,34 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
 
     private void ResetPreparation()
     {
+        mapTourSkipRequested = false;
         Phase = BattleStartPhase.WaitingForPlayers;
         PhaseTimer = TickTimer.None;
         readyPlayers.Clear();
+    }
+
+    // In Host mode, a match with only one human is owned by that human's runner.
+    // Bot participant refs are not connected peers, so check ActivePlayers directly.
+    public bool RequestLocalMapTourSkip()
+    {
+        if (!CanSkipLocalMapTour()) return false;
+        mapTourSkipRequested = true;
+        return true;
+    }
+
+    private bool CanSkipLocalMapTour()
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority || Runner == null ||
+            !Runner.IsRunning || Runner.LocalPlayer == PlayerRef.None || Phase != BattleStartPhase.MapTour)
+            return false;
+        if (BattleManager.Instance != null && BattleManager.Instance.IsTraining) return true;
+        bool localConnected = false;
+        foreach (PlayerRef participant in Runner.ActivePlayers)
+        {
+            if (participant != Runner.LocalPlayer) return false;
+            localConnected = true;
+        }
+        return localConnected;
     }
 
     private void TickPreparation()
@@ -229,8 +256,10 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
             PhaseTimer = TickTimer.CreateFromSeconds(Runner, playTour ? TourDuration : 3f);
             if (playTour) mapTourStarted = true;
         }
-        else if (Phase == BattleStartPhase.MapTour && PhaseTimer.Expired(Runner))
+        else if (Phase == BattleStartPhase.MapTour &&
+            (PhaseTimer.Expired(Runner) || (mapTourSkipRequested && CanSkipLocalMapTour())))
         {
+            mapTourSkipRequested = false;
             BeginTrainingGuideOrCountdown();
         }
         else if (Phase == BattleStartPhase.TrainingTutorial && !CatTutorialDirector.TrainingGuideRequired)

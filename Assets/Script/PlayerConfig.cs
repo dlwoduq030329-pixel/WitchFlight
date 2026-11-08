@@ -15,6 +15,8 @@ public struct PlayerConfig : INetworkStruct
     public Color hairColor;
     public Color clothColor;
     public Color eyeColor;
+    // Alpha 0 keeps authored eye presets; alpha 1 enables custom iris color.
+    public Color eyePaletteColor;
     public int hatIndex;
     public int broomIndex;
     public int wandIndex;
@@ -25,6 +27,7 @@ public struct PlayerConfig : INetworkStruct
         hairColor = Color.white,
         clothColor = Color.white,
         eyeColor = Color.white,
+        eyePaletteColor = new Color(1, 1, 1, 0),
         hatIndex = (int)HatType.Classic,
         broomIndex = (int)BroomType.Standard
     };
@@ -40,9 +43,10 @@ public struct PlayerConfig : INetworkStruct
         value.hairColor = SanitizeColor(hairColor);
         value.clothColor = SanitizeColor(clothColor);
         value.eyeColor = SanitizeColor(eyeColor);
+        value.eyePaletteColor = SanitizeColor(eyePaletteColor);
         value.hatIndex = hatIndex >= (int)HatType.Classic && hatIndex <= (int)HatType.Cosmic
             ? hatIndex : (int)HatType.Classic;
-        value.broomIndex = broomIndex >= (int)BroomType.Slow && broomIndex <= (int)BroomType.Speed
+        value.broomIndex = broomIndex >= (int)BroomType.Slow && broomIndex <= (int)BroomType.Cleaner
             ? broomIndex : (int)BroomType.Standard;
         value.wandIndex = Mathf.Max(0, wandIndex);
         return value;

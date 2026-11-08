@@ -59,6 +59,7 @@ public sealed partial class LobbyPlayerInitializer
 
     private int FindSavedEye()
     {
+        if (DataConfig.eyePaletteColor.a > 0.5f) return -1;
         var table = eyeTexturePresets != null ? eyeTexturePresets : EyeTexturePresetTable.Default;
         if (table == null || !table.TryResolve(DataConfig.eyeColor, out var saved)) return -1;
         // Match the texture actually applied by PlayerAppearance, including legacy saved color keys.

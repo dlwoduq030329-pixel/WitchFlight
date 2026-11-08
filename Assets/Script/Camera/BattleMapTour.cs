@@ -52,6 +52,9 @@ public sealed class BattleMapTour : MonoBehaviour
         bool active = flag != null && flag.Object != null && flag.Object.IsValid &&
             flag.Phase == BattleStartPhase.MapTour && IsConfigured;
         if (!active) { StopTour(); return; }
+        // The authoritative phase advances on the next simulation tick; normal exit
+        // then restores the camera, fade and HUD together. Do not skip the VS phase.
+        if (Input.GetKeyDown(KeyCode.Escape)) flag.RequestLocalMapTourSkip();
         if (!running && !BeginTour()) return;
         HideHud();
 

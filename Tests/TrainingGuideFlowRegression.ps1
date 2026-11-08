@@ -23,7 +23,8 @@ public class BattleManager {
 }
 public class BattleFlag {
  public Runner Runner=new();public BattleStartPhase Phase;public TickTimer PhaseTimer;
- public bool Ready=true,startRequested,mapTourStarted;public int RoundNumber=1;
+ public bool Ready=true,startRequested,mapTourStarted,mapTourSkipRequested;
+ private bool CanSkipLocalMapTour()=>false;public int RoundNumber=1;
  public float TourDuration,introSeconds=5,matchSeconds=160,WorldPosition;
  public void Request()=>startRequested=true;
  private bool AreAllPlayersReady()=>Ready;

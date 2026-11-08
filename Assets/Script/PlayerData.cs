@@ -3,7 +3,7 @@ using UnityEngine;
 using System.Collections.Generic;
 
 public enum HatType { None, Classic, Twisted, Elemental, Serenity, Cosmic }
-public enum BroomType { None, Slow, Standard, Speed }
+public enum BroomType { None = 0, Slow = 1, Standard = 2, Speed = 3, Robot = 4, Cleaner = 5 }
 // Explicit IDs preserve existing saved loadouts. Removed spells are replaced in-place.
 public enum MagicType { None = 0, Fire = 1, Ice = 2, Vision = 3, Thunder = 4, Healing = 5, Binding = 6, Dark = 7, Curse = 8, Mine = 9, Razier = 10, Flare = 11, Smoke = 12, Blade = 13, MagicStorm = 14, TimeStop = 15, MeowFestival = 16, BladeRain = 17 }
 public enum Camp { A, B }
@@ -104,6 +104,7 @@ public partial class PlayerData : NetworkBehaviour
     [Networked] public Color hairColor { get; private set; } = Color.white;
     [Networked] public Color clothColor { get; private set; } = Color.white;
     [Networked] public Color eyeColor { get; private set; } = Color.white;
+    [Networked] public Color eyePaletteColor { get; private set; }
     [Networked] public int wandIndex { get; private set; }
     public int hairLength => Mathf.RoundToInt(bangsLength);
 
@@ -111,7 +112,7 @@ public partial class PlayerData : NetworkBehaviour
     {
         hairStylePreset = hairStylePreset, bangsLength = bangsLength, bangsDirection = bangsDirection,
         sideHairLength = sideHairLength, ahogeLength = ahogeLength,
-        hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor,
+        hairColor = hairColor, clothColor = clothColor, eyeColor = eyeColor, eyePaletteColor = eyePaletteColor,
         hatIndex = (int)hat, broomIndex = (int)broom, wandIndex = wandIndex
     };
 
@@ -124,6 +125,7 @@ public partial class PlayerData : NetworkBehaviour
         hairStylePreset = config.hairStylePreset; bangsLength = config.bangsLength;
         bangsDirection = config.bangsDirection; sideHairLength = config.sideHairLength; ahogeLength = config.ahogeLength;
         hairColor = config.hairColor; clothColor = config.clothColor; eyeColor = config.eyeColor; wandIndex = config.wandIndex;
+        eyePaletteColor = config.eyePaletteColor;
     }
 
 
@@ -188,6 +190,7 @@ public partial class PlayerData : NetworkBehaviour
         hairColor = selectedConfig.hairColor;
         clothColor = selectedConfig.clothColor;
         eyeColor = selectedConfig.eyeColor;
+        eyePaletteColor = selectedConfig.eyePaletteColor;
         wandIndex = selectedConfig.wandIndex;
         playerprofile = Mathf.Max(0, selectedProfile);
         CatBodyIndex = Mathf.Clamp(catBody, 1, 7);
@@ -235,7 +238,9 @@ public partial class PlayerData : NetworkBehaviour
     {
         return selectedBroom == BroomType.Slow ||
                selectedBroom == BroomType.Standard ||
-               selectedBroom == BroomType.Speed
+               selectedBroom == BroomType.Speed ||
+               selectedBroom == BroomType.Robot ||
+               selectedBroom == BroomType.Cleaner
             ? selectedBroom
             : BroomType.Standard;
     }
