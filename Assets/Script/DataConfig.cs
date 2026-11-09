@@ -51,11 +51,12 @@ public static class DataConfig
     {
         int id = slot switch { 0 => emoteUpId, 1 => emoteRightId, 2 => emoteDownId, 3 => emoteLeftId, _ => 0 };
         if (slot < 0 || slot > 3) return 0;
-        return EmoteTable.Default != null && EmoteTable.Default.TryGet(id, out _) ? id : slot + 1;
+        return EmoteTable.Default != null && EmoteTable.Default.TryGet(id, out _) && ItemInventory.OwnsEmote(id) ? id : slot + 1;
     }
     public static bool SetEmote(int slot, int id)
     {
-        if (slot < 0 || slot > 3 || EmoteTable.Default == null || !EmoteTable.Default.TryGet(id, out _)) return false;
+        if (slot < 0 || slot > 3 || EmoteTable.Default == null || !EmoteTable.Default.TryGet(id, out _) ||
+            !ItemInventory.OwnsEmote(id)) return false;
         switch ((EmoteDirection)slot)
         {
             case EmoteDirection.Up: emoteUpId = id; break;

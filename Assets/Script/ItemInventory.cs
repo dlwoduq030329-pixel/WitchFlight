@@ -74,6 +74,16 @@ public static class ItemInventory
     private static void Save(AccountItemInventory data) => DataConfig.itemInventoryJson = JsonUtility.ToJson(data);
 
     public static bool HasItem(string id) => Current.ownedItemIds.Contains(id);
+    public static bool OwnsEmote(int emoteId)
+    {
+        if (emoteId >= 1 && emoteId <= 5) return true;
+        var catalog = ItemCatalog.Default;
+        if (emoteId <= 0 || catalog == null) return false;
+        foreach (var item in catalog.Items)
+            if (item != null && item.category == ItemCategory.Emote && item.emoteId == emoteId &&
+                catalog.TryGet(item.id, out _) && HasItem(item.id)) return true;
+        return false;
+    }
     public static string[] GetOwnedItemIds() => Current.ownedItemIds.ToArray();
     public static string GetEquippedItemId(ItemCategory category, int slot = 0)
     {

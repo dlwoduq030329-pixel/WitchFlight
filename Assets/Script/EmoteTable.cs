@@ -2,8 +2,8 @@
 using UnityEngine;
 
 public enum EmoteDirection { Up = 0, Right = 1, Down = 2, Left = 3 }
-public enum EmoteId { None = 0, BlankFace = 1, AngryFace = 2, Sudam = 3, Rude = 4, YouGood = 5 }
-public enum DefaultEmoteFace { Hello, Happy, Sad, Angry, YouGood }
+public enum EmoteId { None = 0, BlankFace = 1, AngryFace = 2, Sudam = 3, Rude = 4, YouGood = 5, PeroPero = 6, What = 7, CuteCat = 8 }
+public enum DefaultEmoteFace { Hello = 0, Happy = 1, Sad = 2, Angry = 3, YouGood = 4, PeroPero = 5, What = 6, CuteCat = 7 }
 
 [Serializable]
 public sealed class EmoteEntry
@@ -28,6 +28,7 @@ public sealed class EmoteTable : ScriptableObject
     [Tooltip("모든 감정표현이 함께 사용하는 UI 프리팹(RectTransform). 각 항목의 Animation Name으로 재생 상태를 선택합니다.")]
     [SerializeField] private GameObject defaultDisplayPrefab;
     public GameObject DefaultDisplayPrefab => defaultDisplayPrefab;
+    public System.Collections.Generic.IReadOnlyList<EmoteEntry> Entries => entries;
     [SerializeField] private EmoteEntry[] entries =
     {
         new EmoteEntry { id = 1, displayName = "안녕!", fallbackFace = DefaultEmoteFace.Hello },

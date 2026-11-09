@@ -173,7 +173,7 @@ public partial class DatabaseManager : MonoBehaviour
 
     private bool CanAutoSave => Backend.IsInitialized && Backend.IsLogin && IsDataConfigReady &&
         IsPlayerSettingLoaded && loadedUserInDate == Backend.UserInDate && HasPlayerSetting();
-    internal bool CanModifyAccountData => CanAutoSave && !IsPalettePurchaseInProgress && !IsAttendanceInProgress;
+    internal bool CanModifyAccountData => CanAutoSave && !IsItemPurchaseInProgress && !IsPalettePurchaseInProgress && !IsAttendanceInProgress;
 
     private void OnDataConfigChanged()
     {
@@ -193,7 +193,7 @@ public partial class DatabaseManager : MonoBehaviour
     {
         // One snapshot per frame, and at most one request in flight. Further edits
         // are coalesced into the next snapshot instead of producing stale writes.
-        if (!autoSaveDirty || autoSaveInFlight || IsPalettePurchaseInProgress || IsAttendanceInProgress || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
+        if (!autoSaveDirty || autoSaveInFlight || IsItemPurchaseInProgress || IsPalettePurchaseInProgress || IsAttendanceInProgress || !CanAutoSave || Time.unscaledTime < nextAutoSaveTime) return;
         if (string.IsNullOrWhiteSpace(DataConfig.playerName))
         {
             nextAutoSaveTime = Time.unscaledTime + Mathf.Max(0.5f, autoSaveRetryDelay);

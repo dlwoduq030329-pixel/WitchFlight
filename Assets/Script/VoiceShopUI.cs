@@ -79,6 +79,7 @@ public sealed class VoiceShopUI : MonoBehaviour
     public void SelectVoice(string itemId)
     {
         if (purchasing || !TryGetVoice(itemId, out var item)) return;
+        EmoteShopUI.CancelActive();
         var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
         var clickedButton = selected != null ? selected.GetComponentInParent<Button>() : null;
         if (clickedButton != null && clickedButton.transform.IsChildOf(transform) &&
@@ -150,6 +151,7 @@ public sealed class VoiceShopUI : MonoBehaviour
     public void PurchaseSelectedVoice()
     {
         if (purchasing || !TryGetVoice(selectedItemId, out var item)) return;
+        EmoteShopUI.CancelActive();
         if (purchaseCheck == null || transform.IsChildOf(purchaseCheck.transform))
         {
             SetStatus("구매 확인 UI를 상점의 VoiceShopUI에 연결해주세요.");

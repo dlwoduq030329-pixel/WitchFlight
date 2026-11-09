@@ -61,7 +61,7 @@ public partial class DatabaseManager
     {
         if (!attendanceClaimRequested && Time.realtimeSinceStartupAsDouble < nextAttendanceCheck) { attendanceRequested = false; return; }
         if (!attendanceRequested || !CanAutoSave || IsAutoSavePending || IsAttendanceInProgress ||
-            IsPalettePurchaseInProgress || IsVoicePurchaseInProgress || claimingMission) return;
+            IsPalettePurchaseInProgress || IsItemPurchaseInProgress || claimingMission) return;
         attendanceRequested = false;
         bool claim = attendanceClaimRequested;
         attendanceClaimRequested = false;

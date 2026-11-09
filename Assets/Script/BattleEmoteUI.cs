@@ -67,7 +67,7 @@ public sealed class BattleEmoteUI : MonoBehaviour
 
     private static BattleEmoteUI active;
     private readonly EmoteInputGate gate = new EmoteInputGate();
-    private readonly Sprite[] defaultIcons = new Sprite[5];
+    private readonly Sprite[] defaultIcons = new Sprite[System.Enum.GetValues(typeof(DefaultEmoteFace)).Length];
     private EmoteSlotView[] views;
     private Canvas generatedCanvas;
     private Player sampledPlayer;

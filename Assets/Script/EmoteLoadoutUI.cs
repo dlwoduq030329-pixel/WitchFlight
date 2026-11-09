@@ -38,14 +38,20 @@ public sealed class EmoteLoadoutUI : MonoBehaviour
             slotColors[i]=slotButtons[i].image!=null?slotButtons[i].image.color:Color.white;
             slotButtons[i].onClick.AddListener(slotActions[i]);
         }
-        int id=0;
+        var entries = new List<EmoteEntry>();
+        if (EmoteTable.Default != null)
+            foreach (var entry in EmoteTable.Default.Entries)
+                if (entry != null && entry.id > 0) entries.Add(entry);
+        entries.Sort((a,b)=>a.id.CompareTo(b.id));
+        int index=0;
         foreach(Transform row in contentRoot)
             foreach(Transform child in row)
             {
                 var button=child.GetComponent<Button>();
                 if(button==null) continue;
-                var choice=new Choice { id=++id,button=button,
+                var choice=new Choice { id=index<entries.Count?entries[index].id:0,button=button,
                     icon=child.Find("Image")?.GetComponent<Image>(),check=child.Find("Check")?.gameObject };
+                index++;
                 choice.action=()=>SelectEmote(choice.id);
                 button.onClick.AddListener(choice.action); choices.Add(choice);
             }
@@ -55,10 +61,12 @@ public sealed class EmoteLoadoutUI : MonoBehaviour
             equipLabel=equipButton.GetComponentInChildren<TMP_Text>(true);
         }
     }
-    private void OnEnable() { DataConfig.Changed+=Refresh; Refresh(); }
+    private void OnEnable() { DataConfig.Changed+=Refresh; DataConfig.InventoryChanged+=Refresh; DataConfig.SnapshotApplied+=Refresh; Refresh(); }
     private void OnDisable()
     {
         DataConfig.Changed-=Refresh;
+        DataConfig.InventoryChanged-=Refresh;
+        DataConfig.SnapshotApplied-=Refresh;
         selectedSlot=-1; pendingId=0; Refresh();
         if (lobbyCharacter != null && gameObject.scene.isLoaded)
             lobbyCharacter.SetActive(true);
@@ -71,7 +79,7 @@ public sealed class EmoteLoadoutUI : MonoBehaviour
     }
     public void SelectEmote(int id)
     {
-        if(selectedSlot<0 || EmoteTable.Default==null || !EmoteTable.Default.TryGet(id,out _)) return;
+        if(selectedSlot<0 || EmoteTable.Default==null || !EmoteTable.Default.TryGet(id,out _) || !ItemInventory.OwnsEmote(id)) return;
         pendingId=id; Refresh();
     }
     public void Equip()
@@ -87,11 +95,17 @@ public sealed class EmoteLoadoutUI : MonoBehaviour
         foreach(var choice in choices)
         {
             bool valid=table!=null && table.TryGet(choice.id,out _);
-            choice.button.interactable=valid && selectedSlot>=0;
-            if(valid && choice.icon!=null && table.TryGet(choice.id,out var entry)) choice.icon.sprite=entry.icon;
+            bool owned=valid && ItemInventory.OwnsEmote(choice.id);
+            choice.button.interactable=owned && selectedSlot>=0;
+            if(choice.icon!=null)
+            {
+                choice.icon.sprite=valid && table.TryGet(choice.id,out var entry)?entry.icon:null;
+                choice.icon.enabled=choice.icon.sprite!=null;
+                choice.icon.color=owned?Color.white:new Color(1f,1f,1f,.35f);
+            }
             bool equipped=false;
             for(int i=0;i<4;i++) equipped|=DataConfig.GetEmote(i)==choice.id;
-            if(choice.check!=null) choice.check.SetActive(valid && equipped);
+            if(choice.check!=null) choice.check.SetActive(owned && equipped);
         }
         for(int i=0;i<slotButtons.Length && i<4;i++)
         {
@@ -100,7 +114,7 @@ public sealed class EmoteLoadoutUI : MonoBehaviour
             if(i<slotIcons.Length && slotIcons[i]!=null && table!=null && table.TryGet(DataConfig.GetEmote(i),out var entry))
                 slotIcons[i].sprite=entry.icon;
         }
-        if(equipButton!=null) equipButton.interactable=Editable && selectedSlot>=0 && pendingId>0 && DataConfig.GetEmote(selectedSlot)!=pendingId;
+        if(equipButton!=null) equipButton.interactable=Editable && selectedSlot>=0 && pendingId>0 && ItemInventory.OwnsEmote(pendingId) && DataConfig.GetEmote(selectedSlot)!=pendingId;
         if(equipLabel!=null)
         {
             string label=selectedSlot<0?"현재 슬롯에 장착":DirectionNames[selectedSlot]+" 슬롯에 장착";
