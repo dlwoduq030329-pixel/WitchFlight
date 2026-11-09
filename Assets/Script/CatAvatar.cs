@@ -27,6 +27,9 @@ public sealed class CatAvatar : MonoBehaviour
     private bool yawnPoseApplied;
     private Quaternion preYawnHead;
     private float preYawnMouth, preYawnEye;
+    private Vector3 defaultCatPosition;
+    private Quaternion defaultCatRotation;
+    private Vector3 authoredSeatPosition;
     public bool IsBusy => pendingIdle || yawnStarted >= 0f;
 
     public static CatAvatar Create(Transform parent, int body, int eyes, bool plane, GameObject existingCat = null)
@@ -61,6 +64,9 @@ public sealed class CatAvatar : MonoBehaviour
             // Imported skinned-renderer bounds include animation padding: use the actual idle mesh.
             cat.transform.localPosition = new Vector3(table.catSeatOffset.x, -bounds.min.y * (table.catHeight / size), table.catSeatOffset.z);
         }
+        avatar.authoredSeatPosition = new Vector3(0f, cat.transform.localPosition.y, 0f);
+        if (!plane && CatSeatGeometry.TrySittingContact(cat.transform, out Vector3 contact))
+            avatar.authoredSeatPosition = -Vector3.Scale(contact, cat.transform.localScale);
         if (table.paperAirplanePrefab != null)
         {
             avatar.Plane = Instantiate(table.paperAirplanePrefab, root.transform).transform;
@@ -90,8 +96,21 @@ public sealed class CatAvatar : MonoBehaviour
         var kneading = table.GetAnimation(CatAnimation.Knead);
         if (kneading != null) avatar.kneadingStateHash = Animator.StringToHash(kneading.stateName);
         root.transform.SetParent(parent, false);
+        avatar.defaultCatPosition = cat.transform.localPosition;
+        avatar.defaultCatRotation = cat.transform.localRotation;
         avatar.Play(CatAnimation.SittingIdle, false);
         return avatar;
+    }
+
+    // Authored seats use the sitting mesh's pelvis contact, not its imported pivot.
+    // +Z is forward, +Y is up; the contact point coincides with the seat origin.
+    // Called when changing seats, not per frame; plane/automatic seating is unchanged.
+    public void SetAuthoredSeat(bool authored)
+    {
+        if (Cat == null) return;
+        Cat.SetLocalPositionAndRotation(
+            authored ? authoredSeatPosition : defaultCatPosition,
+            authored ? Quaternion.identity : defaultCatRotation);
     }
 
     public void SetAppearance(int body, int eyes)

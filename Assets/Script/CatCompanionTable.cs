@@ -79,7 +79,7 @@ public sealed class CatCompanionTable : ScriptableObject
     public Vector3 catSeatOffset = new Vector3(0, .003f, -.05f);
     public Vector3 broomSeatOffset = new Vector3(0, .18f, -.75f);
     public Vector3 broomSeatEuler;
-    [Tooltip("CatSeat가 빗자루 하위에 있으면 우선 사용. 없으면 빗자루 표면에 자동 배치합니다.")]
+    [Tooltip("CatSeat가 빗자루 하위에 있으면 해당 위치·회전을 그대로 사용합니다(+Z 앞, +Y 위). CatSeat의 로컬 Position/Rotation으로 직접 조절하며 catSeatOffset/catEuler/broomSeatEuler는 적용하지 않습니다. 없으면 빗자루 표면에 자동 배치합니다.")]
     public bool autoBroomSeat = true;
     [Tooltip("자동 착석 계산용 빗자루 로컬 좌표계. 기본 빗자루 모델은 -X가 앞쪽입니다. CatSeat를 직접 넣으면 사용하지 않습니다.")]
     public Vector3 broomSeatingFrameEuler = new Vector3(0, -90, 0);

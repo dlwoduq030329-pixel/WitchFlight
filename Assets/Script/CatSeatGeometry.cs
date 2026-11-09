@@ -4,6 +4,43 @@ using UnityEngine;
 // Sample once when a visual is created, never bake skinned meshes every frame.
 public static class CatSeatGeometry
 {
+    // Sitting contact directly below the pelvis, in model-local coordinates.
+    // Evaluate once in sitting idle; bounds centre includes the tail and is not a seat.
+    public static bool TrySittingContact(Transform model, out Vector3 contact)
+    {
+        contact = default;
+        Transform pelvis = null;
+        foreach (var bone in model.GetComponentsInChildren<Transform>(true))
+            if (bone.name == "spine.001") { pelvis = bone; break; }
+        if (pelvis == null) return false;
+        contact = model.InverseTransformPoint(pelvis.position);
+        float bottom = float.PositiveInfinity;
+        foreach (var skin in model.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            if (skin.sharedMesh == null || System.Array.IndexOf(skin.bones, pelvis) < 0) continue;
+            var baked = new Mesh();
+            skin.BakeMesh(baked, true);
+            var vertices = baked.vertices;
+            var triangles = baked.triangles;
+            var toModel = model.worldToLocalMatrix * skin.transform.localToWorldMatrix;
+            for (int i = 0; i < vertices.Length; i++) vertices[i] = toModel.MultiplyPoint3x4(vertices[i]);
+            for (int i = 0; i < triangles.Length; i += 3)
+            {
+                Vector3 a = vertices[triangles[i]], b = vertices[triangles[i + 1]], c = vertices[triangles[i + 2]];
+                float det = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+                if (Mathf.Abs(det) < .0000001f) continue;
+                float u = ((b.z - c.z) * (contact.x - c.x) + (c.x - b.x) * (contact.z - c.z)) / det;
+                float v = ((c.z - a.z) * (contact.x - c.x) + (a.x - c.x) * (contact.z - c.z)) / det;
+                if (u < 0 || v < 0 || u + v > 1) continue;
+                bottom = Mathf.Min(bottom, u * a.y + v * b.y + (1 - u - v) * c.y);
+            }
+            Object.Destroy(baked);
+        }
+        if (float.IsPositiveInfinity(bottom)) return false;
+        contact.y = bottom;
+        return true;
+    }
+
     public static bool TryBounds(Transform root, out Bounds bounds)
         => TryBounds(root, root.worldToLocalMatrix, out bounds);
 

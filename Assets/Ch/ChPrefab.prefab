@@ -6624,6 +6624,8 @@ MonoBehaviour:
   - {fileID: 7379965885982897245}
   - {fileID: 7379965885982897245}
   - {fileID: 7379965885982897245}
+  - {fileID: 7379965885982897245}
+  - {fileID: 7379965885982897245}
   hatPrefabs:
   - {fileID: 0}
   - {fileID: 8132279307764973}
@@ -8220,13 +8222,16 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7470464652575713984}
+  - component: {fileID: 897650132268095001}
+  - component: {fileID: 897650132268095002}
+  - component: {fileID: 897650132268095003}
   m_Layer: 0
   m_Name: LongHair
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &7470464652575713984
 Transform:
   m_ObjectHideFlags: 0
@@ -8244,6 +8249,105 @@ Transform:
   - {fileID: 5315958822453756525}
   m_Father: {fileID: 7997655109521306197}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &897650132268095001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2378247490570129659}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b55cf07b55c04f74db05681623a90ef9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_RootBones:
+  - {fileID: 8416741392143455773}
+  - {fileID: 109003956003564864}
+  - {fileID: 3551323645699038743}
+  - {fileID: 4090174392828094179}
+  - {fileID: 4651649232696817588}
+  - {fileID: 4253008888500892576}
+  m_EndBones:
+  - {fileID: 5431920198504719824}
+  - {fileID: 8576568059874514876}
+  - {fileID: 9219681054748473045}
+  - {fileID: 1828051542405295493}
+  - {fileID: 3710531984299013802}
+  - {fileID: 1423141928360438704}
+  m_Material: {fileID: 11400000, guid: 906a353c1cb946fdbbce4ce3058d803d, type: 2}
+  m_StartDepth: 1
+  m_SiblingConstraints: 0
+  m_ClosedSiblings: 0
+  m_SiblingRotationConstraints: 1
+  m_LengthUnification: 0
+  m_CollisionLayers:
+    serializedVersion: 2
+    m_Bits: 1
+  m_ExtraColliders: []
+  m_Radius: 0.016
+  m_RadiusCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_DeltaTimeMode: 0
+  m_ConstantDeltaTime: 0.03
+  m_Iterations: 2
+  m_SleepThreshold: 0.00000001
+  m_GravityAligner: {fileID: 0}
+  m_Gravity: {x: 0, y: 0, z: 0}
+  m_ForceModule: {fileID: 0}
+  m_ForceScale: 1
+  m_SimulateSpace: {fileID: 5553512542147760588}
+--- !u!114 &897650132268095002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2378247490570129659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 251bb6bc427349db85384d6b72a9001d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  solver: {fileID: 897650132268095001}
+  bodyAnimator: {fileID: 6501619761298650140}
+  motionRoot: {fileID: 5553512542147760588}
+  hairRenderers:
+  - {fileID: 1860881337447109078}
+  - {fileID: 7584320264578753297}
+  fullWindSpeed: 80
+  windStrength: 0.4
+  flutterStrength: 0.07
+  movingFlutterSpeed: 12
+  liftStrength: 0.18
+  torsoRadius: 0.13
+  shoulderRadius: 0.065
+  neckRadius: 0.055
+  armRadius: 0.055
+  clearance: 0.008
+  simulationDistance: 35
 --- !u!1 &2379680666413969717
 GameObject:
   m_ObjectHideFlags: 0
@@ -22361,7 +22465,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &8694214804422214210
 Transform:
   m_ObjectHideFlags: 0
@@ -29312,3 +29416,25 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1716154798868109688, guid: 11a1ed608be0eea459e822250f08cbe8, type: 3}
   m_PrefabInstance: {fileID: 9107549282597231950}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &897650132268095003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2378247490570129659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 528ac720091846b9be63a0a0320c19fe, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  solver: {fileID: 897650132268095001}
+  bodyContact: {fileID: 897650132268095002}
+  motionRoot: {fileID: 5553512542147760588}
+  movingSideFlutter: 0.0225
+  movingBackFlutter: 0.07
+  flutterFrequency: 3.2
+  movingLift: 0.24
+  movingVerticalFlutter: 0.11
+  irregularity: 0.7
+  maxDownwardOffset: 0.012

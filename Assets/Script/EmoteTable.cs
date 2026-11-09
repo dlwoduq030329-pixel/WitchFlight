@@ -2,8 +2,8 @@
 using UnityEngine;
 
 public enum EmoteDirection { Up = 0, Right = 1, Down = 2, Left = 3 }
-public enum EmoteId { None = 0, BlankFace = 1, AngryFace = 2, Sudam = 3, Rude = 4, YouGood = 5, PeroPero = 6, What = 7, CuteCat = 8 }
-public enum DefaultEmoteFace { Hello = 0, Happy = 1, Sad = 2, Angry = 3, YouGood = 4, PeroPero = 5, What = 6, CuteCat = 7 }
+public enum EmoteId { None = 0, BlankFace = 1, AngryFace = 2, Sudam = 3, Rude = 4, YouGood = 5, PeroPero = 6, What = 7, CuteCat = 8,CatBumb = 9 }
+public enum DefaultEmoteFace { Hello = 0, Happy = 1, Sad = 2, Angry = 3, YouGood = 4, PeroPero = 5, What = 6, CuteCat = 7, CatBumb = 8 }
 
 [Serializable]
 public sealed class EmoteEntry

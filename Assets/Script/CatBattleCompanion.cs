@@ -32,7 +32,9 @@ public sealed class CatBattleCompanion : MonoBehaviour
         var broom = equipment != null ? equipment.CurrentBroomObject : null;
         if (seatedBroom != broom) BindSeat(broom, table);
         if (broomSeat != null)
-            avatar.transform.SetPositionAndRotation(broomSeat.position, broomSeat.rotation * Quaternion.Euler(table.broomSeatEuler));
+            avatar.transform.SetPositionAndRotation(broomSeat.position, ownsSeat
+                ? broomSeat.rotation * Quaternion.Euler(table.broomSeatEuler)
+                : broomSeat.rotation);
         else
             avatar.transform.SetPositionAndRotation(transform.TransformPoint(table.broomSeatOffset), transform.rotation * Quaternion.Euler(table.broomSeatEuler));
         bool summoned = false;
@@ -55,9 +57,22 @@ public sealed class CatBattleCompanion : MonoBehaviour
     {
         if (ownsSeat && broomSeat != null) Destroy(broomSeat.gameObject);
         seatedBroom = broom; broomSeat = null; ownsSeat = false;
+        avatar.SetAuthoredSeat(false);
         if (broom == null) return;
+        var authoredSeat = broom.GetComponentInChildren<CatCompanionSeat>(true);
+        if (authoredSeat != null)
+        {
+            broomSeat = authoredSeat.transform;
+            avatar.SetAuthoredSeat(true);
+            return;
+        }
         foreach (var child in broom.GetComponentsInChildren<Transform>(true))
-            if (child.name == "CatSeat") { broomSeat = child; return; }
+            if (child.name == "CatSeat")
+            {
+                broomSeat = child;
+                avatar.SetAuthoredSeat(true);
+                return;
+            }
         if (!table.autoBroomSeat) return;
         // Store the attachment in the actual animated broom, so bob/pitch/roll stay together.
         // The left hand can still be in takeoff/attack pose when this first runs.

@@ -6,10 +6,13 @@ using UnityEngine.UI;
 [Serializable]
 public sealed class EmoteSlotView
 {
+    [Tooltip("아이콘과 이름을 포함한 LayoutGroup/Slot 루트. 선택 여부에 따라 CanvasGroup 투명도만 변경합니다.")]
+    public GameObject layoutGroup;
     public Image icon;
     public TMP_Text label;
     public GameObject highlight;
     [NonSerialized] internal Vector3 baseScale;
+    [NonSerialized] internal CanvasGroup group;
 }
 
 [Serializable]
@@ -50,6 +53,7 @@ public sealed class BattleEmoteUI : MonoBehaviour
     [SerializeField] private EmoteSlotView right = new EmoteSlotView();
     [SerializeField] private EmoteSlotView down = new EmoteSlotView();
     [SerializeField] private EmoteSlotView left = new EmoteSlotView();
+    [SerializeField, Range(0f, 1f)] private float unselectedSlotAlpha = .5f;
     [Tooltip("선택 방향을 보여줄 가상 커서. Wheel Root 중앙 기준으로 움직이며 OS 커서는 열지 않습니다.")]
     [SerializeField] private RectTransform directionPointer;
     [SerializeField] private TMP_Text selectionText;
@@ -97,6 +101,7 @@ public sealed class BattleEmoteUI : MonoBehaviour
         {
             EnsureSlot(views[i], i);
             views[i].baseScale = views[i].icon.transform.localScale;
+            PrepareSlotGroup(views[i]);
         }
         if (selectionText == null)
             selectionText = Label("Selection", wheelRoot.transform, Vector2.zero, new Vector2(200,60), 20f);
@@ -168,7 +173,7 @@ public sealed class BattleEmoteUI : MonoBehaviour
             views[i].icon.enabled = valid;
             views[i].icon.transform.localScale = views[i].baseScale * (valid && gate.SelectedSlot == i ? 1.12f : 1f);
             if (views[i].label != null) views[i].label.text = valid ? entry.displayName : "빈 슬롯";
-            Show(views[i].highlight, valid && gate.SelectedSlot == i);
+            SetSlotSelection(views[i], valid && gate.SelectedSlot == i);
         }
         if (selectionText != null)
             selectionText.text = Time.unscaledTime < nextRequestAt ? "잠시 후 사용 가능" : gate.SelectedSlot < 0
@@ -180,6 +185,40 @@ public sealed class BattleEmoteUI : MonoBehaviour
             Vector3 world = wheelRoot.transform.TransformPoint(centre + new Vector3(gate.X, gate.Y, 0));
             directionPointer.position = world;
         }
+    }
+
+    private void PrepareSlotGroup(EmoteSlotView view)
+    {
+        // Resolve once, including legacy scenes that assigned the whole Slot as highlight.
+        if (view.layoutGroup == null)
+        {
+            if (view.highlight != null && view.icon.transform.IsChildOf(view.highlight.transform))
+                view.layoutGroup = view.highlight;
+            else
+            {
+                Transform parent = view.icon.transform.parent;
+                view.layoutGroup = parent != null && parent != wheelRoot.transform
+                    ? parent.gameObject : view.icon.gameObject;
+            }
+        }
+        if (view.layoutGroup == wheelRoot || !view.layoutGroup.transform.IsChildOf(wheelRoot.transform))
+            view.layoutGroup = view.icon.gameObject;
+        view.group = ReadOnly(view.layoutGroup);
+        Show(view.layoutGroup, true);
+        // An ancestor is content, not a separate highlight. Never toggle it on hover.
+        if (view.highlight != null && (view.icon.transform.IsChildOf(view.highlight.transform) ||
+            (view.label != null && view.label.transform.IsChildOf(view.highlight.transform))))
+        {
+            Show(view.highlight, true);
+            view.highlight = null;
+        }
+        SetSlotSelection(view, false);
+    }
+
+    private void SetSlotSelection(EmoteSlotView view, bool selected)
+    {
+        if (view.group != null) view.group.alpha = selected ? 1f : unselectedSlotAlpha;
+        Show(view.highlight, selected);
     }
 
     public static void Present(Player sender, int emoteId)
