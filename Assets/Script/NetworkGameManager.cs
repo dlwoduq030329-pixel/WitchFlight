@@ -1142,13 +1142,20 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             return;
 
         DespawnRobbyPlayer(runner, player);
+        bool replaceWithBot = IsBotMatch && isGameStarting && !stopInProgress &&
+            (BattleManager.Instance == null || !BattleManager.Instance.IsBattleEnded) &&
+            playerDatas.TryGetValue(player, out var leaving) && leaving != null &&
+            leaving.Object != null && leaving.Object.IsValid && !leaving.IsMatchBot;
+        int replacementTeam = replaceWithBot ? playerDatas[player].teamIndex : 0;
+        Debug.LogWarning($"[MatchConnection] PlayerLeft player={player}, mode={CurrentMatchMode}, " +
+            $"battle={isGameStarting}, humans={ConnectedPlayerCount}, replacementTeam={replacementTeam}", this);
         BattleManager.Instance?.PlayerLeft(player);
 
         if (spawnedPlayers.TryGetValue(
             player,
             out NetworkObject playerObject))
         {
-            runner.Despawn(playerObject);
+            if (playerObject != null && playerObject.IsValid) runner.Despawn(playerObject);
 
             spawnedPlayers.Remove(player);
         }
@@ -1161,6 +1168,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         assignedTeamIndexes.Remove(player);
+        if (replaceWithBot) ReplaceDepartedHumanWithBot(replacementTeam);
     }
 
 
@@ -1277,6 +1285,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         ShutdownReason shutdownReason)
     {
         if (!ReferenceEquals(runner, _runner)) return;
+        Debug.LogWarning($"[MatchConnection] Shutdown reason={shutdownReason}, mode={CurrentMatchMode}, " +
+            $"battle={isGameStarting}, intentional={stopInProgress || cancelRequested}", this);
         if (IsDeathMatch && (IsMigratingDeathMatch || shutdownReason == ShutdownReason.HostMigration)) return;
         // Async startup/cancellation owns cleanup until its await completes.
         if (startInProgress || stopInProgress) return;
@@ -1306,6 +1316,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         NetDisconnectReason reason)
     {
+        if (!ReferenceEquals(runner, _runner)) return;
+        Debug.LogWarning($"[MatchConnection] Disconnected reason={reason}, mode={CurrentMatchMode}, " +
+            $"battle={isGameStarting}, intentional={stopInProgress || cancelRequested}", this);
     }
 
 
