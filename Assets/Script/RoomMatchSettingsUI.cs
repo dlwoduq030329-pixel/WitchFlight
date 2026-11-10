@@ -34,13 +34,13 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
         {
             displayedStatus = status;
             statusText.text = $"참가자 {manager.ConnectedPlayerCount} / {manager.RequiredPlayerCount}\n" +
-                (manager.IsRoomHost ? (manager.ConnectedPlayerCount > 2 ? "1대1 변경은 2명 이하일 때 가능" : "방장만 대전 방식을 변경할 수 있어요") : "방장이 선택한 설정입니다");
+                (manager.IsRoomHost ? "현재 참가자 수 이상의 정원을 선택할 수 있어요" : "방장이 선택한 설정입니다");
         }
     }
 
     public void SelectMode(int value)
     {
-        if (manager != null && manager.IsWaitingInCodeRoom && manager.IsRoomHost && (value >= 0 && value <= 5)) manager.TrySetRoomMatchMode(value);
+        if (manager != null && manager.IsWaitingInCodeRoom && manager.IsRoomHost && value >= 0 && value < BattleMatchRules.ModeOptionCount) manager.TrySetRoomMatchMode(value);
         if (modeDropdown != null && manager != null)
             modeDropdown.SetValueWithoutNotify(BattleMatchRules.DropdownIndex(manager.CurrentMatchMode));
     }
@@ -61,7 +61,12 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
         if (modeDropdown == null || boundDropdown == modeDropdown) return;
         if (boundDropdown != null) boundDropdown.onValueChanged.RemoveListener(SelectMode);
         boundDropdown = modeDropdown;
-        // Options are authored in Main. Rebind the scene reference after returning from battle.
+        // Reuse the authored dropdown; update options without requiring a scene redesign.
+        var options = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < BattleMatchRules.ModeOptionCount; i++) options.Add(BattleMatchRules.Label(BattleMatchRules.FromDropdown(i)));
+        modeDropdown.ClearOptions();
+        modeDropdown.AddOptions(options);
+        modeDropdown.SetValueWithoutNotify(BattleMatchRules.DropdownIndex(manager.CurrentMatchMode));
         modeDropdown.interactable = manager != null && manager.IsWaitingInCodeRoom && manager.IsRoomHost;
         boundDropdown.onValueChanged.AddListener(SelectMode);
     }

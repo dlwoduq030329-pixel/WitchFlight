@@ -25,6 +25,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public bool IsCancellingMatch => cancelRequested || stopInProgress;
     public bool IsBattleTransitioning => isGameStarting;
     public string MatchStatus { get; private set; } = "";
+    private string sessionRequestDescription = "none";
+    private string sessionRole = "not-connected";
     public bool CanCancelMatch => IsMatching && !isGameStarting && !IsBattleSceneLoaded &&
         !cancelRequested && !stopInProgress &&
         (startInProgress || _runner == null || _runner.SceneManager == null || !_runner.SceneManager.IsBusy);
@@ -38,8 +40,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             if (_runner != null && _runner.IsRunning)
                 foreach (PlayerData data in PlayerData.PerkPlayers)
                     if (data != null && data.Object != null && data.Object.IsValid && data.Runner == _runner && data.IsRoomOwner)
-                        return data.RoomMatchMode;
-            return roomMatchMode;
+                        return BattleMatchRules.Normalize(data.RoomMatchMode);
+            return BattleMatchRules.Normalize(roomMatchMode);
         }
     }
     public bool IsRaceMode => !IsTraining && CurrentMatchMode == BattleMatchMode.Race;
@@ -209,7 +211,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (instance == null)
         {
             instance = this;
-            if (!Enum.IsDefined(typeof(BattleMatchMode), roomMatchMode)) roomMatchMode = BattleMatchMode.TwoVsTwo;
+            roomMatchMode = BattleMatchRules.Normalize(roomMatchMode);
             if (GetComponent<RoomMatchSettingsUI>() == null) gameObject.AddComponent<RoomMatchSettingsUI>();
             DontDestroyOnLoad(gameObject);
         }
@@ -329,15 +331,15 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     internal bool IsTrainingScene(Scene scene) => IsTraining && scene.buildIndex == battleSceneIndex;
 
-    // Dropdown: 0 = 1v1, 1 = 2v2, 2 = 1v1 BOT, 3 = 2v2 BOT. Host only in a connected room.
+    // Dropdown order is owned by BattleMatchRules. Only the host can change a connected room.
     public bool TrySetRoomMatchMode(int dropdownValue)
     {
-        if (dropdownValue < 0 || dropdownValue > 5) return false;
+        if (dropdownValue < 0 || dropdownValue >= BattleMatchRules.ModeOptionCount) return false;
         BattleMatchMode selected = BattleMatchRules.FromDropdown(dropdownValue);
         if (IsMatching && (!IsWaitingInCodeRoom || !IsRoomHost)) return false;
         if (ConnectedPlayerCount > BattleMatchRules.PlayerCount(selected))
         {
-            SetMatchStatus("참가자가 3명 이상이면 1대1로 변경할 수 없습니다.");
+            SetMatchStatus($"{BattleMatchRules.Label(selected)} 정원은 {BattleMatchRules.PlayerCount(selected)}명입니다. 현재 참가자가 더 많아 변경할 수 없습니다.");
             return false;
         }
         if (selected == CurrentMatchMode) return true; // Keep manually selected teams on a no-op UI event.
@@ -533,22 +535,26 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 _ => "코드 방에 연결 중..."
             });
 
+            GameMode requestedMode = request switch
+            {
+                MatchRequest.CreateRoom => GameMode.Host,
+                MatchRequest.JoinRoom => GameMode.Client,
+                MatchRequest.Training => GameMode.Single,
+                _ => GameMode.AutoHostOrClient
+            };
+            sessionRequestDescription = $"{request}/{requestedMode}";
+            sessionRole = "connecting";
+            Debug.Log($"[MatchConnection] Start request={sessionRequestDescription}, version={Application.version}", this);
             var result = await sessionRunner.StartGame(new StartGameArgs
             {
-                GameMode = request switch
-                {
-                    MatchRequest.CreateRoom => GameMode.Host,
-                    MatchRequest.JoinRoom => GameMode.Client,
-                    MatchRequest.Training => GameMode.Single,
-                    _ => GameMode.AutoHostOrClient
-                },
+                GameMode = requestedMode,
                 // Explicit join must never silently create a room when the code is absent.
                 EnableClientSessionCreation = request != MatchRequest.JoinRoom,
                 // Null + AutoHostOrClient = join random or create, handled by Photon.
                 SessionName = roomId,
-                // Keep transport capacity at four so a code-room host can switch mode.
-                // Admission and launch enforce the selected two/four-player game size.
-                PlayerCount = IsDeathMatch ? DeathMatchCapacity : IsTraining ? 1 : RandomPlayerCount,
+                // Code rooms reserve transport capacity for switching up to 5v5.
+                // Admission and launch still enforce the selected match size.
+                PlayerCount = IsDeathMatch ? DeathMatchCapacity : IsTraining ? 1 : randomMatch ? RandomPlayerCount : BattleMatchRules.MaxTeamPlayers,
                 CustomPhotonAppSettings = IsDeathMatch ? DeathMatchPhotonSettings() : null,
                 ConnectionToken = IsDeathMatch ? DeathMatchConnectionToken() : null,
                 CustomLobbyName = randomMatch ? RandomLobbyName : null,
@@ -579,6 +585,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             else if (sessionRunner != null && sessionRunner.IsRunning && ReferenceEquals(_runner, sessionRunner))
             {
                 connected = true;
+                sessionRole = sessionRunner.IsServer ? "Host" : "Client";
+                Debug.Log($"[MatchConnection] Connected request={sessionRequestDescription}, role={sessionRole}", this);
             }
             else
             {
@@ -702,8 +710,12 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         finally { if (this != null) stopInProgress = false; }
     }
 
-    private async Task ShutdownSession(NetworkRunner sessionRunner)
+    private async Task ShutdownSession(NetworkRunner sessionRunner,
+        [System.Runtime.CompilerServices.CallerMemberName] string requestedBy = "")
     {
+        if (sessionRunner != null)
+            Debug.Log($"[MatchConnection] StopRequested caller={requestedBy}, request={sessionRequestDescription}, " +
+                $"role={sessionRole}, battle={isGameStarting}", this);
         // Capture before Shutdown invalidates NetworkBehaviour.Runner. Fusion normally
         // destroys these objects; the fallback also handles an interrupted startup.
         var sessionDataObjects = new List<GameObject>();
@@ -764,6 +776,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             ShutdownReason.GameNotFound => "해당 코드의 방이 없습니다. 코드를 확인해주세요.",
             ShutdownReason.GameIdAlreadyExists => "이미 사용 중인 방 코드입니다. 다른 코드로 만들거나 방 접속을 선택해주세요.",
+            ShutdownReason.ServerInRoom => "이미 방장이 있는 방입니다. 방 만들기 대신 방 입장으로 접속해주세요.",
             ShutdownReason.GameIsFull => "방의 인원이 가득 찼습니다.",
             ShutdownReason.GameClosed => "이미 시작했거나 입장이 닫힌 방입니다.",
             _ => $"매칭 실패: {reason}. 다시 시도해주세요."
@@ -1142,13 +1155,20 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             return;
 
         DespawnRobbyPlayer(runner, player);
+        bool replaceWithBot = IsBotMatch && isGameStarting && !stopInProgress &&
+            (BattleManager.Instance == null || !BattleManager.Instance.IsBattleEnded) &&
+            playerDatas.TryGetValue(player, out var leaving) && leaving != null &&
+            leaving.Object != null && leaving.Object.IsValid && !leaving.IsMatchBot;
+        int replacementTeam = replaceWithBot ? playerDatas[player].teamIndex : 0;
+        Debug.LogWarning($"[MatchConnection] PlayerLeft player={player}, mode={CurrentMatchMode}, " +
+            $"battle={isGameStarting}, humans={ConnectedPlayerCount}, replacementTeam={replacementTeam}", this);
         BattleManager.Instance?.PlayerLeft(player);
 
         if (spawnedPlayers.TryGetValue(
             player,
             out NetworkObject playerObject))
         {
-            runner.Despawn(playerObject);
+            if (playerObject != null && playerObject.IsValid) runner.Despawn(playerObject);
 
             spawnedPlayers.Remove(player);
         }
@@ -1161,6 +1181,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         assignedTeamIndexes.Remove(player);
+        if (replaceWithBot) ReplaceDepartedHumanWithBot(replacementTeam);
     }
 
 
@@ -1277,6 +1298,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         ShutdownReason shutdownReason)
     {
         if (!ReferenceEquals(runner, _runner)) return;
+        Debug.LogWarning($"[MatchConnection] Shutdown reason={shutdownReason}, mode={CurrentMatchMode}, " +
+            $"battle={isGameStarting}, intentional={stopInProgress || cancelRequested}, " +
+            $"request={sessionRequestDescription}, role={sessionRole}", this);
         if (IsDeathMatch && (IsMigratingDeathMatch || shutdownReason == ShutdownReason.HostMigration)) return;
         // Async startup/cancellation owns cleanup until its await completes.
         if (startInProgress || stopInProgress) return;
@@ -1306,6 +1330,10 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         NetDisconnectReason reason)
     {
+        if (!ReferenceEquals(runner, _runner)) return;
+        Debug.LogWarning($"[MatchConnection] Disconnected reason={reason}, mode={CurrentMatchMode}, " +
+            $"battle={isGameStarting}, intentional={stopInProgress || cancelRequested}, " +
+            $"request={sessionRequestDescription}, role={sessionRole}", this);
     }
 
 

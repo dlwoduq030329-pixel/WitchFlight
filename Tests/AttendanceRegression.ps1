@@ -1,11 +1,15 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
-$source = "using System;`nusing System.Globalization;`nusing UnityEngine;`nusing BackEnd;`n"
-foreach ($file in @('Assets/Script/AttendanceSchedule.cs','Assets/Script/login/DatabaseManager.Attendance.cs')) {
+$source = "#pragma warning disable 0649`nusing System;`nusing System.Globalization;`nusing UnityEngine;`nusing BackEnd;`n"
+foreach ($file in @('Assets/Script/AttendanceSchedule.cs','Assets/Script/login/DatabaseManager.Attendance.cs','Assets/Script/AttendanceLoginPrompt.cs')) {
     $source += (Get-Content -Raw $file) -replace '(?m)^using [^;]+;\r?\n',''
 }
 $stubs = @'
 namespace UnityEngine {
+ public class MonoBehaviour {}
+ public class SerializeField:Attribute {}
+ public class Transform {public void SetAsLastSibling(){}}
+ public class GameObject {public Transform transform=new Transform();public bool active;public int opens;public void SetActive(bool value){active=value;if(value)opens++;}}
  public static class Time {public static double realtimeSinceStartupAsDouble;}
  public static class JsonUtility {
   static System.Text.Json.JsonSerializerOptions settings=new System.Text.Json.JsonSerializerOptions{IncludeFields=true};
@@ -40,12 +44,17 @@ public sealed class AttendanceRewardTable {
 }
 public static class DataConfig {
  public static int money;
+ public static event Action Changed;
+ public static int catTutorialCompleted;
+ public static void CompleteTutorial(){catTutorialCompleted=1;Changed?.Invoke();}
+ public static void NotifyChanged()=>Changed?.Invoke();
  class Batch:IDisposable {public void Dispose(){}}
  public static IDisposable BeginChangeBatch(bool notify)=>new Batch();
 }
 public partial class DatabaseManager {
+ public static DatabaseManager Instance;
  const string TABLE_NAME="test";
- public bool HasLoadedProfile=true,IsDataConfigReady=true,IsAutoSavePending,IsPalettePurchaseInProgress,IsVoicePurchaseInProgress,claimingMission,LastSaveSucceeded;
+ public bool HasLoadedProfile=true,IsDataConfigReady=true,IsAutoSavePending,IsPalettePurchaseInProgress,IsVoicePurchaseInProgress,IsItemPurchaseInProgress,claimingMission,LastSaveSucceeded;
  bool CanAutoSave=>HasLoadedProfile && IsDataConfigReady;
  int dataSessionVersion;
  string loadedUserInDate="owner",currentPlayerSettingInDate="row";
@@ -54,7 +63,7 @@ public partial class DatabaseManager {
  Setting currentPlayerSetting=new Setting();
  System.Collections.Concurrent.ConcurrentQueue<Action> saveCompletions=new System.Collections.Concurrent.ConcurrentQueue<Action>();
  public static Action DataConfigReadyChanged=delegate{};
- public DatabaseManager(){DataConfigReadyChanged=TryStartAttendance;}
+ public DatabaseManager(){Instance=this;DataConfigReadyChanged=TryStartAttendance;}
  static string ReadString(Row r,string key,string fallback)=>key=="inDate"?r.inDate:r.attendanceState;
  static Setting ReadPlayerSetting(Row r)=>new Setting{money=r.money};
  public void Pump(){while(saveCompletions.TryDequeue(out var c))c();}
@@ -69,6 +78,11 @@ public static class AttendanceChecks {
  static void Read(DatabaseManager db,string state="",int money=20000){Backend.GameData.read(new Response{row=new Row{attendanceState=state,money=money}});db.Pump();}
  static void Clock(DatabaseManager db,string time="2026-11-08T12:00:00Z",bool success=true){Backend.Utils.clock(new Response{ok=success,utc=time});db.Pump();}
  static void Write(DatabaseManager db,bool success=true){Backend.GameData.write(new Response{ok=success});db.Pump();}
+ static void UiEvent(AttendanceLoginPrompt ui,string method)=>typeof(AttendanceLoginPrompt).GetMethod(method,System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(ui,null);
+ static AttendanceLoginPrompt Prompt(GameObject panel){
+  var ui=new AttendanceLoginPrompt();typeof(AttendanceLoginPrompt).GetField("attendancePanel",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(ui,panel);
+  UiEvent(ui,"OnEnable");return ui;
+ }
  public static int Run(){
   Check(AttendanceSchedule.Day(Utc("2026-11-08T20:59:59Z"))==new DateTime(2026,11,8),"before KST06");
   Check(AttendanceSchedule.Day(Utc("2026-11-08T21:00:00Z"))==new DateTime(2026,11,9),"at KST06");
@@ -117,6 +131,28 @@ public static class AttendanceChecks {
   Check(DataConfig.money==0 && !db.AttendanceClaimedToday && db.AttendanceCompletedDays==0,"late response cannot affect next account");
   db=Fresh();db.RequestAttendanceCheck();Read(db);Clock(db);db.ClaimAttendanceReward();Read(db,receipt,20100);Clock(db);
   Check(Backend.GameData.writes==0 && db.AttendanceClaimedToday,"claim re-reads existing server receipt to prevent repeat");
+  db=Fresh();DataConfig.catTutorialCompleted=0;
+  var panel=new GameObject();var ui=Prompt(panel);
+  db.RequestAttendanceCheck();Read(db);Clock(db);
+  Check(!panel.active && panel.opens==0,"first login attendance waits for tutorial without consuming prompt");
+  DataConfig.NotifyChanged();Check(!panel.active,"other profile changes do not open over tutorial");
+  DataConfig.CompleteTutorial();Check(panel.active && panel.opens==1,"tutorial completion opens pending attendance immediately");
+  panel.SetActive(false);DataConfig.NotifyChanged();Check(!panel.active && panel.opens==1,"closing attendance does not reopen it on profile edits");
+  UiEvent(ui,"OnDisable");
+  db=Fresh();DataConfig.catTutorialCompleted=0;panel=new GameObject();ui=Prompt(panel);
+  DataConfig.CompleteTutorial();Check(!panel.active,"tutorial completion before server reply waits for attendance");
+  db.RequestAttendanceCheck();Read(db);Clock(db);Check(panel.active && panel.opens==1,"late attendance reply opens after tutorial");
+  UiEvent(ui,"OnDisable");
+  db=Fresh();DataConfig.catTutorialCompleted=1;panel=new GameObject();ui=Prompt(panel);
+  db.RequestAttendanceCheck();Read(db);Clock(db);Check(panel.active,"returning account keeps normal login prompt");
+  UiEvent(ui,"OnDisable");
+  db=Fresh();DataConfig.catTutorialCompleted=0;panel=new GameObject();ui=Prompt(panel);
+  db.RequestAttendanceCheck();Read(db);Clock(db);UiEvent(ui,"OnDisable");DataConfig.CompleteTutorial();
+  Check(!panel.active,"disabled prompt does not react to completion");
+  UiEvent(ui,"OnEnable");Check(panel.active,"re-enabled prompt consumes deferred attendance once");UiEvent(ui,"OnDisable");
+  db=Fresh();DataConfig.catTutorialCompleted=0;panel=new GameObject();ui=Prompt(panel);
+  db.RequestAttendanceCheck();Read(db,receipt);Clock(db);DataConfig.CompleteTutorial();
+  Check(!panel.active,"already claimed attendance stays closed after tutorial");UiEvent(ui,"OnDisable");
   return checks;
  }
 }

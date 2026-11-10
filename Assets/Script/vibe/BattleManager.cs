@@ -277,7 +277,7 @@ public partial class BattleManager : MonoBehaviour
         Vector3 spawnPosition = spawn.position;
         if (teamSlot > 0)
         {
-            if (secondary != null) { spawn = secondary; spawnPosition = spawn.position; }
+            if (secondary != null) { spawn = secondary; spawnPosition = spawn.position + spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * (teamSlot - 1); }
             else spawnPosition += spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * teamSlot;
         }
         Quaternion spawnRotation = spawn.rotation;
@@ -443,7 +443,13 @@ public partial class BattleManager : MonoBehaviour
         if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject playerObject) && playerObject != null)
             battleFlag?.DropCarrier(playerRef, playerObject.transform.position);
         pendingRespawns.RemoveAll(pending => pending.PlayerRef == playerRef);
-        int departedTeam = playerDatas.TryGetValue(playerRef, out PlayerData departed) && departed != null ? departed.teamIndex : 0;
+        // A rejected/late connection was never a participant. It cannot forfeit a match.
+        if (!playerDatas.TryGetValue(playerRef, out PlayerData departed) || departed == null ||
+            departed.Object == null || !departed.Object.IsValid) return;
+        // The session manager replaces a departing human with a bot, including during
+        // scene loading/VS preparation, so the required roster remains complete.
+        if (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsBotMatch) return;
+        int departedTeam = departed.teamIndex;
         if (ExpectedPlayerCount > 1 && !IsBattleEnded)
             foreach (var pair in playerDatas)
                 if (pair.Key != playerRef && pair.Value != null && pair.Value.teamIndex != departedTeam && IsConnected(pair.Key))
@@ -451,6 +457,22 @@ public partial class BattleManager : MonoBehaviour
                     battleFlag?.EndSeriesByForfeit(pair.Value.teamIndex);
                     break;
                 }
+    }
+
+    public void SpawnReplacementBot(PlayerData data)
+    {
+        if (!isInitialized || runner == null || !runner.IsServer || IsBattleEnded ||
+            data == null || data.Object == null || !data.Object.IsValid || data.Runner != runner ||
+            !data.IsMatchBot || NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsBotMatch)
+            return;
+        data.ResetMatchPerks();
+        data.ResetBattleStats();
+        if (Phase == BattleStartPhase.Intermission)
+        {
+            data.BeginRoundMagicChange(RoundNumber);
+            TrySetRoundReady(data, RoundNumber, true);
+        }
+        SpawnBattlePlayer(data.ParticipantRef, data, playerPrefab);
     }
 
     // Called from the authoritative flag's network tick: no scene-lifetime coroutines.

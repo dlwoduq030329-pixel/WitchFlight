@@ -47,6 +47,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     {
         public Player Player;
         public Player Teammate;
+        public Player[] TeamMembers;
         public GameObject Stage;
         public Camera Camera;
         public RenderTexture Texture;

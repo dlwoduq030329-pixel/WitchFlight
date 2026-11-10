@@ -4,6 +4,13 @@ using UnityEngine;
 public partial class PlayerData
 {
     [Networked] public int MatchBotSlot { get; private set; }
+    [Networked] public MatchBotRole BotRole { get; private set; }
+    [Networked] public int BotTeamOrder { get; private set; }
+    public void SetMatchBotRole(MatchBotRole role, int order)
+    {
+        if (!IsMatchBot || !Object.HasStateAuthority) return;
+        BotRole = role; BotTeamOrder = order;
+    }
     public bool IsMatchBot => MatchBotSlot > 0;
     public PlayerRef ParticipantRef => IsMatchBot ? BattleParticipants.BotRef(MatchBotSlot) : Object.InputAuthority;
     public void InitializeMatchBot(int slot, int team, PlayerConfig config, int botTitleId = 0)
@@ -55,6 +62,18 @@ public partial class PlayerData
             MagicType otherSecond = firstOpponent == null ? MagicType.Ice : previousRound ? firstOpponent.MagicChangeBase2 : firstOpponent.magic2;
             MatchBotSettings.Default.CounterLoadout(otherFirst, otherSecond, out var x, out var y);
             if ((a == x && b == y) || (a == y && b == x)) MatchBotSettings.Default.DiversifyCounterLoadout(a, ref b);
+        }
+        if (BotRole == MatchBotRole.Support)
+        {
+            int ownDeaths = 0, enemyDeaths = 0;
+            foreach (var data in PerkPlayers)
+            {
+                if (data == null || data.Object == null || !data.Object.IsValid || data.Runner != Runner) continue;
+                if (data.teamIndex == teamIndex) ownDeaths += data.BattleDeaths; else enemyDeaths += data.BattleDeaths;
+            }
+            var settings = MatchBotSettings.Default;
+            float chance = previousRound && ownDeaths > enemyDeaths ? settings.pressuredDoubleSupportChance : settings.doubleSupportChance;
+            MatchBotRoles.SupportLoadout(BotTeamOrder / 2, Random.value < chance, ref a, ref b);
         }
         if (!previousRound) { magic1 = a; magic2 = b; }
         else if (BattleManager.Instance != null)

@@ -422,6 +422,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         DeathMatchMigrationIdentity = data.DeathMatchIdentity;
         MatchBotSlot = data.MatchBotSlot;
+        botRole = data.BotRole;
+        botTeamOrder = data.BotTeamOrder;
         HatStatEntry hatStats = GetHatStats(data.hat);
         BroomStatEntry broomStats = GetBroomStats(data.broom);
 

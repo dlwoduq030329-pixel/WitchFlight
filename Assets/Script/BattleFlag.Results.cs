@@ -97,7 +97,7 @@ public partial class BattleFlag
     [Networked, Capacity(4)] public NetworkArray<BattleAwardResult> Awards => default;
     [Networked] public bool AwardsReady { get; private set; }
     [Networked, Capacity(4)] public NetworkArray<int> PraiseSequences => default;
-    [Networked, Capacity(4)] public NetworkArray<PlayerRef> PraiseVoters => default;
+    [Networked, Capacity(BattleMatchRules.MaxTeamPlayers)] public NetworkArray<PlayerRef> PraiseVoters => default;
 
     public bool HasPraised(PlayerRef voter)
     {

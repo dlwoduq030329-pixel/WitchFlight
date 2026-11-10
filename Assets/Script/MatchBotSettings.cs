@@ -1,5 +1,29 @@
 ﻿using UnityEngine;
 
+public enum MatchBotRole { Objective, Support, Fighter }
+
+public static class MatchBotRoles
+{
+    public static MatchBotRole ForTeamSlot(int teamSize, int botOrder)
+    {
+        if (teamSize < 3) return MatchBotRole.Objective;
+        if (botOrder == 0 || (teamSize >= 5 && botOrder == 2)) return MatchBotRole.Support;
+        if (botOrder == 1 || (teamSize == 4 && botOrder == 2) || (teamSize >= 5 && botOrder == 3)) return MatchBotRole.Fighter;
+        return MatchBotRole.Objective;
+    }
+    public static bool CoversSupport(MatchBotRole role, int livingSupports, int missingSupports, int fighterOrder)
+        => role == MatchBotRole.Fighter && (livingSupports == 0 || fighterOrder < missingSupports);
+    public static bool IsAttack(MagicType magic) => magic != MagicType.None && magic != MagicType.Healing &&
+        magic != MagicType.MeowFestival && magic != MagicType.TimeStop && magic != MagicType.Flare &&
+        magic != MagicType.Smoke && magic != MagicType.Binding;
+    public static void SupportLoadout(int order, bool doubleSupport, ref MagicType first, ref MagicType second)
+    {
+        if (doubleSupport) { first = MagicType.Healing; second = MagicType.MeowFestival; return; }
+        if (!IsAttack(first)) first = IsAttack(second) ? second : MagicType.Vision;
+        second = order % 2 == 0 ? MagicType.Healing : MagicType.MeowFestival;
+    }
+}
+
 [CreateAssetMenu(menuName = "WitchFlight/Match Bot Settings")]
 public sealed class MatchBotSettings : ScriptableObject
 {
@@ -18,6 +42,18 @@ public sealed class MatchBotSettings : ScriptableObject
     [Min(.1f)] public float stuckSeconds = 1f;
     [Min(.1f)] public float reactionSeconds = .3f;
     [Min(.1f)] public float attackPauseSeconds = .65f;
+    [Header("3~5인 팀전 역할 / 호위")]
+    [Min(5f)] public float escortDistance = 28f;
+    [Min(5f)] public float escortThreatRange = 100f;
+    [Min(10f)] public float fighterLeashDistance = 180f;
+    [Min(5f)] public float isolationRadius = 65f;
+    [Header("포위 공격")]
+    [Min(5f)] public float encirclementRadius = 45f;
+    [Min(0f)] public float encirclementHeight = 12f;
+    [Range(0f, 1f)] public float encirclementLeadSeconds = .35f;
+    [Min(1f)] public float encirclementArrivalDistance = 8f;
+    [Range(0f, 1f)] public float doubleSupportChance = .15f;
+    [Range(0f, 1f)] public float pressuredDoubleSupportChance = .4f;
     [Header("패링 반응 / 입력 타이밍 (호스트에서 1회 추첨)")]
     public bool useParry = true;
     [Range(0f,1f)] public float parryGoodTimingChance = .55f;

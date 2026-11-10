@@ -35,6 +35,7 @@ public class NetworkObject {public bool IsValid=true,HasStateAuthority=true;}
 public class PlayerData {
  public static List<PlayerData> PerkPlayers=new();
  public bool IsMatchBot,RoundSwapReady,IsLoadoutInitialized=true;public object Runner;
+ public MatchBotRole BotRole;public int BotTeamOrder,BattleDeaths;
  public Participant ParticipantRef;public int teamIndex,MagicChangeRound;
  public NetworkObject Object=new();public MagicType magic1,magic2,MagicChangeBase1,MagicChangeBase2;
 '@
@@ -92,6 +93,18 @@ public static class BotChecks {
   human.BeginRoundMagicChange(1);human2.BeginRoundMagicChange(1);bot.BeginRoundMagicChange(1);bot2.BeginRoundMagicChange(1);
   human2.magic1=MagicType.Thunder;human2.magic2=MagicType.Razier;bot2.ChooseBotCounters(true);
   Check(bot2.magic1==MagicType.Healing,"assigned opponent uses previous-round snapshot");
+  bot.BotRole=MatchBotRole.Support;table.doubleSupportChance=0;bot.ChooseBotCounters(false);
+  Check(MatchBotRoles.IsAttack(bot.magic1)&&bot.magic2==MagicType.Healing,"support receives attack plus healing");
+  bot2.BotRole=MatchBotRole.Support;bot2.BotTeamOrder=2;bot2.ChooseBotCounters(false);
+  Check(MatchBotRoles.IsAttack(bot2.magic1)&&bot2.magic2==MagicType.MeowFestival,"second support receives a different ally buff");
+  table.doubleSupportChance=1;bot.ChooseBotCounters(false);
+  Check(bot.magic1==MagicType.Healing&&bot.magic2==MagicType.MeowFestival,"double support selection reaches actual loadout");
+  table.doubleSupportChance=0;table.pressuredDoubleSupportChance=1;bot.BattleDeaths=3;
+  bot.BeginRoundMagicChange(4);bot.ChooseBotCounters(true);
+  Check(bot.magic1==MagicType.Healing&&bot.magic2==MagicType.MeowFestival,"losing team can select double support between rounds");
+  bot.magic1=MagicType.Vision;bot.magic2=MagicType.Healing;bot.BeginRoundMagicChange(5);BattleManager.Instance.Limit=1;
+  bot.ChooseBotCounters(true);
+  Check((bot.magic1!=MagicType.Vision?1:0)+(bot.magic2!=MagicType.Healing?1:0)<=1,"support role still obeys one-slot round limit");
   var cosmetics=new List<PlayerConfig>();
   var one=MatchBotSettings.RandomAppearance(cosmetics);cosmetics.Add(one);
   var two=MatchBotSettings.RandomAppearance(cosmetics);cosmetics.Add(two);
