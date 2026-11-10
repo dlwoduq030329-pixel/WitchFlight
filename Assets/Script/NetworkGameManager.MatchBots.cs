@@ -5,6 +5,21 @@ using System.Collections.Generic;
 public partial class NetworkGameManager
 {
     public bool IsBotMatch => !IsTraining && BattleMatchRules.HasBots(CurrentMatchMode);
+    private void AssignBotRoles()
+    {
+        // Assign once before character spawning. PlayerData preserves roles across respawns.
+        var bots = new List<PlayerData>();
+        for (int team = 1; team <= 2; team++)
+        {
+            bots.Clear();
+            foreach (var data in playerDatas.Values)
+                if (data != null && data.IsMatchBot && data.teamIndex == team) bots.Add(data);
+            bots.Sort((a, b) => a.ParticipantRef.RawEncoded.CompareTo(b.ParticipantRef.RawEncoded));
+            for (int i = 0; i < bots.Count; i++)
+                bots[i].SetMatchBotRole(MatchBotRoles.ForTeamSlot(RequiredPlayerCount / 2, i), i);
+        }
+    }
+
     private bool FillBotSeats()
     {
         if (!IsRoomHost || !IsBotMatch) return false;
@@ -40,6 +55,7 @@ public partial class NetworkGameManager
                     count++; slot++;
                 }
             }
+            AssignBotRoles();
             foreach (var data in playerDatas.Values) if (data != null && data.IsMatchBot && !IsRaceMode) data.ChooseBotCounters(false);
             return true;
         }

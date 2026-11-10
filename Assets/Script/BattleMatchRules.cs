@@ -2,30 +2,44 @@ using System.Collections.Generic;
 using Fusion;
 
 // Race=20 is retained only to read old serialized data; it cannot be selected or launched.
-public enum BattleMatchMode { OneVsOne = 2, TwoVsTwo = 4, ThreeVsThree = 6, FourVsFour = 8, FiveVsFive = 10, OneVsOneBot = 12, TwoVsTwoBot = 14, Race = 20, GiantMeowRaid = 21, DeathMatch = 22 }
+public enum BattleMatchMode
+{
+    OneVsOne = 2, TwoVsTwo = 4, ThreeVsThree = 6, FourVsFour = 8, FiveVsFive = 10,
+    OneVsOneBot = 12, TwoVsTwoBot = 14, ThreeVsThreeBot = 16, FourVsFourBot = 18,
+    Race = 20, GiantMeowRaid = 21, DeathMatch = 22,
+    FiveVsFiveBot = 24 // Keep the existing serialized Race/raid/deathmatch values intact.
+}
 
 public static class BattleMatchRules
 {
     public const int MaxTeamPlayers = 10;
-    private static readonly BattleMatchMode[] roomModes = { BattleMatchMode.OneVsOne, BattleMatchMode.TwoVsTwo,
-        BattleMatchMode.OneVsOneBot, BattleMatchMode.TwoVsTwoBot, BattleMatchMode.ThreeVsThree,
-        BattleMatchMode.GiantMeowRaid, BattleMatchMode.FourVsFour, BattleMatchMode.FiveVsFive };
+    private static readonly BattleMatchMode[] roomModes = {
+        BattleMatchMode.OneVsOne, BattleMatchMode.TwoVsTwo, BattleMatchMode.ThreeVsThree,
+        BattleMatchMode.FourVsFour, BattleMatchMode.FiveVsFive,
+        BattleMatchMode.OneVsOneBot, BattleMatchMode.TwoVsTwoBot, BattleMatchMode.ThreeVsThreeBot,
+        BattleMatchMode.FourVsFourBot, BattleMatchMode.FiveVsFiveBot, BattleMatchMode.GiantMeowRaid };
     public static int ModeOptionCount => roomModes.Length;
     public static BattleMatchMode Normalize(BattleMatchMode mode) => mode switch
     {
         BattleMatchMode.OneVsOne or BattleMatchMode.TwoVsTwo or BattleMatchMode.ThreeVsThree or
         BattleMatchMode.FourVsFour or BattleMatchMode.FiveVsFive or BattleMatchMode.OneVsOneBot or
-        BattleMatchMode.TwoVsTwoBot or BattleMatchMode.GiantMeowRaid or BattleMatchMode.DeathMatch => mode,
+        BattleMatchMode.TwoVsTwoBot or BattleMatchMode.ThreeVsThreeBot or BattleMatchMode.FourVsFourBot or
+        BattleMatchMode.FiveVsFiveBot or BattleMatchMode.GiantMeowRaid or BattleMatchMode.DeathMatch => mode,
         _ => BattleMatchMode.TwoVsTwo
     };
-    public static bool HasBots(BattleMatchMode mode) => mode == BattleMatchMode.OneVsOneBot || mode == BattleMatchMode.TwoVsTwoBot;
-    public static bool IsTeamMode(BattleMatchMode mode) => mode == BattleMatchMode.TwoVsTwo || mode == BattleMatchMode.TwoVsTwoBot || mode == BattleMatchMode.ThreeVsThree || mode == BattleMatchMode.FourVsFour || mode == BattleMatchMode.FiveVsFive;
+    public static bool HasBots(BattleMatchMode mode) => mode is BattleMatchMode.OneVsOneBot or BattleMatchMode.TwoVsTwoBot or
+        BattleMatchMode.ThreeVsThreeBot or BattleMatchMode.FourVsFourBot or BattleMatchMode.FiveVsFiveBot;
+    public static bool IsTeamMode(BattleMatchMode mode) => mode is BattleMatchMode.TwoVsTwo or BattleMatchMode.TwoVsTwoBot or
+        BattleMatchMode.ThreeVsThree or BattleMatchMode.FourVsFour or BattleMatchMode.FiveVsFive or
+        BattleMatchMode.ThreeVsThreeBot or BattleMatchMode.FourVsFourBot or BattleMatchMode.FiveVsFiveBot;
     public static int PlayerCount(BattleMatchMode mode) => Normalize(mode) switch {
         BattleMatchMode.DeathMatch => 20, BattleMatchMode.OneVsOne or BattleMatchMode.OneVsOneBot => 2,
-        BattleMatchMode.ThreeVsThree => 6, BattleMatchMode.FourVsFour => 8, BattleMatchMode.FiveVsFive => 10, _ => 4 };
+        BattleMatchMode.ThreeVsThree or BattleMatchMode.ThreeVsThreeBot => 6,
+        BattleMatchMode.FourVsFour or BattleMatchMode.FourVsFourBot => 8,
+        BattleMatchMode.FiveVsFive or BattleMatchMode.FiveVsFiveBot => 10, _ => 4 };
     public static int DropdownIndex(BattleMatchMode mode) => System.Array.IndexOf(roomModes, Normalize(mode));
     public static BattleMatchMode FromDropdown(int index) => index >= 0 && index < roomModes.Length ? roomModes[index] : BattleMatchMode.TwoVsTwo;
-    public static string Label(BattleMatchMode mode) => mode == BattleMatchMode.DeathMatch ? "데스매치" : mode == BattleMatchMode.GiantMeowRaid ? "거대 먀오녀 토벌" : $"{PlayerCount(mode) / 2} vs {PlayerCount(mode) / 2}" + (HasBots(mode) ? " (BOT)" : "");
+    public static string Label(BattleMatchMode mode) => mode == BattleMatchMode.DeathMatch ? "데스매치" : mode == BattleMatchMode.GiantMeowRaid ? "거대 먀오녀 토벌" : $"{PlayerCount(mode) / 2}vs{PlayerCount(mode) / 2}" + (HasBots(mode) ? "(BOT)" : "");
 
     // Stable client-relative ordering: self, teammate, opponents. Never depend on spawn/search order.
     public static void CollectRoster(NetworkRunner runner, List<PlayerData> result)

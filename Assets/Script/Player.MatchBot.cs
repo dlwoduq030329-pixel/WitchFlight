@@ -36,24 +36,17 @@ public partial class Player
         var settings = MatchBotSettings.Default;
         float dt = Runner.DeltaTime;
         botDecisionTime -= dt; botAttackTime -= dt;
+        if (BattleFlag.Instance != null && botObservedCarrier != BattleFlag.Instance.Carrier) botDecisionTime = 0f;
         if (botDecisionTime <= 0)
         {
             botDecisionTime = Mathf.Max(.1f, settings.reactionSeconds);
-            botTarget = null;
-            float best = float.PositiveInfinity;
-            foreach (var enemy in ActiveCombatants)
-            {
-                if (enemy == null || enemy.Object == null || !enemy.Object.IsValid || enemy.Runner != Runner ||
-                    !enemy.IsAlive || enemy.TeamIndex == TeamIndex) continue;
-                float score = (enemy.transform.position - transform.position).sqrMagnitude;
-                if (BattleFlag.Instance != null && BattleFlag.Instance.Carrier == enemy.ParticipantRef) score *= .1f;
-                if (score < best) { best = score; botTarget = enemy; }
-            }
+            RefreshBotTactics(settings);
             PlayerData.FindPerkData(Runner, ParticipantRef)?.ChooseBotPerk();
             float health = MaxHp > 0f ? NowHp / MaxHp : 1f;
             if (health <= settings.seekHealthBelow) botRecovering = true;
             else if (health >= Mathf.Max(settings.seekHealthBelow, settings.resumeCombatAbove)) botRecovering = false;
             botHealthPickup = botRecovering ? FindBotHealthPickup(settings) : null;
+            RefreshBotEncirclement(settings);
         }
         bool hasEnemy = botTarget != null && botTarget.Object != null && botTarget.Object.IsValid && botTarget.IsAlive;
         var flag = BattleFlag.Instance;
@@ -62,10 +55,16 @@ public partial class Player
         bool pickupGoal = false;
         var botBoundary = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
         float goalRadius = .85f;
-        Vector3 destination = hasEnemy ? botTarget.transform.position - botTarget.transform.forward * settings.tailDistance
+        bool encircling = hasEnemy && botFormationTarget == botTarget;
+        Vector3 destination = encircling ? botTarget.LockAimPoint + botAttackRouteOffset
+            : hasEnemy ? botTarget.LockAimPoint
             : transform.position + transform.forward * 30;
+        bool escorting = IsBotCombatant(botCarrier) && botCarrier != this && botCarrier.TeamIndex == TeamIndex;
+        if (escorting && (botEscortDuty || !hasEnemy)) { destination = BotEscortPosition(botCarrier, settings); encircling = false; }
+        else if (!hasEnemy && flag != null) destination = IsBotCombatant(botCarrier) ? botCarrier.transform.position : flag.transform.position;
         if (retreating && hasEnemy)
         {
+            encircling = false;
             Vector3 away = (LockAimPoint - botTarget.LockAimPoint).normalized;
             if (away.sqrMagnitude < .01f) away = -transform.forward;
             // Keep possession rather than deliberately turning into a pursuer.
@@ -74,13 +73,13 @@ public partial class Player
                 destination = botBoundary.BotRetreatDestination(transform.position, botTarget.transform.position,
                     transform.forward, settings.carrierSafeDistance);
         }
-        if (flag != null && flag.Carrier == PlayerRef.None && !botRecovering)
-        { destination = flag.transform.position; pickupGoal = true; goalRadius = flag.PickupRadius; }
+        if (flag != null && flag.Carrier == PlayerRef.None && !botRecovering && (botEscortDuty || !hasEnemy))
+        { destination = flag.transform.position; pickupGoal = true; goalRadius = flag.PickupRadius; encircling = false; }
         if (botHealthPickup != null && botHealthPickup.IsAvailableHealth(Runner))
-        { destination = botHealthPickup.BotPickupPoint; pickupGoal = true; goalRadius = botHealthPickup.BotPickupRadius; }
+        { destination = botHealthPickup.BotPickupPoint; pickupGoal = true; goalRadius = botHealthPickup.BotPickupRadius; encircling = false; }
         if (botBoundary != null) destination = botBoundary.ClampBotPosition(destination);
         if (TryBotPortalRoute(destination, settings, out Vector3 portalEntry))
-        { destination = portalEntry; pickupGoal = true; goalRadius = .1f; }
+        { destination = portalEntry; pickupGoal = true; goalRadius = .1f; encircling = false; }
         Vector3 direction = destination - transform.position;
         if (direction.sqrMagnitude < .001f) direction = transform.forward;
         direction.Normalize();
@@ -97,11 +96,16 @@ public partial class Player
                 avoidingWall = true;
             }
         }
+        bool firingFromSector = encircling && !avoidingWall &&
+            (LockAimPoint - (botTarget.LockAimPoint + botAttackSlotOffset)).sqrMagnitude <= botAttackArrivalDistance * botAttackArrivalDistance;
+        // Face inward and brake at the assigned sector so lock-on spells can charge without chasing the tail.
+        if (firingFromSector) direction = (botTarget.LockAimPoint - LockAimPoint).normalized;
         input.aimDirection = direction; input.aimUp = Vector3.up; input.steerToAim = true;
         input.portalExitSequence = PortalExitSequence;
         int desiredStage = avoidingWall || Vector3.Dot(transform.forward, direction) < .4f ||
             Vector3.Distance(transform.position, destination) < settings.pickupApproachDistance ? 1 : 3;
         if (pickupGoal && Vector3.Distance(LockAimPoint, destination) < goalRadius * .75f) desiredStage = 0;
+        if (firingFromSector) desiredStage = 0;
         botSpeedPulse = !botSpeedPulse;
         if (botSpeedPulse && SpeedStage < desiredStage) input.buttons.Set(PlayerInputButton.Accelerate, true);
         if (botSpeedPulse && SpeedStage > desiredStage) input.buttons.Set(PlayerInputButton.Decelerate, true);
@@ -112,13 +116,15 @@ public partial class Player
         input.areaAimPoint = hasEnemy ? botTarget.LockAimPoint : destination;
         input.hasAreaAimPoint = hasEnemy;
         if (hasEnemy) input.lockTarget = botTarget.Object.Id;
+        var stats = SelectedMagicStats;
+        if (stats.TargetsAllies) AimBotSupport(ref input);
         if (IsMagicStormActive) return true;
         if (botReleaseFrame) { botReleaseFrame = false; return true; }
-        var stats = SelectedMagicStats;
         if (botHolding)
         {
             botHeldTime += dt;
-            bool release = !hasEnemy || (stats.requiresTarget ? IsFullyLocked || botHeldTime > 3f :
+            bool castTargetAlive = stats.TargetsAllies ? IsBotCombatant(botCastAlly) : hasEnemy;
+            bool release = !castTargetAlive || (stats.requiresTarget ? IsFullyLocked || botHeldTime > 3f :
                 botHeldTime >= (stats.IsChanneled ? 1.5f : .35f));
             if (!release) input.buttons.Set(PlayerInputButton.Lock, true);
             else { botHolding = false; botReleaseFrame = true; botAttackTime = settings.attackPauseSeconds; }
@@ -140,11 +146,18 @@ public partial class Player
         stats = SelectedMagicStats;
         botAttackTime = settings.attackPauseSeconds;
         bool support = stats.magic == MagicType.Healing || stats.magic == MagicType.Flare || stats.magic == MagicType.Smoke || stats.magic == MagicType.MeowFestival || stats.magic == MagicType.TimeStop;
-        if (!hasEnemy || (!support && Vector3.Distance(LockAimPoint, botTarget.LockAimPoint) > stats.range)) return true;
-        if (stats.magic == MagicType.Healing)
+        if (stats.TargetsAllies)
         {
-            input.lockTarget = default;
-            if (NowHp >= MaxHp * .75f) return true;
+            botCastAlly = ChooseBotSupportTarget(stats);
+            if (botCastAlly == null) return true;
+            AimBotSupport(ref input);
+        }
+        else
+        {
+            if (!hasEnemy || (!support && Vector3.Distance(LockAimPoint, botTarget.LockAimPoint) > stats.range)) return true;
+            // The previous slot may have been a heal: reset its ally aim after switching to an attack.
+            input.lockTarget = botTarget.Object.Id;
+            input.magicAimDirection = (botTarget.LockAimPoint - MagicCastPosition).normalized;
         }
         if (stats.magic == MagicType.Flare && !HasIncomingBotThreat()) return true;
         if (TimerIsActive(MagicCooldowns[(int)stats.magic]) || NowAp < stats.apCost) return true;
