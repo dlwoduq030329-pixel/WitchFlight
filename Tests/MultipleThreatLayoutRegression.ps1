@@ -14,7 +14,7 @@ public struct Vector2 {
  public static Vector2 operator-(Vector2 a,Vector2 b)=>new(a.x-b.x,a.y-b.y);
 }
 public struct Rect {public float x,y,width,height;public Vector2 center=>new(x+width/2,y+height/2);}
-public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);public static float Min(float a,float b)=>Math.Min(a,b);public static float Cos(float a)=>(float)Math.Cos(a);public static float Sin(float a)=>(float)Math.Sin(a);public static float Atan2(float a,float b)=>(float)Math.Atan2(a,b);}
+public static class Mathf {public const float PI=(float)Math.PI;public static int FloorToInt(float a)=>(int)Math.Floor(a);public static float Asin(float a)=>(float)Math.Asin(a);public static int Max(int a,int b)=>Math.Max(a,b);public static float Max(float a,float b)=>Math.Max(a,b);public static float Min(float a,float b)=>Math.Min(a,b);public static float Cos(float a)=>(float)Math.Cos(a);public static float Sin(float a)=>(float)Math.Sin(a);public static float Atan2(float a,float b)=>(float)Math.Atan2(a,b);}
 public static class Checks {
 '@
 $source+=$method
@@ -31,6 +31,15 @@ $source+=@'
     if((again-p).sqrMagnitude>.001f)throw new Exception("layout is not deterministic");checks++;
     points.Add(p);
    }
+  }
+  // Compact aim orbit must fit the paired bars, not just the old screen-edge icons.
+  var orbit=new Rect{x=790,y=400,width=220,height=220};
+  var ring=new List<Vector2>();var first=new Vector2(orbit.center.x,orbit.center.y-110);ring.Add(first);
+  for(int i=0;i<7;i++){
+   var p=SeparateThreatPoint(first,orbit,0,84,ring);
+   if(Math.Abs((p-orbit.center).sqrMagnitude-110*110)>.1f)throw new Exception("compact warning left the aim orbit");checks++;
+   foreach(var used in ring){if((p-used).sqrMagnitude<84*84-.1f)throw new Exception("compact distance bars overlap");checks++;}
+   ring.Add(p);
   }
   return checks;
  }

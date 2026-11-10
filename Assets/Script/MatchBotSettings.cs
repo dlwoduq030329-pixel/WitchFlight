@@ -42,10 +42,43 @@ public sealed class MatchBotSettings : ScriptableObject
     [Min(.1f)] public float stuckSeconds = 1f;
     [Min(.1f)] public float reactionSeconds = .3f;
     [Min(.1f)] public float attackPauseSeconds = .65f;
+    [Header("대쉬 / 박치기 (호스트에서 시도별 1회 추첨)")]
+    public bool useCombatDash = true;
+    public bool useBodyRam = true;
+    [Min(.1f)] public float dashDecisionSeconds = 1.1f;
+    [Range(0f, 1f)] public float dashUseChance = .85f;
+    [Range(0f, 1f)] public float dashMistakeChance = .2f;
+    [Tooltip("대쉬 판단 실수 시 입력이 늦어지는 시간. 지연 중 길이 막히거나 목표가 가까워지면 취소합니다.")]
+    public Vector2 dashMistakeDelay = new Vector2(.4f, .85f);
+    [Min(5f)] public float dashTravelDistance = 25f;
+    [Range(0f, 1f)] public float ramAttemptChance = .65f;
+    [Range(0f, 1f)] public float ramMistakeChance = .3f;
+    [Min(5f)] public float ramApproachDistance = 55f;
+    [Min(.1f)] public float ramCommitSeconds = 2.2f;
+    [Min(.1f)] public float ramRetrySeconds = 3.5f;
+    [Min(0f)] public float ramMissDistance = 4f;
+    [Min(0f)] public float ramLeadSeconds = .55f;
+    [Header("유도탄 감속을 이용한 급선회 회피")]
+    public bool useHomingEvasion = true;
+    [Min(.1f)] public float evasionScanSeconds = .35f;
+    [Min(.1f)] public float evasionRetrySeconds = 1.6f;
+    [Min(5f)] public float evasionDetectionRange = 100f;
+    [Min(.1f)] public float evasionLookAheadSeconds = 1.8f;
+    [Tooltip("현재 선회력이 발사 당시의 이 비율 이하일 때 급선회로 떨쳐내기를 시도합니다. 실제 투사체 속도와 선회 곡선을 사용합니다.")]
+    [Range(0f, 1f)] public float evasionWeakTurnRatio = .65f;
+    [Range(0f, 1f)] public float evasionUseChance = .75f;
+    [Range(0f, 1f)] public float evasionMistakeChance = .25f;
+    [Min(0f)] public float evasionMistakeDelay = .45f;
+    [Range(45f, 150f)] public float evasionTurnAngle = 110f;
+    [Min(.1f)] public float evasionHoldSeconds = 1.2f;
     [Header("3~5인 팀전 역할 / 호위")]
     [Min(5f)] public float escortDistance = 28f;
     [Min(5f)] public float escortThreatRange = 100f;
     [Min(10f)] public float fighterLeashDistance = 180f;
+    [Tooltip("아군 깃발이 안전할 때만 허용하는 전투기의 기회 공격 거리. 봇 위치 기준이며 깃발 호위 범위도 벗어날 수 없습니다.")]
+    [Min(0f)] public float fighterOpportunityDistance = 70f;
+    [Tooltip("깃발 보유 아군의 체력 비율이 이 값 미만이면 암살을 중단하고 호위합니다.")]
+    [Range(0f, 1f)] public float fighterCarrierHealthMinimum = .7f;
     [Min(5f)] public float isolationRadius = 65f;
     [Header("포위 공격")]
     [Min(5f)] public float encirclementRadius = 45f;

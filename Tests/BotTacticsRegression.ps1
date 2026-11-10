@@ -35,7 +35,7 @@ namespace Fusion {
  }
 }
 public class NetObject {public bool IsValid=true;public int Id;}
-public class BattleFlag {public static BattleFlag Instance;public PlayerRef Carrier;public Transform transform=new();}
+public class BattleFlag {public static BattleFlag Instance;public PlayerRef Carrier;public Transform transform=new();public float PickupRadius=.85f;}
 public enum PlayerInputButton {Lock}
 public struct Buttons {public bool Held;public bool IsSet(PlayerInputButton b)=>Held;}
 public struct NetworkInputData {public int lockTarget;public Vector3 magicAimDirection;}
@@ -44,7 +44,7 @@ public class PlayerData {
  public static List<PlayerData> PerkPlayers=new();public NetObject Object=new();public object Runner;
  public int teamIndex;public bool IsMatchBot=true;public MatchBotRole BotRole;
 }
-public class MatchBotSettings {public float escortDistance=28,escortThreatRange=100,fighterLeashDistance=180,isolationRadius=65,encirclementRadius=45,encirclementHeight=12,encirclementLeadSeconds=.35f,encirclementArrivalDistance=8;}
+public class MatchBotSettings {public float escortDistance=28,escortThreatRange=100,fighterLeashDistance=180,fighterOpportunityDistance=70,fighterCarrierHealthMinimum=.7f,isolationRadius=65,encirclementRadius=45,encirclementHeight=12,encirclementLeadSeconds=.35f,encirclementArrivalDistance=8;}
 public partial class Player {
  public static List<Player> ActiveCombatants=new();public NetObject Object=new();public object Runner;
  public bool IsAlive=true,IsMatchBot=true,HasMeowFestival,Visible=true,IsMagicStormActive;
@@ -58,6 +58,7 @@ public partial class Player {
  public void Role(MatchBotRole role,int order){botRole=role;botTeamOrder=order;}
  public void Decide(MatchBotSettings settings)=>RefreshBotTactics(settings);
  public bool Escort=>botEscortDuty;
+ public bool PickupGoal(out Vector3 destination,out float radius)=>TryGetBotFlagPickupGoal(BattleFlag.Instance,out destination,out radius);
  public Vector3 Formation(Player carrier,MatchBotSettings settings)=>BotEscortPosition(carrier,settings);
  public Player Recipient(MagicType magic)=>ChooseBotSupportTarget(new(){magic=magic,range=100});
  public NetworkInputData SupportInput(Player ally){botCastAlly=ally;NetworkInputData input=default;AimBotSupport(ref input);return input;}
@@ -91,9 +92,9 @@ public static class TacticalChecks {
   var enemyCarrier=Add(4,2,150);var isolated=Add(5,2,25);
   BattleFlag.Instance=new(){Carrier=enemyCarrier.ParticipantRef};
   support.Decide(settings);Check(support.botTarget==enemyCarrier,"support hard-focuses enemy flag, ignores nearer distraction");
-  fighter.Decide(settings);Check(fighter.botTarget==isolated&&!fighter.Escort,"fighter attacks isolated enemy instead of joining flag dogpile");
+  fighter.Decide(settings);Check(fighter.botTarget==enemyCarrier&&fighter.Escort,"fighter prioritizes enemy carrier over easy isolated kill");
   isolated.transform.position=new(150,0,90);var interceptor=Add(6,2,20);interceptor.LockTargetId=support.Object.Id;
-  fighter.Decide(settings);Check(fighter.botTarget==interceptor,"fighter prioritizes attacker locking an escort");
+  fighter.Decide(settings);Check(fighter.botTarget==enemyCarrier,"enemy carrier still wins over escort distraction");
   interceptor.LockTargetId=0;interceptor.Visible=false;interceptor.IsAlive=false;
   BattleFlag.Instance.Carrier=carrier.ParticipantRef;carrier.NowHp=60;enemyCarrier.transform.position=new(400,0,0);isolated.transform.position=new(500,0,0);
   support.Decide(settings);Check(support.botTarget==null&&support.Escort,"escort stays with allied flag instead of distant chase");
@@ -105,6 +106,13 @@ public static class TacticalChecks {
   carrier.HasMeowFestival=true;Check(support.Recipient(MagicType.MeowFestival)!=carrier,"do not overwrite active festival");
   carrier.Visible=false;Check(support.Recipient(MagicType.Healing)==null,"blocked carrier cannot consume a wasted heal");
   carrier.Visible=true;carrier.transform.position=new(300,0,0);Check(support.Recipient(MagicType.Healing)==null,"out-of-range carrier is not selected");carrier.transform.position=new(0,0,0);
+  carrier.NowHp=100;isolated.transform.position=new(60,0,0);
+  fighter.Decide(settings);Check(!fighter.Escort&&fighter.botTarget==isolated,"safe guarded allied flag allows a nearby isolated opportunity");
+  carrier.NowHp=60;fighter.Decide(settings);Check(fighter.Escort,"injured carrier immediately recalls fighter");carrier.NowHp=100;
+  isolated.LockTargetId=carrier.Object.Id;fighter.Decide(settings);Check(fighter.Escort&&fighter.botTarget==isolated,"carrier threat recalls fighter to defensive interception");isolated.LockTargetId=0;
+  isolated.Visible=false;fighter.Decide(settings);Check(fighter.Escort,"no assassination through blocked sight");isolated.Visible=true;
+  support.transform.position=new(150,0,0);fighter.Decide(settings);Check(fighter.Escort,"support alive but far away does not count as carrier cover");support.transform.position=new(10,0,0);
+  fighter.botRecovering=true;fighter.Decide(settings);Check(fighter.Escort,"recovering fighter cannot start a hunt");fighter.botRecovering=false;
   support.IsAlive=false;fighter.Decide(settings);Check(fighter.Escort,"fighter covers the dead support");
   support.IsAlive=true;fighter.Decide(settings);Check(!fighter.Escort,"fighter resumes interception after support respawns");
   var support2=Add(7,1,15,MatchBotRole.Support,2);var fighter2=Add(8,1,18,MatchBotRole.Fighter,3);
@@ -112,7 +120,16 @@ public static class TacticalChecks {
   Check(fighter.Escort&&!fighter2.Escort,"one missing support gets one replacement while remaining fighter intercepts");
   support.IsAlive=false;fighter.Decide(settings);fighter2.Decide(settings);Check(fighter.Escort&&fighter2.Escort,"both fighters cover loss of both supports");
   support.IsAlive=support2.IsAlive=true;fighter.Decide(settings);fighter2.Decide(settings);Check(!fighter.Escort&&!fighter2.Escort,"roles restore after both supports respawn");
-  fighter.Decide(settings);Check(fighter.botTarget==null,"fighter leash prevents lone cross-map chasing");
+  isolated.transform.position=new(500,0,0);fighter.Decide(settings);Check(fighter.botTarget==null&&fighter.Escort,"no opportunity means escort instead of cross-map chasing");
+  BattleFlag.Instance.Carrier=PlayerRef.None;BattleFlag.Instance.transform.position=new(100,0,0);
+  enemyCarrier.transform.position=new(90,0,0);isolated.transform.position=new(20,0,0);
+  support.Decide(settings);fighter.Decide(settings);
+  Check(support.botTarget==enemyCarrier&&fighter.botTarget==enemyCarrier,"all roles focus the spearhead closest to the loose flag, not their nearest enemy");
+  Check(fighter.PickupGoal(out var pickup,out var pickupRadius)&&pickup.x==100&&pickupRadius==.85f,"fighter still flies to loose flag while an attack target exists");
+  Check(support.PickupGoal(out _,out _),"support also prioritizes pickup");
+  fighter.botRecovering=true;Check(!fighter.PickupGoal(out _,out _),"low-health recovery exception preserved");fighter.botRecovering=false;
+  BattleFlag.Instance.Carrier=carrier.ParticipantRef;Check(!fighter.PickupGoal(out _,out _),"held flag is not a loose pickup");
+  isolated.transform.position=new(500,0,0);enemyCarrier.transform.position=new(400,0,0);
   enemyCarrier.IsAlive=false;BattleFlag.Instance.Carrier=enemyCarrier.ParticipantRef;support.Decide(settings);Check(support.botTarget!=enemyCarrier,"dead flag carrier is ignored");
   for(int count=2;count<=5;count++){
    var offsets=new List<Vector3>();

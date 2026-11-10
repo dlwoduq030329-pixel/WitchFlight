@@ -62,7 +62,7 @@ public static class GuideTests {
 Add-Type -TypeDefinition $source
 "Training guide phase checks passed: $([GuideTests]::Run())"
 $player=Get-Content Assets/Script/Player.cs -Raw
-$decelerate=[regex]::Match($player,'(?s)if \(buttons.WasPressed\(previousButtons, PlayerInputButton.Decelerate\)\).*?\n        \}').Value
-if(!$decelerate.Contains('SpeedStage = Mathf.Max') -or $decelerate.Contains('TryStartCobra')){throw 'S must only decrement speed stage'}
+$decelerate=[regex]::Match($player,'(?s)private void ProcessCruiseInput\(.*?\n    \}').Value
+if(!$decelerate.Contains('buttons.IsSet(PlayerInputButton.Decelerate)') -or !$decelerate.Contains('GlideElapsed') -or $decelerate.Contains('TryStartCobra')){throw 'Held S must brake automatic cruise, independently of cobra'}
 if(!$player.Contains('PlayerInputButton.QuickBrake) && TryStartCobra()')){throw 'Quick brake must have a separate input action'}
-'S deceleration and quick-brake actions are separate.'
+'Held-S glide braking and quick-brake actions are separate.'

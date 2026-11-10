@@ -35,16 +35,17 @@ public partial class Player
         if (!Object.HasStateAuthority) return false;
         var settings = MatchBotSettings.Default;
         float dt = Runner.DeltaTime;
+        TickBotMobilityPlan(dt);
         botDecisionTime -= dt; botAttackTime -= dt;
         if (BattleFlag.Instance != null && botObservedCarrier != BattleFlag.Instance.Carrier) botDecisionTime = 0f;
         if (botDecisionTime <= 0)
         {
             botDecisionTime = Mathf.Max(.1f, settings.reactionSeconds);
-            RefreshBotTactics(settings);
             PlayerData.FindPerkData(Runner, ParticipantRef)?.ChooseBotPerk();
             float health = MaxHp > 0f ? NowHp / MaxHp : 1f;
             if (health <= settings.seekHealthBelow) botRecovering = true;
             else if (health >= Mathf.Max(settings.seekHealthBelow, settings.resumeCombatAbove)) botRecovering = false;
+            RefreshBotTactics(settings);
             botHealthPickup = botRecovering ? FindBotHealthPickup(settings) : null;
             RefreshBotEncirclement(settings);
         }
@@ -73,12 +74,19 @@ public partial class Player
                 destination = botBoundary.BotRetreatDestination(transform.position, botTarget.transform.position,
                     transform.forward, settings.carrierSafeDistance);
         }
-        if (flag != null && flag.Carrier == PlayerRef.None && !botRecovering && (botEscortDuty || !hasEnemy))
-        { destination = flag.transform.position; pickupGoal = true; goalRadius = flag.PickupRadius; encircling = false; }
+        if (TryGetBotFlagPickupGoal(flag, out Vector3 flagDestination, out float flagRadius))
+        { destination = flagDestination; pickupGoal = true; goalRadius = flagRadius; encircling = false; }
         if (botHealthPickup != null && botHealthPickup.IsAvailableHealth(Runner))
         { destination = botHealthPickup.BotPickupPoint; pickupGoal = true; goalRadius = botHealthPickup.BotPickupRadius; encircling = false; }
+        bool ramAllowed = !retreating && !pickupGoal && hasEnemy &&
+            (!escorting || (botTarget.LockAimPoint - botCarrier.LockAimPoint).sqrMagnitude <=
+                settings.escortDistance * settings.escortDistance * 4f);
+        bool evading = TryBotEvasionDestination(settings, out Vector3 evadeDestination, out bool evasionDash);
+        if (evading) { CancelBotRam(); destination = evadeDestination; encircling = false; }
+        else if (TryBotRamDestination(settings, ramAllowed, out Vector3 ramDestination))
+        { destination = ramDestination; encircling = false; }
         if (botBoundary != null) destination = botBoundary.ClampBotPosition(destination);
-        if (TryBotPortalRoute(destination, settings, out Vector3 portalEntry))
+        if (!evading && botRamTarget == null && TryBotPortalRoute(destination, settings, out Vector3 portalEntry))
         { destination = portalEntry; pickupGoal = true; goalRadius = .1f; encircling = false; }
         Vector3 direction = destination - transform.position;
         if (direction.sqrMagnitude < .001f) direction = transform.forward;
@@ -106,12 +114,13 @@ public partial class Player
             Vector3.Distance(transform.position, destination) < settings.pickupApproachDistance ? 1 : 3;
         if (pickupGoal && Vector3.Distance(LockAimPoint, destination) < goalRadius * .75f) desiredStage = 0;
         if (firingFromSector) desiredStage = 0;
+        if (evading && !avoidingWall) desiredStage = 3;
+        if (botRamTarget != null && !avoidingWall && Vector3.Dot(transform.forward, direction) >= .85f)
+            desiredStage = 3;
         botSpeedPulse = !botSpeedPulse;
         if (botSpeedPulse && SpeedStage < desiredStage) input.buttons.Set(PlayerInputButton.Accelerate, true);
         if (botSpeedPulse && SpeedStage > desiredStage) input.buttons.Set(PlayerInputButton.Decelerate, true);
-        if (desiredStage == 3 && NowAp > MaxAp * .65f && hasEnemy &&
-            Vector3.Distance(transform.position, destination) > 50 && !pickupGoal)
-            input.buttons.Set(PlayerInputButton.Boost, true);
+        ApplyBotCombatDash(settings, avoidingWall, pickupGoal, evading, evasionDash, desiredStage, destination, direction, ref input);
         input.magicAimDirection = hasEnemy ? (botTarget.LockAimPoint - MagicCastPosition).normalized : transform.forward;
         input.areaAimPoint = hasEnemy ? botTarget.LockAimPoint : destination;
         input.hasAreaAimPoint = hasEnemy;

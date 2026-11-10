@@ -37,8 +37,10 @@ public partial class Player
             if (player.TeamIndex == TeamIndex && player.IsMatchBot && player.botRole == MatchBotRole.Support) livingSupports++;
         }
         int fighterOrder = botTeamOrder <= 1 ? 0 : 1;
-        botEscortDuty = botRole != MatchBotRole.Fighter || MatchBotRoles.CoversSupport(botRole,
+        bool coversSupport = MatchBotRoles.CoversSupport(botRole,
             livingSupports, Mathf.Max(0, totalSupports - livingSupports), fighterOrder);
+        // A role refines the flag objective; it never replaces it. Non-flag modes keep their roles.
+        botEscortDuty = flag != null || botRole != MatchBotRole.Fighter || coversSupport;
         botEscortSpacing = Mathf.Max(5f, settings.escortDistance);
         if (botRole == MatchBotRole.Support)
         {
@@ -47,11 +49,18 @@ public partial class Player
             botEscortSpacing = Mathf.Min(botEscortSpacing, Mathf.Max(5f, range * .35f));
         }
         bool alliedCarrier = botCarrier != null && botCarrier.TeamIndex == TeamIndex;
+        bool looseFlag = flag != null && botObservedCarrier == PlayerRef.None;
         Vector3 anchor = botCarrier != null ? botCarrier.LockAimPoint : flag != null ? flag.transform.position : LockAimPoint;
         botTarget = null;
 
-        // Objective/support wings focus the carrier regardless of nearer distractions.
-        if (botEscortDuty && botCarrier != null && !alliedCarrier) { botTarget = botCarrier; return; }
+        // Every role focuses the enemy carrier, even when a nearby enemy is easier to kill.
+        if (botCarrier != null && !alliedCarrier) { botTarget = botCarrier; return; }
+
+        if (alliedCarrier)
+        {
+            botTarget = ChooseBotAssassinationTarget(settings, coversSupport);
+            if (botTarget != null) { botEscortDuty = false; return; }
+        }
 
         int bestPriority = int.MaxValue;
         float bestScore = float.PositiveInfinity;
@@ -72,10 +81,70 @@ public partial class Player
                 threatening ? 0 : enemy == botCarrier ? 3 : neighbours == 0 ? 1 : 2;
             float score = Vector3.Distance(LockAimPoint, enemy.LockAimPoint) + neighbours * settings.isolationRadius +
                 (enemy.MaxHp > 0f ? enemy.NowHp / enemy.MaxHp : 1f) * 20f;
+            if (looseFlag)
+            {
+                // Use a shared objective anchor, not each bot's nearest opponent. A lone
+                // spearhead entering the pickup zone gets focused while bots still fly to the flag.
+                bool contesting = fromAnchor <= settings.escortThreatRange * settings.escortThreatRange;
+                priority = contesting ? 0 : threatening ? 1 : 2;
+                if (contesting) score = fromAnchor;
+            }
             if (priority < bestPriority || (priority == bestPriority && (score < bestScore ||
                 (Mathf.Approximately(score, bestScore) && botTarget != null && enemy.ParticipantRef.RawEncoded < botTarget.ParticipantRef.RawEncoded))))
             { bestPriority = priority; bestScore = score; botTarget = enemy; }
         }
+    }
+
+    private Player ChooseBotAssassinationTarget(MatchBotSettings settings, bool coversSupport)
+    {
+        if (botRole != MatchBotRole.Fighter || coversSupport || botRecovering || botCarrier == this ||
+            botCarrier == null || botCarrier.TeamIndex != TeamIndex || botCarrier.MaxHp <= 0f ||
+            botCarrier.NowHp / botCarrier.MaxHp < settings.fighterCarrierHealthMinimum) return null;
+
+        Vector3 anchor = botCarrier.LockAimPoint;
+        float escortRange = Mathf.Max(5f, settings.escortDistance * 2f);
+        bool guarded = false;
+        foreach (var ally in botTacticalRoster)
+            if (ally != this && ally != botCarrier && ally.TeamIndex == TeamIndex &&
+                (!ally.IsMatchBot || (ally.botRole != MatchBotRole.Fighter && !ally.botRecovering)) &&
+                (ally.LockAimPoint - anchor).sqrMagnitude <= escortRange * escortRange)
+            { guarded = true; break; }
+        if (!guarded) return null;
+
+        // Re-evaluated only on the existing decision tick. Threats cancel an ongoing hunt.
+        foreach (var enemy in botTacticalRoster)
+            if (enemy.TeamIndex != TeamIndex && IsBotEscortThreat(enemy, anchor, settings)) return null;
+
+        float leash = Mathf.Max(0f, Mathf.Min(settings.fighterLeashDistance, settings.escortThreatRange));
+        float reach = Mathf.Max(0f, settings.fighterOpportunityDistance);
+        Player candidate = null;
+        float best = float.PositiveInfinity;
+        foreach (var enemy in botTacticalRoster)
+        {
+            if (enemy.TeamIndex == TeamIndex || (enemy.LockAimPoint - anchor).sqrMagnitude > leash * leash ||
+                (enemy.LockAimPoint - LockAimPoint).sqrMagnitude > reach * reach) continue;
+            bool isolated = true;
+            foreach (var other in botTacticalRoster)
+                if (other != enemy && other.TeamIndex == enemy.TeamIndex &&
+                    (other.LockAimPoint - enemy.LockAimPoint).sqrMagnitude <= settings.isolationRadius * settings.isolationRadius)
+                { isolated = false; break; }
+            if (!isolated || !HasLineOfSight(enemy)) continue;
+            float score = Vector3.Distance(LockAimPoint, enemy.LockAimPoint) +
+                (enemy.MaxHp > 0f ? enemy.NowHp / enemy.MaxHp : 1f) * 20f;
+            if (score < best || (Mathf.Approximately(score, best) && candidate != null &&
+                enemy.ParticipantRef.RawEncoded < candidate.ParticipantRef.RawEncoded))
+            { best = score; candidate = enemy; }
+        }
+        return candidate;
+    }
+
+    private bool TryGetBotFlagPickupGoal(BattleFlag flag, out Vector3 destination, out float radius)
+    {
+        destination = default; radius = 0f;
+        if (flag == null || flag.Carrier != PlayerRef.None || botRecovering) return false;
+        // Nearby combat targets and roles must not divert movement from an unclaimed flag.
+        destination = flag.transform.position; radius = flag.PickupRadius;
+        return true;
     }
 
     private void RefreshBotEncirclement(MatchBotSettings settings)

@@ -2,7 +2,8 @@ using System;
 using UnityEngine;
 
 public enum CatAnimation { StandingIdle, SittingIdle, Loaf, Standing, Walk, Run, Jump, Scratch, Punch, Grooming, Knead, Cheer, Yawn }
-public enum CatTutorialTarget { None, Wardrobe, WeaponTab, CustomBack, BattleMenu, Training, CreateRoom, RandomMatch, BattleBack }
+// Append new targets: existing assets store these enum values as integers.
+public enum CatTutorialTarget { None, Wardrobe, WeaponTab, CustomBack, BattleMenu, Training, CreateRoom, RandomMatch, BattleBack, DeathMatch, JoinRoom }
 public enum CatGreetingKind { Welcome, Victory, Defeat }
 public enum CatTrainingAction { None, SpeedUpAndDown, AimAndFire, SwitchSlots, Parry, ChoosePerk, Boost, QuickBrake, Emote }
 
@@ -24,7 +25,7 @@ public class CatTutorialStep
     public CatTrainingAction practice;
     public CatAnimation animation = CatAnimation.SittingIdle;
     [Min(0)] public float dreamyPauseSeconds;
-    [Tooltip("몸 ID 순서: 멍청 / 친절 / 츤데레 / 멍때림 / 애교 / 신사 / 공주병")]
+    [Tooltip("배열 0~6 (몸 ID 1~7): 멍청 / 뚱냥이 / 츤데레 / 졸림·멍청·바보 / 애교 / 신사 / 공주병")]
     [TextArea(2, 5)] public string[] personalityLines = new string[7];
     public string Line(int bodyId) => personalityLines != null && personalityLines.Length > 0
         ? personalityLines[Mathf.Clamp(bodyId - 1, 0, personalityLines.Length - 1)] : string.Empty;
@@ -41,20 +42,20 @@ public sealed class CatCompanionTable : ScriptableObject
     [Min(.1f)] public float greetingSeconds = 3f;
     [Min(.05f)] public float greetingFadeSeconds = .35f;
     public CatTutorialStep[] returningGreetings = {
-        new() { personalityLines = new[] { "어라? 너 누구… 아! 오랜만이다냥!", "오랜만이다냥! 다시 만나서 반갑다옹~", "오랜만이네. 딱히 반가운 건 아니다냥!", "……어? 오랜만이다냥…", "오랜만이다냥~ 보고 싶었다냥♡", "오랜만에 뵙습니다, 마녀님. 반갑다옹.", "오랜만이구나냥! 이 몸을 만나러 왔구나?" } },
-        new() { personalityLines = new[] { "기다리고 있었다냥! 뭘 기다렸더라… 너다냥!", "기다리고 있었다냥~ 오늘도 함께하자옹!", "이제 왔냐옹? 기다린 건 아니라니까냥…", "……기다리다가… 잠깐 멍했냥…", "기다리고 있었다냥~ 얼른 이리 오라냥♡", "마녀님의 귀환을 기다리고 있었습니다옹.", "이 몸을 기다리게 하다니! 어서 오라냥~" } },
-        new() { personalityLines = new[] { "바쁜가보다냥… 나도 바쁘다냥. 낮잠 자야 하냥!", "요즘 바쁜가보다냥… 잠깐 쉬어 가라냥~", "바쁜가 보네냥. 무리하지는 말라옹…", "……바빴냥? 시간은 참… 빨리 가냥…", "바쁜가보다냥… 그래도 나랑 조금만 놀자냥♡", "많이 바쁘셨나 봅니다옹. 편히 쉬어 가십시오냥.", "바쁘더라도 이 몸을 잊으면 안 된다냥!" } }
+        new() { personalityLines = new[] { "어? 너 어디서 봤다냥! …매일 봤지옹. 잘 왔다냥!", "쩝쩝… 왔냐냥? 네 간식도 남기려 했는데… 봉지만 남았다옹.", "왔냐옹. 옆자리 비워 둔 건 그냥… 다른 애가 앉을까 봐다냥.", "하암… 꿈에서 네가 왔는데… 아직 꿈인가옹? 볼 좀 꼬집어라냥…", "왔구나냥! 얼굴 가까이 보여 줘옹. 많이 보고 싶었다냥.", "어서 오십시오, 마녀님. 편히 쉬실 수 있도록 곁을 지키겠습니다옹.", "왔구나옹! 인사는 이 몸부터 해야지냥. 오늘도 예쁘지 않느냐옹?" } },
+        new() { personalityLines = new[] { "기다리고 있었다냥! 누구를… 아, 너다옹! 생각보다 빨리 떠올랐다냥!", "우물우물… 기다리며 한 입씩 먹었더니 그릇이 비었다냥. 기다림은 배고프다옹.", "늦었네옹. 문 쪽을 보고 있던 건… 바람이 들어와서다냥.", "기다리다 잠깐 졸았다냥… 꿈에서도 기다렸는데… 두 번 기다린 거네옹…", "여기다냥, 여기! 얼른 옆에 와라옹. 붙어 있고 싶어서 기다렸다냥.", "돌아오셨군요, 마녀님. 필요한 일이 있으시면 말씀해 주십시오옹.", "이 몸을 기다리게 하다니옹! 왔으니 됐다냥. 조금만 더 가까이 오라옹." } },
+        new() { personalityLines = new[] { "바빴냐냥? 나도 바빴다옹! 발가락 세다가… 몇 개였더라냥?", "바빴냐냥? 일단 앉아서 먹어라옹. 쉬는 김에 내 그릇도 좀 채워 주고냥.", "바빴나 보네옹. 무리하지 말라냥. 네가 아프면… 조용해서 싫다옹.", "바빴구나냥… 난 낮잠 한 번 잤는데… 어, 밖이 몇 번 어두워졌지옹…", "바빴어도 와 줬네냥! 잠깐만 나랑 붙어 쉬었다 가라옹.", "바쁜 시간을 보내셨군요, 마녀님. 잠시 어깨를 펴고 쉬시지요옹.", "바쁜 건 알겠다옹. 그래도 이 몸 생각할 시간은 남겨 둬라냥!" } }
     };
     public CatTutorialStep[] victoryGreetings = {
-        new() { personalityLines = new[] { "짜릿한 승부였다냥! 털이 쭈뼛 섰다냥!", "정말 짜릿한 승부였다냥! 멋졌어냥~", "제법 짜릿했네냥. 이번엔 좀 멋있었다옹.", "……번쩍… 짜릿한 승부였다냥…", "짜릿한 승부였다냥~ 우리 마녀 최고다냥♡", "참으로 짜릿한 승부였습니다, 마녀님.", "이 몸의 마녀답게 짜릿한 승리였다냥!" } },
-        new() { personalityLines = new[] { "마법 실력이 많이 늘었다냥! 키도 늘었냥?", "마법 실력이 많이 늘었다냥~ 노력한 보람이 있구나옹!", "마법 실력이 늘긴 했네냥. 칭찬은 한 번뿐이다옹!", "……마법이… 전보다 능숙해졌냥…", "마법 실력이 쑥쑥 늘었다냥~ 자랑스럽다냥♡", "마법 실력이 크게 향상되셨습니다옹. 훌륭합니다.", "마법 실력이 늘었구나냥! 이 몸의 가르침 덕이다옹." } },
-        new() { personalityLines = new[] { "마력이 엄청나다냥! 엄청난 마녀가… 이미 마녀였냥!", "강력한 마력이 느껴진다냥! 엄청난 마녀가 될 거야옹!", "강한 마력이 느껴지네냥… 대단한 마녀가 되겠어옹.", "……마력이 반짝… 엄청난 마녀가 되겠냥…", "강력한 마력이다냥~ 세상에서 제일 멋진 마녀가 되라냥♡", "강력한 마력이 느껴집니다옹. 위대한 마녀가 되실 겁니다.", "강력한 마력이다냥! 이 몸에 걸맞은 대단한 마녀가 되라옹!" } }
+        new() { personalityLines = new[] { "이겼다냥! 내가 숨을 꼭 참아서… 어, 그건 상관없나옹? 아무튼 이겼다냥!", "쩝… 이겼다냥! 축하 간식은 두 접시다옹. 네 것도 챙겨 달라냥.", "잘했네옹. 걱정한 건 아니고… 잠깐 숨만 참았다냥.", "이겼다냥… 꿈에서도 이겼는데… 꿈보다 네가 더 잘했네옹…", "이겼다냥! 나부터 봐라옹. 제일 먼저 잘했다고 말해 주고 싶었다냥!", "훌륭한 승리였습니다, 마녀님. 끝까지 침착하게 싸우셨습니다옹.", "멋진 승리다옹! 이 몸 옆에 설 마녀라면 이 정도는 해야지냥. 아주 잘했다옹!" } },
+        new() { personalityLines = new[] { "마법 실력이 늘었다냥! 몸집은 같은데… 실력은 어디에 넣어 뒀냐옹?", "실력이 쑥 늘었다냥. 든든하게 잘 싸웠으니 든든하게 먹어야지옹.", "전보다 잘하네옹. 계속 보고 있었으니까 알지냥. 칭찬은 한 번뿐이다옹.", "마법이… 전보다 잘 나간다냥. 나도 꿈에서 연습했는데… 깨니 잊었다옹…", "연습한 보람이 있다냥! 네가 잘하니까 내가 다 뿌듯해서 꼬리가 안 멈춘다옹.", "실력이 한층 깊어지셨습니다옹. 꾸준히 연습하신 결과입니다, 마녀님.", "많이 늘었구나옹! 이 몸이 알아본 마녀다냥. 어깨를 펴도 좋다옹." } },
+        new() { personalityLines = new[] { "마력이 대단하다냥! 너 사실 마녀였냐옹? …맞다, 알고 있었다냥!", "마력이 아주 든든하다냥. 난 배만 든든한데… 쩝, 역할이 다르다옹.", "마력이 제법이네옹. 다음에도 보여 줘라냥. 궁금한 건 조금뿐이다옹.", "마법이 번쩍했다냥… 눈 감아도 보이네옹… 눈을 안 감았나냥…", "네 마법, 정말 멋졌다냥! 한 번 더 자랑해 줘옹. 난 계속 들어 줄 거다냥.", "인상적인 마력이었습니다옹. 마녀님의 다음 활약도 기대하겠습니다.", "반짝이는 마법이었구나옹! 이 몸의 아름다움 다음으로 눈에 띄었다냥." } }
     };
     public CatTutorialStep[] defeatGreetings = {
-        new() { personalityLines = new[] { "아쉽다냥… 다음엔 이기는 주문을 외우자냥!", "아쉽다냥… 그래도 끝까지 잘 싸웠다옹.", "아쉽긴 하네냥… 너무 풀이 죽지는 말라옹.", "……아… 아쉽다냥…", "아쉽다냥… 내가 토닥토닥해 주겠다냥♡", "아쉬운 승부였습니다옹. 고개를 드십시오, 마녀님.", "아쉽지만 이 몸의 마녀가 기죽을 수는 없다냥!" } },
-        new() { personalityLines = new[] { "승리가 있으면 패배도 있다냥! 그다음은 간식이냥?", "승리가 있으면 패배도 있는 법이라냥~ 다음을 준비하자옹.", "승리도 패배도 있는 거다냥. 다음엔 이기면 되잖냐옹.", "……이길 때도… 질 때도 있는 거냥…", "승리도 패배도 함께다냥~ 다음에도 곁에 있겠다냥♡", "승리가 있으면 패배도 있는 법입니다옹. 좋은 경험이었습니다.", "패배도 승리로 가는 과정이다냥! 이 몸은 믿고 있다옹." } },
-        new() { personalityLines = new[] { "다른 마법을 써 보면 어떻냥? 간식 마법은 없냥?", "다른 마법을 사용해 보는 건 어떻냥? 잘 맞는 마법을 찾자옹~", "다른 마법도 써 보라냥. 네게 더 맞을지도 모르잖냐옹.", "……다른 마법도… 있었지냥… 써 볼까옹?", "다른 마법도 함께 골라 보자냥~ 분명 잘 맞을 거다냥♡", "다른 마법을 시험해 보시는 건 어떻겠습니까옹?", "다른 마법을 골라 보라냥! 이 몸의 안목을 믿어라옹." } },
-        new() { personalityLines = new[] { "마법 강화를 다양하게 써 보라냥! 다양하면 맛있… 아니 강하다냥!", "마법 강화를 다양하게 사용해 보라냥~ 새로운 방법이 보일 거다옹!", "강화도 늘 같은 것만 고르지 말라냥. 바꿔 보면 되잖냐옹.", "……강화 조합을… 바꿔 보는 것도 좋겠냥…", "마법 강화도 이것저것 골라 보자냥~ 같이 강해지자옹♡", "여러 마법 강화 조합을 시도해 보시길 권합니다옹.", "강화 조합을 다양하게 써 보라냥! 이 몸에게 어울리는 전략이 필요하다옹." } }
+        new() { personalityLines = new[] { "졌냐냥? 그럼 다음엔 이기면 된다옹! 계산은 간단하다냥. …계산 맞지옹?", "아쉽다냥… 일단 따뜻한 거 먹고 쉬어라옹. 내 간식도 한 입 나눠 주겠다냥.", "풀이 죽었네옹. 못한 것만 있던 건 아니잖냐냥. 옆에 있어 줄 테니 기운 내라옹.", "졌구나냥… 꿈이면 좋겠는데… 그래도 네가 돌아와서 다행이다옹…", "속상했지냥? 이리 와라옹. 잘 싸웠다고 꼭 붙어서 말해 주겠다냥.", "아쉬운 승부였습니다옹. 애쓰셨습니다, 마녀님. 잠시 숨을 고르시지요.", "고개를 들라옹! 한 번 졌다고 이 몸의 마녀가 빛을 잃진 않는다냥." } },
+        new() { personalityLines = new[] { "이길 때도 지는 때도 있다냥! 지금은 지는 때였고… 다음은 달라질 수 있다옹!", "잘되는 날도 안 되는 날도 있다냥. 쩝… 밥은 어느 날이나 챙겨 먹어라옹.", "질 때도 있는 거다옹. 다음에 이기면 되지냥. 또 같이 가 줄 테니까옹.", "이기고 지고… 둘 다 있는 거다냥. 잠은 매번 오는데… 승리는 다음에 올 수도옹…", "이겨도 져도 난 네 편이다냥. 다음에도 꼭 같이 데려가 줘옹.", "승패는 늘 바뀌는 법입니다옹. 이번 경험이 다음 판단에 도움이 될 겁니다.", "이 몸도 늘 뜻대로 되는 건 아니다옹. 그래도 당당함은 안 잃는다냥. 너도 그러라옹." } },
+        new() { personalityLines = new[] { "다른 마법도 써 보라냥! 지팡이는 하나인데 마법은 많다옹. 신기하다냥!", "다른 마법도 골라 보라냥. 늘 같은 것만 먹으면… 아니, 쓰면 아쉽지옹.", "다른 마법도 써 봐라옹. 네게 맞는 게 있을 거다냥. 같이 봐는 줄게옹.", "다른 마법도… 써 보라냥. 꿈에서 본 건 없네옹… 그건 내가 만든 건가냥…", "다른 마법도 나랑 골라 보자냥. 네 손에 잘 맞는 걸 찾을 때까지 옆에 있을게옹.", "다른 마법을 시험해 보시는 건 어떻겠습니까옹? 손에 맞는 조합을 찾아보시지요.", "다른 마법을 골라 보라옹! 이 몸도 장식 하나 고르는 데 공을 들인다냥." } },
+        new() { personalityLines = new[] { "특전 조합을 바꿔 보라냥! 순서를 바꾸면… 이름도 바뀌나옹? 효과부터 봐라냥!", "마법 강화도 다르게 골라 보라냥. 잘 어울리는 조합은 맛부터… 아, 힘부터 다르다옹.", "특전도 늘 같은 것만 고르지 마라옹. 다른 조합이 더 잘 맞을 수도 있잖냐냥.", "특전 조합을… 바꿔 보라냥. 아까 고른 게 뭐였더라옹… 잘 보고 골라라냥…", "강화 조합도 같이 바꿔 보자냥! 네가 다시 신나게 싸우면 좋겠다옹.", "여러 마법 강화 조합을 시도해 보십시오옹. 전투 방식에 맞는 선택이 있을 겁니다.", "특전 조합도 네게 어울리게 고르라옹! 이 몸에게 어울리는 장식처럼 말이다냥." } }
     };
 
     public string Greeting(CatGreetingKind kind, int bodyIndex)
@@ -119,6 +120,8 @@ public sealed class CatCompanionTable : ScriptableObject
     [Range(128, 1024)] public int portraitResolution = 512;
     [Header("Tutorial highlight")]
     public Color highlightColor = new Color(1f, .8f, .16f, 1);
+    [Tooltip("튜토리얼 대사의 초당 출력 글자 수입니다. 클릭하면 문장이 즉시 완성됩니다.")]
+    [Min(1f)] public float tutorialCharactersPerSecond = 32f;
     public Vector2 highlightPadding = new Vector2(14, 14);
     public AudioClip highlightSound;
     [Min(.1f)] public float highlightPulseSeconds = .8f;

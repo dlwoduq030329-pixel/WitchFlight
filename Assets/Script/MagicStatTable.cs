@@ -54,7 +54,7 @@ public struct MagicStatEntry
     [Min(0f)] public float castSeconds;
     [Tooltip("0이면 히트스캔. 양수이면 실제 네트워크 발사체.")]
     [Min(0f)] public float projectileSpeed;
-    [Tooltip("유도 투사체의 최대 선회 속도(도/초). 록온 마법에도 적용하며, 0이면 발사 후 방향을 바꾸지 않습니다.")]
+    [Tooltip("유도 투사체의 최대 선회 속도(도/초). 화염/얼음/속박은 Use Individual Homing Turn Speeds를 켰을 때 이 값을 사용합니다. 0이면 발사 후 방향을 바꾸지 않습니다.")]
     [Min(0f)] public float projectileTurnSpeed;
     [Min(0.01f)] public float projectileLifetime;
     [Tooltip("날아가는 투사체의 충돌 반경입니다. 즉발/직선 광선은 Hitscan Radius를 사용합니다.")]
@@ -237,12 +237,29 @@ public sealed class MagicStatTable : ScriptableObject
         return iceFollowUp ? iceImpactShardVfxPrefab : projectileSatelliteVfxPrefab;
     }
 
+    [Header("Homing steering (Fire / Ice / Binding)")]
+    [Tooltip("끄면 화염/얼음/속박은 공통 Homing Turn Speed를 사용합니다. 켜면 각 마법의 Projectile Turn Speed를 사용합니다. 개별 저장값은 그대로 유지됩니다.")]
+    public bool useIndividualHomingTurnSpeeds = false;
+    [Tooltip("화염/얼음/속박이 기준 속도로 날 때의 공통 선회력(도/초). 감속하면 아래 속도 곡선에 따라 감소합니다.")]
+    [Min(0f)] public float homingTurnSpeed = 450f;
+    [Tooltip("선회력 기준 속도(m/s). 실제 선회력 = 기준 선회력 × (남은 비행 속도 / 기준 속도)의 지수승. 거리 보정은 없습니다.")]
+    [Min(1f)] public float homingTurnReferenceSpeed = 67.5f;
+    [Tooltip("속도에 따른 선회력 감소 곡선. 1은 비례, 2는 속도 절반에서 선회력 1/4. 시간 역장은 별도로 비행 시간 전체를 늦춥니다.")]
+    [Range(1f, 4f)] public float homingTurnSpeedExponent = 2f;
     [Header("Homing flight exhaustion (Fire / Ice / Binding)")]
     public bool homingExhaustion = true;
-    [Tooltip("초당 최초 속도 대비 손실 비율")]
-    [Range(0f, 1f)] public float homingSpeedLossPerSecond = .12f;
-    [Tooltip("실제로 회전한 1도당 최초 속도 대비 손실 비율")]
-    [Min(0f)] public float homingSpeedLossPerDegree = .002f;
+    [Tooltip("화염/얼음/속박의 총 비행 거리 = 각 마법 Range × 이 값. 록온 가능 거리는 늘리지 않습니다.")]
+    [Min(1f)] public float homingTravelDistanceMultiplier = 2.2f;
+    [Tooltip("화염/얼음/속박의 비행 수명 = 각 마법 Projectile Lifetime × 이 값. 거리 또는 수명이 끝나면 추락합니다.")]
+    [Min(1f)] public float homingLifetimeMultiplier = 1.5f;
+    [Tooltip("직진 중인 적의 예상 위치를 조준하는 최대 시간(초). 0이면 현재 위치만 추적. 급선회에도 선회 속도 제한은 유지됩니다.")]
+    [Min(0f)] public float homingLeadSeconds = 3f;
+    [Tooltip("초당 최초 속도 대비 손실 비율. 0.032 = 매초 최초 속도의 3.2% 감소.")]
+    [Range(0f, 1f)] public float homingSpeedLossPerSecond = .032f;
+    [Tooltip("실제로 회전한 1도당 최초 속도 대비 손실 비율. 0.01 = 1도당 1% 감소. 높일수록 급선회로 회피하기 쉬워집니다.")]
+    [Min(0f)] public float homingSpeedLossPerDegree = .01f;
+    [Tooltip("선회로 잃을 수 있는 최초 속도 비율의 초당 상한. 0.6 = 초당 최대 60%, 60Hz 한 틱에서는 최대 1%. 시간 감속은 별도. 각도 손실과 이 상한 중 작은 값만 한 틱에 한 번 적용됩니다.")]
+    [Range(0f, 1f)] public float homingMaxTurnLossPerSecond = .6f;
     [Range(.01f, .9f)] public float homingFallThreshold = .2f;
     [Min(.1f)] public float homingFallGravity = 18f;
     [Min(.1f)] public float homingFallDrag = 1.5f;
@@ -313,13 +330,13 @@ public sealed class MagicStatTable : ScriptableObject
             case MagicType.Fire:
                 e.effect = MagicEffectKind.DirectDamage; e.damage = 45; e.apCost = 45;
                 e.range = 130f; e.cooldownSeconds = 3.75f; e.lockChargeSeconds = 0.8f;
-                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 220; e.projectileLifetime = 5f;
+                e.projectileSpeed = 85f; e.projectileTurnSpeed = 220; e.projectileLifetime = 5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "높은 피해의 유도 마법. 길게 록온한 뒤 버튼을 놓아 발사합니다."; break;
             case MagicType.Ice:
                 e.effect = MagicEffectKind.SlowDamage; e.damage = 25; e.apCost = 30;
                 e.range = 90f; e.cooldownSeconds = 2.7f; e.lockChargeSeconds = 0.35f;
-                e.projectileSpeed = 76.5f; e.projectileTurnSpeed = 320;
+                e.projectileSpeed = 95f; e.projectileTurnSpeed = 320;
                 e.movementMultiplier = 0.4f; e.effectDuration = 2.5f;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "빠르게 록온하여 발사합니다. 적중한 적의 이동 속도를 낮춥니다."; break;
@@ -353,7 +370,7 @@ public sealed class MagicStatTable : ScriptableObject
             case MagicType.Binding:
                 e.effect = MagicEffectKind.Binding; e.apCost = 50; e.cooldownSeconds = 18;
                 e.range = 142.5f; e.effectDuration = 3; e.lockChargeSeconds = 0.6f;
-                e.projectileSpeed = 67.5f; e.projectileTurnSpeed = 300;
+                e.projectileSpeed = 85f; e.projectileTurnSpeed = 300;
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "록온 후 유도 마법을 발사합니다. 피해 없이 3초 동안 적의 이동을 막습니다."; break;
             case MagicType.Curse:
@@ -429,7 +446,16 @@ public sealed class MagicStatTable : ScriptableObject
     {
         if (magics != null)
             foreach (MagicStatEntry entry in magics)
-                if (entry.magic == magic) return entry;
-        return magic >= MagicType.Fire && magic <= MagicType.BladeRain ? DefaultEntry(magic) : fallback;
+                if (entry.magic == magic) return ApplyHomingTurnSettings(entry);
+        return ApplyHomingTurnSettings(magic >= MagicType.Fire && magic <= MagicType.BladeRain ? DefaultEntry(magic) : fallback);
+    }
+
+    // Resolve before perk modifiers and return a copy, preserving individually authored stats.
+    public MagicStatEntry ApplyHomingTurnSettings(MagicStatEntry entry)
+    {
+        if (!useIndividualHomingTurnSpeeds && entry.requiresTarget &&
+            (entry.magic == MagicType.Fire || entry.magic == MagicType.Ice || entry.magic == MagicType.Binding))
+            entry.projectileTurnSpeed = Mathf.Max(0f, homingTurnSpeed);
+        return entry;
     }
 }

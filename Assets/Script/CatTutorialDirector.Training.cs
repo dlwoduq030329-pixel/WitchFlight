@@ -109,14 +109,14 @@ public sealed partial class CatTutorialDirector
                 nextHint.text = practiceProgress.SelectedSecond ? "1번 슬롯 선택" : "2번 슬롯 선택";
                 break;
             case CatTrainingAction.Parry:
-                nextHint.text = "노란 느낌표에 맞춰 패링";
+                nextHint.text = "타이밍에 맞춰 공격 막기";
                 MaintainPracticeTarget(player);
                 break;
             case CatTrainingAction.ChoosePerk:
                 nextHint.text = "Space 유지 + 좌/우클릭";
                 break;
             case CatTrainingAction.Boost:
-                nextHint.text = player.UsesAutomaticCruise ? "부스트 키를 한 번 눌러 가속" : "전진하며 부스트 유지";
+                nextHint.text = player.UsesAutomaticCruise ? "대쉬 키를 한 번 눌러 가속" : "전진하며 부스트 유지";
                 break;
             case CatTrainingAction.QuickBrake:
                 nextHint.text = player.CurrentSpeedStage < 3 ? "부스트 키로 3단계 가속" : "최고 속도에서 급제동 키";

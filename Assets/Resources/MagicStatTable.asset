@@ -11,14 +11,22 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4bc5bd732d8d4eaf9cfecc274842df2f, type: 3}
   m_Name: MagicStatTable
+  m_EditorClassIdentifier: 
+  useIndividualHomingTurnSpeeds: 0
+  homingTurnSpeed: 450
+  homingTurnReferenceSpeed: 67.5
+  homingTurnSpeedExponent: 2
   homingExhaustion: 1
-  homingSpeedLossPerSecond: 0.12
-  homingSpeedLossPerDegree: 0.002
+  homingTravelDistanceMultiplier: 2.2
+  homingLifetimeMultiplier: 1.5
+  homingLeadSeconds: 3
+  homingSpeedLossPerSecond: 0.032
+  homingSpeedLossPerDegree: 0.01
+  homingMaxTurnLossPerSecond: 0.6
   homingFallThreshold: 0.2
   homingFallGravity: 18
   homingFallDrag: 1.5
   homingFallLifetime: 12
-  m_EditorClassIdentifier: 
   predictLocalProjectiles: 1
   projectileConfirmationTimeout: 1.2
   projectilePredictionLead: 0.2
@@ -177,7 +185,7 @@ MonoBehaviour:
     cooldownSeconds: 3.75
     lockChargeSeconds: 0.8
     castSeconds: 0
-    projectileSpeed: 67.5
+    projectileSpeed: 85
     projectileTurnSpeed: 220
     projectileLifetime: 5
     projectileRadius: 0.12
@@ -283,7 +291,7 @@ MonoBehaviour:
     cooldownSeconds: 2.7
     lockChargeSeconds: 0.35
     castSeconds: 0
-    projectileSpeed: 76.5
+    projectileSpeed: 95
     projectileTurnSpeed: 320
     projectileLifetime: 4
     projectileRadius: 0.12
@@ -813,7 +821,7 @@ MonoBehaviour:
     cooldownSeconds: 18
     lockChargeSeconds: 0.6
     castSeconds: 0
-    projectileSpeed: 67.5
+    projectileSpeed: 85
     projectileTurnSpeed: 300
     projectileLifetime: 4
     projectileRadius: 0.12

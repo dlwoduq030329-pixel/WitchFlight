@@ -23,6 +23,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     private Vector3 fallingVelocity;
     private bool predictedStop, predictedImpact, confirmedImpact;
     private bool hasSource;
+    private bool launchPoseCaptured;
     private GameObject content;
     private Material material;
     private ProjectileFormationVisual formation;
@@ -58,6 +59,9 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             aim.sqrMagnitude > .001f ? aim : player.transform.forward, player.transform.forward,
             target != null ? target.LockAimPoint - view.transform.position :
                 summon != null ? summon.transform.position - view.transform.position : Vector3.zero);
+        if (target != null && entry.requiresTarget && MagicProjectile.UsesFlightExhaustion(entry.magic, view.table))
+            view.direction = MagicProjectile.HomingAimDelta(target.LockAimPoint - view.transform.position,
+                target.ParryHintVelocity, entry.projectileSpeed, view.table.homingLeadSeconds).normalized;
         view.content.SetActive(entry.castSeconds <= 0f);
         pending.Add(view);
     }
@@ -168,6 +172,25 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             if (!stats.requiresTarget) direction = owner.transform.forward;
             return;
         }
+        if (!launchPoseCaptured)
+        {
+            launchPoseCaptured = true;
+            // Match the server's cast-completion pose, not the pose from when the
+            // button was pressed. Crossing targets can change sides during the windup.
+            transform.position = owner.MagicCastPosition;
+            if (stats.requiresTarget && target != null && target.Object != null && target.Object.IsValid && target.IsAlive)
+            {
+                Vector3 delta = target.LockAimPoint - transform.position;
+                if (MagicProjectile.UsesFlightExhaustion(stats.magic, table))
+                    delta = MagicProjectile.HomingAimDelta(delta, target.ParryHintVelocity,
+                        stats.projectileSpeed, table.homingLeadSeconds);
+                direction = MagicProjectile.ResolveLaunchDirection(true, direction, owner.transform.forward, delta);
+            }
+            else if (stats.requiresTarget && summonTarget != null && summonTarget.IsLiveSummon)
+                direction = MagicProjectile.ResolveLaunchDirection(true, direction, owner.transform.forward,
+                    summonTarget.transform.position - transform.position);
+            transform.rotation = Quaternion.LookRotation(direction);
+        }
         content.SetActive(!predictedImpact);
         formation?.SetVisible(!predictedImpact);
         if (predictedStop || predictedImpact) return;
@@ -177,7 +200,8 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         {
             float dt = Mathf.Min(remaining, 1f / 60f);
             remaining -= dt;
-            dt *= MagicProjectile.TimeProjectileMultiplier(runner, transform.position);
+            float timeScale = MagicProjectile.TimeProjectileMultiplier(runner, transform.position);
+            dt *= timeScale;
             if (flightExhausted)
             {
                 float drag = Mathf.Exp(-Mathf.Max(0f, table.homingFallDrag) * dt);
@@ -189,14 +213,22 @@ public sealed class ProjectilePredictionView : MonoBehaviour
                 continue;
             }
             Vector3 previousDirection = direction;
+            bool exhaustion = stats.requiresTarget && MagicProjectile.UsesFlightExhaustion(stats.magic, table);
+            float turnSpeed = exhaustion ? MagicProjectile.FlightTurnSpeed(stats.projectileTurnSpeed,
+                stats.projectileSpeed * flightSpeedFraction, table) : stats.projectileTurnSpeed;
             if (target != null && target.Object != null && target.Object.IsValid && target.IsAlive)
+            {
+                Vector3 desired = target.LockAimPoint - transform.position;
+                if (exhaustion)
+                    desired = MagicProjectile.HomingAimDelta(desired, target.ParryHintVelocity,
+                        stats.projectileSpeed * flightSpeedFraction * timeScale, table.homingLeadSeconds);
                 direction = MagicProjectile.ResolveHomingDirection(stats.requiresTarget, direction,
-                    target.LockAimPoint - transform.position, stats.projectileTurnSpeed, dt);
+                    desired, turnSpeed, dt);
+            }
             else if (summonTarget != null && summonTarget.IsLiveSummon)
                 direction = MagicProjectile.ResolveHomingDirection(stats.requiresTarget, direction,
-                    summonTarget.transform.position - transform.position, stats.projectileTurnSpeed, dt);
-            float limit = stats.effect == MagicEffectKind.Mine ? stats.placementDistance : stats.range;
-            bool exhaustion = stats.requiresTarget && MagicProjectile.UsesFlightExhaustion(stats.magic, table);
+                    summonTarget.transform.position - transform.position, turnSpeed, dt);
+            float limit = MagicProjectile.FlightDistance(stats, table);
             if (exhaustion)
             {
                 flightSpeedFraction = MagicProjectile.DrainFlightSpeed(flightSpeedFraction, previousDirection, direction, dt, table);
@@ -246,7 +278,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         float remaining = destination != null && destination.Object != null && destination.Object.IsValid && destination.IsAlive
             ? Vector3.Distance(transform.position, destination.LockAimPoint)
             : destinationSummon != null && destinationSummon.IsLiveSummon ? Vector3.Distance(transform.position, destinationSummon.transform.position)
-            : Mathf.Max(0f, stats.range - (hasSource ? source.TravelledDistance : travelled));
+            : Mathf.Max(0f, MagicProjectile.FlightDistance(stats, table) - (hasSource ? source.TravelledDistance : travelled));
         formation.Update(transform.position, transform.forward, remaining);
     }
 
@@ -260,7 +292,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             (table != null && !table.predictLocalProjectiles)) return position;
         float lead = BoundedLead((float)(runner.LocalRenderTime - runner.RemoteRenderTime),
             table != null ? table.projectilePredictionLead : 0.2f);
-        float remainingRange = (source.IsMine ? stats.placementDistance : stats.range) - source.TravelledDistance;
+        float remainingRange = MagicProjectile.FlightDistance(stats, table) - source.TravelledDistance;
         Vector3 forward = source.transform.forward;
         Vector3? targetPoint = null;
         if ((stats.requiresTarget || stats.projectileTurnSpeed > 0f) && runner.TryFindObject(source.TargetId, out NetworkObject obj) && obj != null)
