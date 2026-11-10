@@ -38,8 +38,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             if (_runner != null && _runner.IsRunning)
                 foreach (PlayerData data in PlayerData.PerkPlayers)
                     if (data != null && data.Object != null && data.Object.IsValid && data.Runner == _runner && data.IsRoomOwner)
-                        return data.RoomMatchMode;
-            return roomMatchMode;
+                        return BattleMatchRules.Normalize(data.RoomMatchMode);
+            return BattleMatchRules.Normalize(roomMatchMode);
         }
     }
     public bool IsRaceMode => !IsTraining && CurrentMatchMode == BattleMatchMode.Race;
@@ -209,7 +209,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (instance == null)
         {
             instance = this;
-            if (!Enum.IsDefined(typeof(BattleMatchMode), roomMatchMode)) roomMatchMode = BattleMatchMode.TwoVsTwo;
+            roomMatchMode = BattleMatchRules.Normalize(roomMatchMode);
             if (GetComponent<RoomMatchSettingsUI>() == null) gameObject.AddComponent<RoomMatchSettingsUI>();
             DontDestroyOnLoad(gameObject);
         }
@@ -329,15 +329,15 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     internal bool IsTrainingScene(Scene scene) => IsTraining && scene.buildIndex == battleSceneIndex;
 
-    // Dropdown: 0 = 1v1, 1 = 2v2, 2 = 1v1 BOT, 3 = 2v2 BOT. Host only in a connected room.
+    // Dropdown order is owned by BattleMatchRules. Only the host can change a connected room.
     public bool TrySetRoomMatchMode(int dropdownValue)
     {
-        if (dropdownValue < 0 || dropdownValue > 5) return false;
+        if (dropdownValue < 0 || dropdownValue >= BattleMatchRules.ModeOptionCount) return false;
         BattleMatchMode selected = BattleMatchRules.FromDropdown(dropdownValue);
         if (IsMatching && (!IsWaitingInCodeRoom || !IsRoomHost)) return false;
         if (ConnectedPlayerCount > BattleMatchRules.PlayerCount(selected))
         {
-            SetMatchStatus("참가자가 3명 이상이면 1대1로 변경할 수 없습니다.");
+            SetMatchStatus($"{BattleMatchRules.Label(selected)} 정원은 {BattleMatchRules.PlayerCount(selected)}명입니다. 현재 참가자가 더 많아 변경할 수 없습니다.");
             return false;
         }
         if (selected == CurrentMatchMode) return true; // Keep manually selected teams on a no-op UI event.
@@ -546,9 +546,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 EnableClientSessionCreation = request != MatchRequest.JoinRoom,
                 // Null + AutoHostOrClient = join random or create, handled by Photon.
                 SessionName = roomId,
-                // Keep transport capacity at four so a code-room host can switch mode.
-                // Admission and launch enforce the selected two/four-player game size.
-                PlayerCount = IsDeathMatch ? DeathMatchCapacity : IsTraining ? 1 : RandomPlayerCount,
+                // Code rooms reserve transport capacity for switching up to 5v5.
+                // Admission and launch still enforce the selected match size.
+                PlayerCount = IsDeathMatch ? DeathMatchCapacity : IsTraining ? 1 : randomMatch ? RandomPlayerCount : BattleMatchRules.MaxTeamPlayers,
                 CustomPhotonAppSettings = IsDeathMatch ? DeathMatchPhotonSettings() : null,
                 ConnectionToken = IsDeathMatch ? DeathMatchConnectionToken() : null,
                 CustomLobbyName = randomMatch ? RandomLobbyName : null,

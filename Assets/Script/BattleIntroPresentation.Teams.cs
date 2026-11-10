@@ -32,7 +32,8 @@ public sealed partial class BattleIntroPresentation
     private bool teamProfilesBound, soloProfilesBound, restoreIntroUserInfo;
     private readonly PortraitSnapshot[] teamSnapshots = new PortraitSnapshot[2];
     private readonly List<PlayerData> teamRoster = new();
-    private readonly Player[] teamPlayers = new Player[4];
+    private Player[] teamPlayers = new Player[4];
+    private Transform[] expandedProfileRoots;
     private readonly List<ProfileMotion> teamProfileMotions = new();
     private sealed class ProfileMotion
     {
@@ -67,11 +68,13 @@ public sealed partial class BattleIntroPresentation
         NetworkGameManager network = NetworkGameManager.Instance;
         if (network == null || !network.IsBattleSceneLoaded) return;
         BattleMatchRules.CollectRoster(network.Runner, teamRoster);
-        if (!BattleMatchRules.IsFullBalanced(teamRoster, 4) || !teamRoster[0].Object.HasInputAuthority)
+        int required = network.RequiredPlayerCount;
+        if (!BattleMatchRules.IsFullBalanced(teamRoster, required) || !teamRoster[0].Object.HasInputAuthority)
         { ReleasePortraits(); return; }
         EnsureTeamIntroUI();
         if (teamProfileTable == null) teamProfileTable = ProfileImageTable.Default;
-        for (int i = 0; i < 4; i++)
+        if (teamPlayers.Length != required) Array.Resize(ref teamPlayers, required);
+        for (int i = 0; i < required; i++)
         {
             PlayerData data = teamRoster[i];
             if (!BattleParticipants.TryGetPlayerObject(network.Runner, data.ParticipantRef, out var obj) || obj == null || !obj.IsValid)
@@ -88,8 +91,9 @@ public sealed partial class BattleIntroPresentation
             SetTeamMagicIcon(view.magic1Icon, table != null ? table.GetIcon(data.magic1) : null);
             SetTeamMagicIcon(view.magic2Icon, table != null ? table.GetIcon(data.magic2) : null);
         }
-        bool ownReady = EnsureTeamSnapshot(ref teamSnapshots[0], teamPlayers[0], teamPlayers[1], 0, localPortrait);
-        bool enemyReady = EnsureTeamSnapshot(ref teamSnapshots[1], teamPlayers[2], teamPlayers[3], 1, opponentPortrait);
+        int perTeam = required / 2;
+        bool ownReady = EnsureTeamSnapshot(ref teamSnapshots[0], teamPlayers, 0, perTeam, 0, localPortrait);
+        bool enemyReady = EnsureTeamSnapshot(ref teamSnapshots[1], teamPlayers, perTeam, perTeam, 1, opponentPortrait);
         if (!ownReady || !enemyReady) return;
         if (localPortrait != null) localPortrait.texture = teamSnapshots[0].Texture;
         if (opponentPortrait != null) opponentPortrait.texture = teamSnapshots[1].Texture;
@@ -112,12 +116,45 @@ public sealed partial class BattleIntroPresentation
         Transform enemy = FindVSChild(introPanel.transform, "EnemyProfile");
         if (teammateProfileRoot == null) teammateProfileRoot = FindVSChild(introPanel.transform, "PlayerProfile (1)")?.gameObject;
         if (secondEnemyProfileRoot == null) secondEnemyProfileRoot = FindVSChild(introPanel.transform, "EnemyProfile (1)")?.gameObject;
+        if (teammateProfileRoot == null && own != null) teammateProfileRoot = ParticipantUiSlots.Clone(own, "PlayerProfile (1)").gameObject;
+        if (secondEnemyProfileRoot == null && enemy != null) secondEnemyProfileRoot = ParticipantUiSlots.Clone(enemy, "EnemyProfile (1)").gameObject;
         if (teamCards == null || teamCards.Length != 4) Array.Resize(ref teamCards, 4);
         BindTeamProfile(ref teamCards[0], own);
         BindTeamProfile(ref teamCards[1], teammateProfileRoot != null ? teammateProfileRoot.transform : null);
         BindTeamProfile(ref teamCards[2], enemy);
         BindTeamProfile(ref teamCards[3], secondEnemyProfileRoot != null ? secondEnemyProfileRoot.transform : null);
         teamProfilesBound = own != null && enemy != null && teammateProfileRoot != null && secondEnemyProfileRoot != null;
+        if (teamProfilesBound && BattleManager.Instance.ExpectedPlayerCount > 4)
+        {
+            int count = BattleManager.Instance.ExpectedPlayerCount / 2;
+            teamCards = new TeamIntroCard[count * 2];
+            expandedProfileRoots = new Transform[count * 2];
+            teamProfileMotions.Clear();
+            for (int side = 0; side < 2; side++)
+            {
+                Transform first = side == 0 ? own : enemy;
+                Transform second = side == 0 ? teammateProfileRoot.transform : secondEnemyProfileRoot.transform;
+                var rows = new List<RectTransform>();
+                for (int i = 0; i < count; i++)
+                {
+                    Transform row = i == 0 ? first : i == 1 ? second :
+                        FindVSChild(introPanel.transform, first.name.Trim() + " (" + i + ")");
+                    if (row == null) row = ParticipantUiSlots.Clone(second, first.name.Trim() + " (" + i + ")");
+                    row.gameObject.SetActive(false);
+                    expandedProfileRoots[side * count + i] = row;
+                    BindTeamProfile(ref teamCards[side * count + i], row);
+                    rows.Add(row as RectTransform);
+                }
+                ParticipantUiSlots.FitStack(rows, first as RectTransform, second as RectTransform);
+                for (int i = 1; i < count; i++)
+                {
+                    foreach (var tween in rows[i].GetComponentsInChildren<DG.Tweening.DOTweenAnimation>(true))
+                    { tween.DOPause(); tween.enabled = false; }
+                    teamProfileMotions.Add(new ProfileMotion { source = rows[0], copy = rows[i],
+                        sourcePosition = rows[0].anchoredPosition, copyPosition = rows[i].anchoredPosition });
+                }
+            }
+        }
     }
 
     private void SetTeamUIPhase(BattleStartPhase phase)
@@ -127,6 +164,8 @@ public sealed partial class BattleIntroPresentation
         if (preparing) EnsureTeamIntroUI();
         if (teammateProfileRoot != null) teammateProfileRoot.SetActive(visible);
         if (secondEnemyProfileRoot != null) secondEnemyProfileRoot.SetActive(visible);
+        if (expandedProfileRoots != null)
+            foreach (var row in expandedProfileRoots) if (row != null) row.gameObject.SetActive(visible);
         if (!preparing && restoreIntroUserInfo)
         {
             restoreIntroUserInfo = false;
@@ -210,30 +249,42 @@ public sealed partial class BattleIntroPresentation
         image.raycastTarget = false;
     }
 
-    private bool EnsureTeamSnapshot(ref PortraitSnapshot snapshot, Player first, Player second, int slot, RawImage display)
+    private bool EnsureTeamSnapshot(ref PortraitSnapshot snapshot, Player[] players, int offset, int count, int slot, RawImage display)
     {
-        if (snapshot != null && snapshot.Player == first && snapshot.Teammate == second &&
-            snapshot.Texture != null && snapshot.Texture.IsCreated()) return true;
+        Player first = players[offset], second = players[offset + 1];
+        bool sameRoster = snapshot != null && snapshot.TeamMembers != null && snapshot.TeamMembers.Length == count;
+        if (sameRoster)
+            for (int i = 0; i < count; i++) sameRoster &= snapshot.TeamMembers[i] == players[offset + i];
+        if (sameRoster && snapshot.Texture != null && snapshot.Texture.IsCreated()) return true;
         ReleaseSnapshot(ref snapshot);
         PortraitSnapshot companion = null;
         try
         {
             snapshot = new PortraitSnapshot { Player = first, Teammate = second };
-            companion = new PortraitSnapshot { Player = second };
+            snapshot.TeamMembers = new Player[count];
+            Array.Copy(players, offset, snapshot.TeamMembers, 0, count);
             BuildSnapshot(snapshot, slot * 2);
-            BuildSnapshot(companion, slot * 2 + 1);
             snapshot.Camera.enabled = false;
-            companion.Camera.enabled = false;
             Transform firstVisual = snapshot.Stage.transform.Find("Visual meshes only");
-            Transform secondVisual = companion.Stage.transform.Find("Visual meshes only");
-            secondVisual.SetParent(snapshot.Stage.transform, false);
-            firstVisual.localRotation = secondVisual.localRotation = Quaternion.identity;
-            firstVisual.localPosition = Vector3.left * teamCharacterSpacing * .42f;
-            secondVisual.localPosition = Vector3.right * teamCharacterSpacing * .42f;
-            snapshot.OwnedMeshes.AddRange(companion.OwnedMeshes);
-            snapshot.AnimatedCat |= companion.AnimatedCat;
-            companion.OwnedMeshes.Clear(); // Ownership follows the reparented visual, never double-dispose baked meshes.
-            ReleaseSnapshot(ref companion);
+            var visuals = new List<Transform> { firstVisual };
+            for (int i = 1; i < count; i++)
+            {
+                companion = new PortraitSnapshot { Player = players[offset + i] };
+                BuildSnapshot(companion, slot * 2 + 1);
+                companion.Camera.enabled = false;
+                Transform visual = companion.Stage.transform.Find("Visual meshes only");
+                visual.SetParent(snapshot.Stage.transform, false);
+                visuals.Add(visual);
+                snapshot.OwnedMeshes.AddRange(companion.OwnedMeshes);
+                snapshot.AnimatedCat |= companion.AnimatedCat;
+                companion.OwnedMeshes.Clear();
+                ReleaseSnapshot(ref companion);
+            }
+            for (int i = 0; i < count; i++)
+            {
+                visuals[i].localRotation = Quaternion.identity;
+                visuals[i].localPosition = Vector3.right * ((i - (count - 1) * .5f) * teamCharacterSpacing * .84f);
+            }
 
             Renderer[] renderers = snapshot.Stage.GetComponentsInChildren<Renderer>();
             Bounds bounds = new Bounds();
@@ -262,10 +313,10 @@ public sealed partial class BattleIntroPresentation
             camera.transform.SetPositionAndRotation(bounds.center + Vector3.forward * distance, Quaternion.LookRotation(Vector3.back, Vector3.up));
             camera.farClipPlane = distance + bounds.extents.z + 5f;
             // Put both companions outside the pair, not between the two witches.
-            foreach (var catFloat in firstVisual.GetComponentsInChildren<CatIntroFloat>())
-                catFloat.PlaceBeside(camera, renderers, 1, CatCompanionTable.Default.vsCharacterGap);
-            foreach (var catFloat in secondVisual.GetComponentsInChildren<CatIntroFloat>())
-                catFloat.PlaceBeside(camera, renderers, -1, CatCompanionTable.Default.vsCharacterGap);
+            if (count == 2)
+                for (int i = 0; i < count; i++)
+                    foreach (var catFloat in visuals[i].GetComponentsInChildren<CatIntroFloat>())
+                        catFloat.PlaceBeside(camera, renderers, i == 0 ? 1 : -1, CatCompanionTable.Default.vsCharacterGap);
             CatIntroFloat.FrameWholeGroup(snapshot.Stage.transform,camera);
             Light light = snapshot.Stage.GetComponentInChildren<Light>();
             if (light != null)

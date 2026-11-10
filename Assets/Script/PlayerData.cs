@@ -25,7 +25,7 @@ public partial class PlayerData : NetworkBehaviour
     public void SetRoomMatchMode(BattleMatchMode mode)
     {
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority || !IsRoomOwner) return;
-        RoomMatchMode = System.Enum.IsDefined(typeof(BattleMatchMode), mode) ? mode : BattleMatchMode.TwoVsTwo;
+        RoomMatchMode = BattleMatchRules.Normalize(mode);
     }
 
     public void RequestWaitingTeam(int team)

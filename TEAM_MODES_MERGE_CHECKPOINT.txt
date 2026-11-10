@@ -1,0 +1,48 @@
+TEAM MODES — 머지 전 작업 기록
+저장 시각: 2026-11-10T21:11:53.531325
+프로젝트: C:\Users\USER\Desktop\git\WitchFlight
+브랜치: Leejaeyeop
+기준 커밋: d2ed9d8012768accddcae74498da5b0c81e8278c
+백업: C:\Users\USER\.codex\visualizations\2026\09\21\01a0c5b4-33b8-7c20-b1a5-ec310ac15932\checkpoints\team-modes-pre-merge-20261110-211150
+
+요청: 빗자루 그랑프리 모드 제거, 3vs3/4vs4/5vs5 추가. UI 디자인은 나중에 변경하며 부족한 참가자 슬롯은 기존 UI를 복제.
+
+완료 내용
+- BattleMatchRules: 신규 모드 enum 6/8/10, 최대 팀전 인원 10, 8개 방 모드 선택지. 기존 Race=20 enum은 직렬화 호환용으로만 보존하며 Normalize가 2vs2로 전환. Race 에셋/씬 자체는 삭제하지 않음.
+- 드롭다운 순서: 1vs1, 2vs2, 1vs1 BOT, 2vs2 BOT, 3vs3, 거대 먀오녀 토벌, 4vs4, 5vs5.
+- NetworkGameManager: 코드 방의 통신 정원 10, 선택 모드 정원/팀별 제한 적용. 랜덤 매칭은 기존 4명, 데스매치 20명, 훈련장 1명 유지.
+- PlayerData: 모드 저장 시 Normalize.
+- 대기실 팀 카드 및 구형 슬롯: 부족한 슬롯만 복제/재사용. VS 프로필/팀 초상화/Tab 통계/라운드 준비 표시 최대 10명 확장.
+- ParticipantUiSlots 신규: UI 복제, 중첩 view의 오브젝트 참조를 복제본으로 연결, 임시 공간 내 배치.
+- BattleManager: 3~5번째 팀원이 두 번째 스폰 위치에 겹치지 않도록 간격 적용.
+- BattleFlag.Results: MVP 투표자 배열만 10명으로 확장. 시상 종류 4개는 그대로.
+- Main/Battle 씬 파일이나 프리팹을 이번 작업에서 직접 수정하지 않음. UI 옵션과 부족한 슬롯은 실행 중 연결.
+
+검증
+- 전체 게임 C# Roslyn 컴파일 성공, 기존 경고만 존재. Fusion weaving/실제 네트워크 실행을 검증한 것은 아님.
+- Tests/TeamModeExpansionRegression.ps1: 77개 통과(모드/정원/팀 제한/퇴장 후 충원).
+- Tests/IntroReplayRegression.ps1: 22개 및 씬 연출 계약 확인 통과.
+- 별도 Unity 프로젝트에서 ParticipantUiSlots의 참조 분리/중첩 아이콘 연결/6·8·10개 배치 132개 통과.
+- git diff --check 통과.
+- 기존 Tests/TeamMatchRegression.ps1은 기존 추출기가 protected virtual SpawnBattlePlayer를 찾지 못해 실행 실패.
+- 기존 Tests/BattleAwardsRegression.ps1은 테스트 스텁의 OnChangedRenderAttribute 누락으로 컴파일 실패. 두 기존 테스트는 수정하지 않음.
+- 실제 6/8/10명 온라인 플레이, 최종 화면 시각 배치와 네트워크 weaving은 추가 확인 필요.
+
+검증 자료
+C:\Users\USER\.codex\visualizations\2026\09\21\01a0c5b4-33b8-7c20-b1a5-ec310ac15932\cleaner-compile\team-modes.log
+C:\Users\USER\.codex\visualizations\2026\09\21\01a0c5b4-33b8-7c20-b1a5-ec310ac15932\cleaner-compile\team-modes.rsp
+C:\Users\USER\.codex\visualizations\2026\09\21\01a0c5b4-33b8-7c20-b1a5-ec310ac15932\cleaner-bake\participant-ui.log
+C:\Users\USER\.codex\visualizations\2026\09\21\01a0c5b4-33b8-7c20-b1a5-ec310ac15932\cleaner-bake\Assets\Editor\ParticipantUiVerify.cs
+
+머지 후 복귀 절차
+1. 이 기록과 manifest.json을 먼저 읽고 현재 git status 및 기준 커밋 이후 diff를 확인.
+2. working/은 머지 직전 파일 원본, base/는 위 기준 커밋의 파일 원본. manifest에는 각 파일 SHA-256 포함.
+3. 머지 결과에 작업 내용이 살아 있으면 그대로 계속 진행. working/ 파일을 통째로 덮어써서 팀원의 변경을 지우지 말 것.
+4. 누락/충돌은 base/ → working/ 변경과 머지 결과를 3방향 비교하여 해당 기능만 재적용.
+5. task.patch에는 추적 중인 작업 파일 변경이 포함. 신규 ParticipantUiSlots.cs/.meta 및 새 회귀 테스트는 working/에서 별도 확인해야 함. patch를 무조건 재적용하지 말 것.
+6. DungGeunMo SDF.asset은 작업 시작 전부터 있던 사용자 변경. 따로 백업했으며 팀 모드 복구 시 자동으로 덮어쓰지 말 것.
+7. 복구 후 C# 컴파일, 신규 팀 모드 회귀 테스트, VS 연출 테스트, Unity UI 연결 및 6/8/10명 접속을 확인.
+
+이번 기록 저장은 커밋/푸시/스태시/머지를 실행하지 않음. 원래 작업 파일을 변경하거나 되돌리지 않음.
+
+검증된 압축 백업: C:\Users\USER\.codex\visualizations\2026\09\21\01a0c5b4-33b8-7c20-b1a5-ec310ac15932\checkpoints\team-modes-pre-merge-20261110-211150.zip

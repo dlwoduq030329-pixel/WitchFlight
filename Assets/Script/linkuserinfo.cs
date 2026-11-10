@@ -235,7 +235,7 @@ public sealed partial class linkuserinfo : MonoBehaviour
         {
             WaitingRoomSlot slot = waitingRoomSlots[i];
             if (slot == null) continue;
-            if (slot.slotRoot != null) slot.slotRoot.SetActive(i < 2 || (waiting && manager.RequiredPlayerCount == 4));
+            if (slot.slotRoot != null) slot.slotRoot.SetActive(waiting ? i < manager.RequiredPlayerCount : i < 2);
             bool occupied = waiting && i < waitingParticipants.Count;
             PlayerRef playerRef = occupied ? waitingParticipants[i] : PlayerRef.None;
             PlayerData data = occupied ? GetPlayerData(playerRef) : null;

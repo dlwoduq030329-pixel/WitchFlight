@@ -46,6 +46,7 @@ public sealed partial class linkuserinfo
     private Transform blueCards, redCards, versusImage;
     private TMP_Text roomHeaderName, roomHeaderCount, roomHeaderMode;
     private bool teamCardBindingsReady;
+    private int expandedBlueCapacity, expandedRedCapacity;
     public bool UsesTeamCards => waitingRoomPanel != null &&
         waitingRoomPanel.transform.Find("TeamsLayoutGroup/BlueTeamLayoutGroup") != null;
 
@@ -115,6 +116,12 @@ public sealed partial class linkuserinfo
         int capacity = BattleMatchRules.PlayerCount(mode);
         int blueCapacity = shared ? capacity : capacity / 2;
         int redCapacity = shared ? 0 : capacity / 2;
+        if (expandedBlueCapacity != blueCapacity || expandedRedCapacity != redCapacity)
+        {
+            EnsureTeamCardCapacity(blueCards, 1, blueCapacity);
+            EnsureTeamCardCapacity(redCards, 2, redCapacity);
+            expandedBlueCapacity = blueCapacity; expandedRedCapacity = redCapacity;
+        }
         if (redCards != null) redCards.gameObject.SetActive(!shared);
         if (versusImage != null) versusImage.gameObject.SetActive(!shared);
         foreach (var card in teamCards) card.player = null;
@@ -162,5 +169,35 @@ public sealed partial class linkuserinfo
         teamCards.Clear();
         participantCards.Clear();
         teamCardBindingsReady = false;
+        expandedBlueCapacity = expandedRedCapacity = 0;
+    }
+
+    private void EnsureTeamCardCapacity(Transform group, int team, int capacity)
+    {
+        if (group == null || capacity == 0) return;
+        var slots = teamCards.FindAll(c => c.team == team);
+        if (slots.Count == 0) return;
+        bool grew = false;
+        for (int i = slots.Count; i < capacity; i++)
+        {
+            Transform root = ParticipantUiSlots.Clone(slots[0].root, "Card" + (i + 1));
+            var card = new TeamCard { root = root, team = team, index = i };
+            var occupied = FindCardChild(root, "SetActive");
+            card.occupied = occupied?.gameObject;
+            card.empty = FindCardChild(root, "EmptyText")?.gameObject;
+            card.crown = (FindCardChild(root, "Crown") ?? FindCardChild(root, "CrownImage"))?.gameObject;
+            card.nickname = occupied != null ? FindCardChild(occupied, "Nickname")?.GetComponent<TMP_Text>() : null;
+            card.profile = occupied != null ? FindCardChild(occupied, "Profile")?.GetComponent<Image>() : null;
+            card.button = root.GetComponent<Button>();
+            card.click = () => SelectCardTeam(card);
+            if (card.button != null) { card.button.onClick = new Button.ButtonClickedEvent(); card.button.onClick.AddListener(card.click); }
+            slots.Add(card); teamCards.Add(card); grew = true;
+        }
+        if (grew || slots.Count > 2)
+        {
+            var rows = new List<RectTransform>();
+            for (int i = 0; i < capacity; i++) rows.Add(slots[i].root as RectTransform);
+            ParticipantUiSlots.FitVertical(rows, group as RectTransform);
+        }
     }
 }

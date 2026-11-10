@@ -6,8 +6,8 @@ using UnityEngine.UI;
 
 public sealed partial class linkuserinfo
 {
-    // Reuse the authored Card01..Card04, including the two inactive cards.
-    // Do not create or reposition card roots, and keep explicit Inspector bindings.
+    private int expandedWaitingCapacity;
+    // Preserve Inspector bindings and clone an existing card only when seats are missing.
     private void EnsureAuthoredWaitingSlots()
     {
         if (CodeWaitingRoomPanel == null) return;
@@ -44,6 +44,22 @@ public sealed partial class linkuserinfo
                 slot.teamLabel = label;
             }
         }
+        int required = NetworkGameManager.Instance != null ? NetworkGameManager.Instance.RequiredPlayerCount : 4;
+        if (required <= 4 || expandedWaitingCapacity == required) return;
+        if (waitingRoomSlots[0]?.slotRoot == null) return;
+        if (waitingRoomSlots.Length < required) Array.Resize(ref waitingRoomSlots, required);
+        for (int i = 4; i < required; i++)
+        {
+            if (waitingRoomSlots[i]?.slotRoot != null) continue;
+            var source = waitingRoomSlots[0];
+            Transform copy = ParticipantUiSlots.Clone(source.slotRoot.transform, "Card" + (i + 1).ToString("00"));
+            waitingRoomSlots[i] = ParticipantUiSlots.CloneView(source, source.slotRoot.transform, copy);
+        }
+        var rows = new System.Collections.Generic.List<RectTransform>();
+        for (int i = 0; i < required; i++)
+            if (waitingRoomSlots[i]?.slotRoot != null) rows.Add(waitingRoomSlots[i].slotRoot.transform as RectTransform);
+        ParticipantUiSlots.FitVertical(rows, waitingRoomPanel.transform as RectTransform);
+        expandedWaitingCapacity = required;
     }
 
     private static Image FindCardProfile(Transform card)

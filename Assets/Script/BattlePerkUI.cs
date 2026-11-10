@@ -96,7 +96,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     private bool wasShowing, requestPending;
     private (int revision, int earned, MagicType first, MagicType second, bool pending)? selectionKey;
     private bool comparisonValid, comparisonTeams;
-    private readonly ComparisonSnapshot[] comparisonSnapshots = new ComparisonSnapshot[4];
+    private readonly ComparisonSnapshot[] comparisonSnapshots = new ComparisonSnapshot[BattleMatchRules.MaxTeamPlayers];
     private readonly struct ComparisonSnapshot : IEquatable<ComparisonSnapshot>
     {
         private readonly PlayerData player;
@@ -211,7 +211,11 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         }
         bool compare = Allowed && !BattleEmoteUI.CapturesMouse && !gate.Showing && Input.GetKey(KeyCode.Tab);
         bool teamBattle = BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2;
-        if (compare && teamBattle && teamComparisonRoot == null) BuildTeamComparison();
+        if (compare && teamBattle)
+        {
+            if (teamComparisonRoot == null) BuildTeamComparison();
+            EnsureExpandedComparison();
+        }
         Show(authoredTeammateRow,compare && teamBattle);
         Show(authoredSecondOpponentRow,compare && teamBattle);
         Show(comparisonRoot,compare && (!teamBattle || teamComparisonRoot == comparisonRoot));
@@ -334,10 +338,10 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         if (BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2)
         {
             bool changed = !comparisonValid || !comparisonTeams;
-            for (int i = 0; i < 4; i++) changed |= UpdateSnapshot(i, TeamViewData(i));
+            for (int i = 0; i < teamViews.Length; i++) changed |= UpdateSnapshot(i, TeamViewData(i));
             comparisonValid = true; comparisonTeams = true;
             if (!changed) return;
-            for (int i = 0; i < 4 && i < teamViews.Length; i++) FillPlayer(teamViews[i], TeamViewData(i));
+            for (int i = 0; i < teamViews.Length; i++) FillPlayer(teamViews[i], TeamViewData(i));
             return;
         }
         PlayerData opponent = null;
@@ -355,11 +359,11 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     {
         if (!Ready(local)) return null;
         if (slot == 0) return local;
-        int enemy = 2;
+        int ally = 1, enemy = teamViews.Length / 2;
         foreach (PlayerData data in comparisonRoster)
         {
             if (data == local) continue;
-            if (data.teamIndex == local.teamIndex) { if (slot == 1) return data; }
+            if (data.teamIndex == local.teamIndex) { if (ally++ == slot) return data; }
             else if (enemy++ == slot) return data;
         }
         return null;
@@ -550,7 +554,9 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         Transform enemy = root.Find("Team02Panel");
         Transform enemy2 = root.Find("Team02Panel (1)");
         // Transform.Find also resolves inactive children. Keep the designer's positions and styling.
-        if (own == null || ally == null || enemy == null || enemy2 == null) return false;
+        if (own == null || enemy == null) return false;
+        if (ally == null) ally = ParticipantUiSlots.Clone(own, "Team01Panel (1)");
+        if (enemy2 == null) enemy2 = ParticipantUiSlots.Clone(enemy, "Team02Panel (1)");
         teamComparisonRoot = comparisonRoot;
         authoredTeammateRow = ally.gameObject;
         authoredSecondOpponentRow = enemy2.gameObject;
@@ -560,6 +566,45 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         Show(authoredTeammateRow,false);
         Show(authoredSecondOpponentRow,false);
         return true;
+    }
+
+    private void EnsureExpandedComparison()
+    {
+        int required = BattleManager.Instance != null ? BattleManager.Instance.ExpectedPlayerCount : 4;
+        if (required <= teamViews.Length || required > BattleMatchRules.MaxTeamPlayers) return;
+        int half = required / 2;
+        var old = teamViews;
+        var expanded = new PerkPlayerView[required];
+        var allRows = new List<RectTransform>();
+        for (int side = 0; side < 2; side++)
+        {
+            int sourceOffset = side * (old.Length / 2);
+            for (int i = 0; i < half; i++)
+            {
+                PerkPlayerView view;
+                if (i < old.Length / 2) view = old[sourceOffset + i];
+                else
+                {
+                    var source = old[sourceOffset];
+                    Transform root = source.profile != null ? source.profile.transform.parent : source.playerName.transform.parent;
+                    string rowName = (side == 0 ? "Team01Panel" : "Team02Panel") + " (" + i + ")";
+                    Transform copy = root.parent.Find(rowName);
+                    if (copy != null) view = BindAuthoredTeamRow(copy);
+                    else
+                    {
+                        copy = ParticipantUiSlots.Clone(root, rowName);
+                        view = ParticipantUiSlots.CloneView(source, root, copy);
+                    }
+                }
+                expanded[side * half + i] = view;
+                Transform row = view.profile != null ? view.profile.transform.parent : view.playerName.transform.parent;
+                row.gameObject.SetActive(true);
+                allRows.Add(row as RectTransform);
+            }
+        }
+        teamViews = expanded;
+        ParticipantUiSlots.FitVertical(allRows, teamComparisonRoot.transform as RectTransform);
+        comparisonValid = false;
     }
 
     private static T TeamRowComponent<T>(Transform row, string name) where T : Component

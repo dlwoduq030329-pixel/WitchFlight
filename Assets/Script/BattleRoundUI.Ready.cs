@@ -116,13 +116,20 @@ public sealed partial class BattleRoundUI
         if (profilesRoot == null)
             foreach (var child in magicSwapPanel.GetComponentsInChildren<Transform>(true))
                 if (string.Equals(child.name, "Profiles", StringComparison.OrdinalIgnoreCase)) { profilesRoot = child; break; }
-        if (readyProfiles == null || readyProfiles.Length != 4) Array.Resize(ref readyProfiles, 4);
+        int count = Mathf.Clamp(BattleManager.Instance != null ? BattleManager.Instance.ExpectedPlayerCount : 4, 4, BattleMatchRules.MaxTeamPlayers);
+        if (readyProfiles == null || readyProfiles.Length != count) Array.Resize(ref readyProfiles, count);
         if (profilesRoot == null)
             profilesRoot = Rect("Profiles", magicSwapPanel.transform, new Vector2(0, 440), new Vector2(360, 70));
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < count; i++)
         {
             readyProfiles[i] ??= new ReadyProfile(); var slot = readyProfiles[i];
             if (slot.root == null && i < profilesRoot.childCount) slot.root = profilesRoot.GetChild(i).gameObject;
+            if (slot.root == null && i > 0 && readyProfiles[0].root != null)
+            {
+                Transform source = readyProfiles[0].root.transform;
+                Transform copy = ParticipantUiSlots.Clone(source, "Profile0" + (i + 1));
+                readyProfiles[i] = slot = ParticipantUiSlots.CloneView(readyProfiles[0], source, copy);
+            }
             if (slot.root == null)
             {
                 slot.root = Rect("Profile0" + (i + 1), profilesRoot, new Vector2(-135 + 90 * i, 0), new Vector2(64, 64)).gameObject;
@@ -138,6 +145,20 @@ public sealed partial class BattleRoundUI
             }
             if (slot.image == null) slot.image = slot.root.GetComponent<Image>();
             Show(slot.readyCheck, false);
+        }
+        if (count > 4)
+        {
+            float width = Mathf.Max(360f, ((RectTransform)profilesRoot).rect.width);
+            float cell = width / count;
+            for (int i = 0; i < count; i++)
+            {
+                var rect = readyProfiles[i].root.transform as RectTransform;
+                var layout = rect.GetComponent<LayoutElement>() ?? rect.gameObject.AddComponent<LayoutElement>();
+                layout.ignoreLayout = true;
+                rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f;
+                rect.localScale = Vector3.one * Mathf.Min(1f, (cell - 4f) / Mathf.Max(1f, rect.rect.width));
+                rect.anchoredPosition = new Vector2(-width * .5f + cell * (i + .5f), 0);
+            }
         }
         Show(profilesRoot.gameObject, true);
         profilesBound = true;

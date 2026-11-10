@@ -277,7 +277,7 @@ public partial class BattleManager : MonoBehaviour
         Vector3 spawnPosition = spawn.position;
         if (teamSlot > 0)
         {
-            if (secondary != null) { spawn = secondary; spawnPosition = spawn.position; }
+            if (secondary != null) { spawn = secondary; spawnPosition = spawn.position + spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * (teamSlot - 1); }
             else spawnPosition += spawn.right * Mathf.Max(1f, teammateSpawnSpacing) * teamSlot;
         }
         Quaternion spawnRotation = spawn.rotation;
