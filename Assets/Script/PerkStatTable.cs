@@ -120,7 +120,7 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.WindTurning,"바람결 타기","선회 능력 {percent}% 증가. 이동 속도는 유지.",.35f),
         D(PerkId.BrakingRune,"멈춤의 룬","제동 성능 {percent}% 증가.",.45f),
         D(PerkId.FirstWind,"첫바람의 축복","정지에서 1단계까지 가속 {percent}% 증가.",.45f),
-        D(PerkId.Tailwind,"순풍의 가호","부스트 MP 소모 {percent}% 감소.",.3f),
+        D(PerkId.Tailwind,"순풍의 가호","대쉬 충전 시간 {percent}% 감소.",.3f),
         D(PerkId.DeepMana,"깊은 마력샘","최대 MP {percent}% 증가.",.25f),
         D(PerkId.ManaBreath,"마력의 숨결","자연 MP 회복량 {percent}% 증가.",.3f),
         D(PerkId.FrugalRune,"절약의 룬","마법 MP 소모 {percent}% 감소. 패링·부스트 제외.",.2f),

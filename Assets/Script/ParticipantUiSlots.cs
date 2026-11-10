@@ -64,6 +64,28 @@ public static class ParticipantUiSlots
             if (!field.IsInitOnly && !field.IsNotSerialized) field.SetValue(clone, Remap(field.GetValue(value), source, copy));
         return clone;
     }
+    public static void FitTeamColumns(IReadOnlyList<RectTransform> rows, RectTransform area)
+    {
+        if (area == null) return;
+        const int slotsPerSide = 5;
+        float width = Mathf.Max(100f, (area.rect.width - 48f) * .5f);
+        float cell = Mathf.Max(100f, area.rect.height - 24f) / slotsPerSide;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i]; if (row == null) continue;
+            var layout = row.GetComponent<LayoutElement>() ?? row.gameObject.AddComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+            Vector2 size = row.rect.size;
+            row.anchorMin = row.anchorMax = new Vector2(.5f, 1f);
+            row.pivot = new Vector2(.5f, 1f);
+            row.sizeDelta = size;
+            float scale = Mathf.Min(1f, Mathf.Min(width / Mathf.Max(1f, size.x), (cell - 6f) / Mathf.Max(1f, size.y)));
+            row.localScale = Vector3.one * scale;
+            row.anchoredPosition = new Vector2((i < slotsPerSide ? -1f : 1f) * (width + 24f) * .5f,
+                -12f - (i % slotsPerSide) * cell);
+        }
+    }
+
     public static void FitVertical(IReadOnlyList<RectTransform> rows, RectTransform area)
     {
         if (area == null || rows.Count == 0) return;

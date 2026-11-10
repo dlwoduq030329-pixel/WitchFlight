@@ -216,8 +216,11 @@ public sealed partial class BattlePerkUI : MonoBehaviour
             if (teamComparisonRoot == null) BuildTeamComparison();
             EnsureExpandedComparison();
         }
-        Show(authoredTeammateRow,compare && teamBattle);
-        Show(authoredSecondOpponentRow,compare && teamBattle);
+        if (!teamBattle || BattleManager.Instance.ExpectedPlayerCount < 8)
+        {
+            Show(authoredTeammateRow,compare && teamBattle);
+            Show(authoredSecondOpponentRow,compare && teamBattle);
+        }
         Show(comparisonRoot,compare && (!teamBattle || teamComparisonRoot == comparisonRoot));
         if (teamComparisonRoot != comparisonRoot) Show(teamComparisonRoot,compare && teamBattle);
         if (compare) UpdateComparison();
@@ -341,7 +344,17 @@ public sealed partial class BattlePerkUI : MonoBehaviour
             for (int i = 0; i < teamViews.Length; i++) changed |= UpdateSnapshot(i, TeamViewData(i));
             comparisonValid = true; comparisonTeams = true;
             if (!changed) return;
-            for (int i = 0; i < teamViews.Length; i++) FillPlayer(teamViews[i], TeamViewData(i));
+            for (int i = 0; i < teamViews.Length; i++)
+            {
+                var data = TeamViewData(i);
+                FillPlayer(teamViews[i], data);
+                if (BattleManager.Instance.ExpectedPlayerCount >= 8)
+                {
+                    var view = teamViews[i];
+                    Transform row = view.profile != null ? view.profile.transform.parent : view.playerName.transform.parent;
+                    Show(row.gameObject, Ready(data));
+                }
+            }
             return;
         }
         PlayerData opponent = null;
@@ -571,6 +584,8 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     private void EnsureExpandedComparison()
     {
         int required = BattleManager.Instance != null ? BattleManager.Instance.ExpectedPlayerCount : 4;
+        bool columns = required >= 8;
+        if (columns) required = 10;
         if (required <= teamViews.Length || required > BattleMatchRules.MaxTeamPlayers) return;
         int half = required / 2;
         var old = teamViews;
@@ -603,7 +618,14 @@ public sealed partial class BattlePerkUI : MonoBehaviour
             }
         }
         teamViews = expanded;
-        ParticipantUiSlots.FitVertical(allRows, teamComparisonRoot.transform as RectTransform);
+        if (columns)
+        {
+            ParticipantUiSlots.FitTeamColumns(allRows, teamComparisonRoot.transform as RectTransform);
+            // Fallback-only headers used the old vertical team positions.
+            Show(teamComparisonRoot.transform.Find("OwnTeam")?.gameObject, false);
+            Show(teamComparisonRoot.transform.Find("EnemyTeam")?.gameObject, false);
+        }
+        else ParticipantUiSlots.FitVertical(allRows, teamComparisonRoot.transform as RectTransform);
         comparisonValid = false;
     }
 

@@ -91,7 +91,6 @@ namespace UnityEngine {
 $probe = "namespace ControlChecks { using UnityEngine; public static class MathProbe {`n" +
     (Method $projectile 'ResolveLaunchDirection') + "`n" + (Method $projectile 'ResolveHomingDirection') + "`n" +
     (Method $hud 'GetThreatViewDirection') + "`n" + (Method $hud 'GetThreatScreenPoint') + "`n" +
-    (Method $hud 'IsInsideThreatViewport') + "`n" +
     (Method $damageIndicator 'CalculateFlightDirection') + "`n" + $spriteMethod + "`n}}"
 $checks = @'
 namespace ControlChecks {using UnityEngine;
@@ -107,8 +106,9 @@ public static class Tests {
   Check(Same(MathProbe.ResolveLaunchDirection(false,forward,forward,side),forward),"Non-lock / mine launch unchanged");
   Check(Same(MathProbe.ResolveLaunchDirection(true,forward,forward,Vector3.zero),forward),"Overlapping target has valid fallback");
   Check(Same(MathProbe.ResolveLaunchDirection(false,Vector3.zero,forward,side),forward),"Zero aim has valid fallback");
-  Check(Same(MathProbe.ResolveHomingDirection(true,forward,side,0,.02f),side.normalized),"Lock tracks directly even with zero turn speed");
-  Check(Same(MathProbe.ResolveHomingDirection(true,forward,new(-10,3,4),100,.02f),new Vector3(-10,3,4).normalized),"Moving target re-aims directly");
+  Check(Same(MathProbe.ResolveHomingDirection(true,forward,side,0,.02f),forward),"Lock with zero turn speed keeps its heading");
+  var limited=MathProbe.ResolveHomingDirection(true,forward,new(-10,3,4),100,.02f);
+  Check(!Same(limited,new Vector3(-10,3,4).normalized) && Vector3.Dot(limited,forward)>.999f,"Lock-on flight obeys a finite turn limit");
   Check(Same(MathProbe.ResolveHomingDirection(false,forward,side,0,.02f),forward),"Non-lock zero turn speed unchanged");
   Check(Same(MathProbe.ResolveHomingDirection(true,forward,Vector3.zero,100,.02f),forward),"Zero target delta preserves direction");
   var rect=new Rect(100,50,1000,600);
@@ -137,17 +137,6 @@ public static class Tests {
   Check(MathProbe.GetThreatViewDirection(new(0,0,10),Quaternion.identity,new(0,0,5)).z<0,"Threat between camera and player uses camera-side front/back");
   Check(MathProbe.GetThreatViewDirection(cameraPosition,Quaternion.Euler(0,0,90),new(10,0,0)).y<0,"Camera roll is reflected in warning screen axes");
   var projection=Matrix4x4.Perspective(60,16f/9f);
-  Check(MathProbe.IsInsideThreatViewport(initialView,projection,.1f,1000),"Front projectile is inside view and gets no warning");
-  Check(!MathProbe.IsInsideThreatViewport(rearView,projection,.1f,1000),"Behind-camera projectile remains a warning candidate");
-  Check(MathProbe.IsInsideThreatViewport(new(9,0,10),projection,.1f,1000)&&!MathProbe.IsInsideThreatViewport(new(11,0,10),projection,.1f,1000),"Horizontal camera viewport edges respected");
-  Check(MathProbe.IsInsideThreatViewport(new(0,5,10),projection,.1f,1000)&&!MathProbe.IsInsideThreatViewport(new(0,6,10),projection,.1f,1000),"Vertical camera viewport edges respected");
-  Check(!MathProbe.IsInsideThreatViewport(new(-11,0,10),projection,.1f,1000)&&!MathProbe.IsInsideThreatViewport(new(0,-6,10),projection,.1f,1000),"Left and bottom offscreen candidates retained");
-  Check(!MathProbe.IsInsideThreatViewport(new(0,0,.05f),projection,.1f,1000)&&!MathProbe.IsInsideThreatViewport(new(0,0,1100),projection,.1f,1000),"Clipped projectiles are not treated as visible");
-  Check(MathProbe.IsInsideThreatViewport(new(15,0,10),Matrix4x4.Perspective(90,16f/9f),.1f,1000),"FOV widening updates visibility");
-  Check(!MathProbe.IsInsideThreatViewport(new(15,0,10),Matrix4x4.Perspective(90,1),.1f,1000),"Aspect ratio changes update visibility");
-  Check(!MathProbe.IsInsideThreatViewport(rightTurnView,projection,.1f,1000)&&MathProbe.IsInsideThreatViewport(initialView,projection,.1f,1000),"Camera turning toggles same stationary projectile between warning and hidden");
-  Check(MathProbe.IsInsideThreatViewport(new(4,4,10),new Matrix4x4{scaleX=.2f,scaleY=.2f,ortho=true},.1f,1000),"Orthographic projection also supported");
-  Check(!MathProbe.IsInsideThreatViewport(new(float.NaN,0,10),projection,.1f,1000),"Invalid projected coordinate is not classified visible");
   var a=new Sprite();var b=new Sprite();
   Check(MathProbe.SelectWarningSprite(a,b,true)==a&&MathProbe.SelectWarningSprite(a,b,false)==b,"Two sprites alternate");
   Check(MathProbe.SelectWarningSprite(a,null,false)==a&&MathProbe.SelectWarningSprite(null,b,true)==b,"Either single sprite works");
@@ -215,6 +204,7 @@ foreach ($element in 'warning.rectTransform','warningGlow.rectTransform','warnin
     if (!$hud.Contains(('PlaceScreen(' + $element + ', point)'))) { throw "Warning element has a different bearing: $element" }
 }
 'Camera-origin/rotation warning and shared icon/halo/frame/parry-ring positioning checked.'
-if (!$hud.Contains('warningLeadSeconds, offscreenThreatFilter)') -or !$hud.Contains('if (!IsOffscreenThreat(incomingThreat))')) { throw 'Offscreen filter missing in selection or render-time placement' }
-if (!$projectile.Contains('if (candidateFilter != null && !candidateFilter(shot)) continue;')) { throw 'Visible shots can hide offscreen candidates' }
-'Offscreen-only selection and render-time visibility guard checked.'
+if (!$hud.Contains('warningLeadSeconds, null, incomingThreats') -or $hud.Contains('IsOffscreenThreat')) { throw 'HUD must retain front and rear incoming warnings' }
+$additional=Get-Content Assets/Script/BattleHud.ThreatWarnings.cs -Raw
+if ($additional.Contains('IsOffscreenThreat') -or !$additional.Contains('!shot.IsThreatTo(owner)')) { throw 'Additional warnings must include front shots but keep target validation' }
+'All-direction warning selection and target validation checked.'

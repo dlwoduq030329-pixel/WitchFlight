@@ -311,7 +311,7 @@ public sealed partial class BattleHud : MonoBehaviour
     [SerializeField] private Sprite warningSpriteA;
     [Tooltip("경고 이미지 B. 두 Sprite 모두 비우면 기본 느낌표가 깜빡입니다.")]
     [SerializeField] private Sprite warningSpriteB;
-    [SerializeField, Min(16f)] private float warningIconSize = 96f;
+    [SerializeField, Min(16f)] private float warningIconSize = 28f;
     [Tooltip("화면 끝에서 경고 이미지 중심까지의 여백(픽셀).")]
     [SerializeField, Min(0f)] private float warningEdgePadding = 64f;
     [SerializeField] private Color warningIconColor = Color.white;
@@ -350,7 +350,6 @@ public sealed partial class BattleHud : MonoBehaviour
     private float nextIncomingSoundCheck, lastIncomingBeep = -100f, incomingSoundInterval;
     private MagicProjectile audibleThreat;
     private bool incomingParryReady;
-    private Predicate<MagicProjectile> offscreenThreatFilter;
     private float warningPhase, threatStrength, nextThreatCheck;
     [SerializeField] private Image lockProgressFill;
     // Retain old scene references only to suppress the retired lock-on text prompts.
@@ -576,7 +575,6 @@ public sealed partial class BattleHud : MonoBehaviour
         if (GetComponent<BattleTitleNotificationUI>() == null) gameObject.AddComponent<BattleTitleNotificationUI>();
         BindSceneMenu();
         ValidateStatusEffectViews();
-        offscreenThreatFilter = IsOffscreenThreat;
         damageSlots = new DamageSlot[damageLabels.Length];
         for (int i = 0; i < damageLabels.Length; i++)
         {
@@ -1007,12 +1005,10 @@ public sealed partial class BattleHud : MonoBehaviour
         {
             nextThreatCheck = Time.unscaledTime + 0.05f;
             MagicProjectile.TryGetIncomingThreat(owner, warningDistance, out _, out incomingThreat,
-                warningLeadSeconds, offscreenThreatFilter, incomingThreats);
+                warningLeadSeconds, null, incomingThreats);
         }
-        if (!HasIncomingThreat() || !IsOffscreenThreat(incomingThreat))
+        if (!HasIncomingThreat())
         {
-            // The camera may have turned since the last 20 Hz candidate search.
-            if (HasIncomingThreat()) nextThreatCheck = 0f;
             threatStrength = warningPhase = 0f;
             HidePrimaryThreatIndicator();
             return;
@@ -1044,6 +1040,9 @@ public sealed partial class BattleHud : MonoBehaviour
         float punch = cue ? Mathf.Lerp(parryCuePunchScale, 1f,
             Mathf.Clamp01((Time.unscaledTime - parryCueStarted) / Mathf.Max(0.05f, parryCuePunchSeconds))) : 1f;
         warning.rectTransform.sizeDelta = Vector2.one * warningIconSize * punch;
+        if (generatedWarning != null) generatedWarning.fontSize = warningIconSize * .8f;
+        if (primaryDistanceBar == null) primaryDistanceBar = CreateThreatDistanceBar(generatedFeedbackCanvas.transform);
+        UpdateThreatDistanceBar(primaryDistanceBar, distance, cue);
         EnsureThreatGlow(warning);
         Color glow = cue ? new Color(parryCueColor.r, parryCueColor.g, parryCueColor.b, warningGlowColor.a) : warningGlowColor;
         // The halo stays visible between flashes, so the direction is never lost.
@@ -1138,6 +1137,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void HidePrimaryThreatIndicator()
     {
+        if (primaryDistanceBar != null) Visible(primaryDistanceBar.root.gameObject, false);
         Visible(incomingMagicIndicator != null ? incomingMagicIndicator.gameObject : null, false);
         Visible(generatedWarning != null ? generatedWarning.gameObject : null, false);
         Visible(warningGlow != null ? warningGlow.gameObject : null, false);
@@ -1188,24 +1188,18 @@ public sealed partial class BattleHud : MonoBehaviour
     private void PlacePrimaryThreatIndicator()
     {
         if (!HasIncomingThreat() || worldCamera == null) { HidePrimaryThreatIndicator(); return; }
-        // Recheck after camera rendering too: no one-frame on-screen warning after a turn.
-        if (!IsOffscreenThreat(incomingThreat))
-        {
-            nextThreatCheck = 0f;
-            HidePrimaryThreatIndicator();
-            return;
-        }
         Graphic warning = warningSpriteA != null || warningSpriteB != null ? incomingMagicIndicator : generatedWarning;
         if (warning == null) return;
         // Use the viewing camera's origin AND rotation, independently of the pilot's facing.
         // Its unshaken Transform keeps the warning stable during render-only speed shake.
         Vector3 relative = GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation,
             incomingThreat.transform.position);
-        float padding = Mathf.Max(warningEdgePadding, warningIconSize * warningGlowScale * 0.5f + 8f);
-        Vector2 point = GetThreatScreenPoint(relative, worldCamera.pixelRect, padding);
+        Rect orbit = GetThreatOrbitBounds();
+        Vector2 point = GetThreatScreenPoint(relative, orbit, 0f);
         bool placed = PlaceScreen(warning.rectTransform, point);
         if (placed) occupiedThreatPoints.Add(point);
         Visible(warning.gameObject, placed);
+        PlaceThreatDistanceBar(primaryDistanceBar, point, orbit.center, placed, false);
         if (warningGlow != null)
             Visible(warningGlow.gameObject, placed && PlaceScreen(warningGlow.rectTransform, point));
         if (warningFrame != null)
@@ -1217,22 +1211,6 @@ public sealed partial class BattleHud : MonoBehaviour
     private static Vector3 GetThreatViewDirection(Vector3 cameraPosition, Quaternion cameraRotation, Vector3 threatPosition)
     {
         return Quaternion.Inverse(cameraRotation) * (threatPosition - cameraPosition);
-    }
-
-    private bool IsOffscreenThreat(MagicProjectile shot)
-    {
-        if (shot == null || worldCamera == null) return false;
-        Vector3 local = GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation,
-            shot.transform.position);
-        return !IsInsideThreatViewport(local, worldCamera.projectionMatrix, worldCamera.nearClipPlane, worldCamera.farClipPlane);
-    }
-
-    private static bool IsInsideThreatViewport(Vector3 cameraLocal, Matrix4x4 projection, float nearClip, float farClip)
-    {
-        // Use the unshaken camera pose but the actual projection, including FOV/aspect changes.
-        if (cameraLocal.z < nearClip || cameraLocal.z > farClip || cameraLocal.z <= 0f) return false;
-        Vector4 clip = projection * new Vector4(cameraLocal.x, cameraLocal.y, -cameraLocal.z, 1f);
-        return clip.w > 0f && clip.x >= -clip.w && clip.x <= clip.w && clip.y >= -clip.w && clip.y <= clip.w;
     }
 
     private static Vector2 GetThreatScreenPoint(Vector3 direction, Rect screen, float padding)

@@ -24,14 +24,77 @@ public partial class MagicProjectile : NetworkBehaviour
     private Vector3 fallingVelocity;
     private Suimono.Core.SuimonoModule fallingWater;
     private MagicStatTable flightSettings;
+    private Player sweptTarget;
+    private Vector3 sweptTargetCenter, sweptProjectileStart;
+    private int sweptPortalSequence;
 
     public static bool UsesFlightExhaustion(MagicType magic, MagicStatTable table) =>
         table != null && table.homingExhaustion &&
         (magic == MagicType.Fire || magic == MagicType.Ice || magic == MagicType.Binding);
 
-    public static float DrainFlightSpeed(float fraction, Vector3 before, Vector3 after, float dt, MagicStatTable table) =>
-        Mathf.Max(0f, fraction - Mathf.Max(0f, table.homingSpeedLossPerSecond) * dt -
-            Vector3.Angle(before, after) * Mathf.Max(0f, table.homingSpeedLossPerDegree));
+    public static float DrainFlightSpeed(float fraction, Vector3 before, Vector3 after, float dt, MagicStatTable table)
+    {
+        dt = Mathf.Max(0f, dt);
+        // atan2 remains precise for tiny corrections; acos(dot) can turn float rounding
+        // into fictitious steering loss during an otherwise straight flight.
+        float degrees = Mathf.Atan2(Vector3.Cross(before, after).magnitude,
+            Vector3.Dot(before, after)) * Mathf.Rad2Deg;
+        // Limit the RATE, not the loss per tick. A large correction cannot consume
+        // most of the shot's energy in one update, even at a different tick rate.
+        float turnLoss = Mathf.Min(degrees * Mathf.Max(0f, table.homingSpeedLossPerDegree),
+            Mathf.Max(0f, table.homingMaxTurnLossPerSecond) * dt);
+        return Mathf.Max(0f, fraction - Mathf.Max(0f, table.homingSpeedLossPerSecond) * dt - turnLoss);
+    }
+
+    public static float FlightTurnSpeed(float referenceTurnSpeed, float speed, MagicStatTable table)
+    {
+        // Sample speed BEFORE steering/draining. No recursive solve or distance bonus.
+        // Power > 1 also widens the turning radius as the projectile loses speed.
+        float ratio = Mathf.Max(0f, speed) / Mathf.Max(1f, table.homingTurnReferenceSpeed);
+        return Mathf.Max(0f, referenceTurnSpeed) *
+            Mathf.Pow(ratio, Mathf.Max(1f, table.homingTurnSpeedExponent));
+    }
+
+    public static float FlightDistance(MagicStatEntry entry, MagicStatTable table)
+    {
+        if (entry.effect == MagicEffectKind.Mine) return entry.placementDistance;
+        return entry.range * (entry.requiresTarget && UsesFlightExhaustion(entry.magic, table)
+            ? Mathf.Max(1f, table.homingTravelDistanceMultiplier) : 1f);
+    }
+
+    public static float FlightLifetime(MagicStatEntry entry, MagicStatTable table)
+    {
+        return entry.projectileLifetime * (entry.effect != MagicEffectKind.Mine && entry.requiresTarget &&
+            UsesFlightExhaustion(entry.magic, table) ? Mathf.Max(1f, table.homingLifetimeMultiplier) : 1f);
+    }
+
+    // Constant-velocity intercept avoids wasting steering energy on a target that never turns.
+    // This changes the aim point only: RotateTowards still bounds every in-flight correction.
+    public static Vector3 HomingAimDelta(Vector3 delta, Vector3 targetVelocity, float speed, float maxLeadSeconds)
+    {
+        if (maxLeadSeconds <= 0f || speed <= .001f || delta.sqrMagnitude <= .001f) return delta;
+        float a = targetVelocity.sqrMagnitude - speed * speed;
+        float b = 2f * Vector3.Dot(delta, targetVelocity);
+        float c = delta.sqrMagnitude;
+        float time = 0f;
+        if (Mathf.Abs(a) < .001f)
+        {
+            if (b < -.001f) time = -c / b;
+        }
+        else
+        {
+            float discriminant = b * b - 4f * a * c;
+            if (discriminant >= 0f)
+            {
+                float root = Mathf.Sqrt(discriminant);
+                float first = (-b - root) / (2f * a);
+                float second = (-b + root) / (2f * a);
+                if (first > 0f) time = first;
+                if (second > 0f && (time <= 0f || second < time)) time = second;
+            }
+        }
+        return delta + targetVelocity * Mathf.Clamp(time, 0f, maxLeadSeconds);
+    }
 
     public bool HasFlightExhaustion => ConstructKind == MagicConstructKind.Projectile && ExhaustionEnabled;
 
@@ -105,10 +168,11 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         ConstructKind = MagicConstructKind.Projectile;
         stats = entry;
-        flightSettings = MagicStatTable.Default;
+        flightSettings = shooter.MagicTable != null ? shooter.MagicTable : MagicStatTable.Default;
         ExhaustionEnabled = entry.requiresTarget && UsesFlightExhaustion(entry.magic, flightSettings);
         FlightSpeedFraction = 1f;
         FlightExhausted = false;
+        sweptTarget = null;
         fallingVelocity = Vector3.zero;
         fallingWater = null;
         timeLifetimeRemainder = 0f;
@@ -130,15 +194,20 @@ public partial class MagicProjectile : NetworkBehaviour
         ShooterTeam = shooter.TeamIndex;
         TargetId = target != null ? target.Object.Id : summonTargetId;
         IsMine = entry.effect == MagicEffectKind.Mine;
+        Vector3 targetDelta = target != null ? target.LockAimPoint - transform.position : Vector3.zero;
+        if (HasFlightExhaustion && target != null)
+            targetDelta = HomingAimDelta(targetDelta, target.ParryHintVelocity, entry.projectileSpeed,
+                flightSettings.homingLeadSeconds);
         direction = ResolveLaunchDirection(entry.requiresTarget && !IsMine, aim,
-            shooter.transform.forward, target != null ? target.LockAimPoint - transform.position : Vector3.zero);
+            shooter.transform.forward, targetDelta);
         if (direction.sqrMagnitude < 0.5f)
             direction = shooter.transform.forward;
         transform.rotation = Quaternion.LookRotation(direction);
+        if (HasFlightExhaustion && target != null) TryGetSweptTargetContact(target, out _);
         float duration = IsMine
             ? entry.placementDistance / Mathf.Max(1f, entry.projectileSpeed) +
                 entry.activationDelay + entry.effectDuration
-            : entry.projectileLifetime;
+            : FlightLifetime(entry, flightSettings);
         Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.1f, duration));
         initialized = true;
     }
@@ -188,13 +257,23 @@ public partial class MagicProjectile : NetworkBehaviour
                 stats.projectileTurnSpeed * Mathf.Deg2Rad * flightDelta, 0f).normalized;
         Vector3 previousDirection = direction;
         Player target = FindTarget();
+        if (TryGetSweptTargetContact(target, out Vector3 crossingPoint))
+        {
+            Impact(crossingPoint, target);
+            return;
+        }
         MagicProjectile summonTarget = FindSummonTargetById();
         if ((target != null || summonTarget != null) && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
         {
             Vector3 desired = (target != null ? target.LockAimPoint : summonTarget.transform.position) - transform.position;
+            if (HasFlightExhaustion && target != null)
+                desired = HomingAimDelta(desired, target.ParryHintVelocity,
+                    stats.projectileSpeed * FlightSpeedFraction * (flightDelta / Mathf.Max(.000001f, Runner.DeltaTime)),
+                    flightSettings.homingLeadSeconds);
             if (desired.sqrMagnitude > 0.001f)
                 direction = ResolveHomingDirection(stats.requiresTarget, direction, desired,
-                    stats.projectileTurnSpeed, flightDelta);
+                    HasFlightExhaustion ? FlightTurnSpeed(stats.projectileTurnSpeed,
+                        stats.projectileSpeed * FlightSpeedFraction, flightSettings) : stats.projectileTurnSpeed, flightDelta);
         }
 
         if (HasFlightExhaustion)
@@ -203,7 +282,7 @@ public partial class MagicProjectile : NetworkBehaviour
             if (FlightSpeedFraction <= flightSettings.homingFallThreshold)
             { ExhaustFlight(); return; }
         }
-        float limit = IsMine ? stats.placementDistance : stats.range;
+        float limit = FlightDistance(stats, flightSettings);
         float step = Mathf.Min(stats.projectileSpeed * (HasFlightExhaustion ? FlightSpeedFraction : 1f) * flightDelta, Mathf.Max(0f, limit - TravelledDistance));
         Vector3 next = transform.position + direction * step;
         if (TryGetInitialOverlap(out Collider overlap))
@@ -274,6 +353,42 @@ public partial class MagicProjectile : NetworkBehaviour
             return null;
         }
         return target;
+    }
+
+    // The ordinary SphereCast still handles walls and all other colliders. This extra
+    // check uses actual consecutive poses of ONLY the locked target, not predicted hits.
+    private bool TryGetSweptTargetContact(Player target, out Vector3 point)
+    {
+        point = default;
+        if (!HasFlightExhaustion || IsMine || target == null)
+        { sweptTarget = null; return false; }
+        BattleFlag.GetCapsule(target, out Vector3 center, out Vector3 halfAxis, out float radius);
+        float maxMovement = Mathf.Max(4f, target.ParryHintVelocity.magnitude * Runner.DeltaTime * 2f + radius);
+        bool continuous = sweptTarget == target && sweptPortalSequence == target.PortalExitSequence &&
+            (center - sweptTargetCenter).sqrMagnitude <= maxMovement * maxMovement;
+        bool hit = continuous && TrySweptTargetContact(sweptProjectileStart, transform.position,
+            sweptTargetCenter, center, halfAxis, radius + Mathf.Max(.02f, stats.projectileRadius), out point);
+        // Never turn a crossing through scenery into a hit on the far side.
+        if (hit && !HasBlastSight(point, target)) hit = false;
+        sweptTarget = target;
+        sweptPortalSequence = target.PortalExitSequence;
+        sweptTargetCenter = center;
+        sweptProjectileStart = transform.position;
+        return hit;
+    }
+
+    public static bool TrySweptTargetContact(Vector3 shotStart, Vector3 shotEnd, Vector3 targetStart,
+        Vector3 targetEnd, Vector3 halfAxis, float radius, out Vector3 point)
+    {
+        Vector3 relativeStart = shotStart - targetStart;
+        Vector3 relativeEnd = shotEnd - targetEnd;
+        float squared = BattleFlag.SegmentDistanceSquared(relativeStart, relativeEnd,
+            -halfAxis, halfAxis, out Vector3 closest);
+        Vector3 relativeStep = relativeEnd - relativeStart;
+        float t = relativeStep.sqrMagnitude > .000001f
+            ? Mathf.Clamp01(Vector3.Dot(closest - relativeStart, relativeStep) / relativeStep.sqrMagnitude) : 0f;
+        point = Vector3.Lerp(shotStart, shotEnd, t);
+        return squared <= Mathf.Max(0f, radius) * Mathf.Max(0f, radius);
     }
 
     // Only existing hostile homing shots lose their target. No teleport, invulnerability,
@@ -601,6 +716,35 @@ public partial class MagicProjectile : NetworkBehaviour
         return false;
     }
 
+    // Bot decision tick only. Cheap closing-time estimate; unlike the HUD/parry query
+    // this does not integrate every shot's future path. Read the actual host flight state.
+    public static bool TryGetBotHomingThreat(Player observer, float range, out MagicProjectile threat,
+        out float arrival, out float currentTurnRate, out float initialTurnRate)
+    {
+        threat = null; arrival = float.PositiveInfinity; currentTurnRate = initialTurnRate = 0f;
+        if (observer == null || observer.Object == null || !observer.Object.IsValid) return false;
+        Vector3 targetVelocity = observer.ParryHintVelocity;
+        foreach (var shot in active)
+        {
+            if (shot == null || shot.Object == null || !shot.Object.IsValid || !shot.initialized ||
+                !shot.TargetId.Equals(observer.Object.Id) || !shot.HasFlightExhaustion || !shot.IsThreatTo(observer)) continue;
+            Vector3 delta = observer.LockAimPoint - shot.transform.position;
+            float squared = delta.sqrMagnitude;
+            if (squared > range * range || Vector3.Dot(shot.transform.forward, delta) <= 0f) continue;
+            float timeScale = TimeProjectileMultiplier(shot.Runner, shot.transform.position);
+            float speed = shot.stats.projectileSpeed * shot.FlightSpeedFraction;
+            float closing = Vector3.Dot(shot.transform.forward * speed * timeScale - targetVelocity, delta.normalized);
+            if (closing <= .01f) continue;
+            float eta = Mathf.Sqrt(squared) / closing;
+            if (eta >= arrival || !HasBlastSight(shot.transform.position, observer)) continue;
+            var table = shot.flightSettings != null ? shot.flightSettings : MagicStatTable.Default;
+            currentTurnRate = FlightTurnSpeed(shot.stats.projectileTurnSpeed, speed, table) * timeScale;
+            initialTurnRate = FlightTurnSpeed(shot.stats.projectileTurnSpeed, shot.stats.projectileSpeed, table) * timeScale;
+            threat = shot; arrival = eta;
+        }
+        return threat != null;
+    }
+
     public bool IsThreatTo(Player observer)
     {
         if (observer == null || observer.Object == null || !observer.Object.IsValid ||
@@ -619,8 +763,11 @@ public partial class MagicProjectile : NetworkBehaviour
             Object == null || !Object.IsValid || Runner != observer.Runner || Finished || IsMine || IsConstruct || Settled ||
             ShooterTeam == observer.TeamIndex || FlightExhausted) return false;
         MagicStatEntry entry = PresentationStats;
+        MagicStatTable guidance = flightSettings != null ? flightSettings : MagicStatTable.Default;
+        float baseSpeed = entry.projectileSpeed;
+        float timeScale = TimeProjectileMultiplier(Runner, transform.position);
         if (HasFlightExhaustion) entry.projectileSpeed *= FlightSpeedFraction;
-        entry.projectileSpeed *= TimeProjectileMultiplier(Runner, transform.position);
+        entry.projectileSpeed *= timeScale;
         if (entry.projectileSpeed <= 0f) return false;
         Vector3 offset = transform.position - observer.LockAimPoint;
         bool guidedToObserver = entry.requiresTarget && TargetId.Equals(observer.Object.Id);
@@ -631,15 +778,33 @@ public partial class MagicProjectile : NetworkBehaviour
         {
             // Follow the limited arc against constant target velocity. A shot flying past
             // the defender is no longer treated as pointing directly at them this tick.
-            float horizon = Mathf.Min(4f,Mathf.Max(0f,entry.range-TravelledDistance)/entry.projectileSpeed);
+            float distanceLeft = Mathf.Max(0f, FlightDistance(entry, guidance) - TravelledDistance);
+            float horizon = Mathf.Min(4f, Mathf.Max(0f, Lifetime.RemainingTime(Runner) ?? 0f));
+            float fraction = HasFlightExhaustion ? FlightSpeedFraction : 1f;
             for(float elapsed=0f;elapsed<horizon;)
             {
                 float dt = Mathf.Min(1f/30f,horizon-elapsed);
-                forward = ResolveHomingDirection(true,forward,-offset,entry.projectileTurnSpeed,dt);
-                Vector3 relative = forward*entry.projectileSpeed-observerVelocity;
+                Vector3 before = forward;
+                Vector3 desired = HasFlightExhaustion
+                    ? HomingAimDelta(-offset, observerVelocity, baseSpeed * fraction * timeScale, guidance.homingLeadSeconds)
+                    : -offset;
+                float turnSpeed = HasFlightExhaustion
+                    ? FlightTurnSpeed(entry.projectileTurnSpeed, baseSpeed * fraction, guidance)
+                    : entry.projectileTurnSpeed;
+                forward = ResolveHomingDirection(true, forward, desired, turnSpeed, dt * timeScale);
+                if (HasFlightExhaustion)
+                {
+                    fraction = DrainFlightSpeed(fraction, before, forward, dt * timeScale, guidance);
+                    if (fraction <= guidance.homingFallThreshold) return false;
+                }
+                float speed = baseSpeed * fraction * timeScale;
+                if (speed <= .001f || distanceLeft <= 0f) return false;
+                dt = Mathf.Min(dt, distanceLeft / speed);
+                Vector3 relative = forward * speed - observerVelocity;
                 if(TryEstimateImpactTime(offset,relative,radius,false,out float contact) && contact<=dt)
                 { seconds=elapsed+contact; return true; }
                 offset += relative*dt;
+                distanceLeft -= speed * dt;
                 elapsed += dt;
             }
             return false;

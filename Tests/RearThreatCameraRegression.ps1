@@ -174,7 +174,7 @@ $source+=@'
 Add-Type -TypeDefinition $source
 "Rear view and mask checks passed: $([RearChecks.Tests]::Run())"
 if($rear -match 'main\.transform\.(SetPositionAndRotation|rotation\s*=|position\s*=)'){throw 'Main aim camera modified'}
-foreach($required in @('enemy.IsHiddenBySmokeFor(local)','enemy.TeamIndex == local.TeamIndex','enemy.HasLockTarget(local.Object)','main.transform.InverseTransformDirection(delta)','shot.TryGetImpactTime(local, out _)','shot.Finished','shot.ShooterTeam == local.TeamIndex')) {
+foreach($required in @('enemy.IsHiddenBySmokeFor(local)','enemy.TeamIndex == local.TeamIndex','enemy.HasLockTarget(local.Object)','main.transform.InverseTransformDirection(delta)','shot.IsThreatTo(local)','shot.Finished','shot.ShooterTeam == local.TeamIndex')) {
  if(!$rear.Contains($required)){throw "Missing filtering/framing: $required"}
 }
 if((Get-Content Assets/Resources/FlightCombatTable.asset -Raw) -notmatch 'rearViewDistance: 100'){throw 'Expected default rear range 100m'}

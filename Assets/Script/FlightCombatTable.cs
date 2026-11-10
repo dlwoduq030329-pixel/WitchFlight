@@ -5,12 +5,15 @@ public sealed class FlightCombatTable : ScriptableObject
 {
     private static FlightCombatTable cached;
     public static FlightCombatTable Default => cached != null ? cached : cached = Resources.Load<FlightCombatTable>("FlightCombatTable");
+    [Header("Shift dash (3 charges)")]
+    [Tooltip("대쉬 1회 충전 시간. 첫 소모 즉시 충전을 시작하며 추가 소모가 진행 중인 충전을 초기화하지 않습니다.")]
+    [Min(.05f)] public float dashRechargeSeconds = 4f;
     [Header("Body ram (host authoritative)")]
     public bool enableRamming = true;
     [Min(0f)] public float minimumRamSpeed = 12f;
     [Tooltip("Shift 부스트 중 적 박치기 접촉 거리 배율. 1이면 평상시와 동일하며, 벽/이동 콜라이더에는 영향을 주지 않습니다.")]
     [Min(1f)] public float boostRamContactMultiplier = 1.5f;
-    [Min(0f)] public float ramDamage = 30f;
+    [Min(0f)] public float ramDamage = 70f;
     [Min(.1f)] public float ramCooldown = 1f;
     [Min(0f)] public float ramKnockback = 7f;
     [Min(0f)] public float ramStun = .15f;

@@ -11,9 +11,11 @@ namespace ThreatChecks {
 public struct Vector3 {public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public float sqrMagnitude=>x*x+y*y+z*z;public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);public static float Dot(Vector3 a,Vector3 b)=>a.x*b.x+a.y*b.y+a.z*b.z;}
 public static class Mathf {public static float Sqrt(float x)=>(float)Math.Sqrt(x);}
 public class Transform {public Vector3 position,forward;}
-public class NetworkObject {public bool IsValid=true;}
+public struct NetworkId {public int Value;}
+public class NetworkObject {public bool IsValid=true;public NetworkId Id=new(){Value=1};}
 public class Player {public NetworkObject Object=new();public object Runner=new();public Vector3 LockAimPoint;public int TeamIndex=1;}
 public class MagicProjectile {
+ public NetworkId TargetId;
  public static HashSet<MagicProjectile> active=new();public NetworkObject Object=new();public object Runner;public Transform transform=new();public bool Finished,IsMine,IsConstruct,Settled,InView,Timed=true;public int ShooterTeam=2;public float Seconds;
  public static HashSet<float> blockedPositions=new();public static int SightChecks;
  public bool TryGetImpactTime(Player observer,out float seconds){seconds=Seconds;return Timed;}
@@ -27,6 +29,8 @@ public static class Tests {
  public static int Run(){
   var observer=new Player();Predicate<MagicProjectile> offscreen=s=>!s.InView;
   var front=Shot(observer,10,.1f,true);var rear=Shot(observer,25,.5f,false);
+  rear.TargetId=new(){Value=2};Check(!MagicProjectile.TryGetIncomingThreat(observer,90,out _,out _,1.5f,offscreen),"projectile targeting another player never warns");rear.TargetId=default;
+  rear.Timed=false;Check(!MagicProjectile.TryGetIncomingThreat(observer,90,out _,out _,1.5f,offscreen),"untargeted passing projectile without collision prediction never warns");rear.Timed=true;
   Check(MagicProjectile.TryGetIncomingThreat(observer,90,out _,out var selected,1.5f,offscreen)&&selected==rear,"visible imminent shot cannot mask an offscreen threat");
   Check(MagicProjectile.SightChecks==1,"on-screen candidate skipped before visibility raycasts");
   Check(MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f)&&selected==front,"unfiltered callers retain previous query behavior");
@@ -49,9 +53,27 @@ public static class Tests {
   Check(warnings.Count==0,"constructs are not incoming projectile warnings");
   warnings.Add(two);MagicProjectile.TryGetIncomingThreat(null,90,out _,out _,1.5f,offscreen,warnings);
   Check(warnings.Count==0,"missing observer clears all previous candidates");
+  MagicProjectile.active.Clear();warnings.Clear();
+  front=Shot(observer,10,.2f,true);rear=Shot(observer,20,.4f,false);
+  Check(MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,null,warnings)&&selected==front,
+      "HUD all-direction query selects imminent front threat");
+  Check(warnings.Count==2&&warnings.Contains(front)&&warnings.Contains(rear),"Front and rear both receive warning views");
+  front.InView=false;rear.InView=true;
+  MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,null,warnings);
+  Check(warnings.Count==2&&selected==front,"Camera turning does not remove warning candidates");
+  front.TargetId=new(){Value=2};MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,null,warnings);
+  Check(selected==rear&&!warnings.Contains(front),"Front projectile aimed at someone else remains excluded");
+  front.TargetId=default;front.Timed=false;MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,null,warnings);
+  Check(!warnings.Contains(front),"Untargeted passing front shot without predicted impact stays excluded");
+  front.Timed=true;front.ShooterTeam=observer.TeamIndex;MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,null,warnings);
+  Check(!warnings.Contains(front),"Friendly front shot stays excluded");
+  front.ShooterTeam=2;MagicProjectile.blockedPositions.Add(10);MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,null,warnings);
+  Check(!warnings.Contains(front),"Occluded front shot stays excluded");
+  MagicProjectile.blockedPositions.Clear();front.transform.forward=new(1,0,0);MagicProjectile.TryGetIncomingThreat(observer,90,out _,out selected,1.5f,null,warnings);
+  Check(!warnings.Contains(front),"Departing front shot stays excluded");
   return n;
  }
 }}
 '@
 Add-Type -TypeDefinition ($stubs + $method + $checks)
-"Offscreen threat selection checks passed: $([ThreatChecks.Tests]::Run())"
+"Filtered and all-direction threat selection checks passed: $([ThreatChecks.Tests]::Run())"

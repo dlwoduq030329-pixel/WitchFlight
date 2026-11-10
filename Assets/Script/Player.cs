@@ -10,13 +10,14 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [SerializeField] private bool automaticCruise = true;
     [SerializeField, Min(.05f)] private float glideStopSeconds = 1.5f;
     [SerializeField, Min(.05f)] private float burstBoostSeconds = 2f;
-    [SerializeField, Min(0f)] private float burstBoostManaCost = 10f;
     [SerializeField, Min(1f)] private float burstAccelerationMultiplier = 4f;
     [Networked] private float GlideElapsed { get; set; }
     [Networked] private float GlideStartSpeed { get; set; }
     [Networked] private TickTimer BurstBoostTimer { get; set; }
     public bool UsesAutomaticCruise => automaticCruise && !IsMatchBot && !IsTestBot;
     public bool IsGliding => UsesAutomaticCruise && GlideElapsed > 0f;
+    public float GlideStopSeconds => Mathf.Max(.05f, glideStopSeconds);
+    public float BurstBoostSeconds => Mathf.Max(.05f, burstBoostSeconds);
 
     private void ProcessCruiseInput(NetworkButtons buttons, bool allowBoost)
     {
@@ -36,11 +37,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (allowBoost && buttons.WasPressed(previousButtons, PlayerInputButton.Boost) &&
             !TimerIsActive(BurstBoostTimer) && !boostNeedsRelease && !IsBound && !IsHitStunned)
         {
-            float cost = RaceCourse.Instance != null ? 0f : burstBoostManaCost *
-                (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind)));
-            if (TryConsumeMovementAp(cost))
-                StartCruiseBoost();
-            else if (Object.HasInputAuthority && Runner.IsForward) BattleHud.ShowInsufficientMana(this);
+            if (TryConsumeDashCharge()) StartCruiseBoost();
         }
         IsBoosting = TimerIsActive(BurstBoostTimer) && !IsBound && !IsHitStunned;
         SpeedStage = IsBoosting ? 3 : 2;
@@ -452,6 +449,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         GlideElapsed = 0f;
         BurstBoostTimer = TickTimer.None;
         ResetItemBoost();
+        ResetDashCharges();
         LastReceivedDamage = 0f;
         LastCastMagic = MagicType.None;
         LockTargetId = default;
@@ -711,6 +709,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
 
         ResetControllerAfterRender();
+        TickDashRecharge();
         if (Object.HasStateAuthority && SpawnProtectionPending)
         {
             SpawnProtectionPending = false;
@@ -1347,34 +1346,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void UpdateHeldBoost(bool held)
     {
-        if (!held)
+        if (!held) boostNeedsRelease = false;
+        if (held && !boostNeedsRelease && !TimerIsActive(BurstBoostTimer) && !IsHitStunned && !IsBound)
         {
-            boostNeedsRelease = false;
-            return;
-        }
-        if (boostNeedsRelease || IsHitStunned || IsBound)
-            return;
-
-        float cost = RaceCourse.Instance != null ? 0f : boostApCostPerSecond * Runner.DeltaTime * (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind)));
-        if (!TryConsumeMovementAp(cost))
-        {
-            // Boost is predicted locally. Never replay UI feedback during rollback.
-            if (Object.HasInputAuthority && Runner.IsForward) BattleHud.ShowInsufficientMana(this);
-            // Exhaust the remaining fraction and avoid rapid on/off boosting as AP regenerates.
-            TryConsumeMovementAp(NowAp);
-            boostNeedsRelease = true;
-            return;
-        }
-
-        if (SpeedStage == 0)
-            SpeedStage = 1;
-
-        IsBoosting = true;
-        if (cost > 0f && NowAp <= 0f)
-        {
-            if (Object.HasInputAuthority && Runner.IsForward) BattleHud.ShowInsufficientMana(this);
+            if (TryConsumeDashCharge()) StartCruiseBoost();
             boostNeedsRelease = true;
         }
+        IsBoosting = TimerIsActive(BurstBoostTimer) && !IsHitStunned && !IsBound;
     }
 
     private void TryStartParry()

@@ -23,9 +23,36 @@ MonoBehaviour:
   parryDetectionRange: 160
   parryMistakeSeconds: {x: 0.1, y: 0.25}
   attackPauseSeconds: 0.65
+  useCombatDash: 1
+  useBodyRam: 1
+  dashDecisionSeconds: 1.1
+  dashUseChance: 0.85
+  dashMistakeChance: 0.2
+  dashMistakeDelay: {x: 0.4, y: 0.85}
+  dashTravelDistance: 25
+  ramAttemptChance: 0.65
+  ramMistakeChance: 0.3
+  ramApproachDistance: 55
+  ramCommitSeconds: 2.2
+  ramRetrySeconds: 3.5
+  ramMissDistance: 4
+  ramLeadSeconds: 0.55
+  useHomingEvasion: 1
+  evasionScanSeconds: 0.35
+  evasionRetrySeconds: 1.6
+  evasionDetectionRange: 100
+  evasionLookAheadSeconds: 1.8
+  evasionWeakTurnRatio: 0.65
+  evasionUseChance: 0.75
+  evasionMistakeChance: 0.25
+  evasionMistakeDelay: 0.45
+  evasionTurnAngle: 110
+  evasionHoldSeconds: 1.2
   escortDistance: 28
   escortThreatRange: 100
   fighterLeashDistance: 180
+  fighterOpportunityDistance: 70
+  fighterCarrierHealthMinimum: 0.7
   isolationRadius: 65
   encirclementRadius: 45
   encirclementHeight: 12

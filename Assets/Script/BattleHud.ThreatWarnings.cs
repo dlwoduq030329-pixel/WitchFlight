@@ -15,6 +15,7 @@ public sealed partial class BattleHud
         public Image icon;
         public TMP_Text text;
         public CombatFeedbackGraphic glow, frame, cueRing;
+        public ThreatDistanceBar distanceBar;
         public MagicProjectile target;
         public float phase, cueStarted;
         public bool cueActive;
@@ -44,7 +45,7 @@ public sealed partial class BattleHud
         foreach (MagicProjectile shot in incomingThreats)
         {
             if (shot == incomingThreat || shot == null || shot.Object == null || !shot.Object.IsValid ||
-                shot.Finished || !shot.IsThreatTo(owner) || !IsOffscreenThreat(shot)) continue;
+                shot.Finished || !shot.IsThreatTo(owner)) continue;
             if (index == additionalThreatViews.Count) additionalThreatViews.Add(CreateAdditionalThreatWarning());
             ThreatWarningView view = additionalThreatViews[index++];
             if (view.target != shot) { view.target = shot; view.phase = 0f; view.cueActive = false; }
@@ -79,6 +80,7 @@ public sealed partial class BattleHud
             view.cueRing.color = parryCueColor;
             view.cueRing.rectTransform.sizeDelta = Vector2.one * warningIconSize * parryCueRingScale * punch;
             Visible(view.cueRing.gameObject, cue);
+            UpdateThreatDistanceBar(view.distanceBar, Vector3.Distance(owner.LockAimPoint, shot.transform.position), cue);
             Visible(view.root.gameObject, true);
         }
         for (; index < additionalThreatViews.Count; index++)
@@ -107,6 +109,7 @@ public sealed partial class BattleHud
         view.text.text = "!";
         view.text.alignment = TextAlignmentOptions.Center;
         view.text.margin = Vector4.zero;
+        view.distanceBar = CreateThreatDistanceBar(view.root);
         return view;
     }
 
@@ -137,14 +140,15 @@ public sealed partial class BattleHud
         {
             MagicProjectile shot = view.target;
             if (shot == null || shot == incomingThreat || worldCamera == null || shot.Object == null ||
-                !shot.Object.IsValid || shot.Finished || !shot.IsThreatTo(owner) || !IsOffscreenThreat(shot))
+                !shot.Object.IsValid || shot.Finished || !shot.IsThreatTo(owner))
             { Visible(view.root.gameObject, false); continue; }
             Vector3 direction = GetThreatViewDirection(worldCamera.transform.position, worldCamera.transform.rotation, shot.transform.position);
-            float padding = Mathf.Max(warningEdgePadding, warningIconSize * warningGlowScale * .5f + 8f);
-            Vector2 point = GetThreatScreenPoint(direction, worldCamera.pixelRect, padding);
-            point = SeparateThreatPoint(point, worldCamera.pixelRect, padding,
-                warningIconSize * Mathf.Max(1f, warningSpacingScale), occupiedThreatPoints);
+            Rect orbit = GetThreatOrbitBounds();
+            Vector2 point = GetThreatScreenPoint(direction, orbit, 0f);
+            point = SeparateThreatPoint(point, orbit, 0f,
+                Mathf.Max(warningIconSize * Mathf.Max(1f, warningSpacingScale), warningDistanceBarWidth + warningDistanceBarGap + 8f), occupiedThreatPoints);
             bool placed = PlaceScreen(view.root, point);
+            PlaceThreatDistanceBar(view.distanceBar, point, orbit.center, placed, true);
             Visible(view.root.gameObject, placed);
             if (placed) occupiedThreatPoints.Add(point);
         }
@@ -155,8 +159,10 @@ public sealed partial class BattleHud
         Vector2 half = new Vector2(Mathf.Max(1f, screen.width * .5f - padding), Mathf.Max(1f, screen.height * .5f - padding));
         Vector2 delta = desired - screen.center;
         float angle = Mathf.Atan2(delta.y / half.y, delta.x / half.x);
-        float step = Mathf.Min(.5f, Mathf.Max(1f, spacing) / Mathf.Max(1f, Mathf.Min(half.x, half.y)));
-        for (int i = 0; i < 128; i++)
+        float minimumAngle = 2f * Mathf.Asin(Mathf.Min(1f, Mathf.Max(1f, spacing) / (2f * Mathf.Min(half.x, half.y))));
+        int slots = Mathf.Max(1, Mathf.FloorToInt(2f * Mathf.PI / Mathf.Max(.001f, minimumAngle)));
+        float step = 2f * Mathf.PI / slots;
+        for (int i = 0; i < Mathf.Min(128, slots); i++)
         {
             int offset = (i + 1) / 2 * (i % 2 == 0 ? -1 : 1);
             float candidateAngle = angle + offset * step;

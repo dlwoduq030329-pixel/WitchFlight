@@ -13,24 +13,27 @@ using System.Collections.Generic;
 namespace PredictionChecks {
 public enum MagicType {Fire,Ice}
 public enum MagicEffectKind {DirectDamage,PursuitSummon}
-public struct Vector3 {public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public static Vector3 zero=>default;public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);}
+public struct Vector3 {public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public static Vector3 zero=>default;public Vector3 normalized=>this;public float sqrMagnitude=>x*x+y*y+z*z;public static Vector3 operator-(Vector3 a,Vector3 b)=>new(a.x-b.x,a.y-b.y,a.z-b.z);}
 public class Transform {public Vector3 position,forward=new(0,0,1);public Transform parent;public void SetParent(Transform p,bool world){parent=p;}}
 public class GameObject {public bool activeSelf;public void SetActive(bool value){activeSelf=value;}}
+public static class RearThreatCamera {public static void ExcludeLocalEffect(GameObject go,Player player){}}
+public static class TimeVfxSpeed {public static void Bind(GameObject go,NetworkRunner runner,int team,bool projectile){}}
 public static class Time {public static float unscaledTime;}
 public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);}
 public struct NetworkId {public int value;}
 public class NetworkRunner {public bool IsForward=true;public Player player;public bool TryFindObject(NetworkId id,out NetworkObject obj){obj=player?.Object;return obj!=null&&obj.Id.Equals(id);}}
 public class NetworkObject {public bool HasInputAuthority=true,HasStateAuthority,IsValid=true;public NetworkId Id;public Player player;public T GetComponent<T>() where T:class=>player as T;}
-public class MagicStatTable {}
+public class MagicStatTable {public float homingLeadSeconds=3;}
 public class MagicStatEntry {public MagicType magic;public MagicEffectKind effect;public float projectileSpeed=75,castSeconds;public bool requiresTarget=true;}
-public class Player {public NetworkObject Object=new();public NetworkRunner Runner;public Transform transform=new();public Vector3 LockAimPoint=>transform.position;public Vector3 MagicCastPosition=new(2,3,4);public MagicStatTable MagicTable=new();}
-public class MagicProjectile {public NetworkRunner Runner;public NetworkId ShooterId;public int PredictionInputTick;public MagicType Magic;public Transform transform=new();public static Vector3 ResolveLaunchDirection(bool a,Vector3 b,Vector3 c,Vector3 d)=>b;}
+public class Player {public int TeamIndex;public NetworkObject Object=new();public NetworkRunner Runner;public Transform transform=new();public Vector3 LockAimPoint=>transform.position;public Vector3 ParryHintVelocity=>default;public Vector3 MagicCastPosition=new(2,3,4);public MagicStatTable MagicTable=new();}
+public class MagicProjectile {public int ShooterTeam;public NetworkRunner Runner;public NetworkId ShooterId;public int PredictionInputTick;public MagicType Magic;public Transform transform=new();public static Vector3 ResolveLaunchDirection(bool a,Vector3 b,Vector3 c,Vector3 d)=>b;public static bool UsesFlightExhaustion(MagicType magic,MagicStatTable table)=>false;public static Vector3 HomingAimDelta(Vector3 delta,Vector3 velocity,float speed,float lead)=>delta;}
 public class ProjectilePredictionView {
  public static HashSet<ProjectilePredictionView> pending=new();
  public Player owner,target;public MagicProjectile source,summonTarget;public MagicStatEntry stats;public MagicStatTable table;public NetworkRunner runner;public NetworkId shooterId;public int inputTick;
  public float createdAt,launchAt;public Vector3 direction,correction;public bool predictedStop,predictedImpact,hasSource;public Transform transform=new();public GameObject content=new();
+ public GameObject gameObject=new();static void Destroy(GameObject go){}
  public static int Creates;
- static ProjectilePredictionView Create(MagicStatEntry entry,Vector3 position,Vector3 forward){Creates++;return new(){stats=entry,transform=new(){position=position,forward=forward}};}
+ static ProjectilePredictionView Create(MagicStatEntry entry,Vector3 position,Vector3 forward,ProjectilePredictionView reusable=null){Creates++;return new(){stats=entry,transform=new(){position=position,forward=forward}};}
  Vector3 GetConfirmedPosition()=>source.transform.position;
 '@
 $methods = (Method HasPending) + (Method Predict) + (Method Attach)
