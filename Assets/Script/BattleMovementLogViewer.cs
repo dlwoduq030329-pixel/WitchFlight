@@ -209,6 +209,7 @@ public sealed partial class BattleMovementLogViewer : MonoBehaviour
                 pointer.Use();
             }
         }
+        DensityPointer(pointer);
         if(font!=null) GUI.skin.font=font;
         GUI.Box(new Rect(0,0,Sidebar,Screen.height),GUIContent.none);
         GUILayout.BeginArea(new Rect(10,10,Sidebar-20,Screen.height-20));
@@ -261,6 +262,7 @@ public sealed partial class BattleMovementLogViewer : MonoBehaviour
         GUILayout.Label("우클릭 드래그: 회전\n휠: 확대 / 휠 버튼 드래그: 이동\n선이 끊긴 곳: 부활·포탈·라운드 변경·기록 누락");
         GUILayout.EndScrollView();
         GUILayout.EndArea();
+        DrawDensityCaption();
         labelStyle??=new GUIStyle(GUI.skin.label) {fontSize=14,alignment=TextAnchor.MiddleCenter};
         foreach(var view in views)
         {

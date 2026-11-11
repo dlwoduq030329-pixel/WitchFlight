@@ -31,7 +31,7 @@ namespace UnityEngine {
 '@
 $model=(Get-Content Assets/Script/BattleMovementLog.cs -Raw).Split('public static class BattleMovementLogFiles')[0]
 $code=$stubs+"`nnamespace DensityChecks {`n"+$model+"`n}`n"
-foreach($file in 'BattleMovementDensity','BattleMovementSpreadsheet') {
+foreach($file in 'BattleMovementDensity','BattleMovementDensityDisplay','BattleMovementSpreadsheet') {
  $code+="`nnamespace DensityChecks {`n"+(Get-Content "Assets/Script/$file.cs" -Raw)+"`n}`n"
 }
 $code+=@'
@@ -60,6 +60,16 @@ public static class Tests {
   Check(result.seconds.Count==2&&result.altitudeSeconds.Count==2,"same X/Z at different altitudes stays separate");
   Check(result.matches==2&&result.players==2&&result.duplicates==2,"duplicate exports do not add weight");
   Check(Near(result.totalSeconds,4)&&Near(result.altitudeSeconds[0],2)&&Near(result.altitudeSeconds[2],2),"dwell seconds and height shares");
+  var plan=BattleMovementDensityDisplay.Project(result,0,10,true);
+  Check(plan.Count==1&&Near(plan[new Vector3Int(0,0,0)],4),"overview sums height layers into one non-overlapping X/Z cell");
+  var slice=BattleMovementDensityDisplay.Project(result,20,30,false);
+  Check(slice.Count==1&&Near(slice[new Vector3Int(0,0,0)],2),"altitude slice excludes all other height layers");
+  var bands=BattleMovementDensityDisplay.Thresholds(Enumerable.Range(1,100).Select(x=>(double)x));
+  Check(bands.SequenceEqual(new double[]{20,40,60,80,100}),"five density tiers have quantitative boundaries");
+  Check(BattleMovementDensityDisplay.Band(20,bands)==0&&BattleMovementDensityDisplay.Band(21,bands)==1&&BattleMovementDensityDisplay.Band(100,bands)==4,"boundary colors agree with legend");
+  var outlier=BattleMovementDensityDisplay.Thresholds(Enumerable.Range(1,99).Select(x=>(double)x).Concat(new[]{100000d}));
+  Check(Near(outlier[0],20)&&Near(outlier[3],80),"one extreme hotspot does not wash out all other colors");
+  Check(BattleMovementDensityDisplay.Project(result,50,60,false).Count==0,"empty altitude slice stays empty");
   var fast=Log("fast",Enumerable.Range(0,9).Select(i=>P(i*.25f,0,5)).ToArray());
   Check(Near(Build(new[]{fast}).totalSeconds,Build(new[]{low}).totalSeconds),"sampling frequency does not skew dwell density");
   var crossing=Build(new[]{Log("cross",P(0,0,5),P(1,100,5))});
