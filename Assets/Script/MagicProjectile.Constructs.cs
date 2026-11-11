@@ -3,7 +3,7 @@ using UnityEngine;
 
 // Reuses the registered MagicProjectile NetworkObject and NetworkTransform. No second runner,
 // per-frame RPC, unregistered runtime NetworkBehaviour, or client-authoritative damage.
-public enum MagicConstructKind { Projectile, ThunderArea, Summon, SummonBolt, TimeField }
+public enum MagicConstructKind { Projectile, ThunderArea, Summon, SummonBolt, TimeField, FlareField }
 
 public partial class MagicProjectile
 {
@@ -24,9 +24,11 @@ public partial class MagicProjectile
     private NetworkId summonPursuitTarget;
     private Vector3 summonObservedPosition, summonObservedVelocity;
     private const float SummonReactionSeconds = .35f;
-    public bool IsConstruct => ConstructKind == MagicConstructKind.ThunderArea || ConstructKind == MagicConstructKind.Summon || ConstructKind == MagicConstructKind.TimeField;
-    public virtual MagicStatEntry PresentationStats => initialized ? stats : ConstructKind == MagicConstructKind.SummonBolt
-        ? SummonBoltStats(CombatPresentation.Stats(Magic)) : CombatPresentation.Stats(Magic);
+    public bool IsConstruct => ConstructKind == MagicConstructKind.ThunderArea || ConstructKind == MagicConstructKind.Summon || ConstructKind == MagicConstructKind.TimeField || ConstructKind == MagicConstructKind.FlareField;
+    public virtual MagicStatEntry PresentationStats => initialized ? stats : FocusedBlade
+        ? PerkEffects.FocusBladeShot(CombatPresentation.Stats(Magic), FocusedBladeCharge, 1f)
+        : ConstructKind == MagicConstructKind.SummonBolt
+            ? SummonBoltStats(CombatPresentation.Stats(Magic)) : CombatPresentation.Stats(Magic);
 
     public static MagicStatEntry SummonBoltStats(MagicStatEntry source)
     {
@@ -54,6 +56,7 @@ public partial class MagicProjectile
         summonShotTimer = summonScanTimer = TickTimer.None;
         SummonLockProgress = 0f;
         SummonDamageTaken = 0f;
+        summonBurnRemaining = summonBurnDps = summonBurnTick = 0f;
         SummonMoving = false;
         SummonAttackSequence = 0;
         summonPursuitRefresh = TickTimer.None;
@@ -87,6 +90,7 @@ public partial class MagicProjectile
     {
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
         SummonMoving = false;
+        TickSummonBurn();
         if (Finished || Lifetime.Expired(Runner))
         {
             if (Lifetime.Expired(Runner)) Runner.Despawn(Object);

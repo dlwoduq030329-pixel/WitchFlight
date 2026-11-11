@@ -4,6 +4,22 @@ using UnityEngine;
 
 public partial class MagicProjectile
 {
+    private float summonBurnRemaining, summonBurnDps, summonBurnTick;
+    private MagicStatEntry summonBurnStats;
+    private int summonBurnTeam;
+    private NetworkId summonBurnAttacker;
+
+    private void TickSummonBurn()
+    {
+        if (ConstructKind != MagicConstructKind.Summon || summonBurnRemaining <= 0f || Finished) return;
+        float dt = Mathf.Min(Runner.DeltaTime, summonBurnRemaining);
+        summonBurnRemaining -= dt; summonBurnTick += dt;
+        if (summonBurnTick < .5f && summonBurnRemaining > 0f) return;
+        var tick = summonBurnStats; tick.damage = summonBurnDps * summonBurnTick;
+        summonBurnTick = 0f;
+        ReceiveSummonHit(tick, summonBurnTeam, summonBurnAttacker);
+    }
+
     [Networked] public float SummonDamageTaken { get; private set; }
     public virtual float SummonMaxHealth => PresentationStats.summonChannelHealth > 0 ? PresentationStats.summonChannelHealth : 50f;
     public virtual float SummonHealthFraction => IsLiveSummon ? Mathf.Clamp01(1f - SummonDamageTaken / SummonMaxHealth) : 0f;
@@ -97,7 +113,18 @@ public partial class MagicProjectile
 
         // Do not grant player kills, combat XP, lifesteal or on-player-hit perks for a familiar.
         if (Runner.TryFindObject(attackerId, out NetworkObject attacker) && attacker != null)
-            attacker.GetComponent<Player>()?.ConfirmSummonHit();
+        {
+            var source = attacker.GetComponent<Player>();
+            source?.ConfirmSummonHit();
+            var burn = source != null ? source.TrackAcceptedSummonBeam(this, attack) : null;
+            if (burn != null && burn.seconds > 0f)
+            {
+                if (summonBurnRemaining <= 0f) summonBurnTick = 0f;
+                summonBurnRemaining = burn.seconds; summonBurnDps = burn.amount / burn.seconds;
+                summonBurnTeam = attackerTeam; summonBurnAttacker = attackerId;
+                summonBurnStats = attack; summonBurnStats.perkFirst = summonBurnStats.perkSecond = null;
+            }
+        }
         float threshold = stats.summonChannelHealth > 0f ? stats.summonChannelHealth : 50f;
         bool killed=!sustained || SummonDamageTaken + .0001f >= threshold;
         PlayerData.FindPerkData(Runner,attack.perkAttacker)?.RecordTitleSummonHit(attack.titleCastId,killed);

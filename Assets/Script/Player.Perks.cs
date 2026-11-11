@@ -7,14 +7,16 @@ public partial class Player
     [Networked] private float PerkBaseMaxHp { get; set; }
     [Networked] private float PerkBaseMaxAp { get; set; }
     [Networked] private float PerkBaseRecovery { get; set; }
+    [Networked] private float BindingDamageBonus { get; set; }
+    [Networked] private TickTimer CurseSlowTimer { get; set; }
+    [Networked] private float CurseSpeedMultiplier { get; set; }
     [Networked] private TickTimer CleanseProtection { get; set; }
     [Networked] private float CleanseDurationMultiplier { get; set; }
     [Networked] protected bool HasBurnStatus { get; set; }
     [Networked] private TickTimer FlareProtection { get; set; }
     public bool IsFlareActive => Object != null && Object.IsValid && IsAlive && TimerIsActive(FlareProtection);
     public float LockRangeMultiplier => CombatSmoke.ContainsEnemy(Runner, LockAimPoint, TeamIndex) ? .7f : 1f;
-    public float LockDurationMultiplierAgainst(Player target) => target != null && target.IsFlareActive &&
-        target.IsEnemyOf(this) ? 1.2f : 1f;
+    public float LockDurationMultiplierAgainst(Player target) => CombatSmoke.LockDurationMultiplier(Runner, LockAimPoint, TeamIndex);
     private PlayerData perkOwner;
     private float lifeStartMaxHp, nextManaRemnant;
     private float timeFieldHealing, timeFieldHealElapsed;
@@ -38,10 +40,7 @@ public partial class Player
         timeFieldHealing = timeFieldHealElapsed = 0f;
     }
     protected float perkClock;
-    private MagicStatEntry pendingPerkStats, channelPerkStats, flarePerkStats;
-    private float flarePulseAt = -1f, flareCastAt;
-    private int flarePulsesRemaining;
-    private bool flareRefunded;
+    private MagicStatEntry pendingPerkStats, channelPerkStats;
     private NetworkId beamVictim;
     private float beamContact, beamLastContact = -100f;
     private readonly float[] visionFirstHit = { -100f, -100f, -100f };
@@ -68,6 +67,9 @@ public partial class Player
     private void InitializePerkVitals(PlayerData data)
     {
         FlareProtection = TickTimer.None;
+        BindingDamageBonus = 0f;
+        CurseSlowTimer = TickTimer.None;
+        CurseSpeedMultiplier = 1f;
         perkBurns.Clear();
         timeFieldHealing = timeFieldHealElapsed = 0f;
         HasBurnStatus = false;
@@ -82,6 +84,7 @@ public partial class Player
         MaxHp = PerkBaseMaxHp + CommonAmount(PerkId.GuardianKnot);
         MaxAp = PerkBaseMaxAp * (1f + CommonAmount(PerkId.DeepMana));
         ApRecoveryPerSecond = PerkBaseRecovery * (1f + CommonAmount(PerkId.ManaBreath));
+        RefreshDashPerks(fill);
         NowHp = fill ? MaxHp : Mathf.Min(NowHp, MaxHp);
         NowAp = fill ? MaxAp : Mathf.Min(NowAp, MaxAp);
         SyncHealthToPlayerData(); SyncApToPlayerData();
@@ -103,12 +106,12 @@ public partial class Player
         StopChannel(); pendingMagic = MagicType.None; pendingTargetId = default; castTimer = TickTimer.None;
     }
     private bool CanCleanse(MagicStatEntry s) => s.perkSecond != null && s.perkSecond.id == PerkId.HealingCleanse &&
-        (IsBound || TimerIsActive(SlowTimer) || TimerIsActive(WoundTimer));
+        (IsBound || TimerIsActive(SlowTimer) || TimerIsActive(CurseSlowTimer) || TimerIsActive(WoundTimer));
     private void ApplyPerkCleanse(MagicStatEntry s)
     {
         var p = s.perkSecond;
         if (p == null || p.id != PerkId.HealingCleanse) return;
-        BindingTimer = SlowTimer = WoundTimer = TickTimer.None; SlowMultiplier = 1f;
+        BindingTimer = SlowTimer = WoundTimer = CurseSlowTimer = TickTimer.None; SlowMultiplier = CurseSpeedMultiplier = 1f;
         CleanseDurationMultiplier = 1f - Mathf.Clamp01(p.amount);
         CleanseProtection = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f,p.seconds));
     }
@@ -128,44 +131,21 @@ public partial class Player
             if (burn.remaining <= .00001f) perkBurns.RemoveAt(i);
         }
         HasBurnStatus = perkBurns.Count > 0;
-        if (flarePulseAt >= 0f && perkClock >= flarePulseAt && IsAlive)
-        {
-            flarePulsesRemaining--;
-            flarePulseAt = flarePulsesRemaining > 0
-                ? perkClock + Mathf.Max(.05f, flarePerkStats.perkFirst.seconds) : -1f;
-            TriggerPerkFlare(flarePerkStats);
-            RPC_PresentCast(MagicType.Flare, LockAimPoint, -transform.forward, 0f);
-        }
     }
     private void StartPerkFlare(MagicStatEntry stats)
     {
-        FlareProtection = TickTimer.CreateFromSeconds(Runner, stats.effectDuration > 0f ? stats.effectDuration : 3f);
-        flarePerkStats = stats; flareRefunded = false; flareCastAt = perkClock;
-        flarePulsesRemaining = stats.perkFirst?.id == PerkId.FlarePulse
-            ? Mathf.Clamp(Mathf.RoundToInt(stats.perkFirst.amount), 0, 8) : 0;
-        flarePulseAt = flarePulsesRemaining > 0 ? perkClock + Mathf.Max(.05f,stats.perkFirst.seconds) : -1f;
-        TriggerPerkFlare(stats);
-    }
-    private void TriggerPerkFlare(MagicStatEntry stats)
-    {
-        int broken = MagicProjectile.BreakHomingFor(this, out bool rewardable);
-        if (broken == 0) return;
-        if (rewardable) PerkOwner?.AwardPerkFlare();
-        var p = stats.perkSecond;
-        if (flareRefunded || p == null || p.id != PerkId.FlareEfficiency) return;
-        flareRefunded = true;
-        RestoreAp(stats.apCost * Mathf.Clamp01(p.amount));
-        // Total discount includes the common cooldown perk; discount this cast, not future casts.
-        float raw = magicStatTable != null ? magicStatTable.GetStats(MagicType.Flare).cooldownSeconds : stats.cooldownSeconds;
-        float duration = Mathf.Max(raw * (1f - Mathf.Clamp01(Perks.cooldownDiscountCap)),
-            stats.cooldownSeconds * (1f - Mathf.Clamp01(p.secondaryAmount)));
-        MagicCooldowns.Set((int)MagicType.Flare, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f,duration - (perkClock-flareCastAt))));
+        if (!Object.HasStateAuthority || !magicProjectilePrefab.IsValid) return;
+        FlareProtection = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.1f, stats.effectDuration));
+        Vector3 rear = -transform.forward;
+        Vector3 origin = LockAimPoint + rear * Mathf.Max(0f, stats.flareVfxBackOffset);
+        Runner.Spawn(magicProjectilePrefab, origin, Quaternion.LookRotation(rear), ParticipantRef,
+            onBeforeSpawned: (runner, obj) => obj.GetComponent<MagicProjectile>().InitializeFlareField(this, stats));
     }
     private void TrackPerkBeam(Player target, float time, MagicStatEntry stats)
     {
         if (stats.perkSecond?.id != PerkId.BeamFocus) return;
         if (target == null || !target.IsEnemyOf(this)) return;
-        if (!beamVictim.Equals(target.Object.Id) || perkClock-beamLastContact > Mathf.Max(.001f,stats.perkSecond.condition)) beamContact = 0f;
+        if (!beamVictim.Equals(target.Object.Id) || perkClock-beamLastContact > Mathf.Max(.05f, stats.channelTickSeconds + Runner.DeltaTime * 2)) beamContact = 0f;
         beamVictim = target.Object.Id; beamLastContact = perkClock; beamContact += time;
     }
     // Runs after parry rejection and before damage. No client can request these bonuses.
@@ -180,8 +160,6 @@ public partial class Player
             source.visionFirstHit[slot] = second ? -100f : source.perkClock;
             source.visionVictim[slot] = Object.Id;
         }
-        if (s.perkSecond?.id == PerkId.BeamFocus && source.beamVictim.Equals(Object.Id) &&
-            source.beamContact >= s.perkSecond.seconds) s.damage *= 1f + Mathf.Max(0f,s.perkSecond.amount);
         if (iceMarks.TryGetValue(sourceId,out IceMark mark))
         {
             if (!mark.used && perkClock <= mark.expires && mark.slot != s.perkSlot && s.perkSlot > 0)
@@ -206,13 +184,26 @@ public partial class Player
                 iceMarks[sourceId] = new IceMark { slot=s.perkSlot, expires=perkClock+s.perkSecond.seconds,
                     amount=Mathf.Max(0f,s.perkSecond.amount), channelSeconds=Mathf.Max(0f,s.perkSecond.condition) };
         }
-        if (IsAlive && s.perkFirst?.id == PerkId.FireBurn && s.perkFirst.seconds > 0f)
+        if (IsAlive && s.perkSecond?.id == PerkId.CurseEfficiency)
+        {
+            CurseSpeedMultiplier = Mathf.Clamp(1f - s.perkSecond.amount, .05f, 1f);
+            CurseSlowTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.05f, s.channelTickSeconds + Runner.DeltaTime * 2));
+        }
+        PerkDefinition burnPerk = s.perkFirst?.id == PerkId.FireBurn ? s.perkFirst : null;
+        if (IsAlive && source != null && s.perkSecond?.id == PerkId.BeamFocus)
+        {
+            source.TrackPerkBeam(this, s.channelContactSeconds, s);
+            if (source.beamContact + .0001f >= s.perkSecond.condition) burnPerk = s.perkSecond;
+        }
+        if (IsAlive && burnPerk != null && burnPerk.seconds > 0f)
         {
             PlayerRef attacker = source != null ? source.ParticipantRef : s.perkAttacker;
             Burn burn = perkBurns.Find(x => x.attacker == attacker);
             if (burn == null) { burn = new Burn {attacker=attacker}; perkBurns.Add(burn); }
-            burn.remaining = s.perkFirst.seconds; burn.damagePerSecond = Mathf.Max(0f,s.perkFirst.amount) / burn.remaining;
-            burn.interval = Mathf.Max(.05f,Perks.burnTickSeconds); burn.nextTick = perkClock + Mathf.Min(burn.interval,burn.remaining);
+            bool starting = burn.remaining <= 0f;
+            burn.remaining = burnPerk.seconds; burn.damagePerSecond = Mathf.Max(0f,burnPerk.amount) / burn.remaining;
+            burn.interval = Mathf.Max(.05f,Perks.burnTickSeconds);
+            if (starting) burn.nextTick = perkClock + Mathf.Min(burn.interval,burn.remaining);
             HasBurnStatus = true;
         }
     }

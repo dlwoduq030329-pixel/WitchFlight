@@ -49,6 +49,7 @@ public class Actor {
  public float NowHp=100,NowAp=0,Speed;
  public Vector3 Velocity;
  public int DashCharges=3;
+ public int MaximumDashCharges=3;
  public float RechargeSeconds=4;
  private Controller controller;
  private Broom broom=new Broom();private Hat hat=new Hat();
@@ -86,6 +87,15 @@ public class Harness {
    a.Hit(new MagicStatEntry{damage=200,effect=MagicEffectKind.DirectDamage});
    Check(a.NowHp==1,"Test actors remain alive after lethal hit");
    a.Tick(dt,infinite:true);Check(a.NowAp==100,"Unlimited mana refills");
+  }
+  foreach(int capacity in new[]{2,3,4,5}) {
+   var a=new Actor{MaximumDashCharges=capacity,DashCharges=capacity};
+   a.Tick(.01f,dash:true);Check(a.DashCharges==capacity-1,"Equipment charge spent in offline lab");
+   for(int i=0;i<410;i++)a.Tick(.01f);
+   Check(a.DashCharges==capacity,"Offline recharge stops at equipment maximum");
+   a=new Actor{MaximumDashCharges=capacity,DashCharges=0};
+   for(int i=0;i<(capacity+1)*410;i++)a.Tick(.01f);
+   Check(a.DashCharges==capacity,"Empty offline pool refills without exceeding equipment cap");
   }
   return checks+" offline lab checks passed";
  }

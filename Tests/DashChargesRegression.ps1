@@ -15,9 +15,12 @@ using UnityEngine;
 namespace UnityEngine {
  public static class Mathf {
   public static float Max(float a,float b)=>Math.Max(a,b);
+  public static int Max(int a,int b)=>Math.Max(a,b);
+  public static int RoundToInt(float a)=>(int)Math.Round(a);
   public static int Min(int a,int b)=>Math.Min(a,b);
   public static float Min(float a,float b)=>Math.Min(a,b);
   public static float Clamp01(float a)=>Math.Clamp(a,0,1);
+  public static int Clamp(int a,int min,int max)=>Math.Clamp(a,min,max);
  }
 }
 namespace Fusion {
@@ -31,8 +34,9 @@ namespace Fusion {
  }
 }
 public class Runner { public double Time; public float DeltaTime=1f/60; }
-public class Obj { public bool IsValid=true; }
-public enum PerkId {Tailwind}
+public class Obj { public bool IsValid=true,HasStateAuthority=true; }
+public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
+public enum PerkId {Tailwind,FirstWind,BrakingRune}
 public enum BattleItemType {HealthPotion,ManaPotion,Booster}
 public enum BattleSound {HealthPotion,BoosterPickup}
 public class FlightCombatTable { public static FlightCombatTable Default=new(); public float dashRechargeSeconds=4; }
@@ -44,6 +48,11 @@ public struct NetworkButtons {
 }
 public partial class Player {
  public Runner Runner=new(); public Obj Object=new();
+ public bool IsAlive=true;
+ public float GustBonus,GuardSeconds;
+ public bool IsSpawnProtected,HasFestivalGuard;
+ public float SpawnShieldVisibility;
+ public int AcceptedHits;
  public float Tailwind,Speed=26,GlideElapsed,GlideStartSpeed,glideStopSeconds=1.5f,burstBoostSeconds=2;
  public int SpeedStage=2;
  public bool boostNeedsRelease,IsBound,IsHitStunned,IsBoosting;
@@ -57,12 +66,14 @@ public partial class Player {
  bool IsPositiveFiniteItemValue(float value)=>value>0 && !float.IsInfinity(value) && !float.IsNaN(value);
  void RestoreHealth(float amount){} void RestoreAp(float amount){} void RPC_ManaPotionPickup(){}
  void RPC_PlayBattleSound(BattleSound sound){ItemSounds++;}
- float CommonAmount(PerkId id)=>Tailwind;
+ float CommonAmount(PerkId id)=>id==PerkId.Tailwind?Tailwind:id==PerkId.FirstWind?GustBonus:GuardSeconds;
  bool TimerIsActive(TickTimer timer)=>timer.IsRunning && !timer.Expired(Runner);
  public Player Snapshot(){var p=(Player)MemberwiseClone();p.Runner=new Runner{Time=Runner.Time,DeltaTime=Runner.DeltaTime};return p;}
  public void Input(bool held,bool allow=true){var b=new NetworkButtons{Bits=held?2:0};ProcessCruiseInput(b,allow);previousButtons=b;}
  public void Advance(double time){Runner.Time=time;TickDashRecharge();}
  __METHODS__
+ __PROTECTION__
+ __DAMAGE_GATES__
  static int checks;
  static void Check(bool pass,string name){checks++;if(!pass)throw new Exception(name);}
  public static string Run(){
@@ -105,6 +116,49 @@ public partial class Player {
   }
   p=new Player();p.ResetDashCharges();p.UpdateHeldBoost(true);
   Check(p.DashCharges==2 && p.IsBoosting,"Bot/legacy flight also uses charge pool");
+  foreach(int capacity in new[]{2,3,4,5}) {
+   p=new Player();p.ResetDashCharges(capacity);
+   Check(p.MaximumDashCharges==capacity && p.DashCharges==capacity,"Equipment capacity starts full: "+capacity);
+   for(int i=0;i<capacity;i++)Check(p.TryConsumeDashCharge(),"Can consume equipment charge "+i);
+   Check(!p.TryConsumeDashCharge(),"Cannot exceed equipment capacity");
+   p.Advance(2);var copy=p.Snapshot();
+   Check(copy.MaximumDashCharges==capacity && Math.Abs(copy.DashRechargeProgress-.5f)<.001,"Snapshot retains capacity and recharge");
+   for(int i=1;i<=capacity;i++){p.Advance(i*4);Check(p.DashCharges==i,"Sequential equipment recharge");}
+   p.Advance(100);Check(p.DashCharges==capacity && !p.DashRechargeTimer.IsRunning,"Stops at equipment capacity");
+   p.ResetDashCharges(2);Check(p.DashCharges==2 && p.MaximumDashCharges==2,"Re-equipping smaller broom resets pool");
+   p.ResetDashCharges(5);Check(p.DashCharges==5 && p.MaximumDashCharges==5,"Re-equipping larger broom resets pool");
+  }
+  p=new Player();p.ResetDashCharges(5);p.TryConsumeDashCharge();p.Advance(2);
+  p.GustBonus=1;p.RefreshDashPerks(false);
+  Check(p.MaximumDashCharges==6 && p.DashCharges==5,"Gust adds one ready charge to robot");
+  Check(Math.Abs(p.DashRechargeProgress-.5f)<.001,"Gust preserves partial recharge progress");
+  p.RefreshDashPerks(false);Check(p.DashCharges==5,"Repeated stat refresh cannot grant charges");
+  p.Advance(4);Check(p.DashCharges==6,"Sixth charge fully rechargeable");
+  p.TryConsumeDashCharge();p.ResetDashCharges(5);p.RefreshDashPerks(true);
+  Check(p.DashCharges==6 && p.MaximumDashCharges==6,"Respawn retains perk capacity and starts full");
+  var gustCopy=p.Snapshot();Check(gustCopy.MaximumDashCharges==6,"Snapshot carries replicated perk bonus");
+  p.GustBonus=0;p.RefreshDashPerks(false);Check(p.DashCharges==5 && p.MaximumDashCharges==5,"Removing perk clamps pool");
+  p=new Player{GuardSeconds=1};p.ResetDashCharges();p.Input(true);
+  Check(p.IsDashGuardActive,"Successful dash starts ward");
+  p.Advance(.999);Check(p.IsDashGuardActive,"Ward covers first second");
+  p.Input(false);p.Input(true);Check(Math.Abs(p.DashGuardTimer.End-1)<.001,"Rejected overlapping dash does not extend ward");
+  p.Advance(1);Check(!p.IsDashGuardActive && p.IsBoosting,"Ward expires before two-second dash ends");
+  p.Advance(2.1);p.Input(false);p.Input(true);Check(p.IsDashGuardActive,"Next successful dash grants new ward");
+  p.IsAlive=false;Check(!p.IsDashGuardActive,"Dead player cannot retain visible ward");
+  p.IsAlive=true;p.ResetDashCharges();Check(!p.IsDashGuardActive,"Respawn clears old ward timer");
+  p=new Player();p.ResetDashCharges();p.Input(true);Check(!p.IsDashGuardActive,"No ward without perk");
+  p=new Player{GuardSeconds=1,IsBound=true};p.ResetDashCharges();p.Input(true);Check(!p.IsDashGuardActive,"Blocked dash grants no ward");
+  p=new Player{GuardSeconds=1};p.ResetDashCharges();while(p.TryConsumeDashCharge()){}p.Input(true);
+  Check(!p.IsDashGuardActive,"Empty pool grants no ward");
+  p=new Player{GuardSeconds=1,HasFestivalGuard=true};p.ResetDashCharges();p.Input(true);
+  p.DamageGate(100);p.MagicGate();
+  Check(p.AcceptedHits==0,"Ward rejects both direct damage and magic/status hit paths");
+  Check(p.HasOrbitingShield && p.OrbitingShieldVisibility==1,"Ward uses full-opacity orbiting shield");
+  p.HasFestivalGuard=false;p.Advance(1);p.DamageGate(100);p.MagicGate();
+  Check(p.AcceptedHits==2 && !p.HasOrbitingShield,"Damage resumes and ward shield ends at one second");
+  p.HasFestivalGuard=true;Check(p.HasOrbitingShield,"Festival shield remains after ward expires");
+  p.HasFestivalGuard=false;p.IsSpawnProtected=true;p.DamageGate(100);
+  Check(p.AcceptedHits==2 && p.HasOrbitingShield,"Spawn protection still works independently");
   return checks+" dash checks passed";
  }
 }
@@ -115,11 +169,19 @@ $itemMethod=[regex]::Match($items,'(?ms)^    internal bool TryApplyBattleItem\([
 if(!$itemMethod){throw 'Missing production item method'}
 $methods += $itemMethod
 $code = $code.Replace('__METHODS__', ($methods -join "`n"))
+$flight = Get-Content Assets/Script/Player.FlightCombat.cs -Raw
+$protection = [regex]::Match($flight,'(?m)^    public bool IsDamageProtected[^\r\n]+\r?\n    public bool HasOrbitingShield[^\r\n]+\r?\n    public float OrbitingShieldVisibility[^\r\n]+').Value
+if (!$protection) { throw 'Missing production shield/protection properties' }
+# Execute the actual entry guards before damage, binding, parry and festival-charge consumption.
+$damageGuard = [regex]::Match($player,'(?s)public void TakeDamage\(.*?\)\s*\{(.*?)\s*if \(canBeParried').Groups[1].Value
+$magicGuard = [regex]::Match($player,'(?s)public void ReceiveMagicHit\(.*?\)\s*\{(.*?)\s*// Binding also').Groups[1].Value
+if (!$damageGuard -or !$magicGuard) { throw 'Missing production damage entry guards' }
+$code = $code.Replace('__PROTECTION__',$protection).Replace('__DAMAGE_GATES__', "public void DamageGate(float damage) {$damageGuard AcceptedHits++;}`npublic void MagicGate() {$magicGuard AcceptedHits++;}")
 $code += "`n" + ($dash -replace '(?m)^using [^\r\n]+;\r?\n','')
 Add-Type -TypeDefinition $code
 [Player]::Run()
-if ($player -notmatch 'ResetDashCharges\(\);' -or $player -notmatch 'TickDashRecharge\(\);') { throw 'Charge lifecycle not wired into Player' }
+if ($player -notmatch 'ResetDashCharges\(broomStats.DashChargeCapacity\);' -or $player -notmatch 'TickDashRecharge\(\);') { throw 'Equipment charge lifecycle not wired into Player' }
 $prefab=Get-Content Assets/UI/Prefab/BattleUI.prefab -Raw
-if (($prefab | Select-String -Pattern 'm_Name: Dash[123]\r?\n' -AllMatches).Matches.Count -ne 3) { throw 'Expected three authored slider segments' }
-if ($prefab -notmatch 'm_Name: DashGauge' -or $prefab -notmatch 'm_Father: \{fileID: 8323471176851699074\}') { throw 'Dash gauge is not attached to moving aim' }
+if (($prefab | Select-String -Pattern 'm_Name: Dash[123456]\r?\n' -AllMatches).Matches.Count -ne 6) { throw 'Expected six authored slider segments including Gust bonus' }
+if ($prefab -notmatch 'm_Name: DashGauge' -or $prefab -notmatch 'm_Father: \{fileID: 5902421080451873667\}') { throw 'Dash gauge is not attached to its authored aim parent' }
 'Authored gauge and charge lifecycle checks passed'

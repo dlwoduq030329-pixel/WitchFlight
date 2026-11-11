@@ -289,7 +289,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
             if (spawnShield && target.hasTint)
             {
                 Color tint = target.tint;
-                tint.a *= follow != null ? (follow.HasFestivalGuard ? 1f : follow.SpawnShieldVisibility) : 0f;
+                tint.a *= follow != null ? follow.OrbitingShieldVisibility : 0f;
                 target.properties.SetColor("_TintColor", tint);
             }
             target.renderer.SetPropertyBlock(target.properties, target.materialIndex);
@@ -320,7 +320,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
         {
             if (spawnShield)
             {
-                if (!follow.IsSpawnProtected && !follow.HasFestivalGuard) EndParry();
+                if (!follow.HasOrbitingShield) EndParry();
                 float angle = (float)follow.Runner.SimulationTime * 180f + spawnOrbitPhase;
                 shieldFacing = Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward;
             }
@@ -355,7 +355,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
         {
             Color color = Color.white;
             color.a = heldShield && !shieldEnding ? 1f : Mathf.Clamp01((expires - Time.unscaledTime) / duration);
-            if (spawnShield) color.a *= spawnOpacity * (follow.HasFestivalGuard ? 1f : follow.SpawnShieldVisibility);
+            if (spawnShield) color.a *= spawnOpacity * follow.OrbitingShieldVisibility;
             ownedMaterial.color = color;
         }
     }

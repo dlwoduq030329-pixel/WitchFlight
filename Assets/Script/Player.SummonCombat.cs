@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -56,16 +56,18 @@ public partial class Player
     private void TrackPerkSummonBeam(MagicProjectile target, float time, MagicStatEntry stats)
     {
         if (target == null || !target.IsSummonEnemyOf(this) || stats.perkSecond?.id != PerkId.BeamFocus) return;
-        if (!beamVictim.Equals(target.Object.Id) || perkClock - beamLastContact > Mathf.Max(.001f, stats.perkSecond.condition)) beamContact = 0f;
+        if (!beamVictim.Equals(target.Object.Id) || perkClock - beamLastContact > Mathf.Max(.05f, stats.channelTickSeconds + Runner.DeltaTime * 2)) beamContact = 0f;
         beamVictim = target.Object.Id; beamLastContact = perkClock; beamContact += time;
     }
 
     private float SummonChannelDamage(MagicStatEntry stats, NetworkId targetId, float time)
+        => Mathf.Max(0f, stats.damagePerSecond) * time;
+
+    public PerkDefinition TrackAcceptedSummonBeam(MagicProjectile target, MagicStatEntry stats)
     {
-        float damage = Mathf.Max(0f, stats.damagePerSecond) * time;
-        if (stats.perkSecond?.id == PerkId.BeamFocus && beamVictim.Equals(targetId) && beamContact >= stats.perkSecond.seconds)
-            damage *= 1f + Mathf.Max(0f, stats.perkSecond.amount);
-        return damage;
+        if (stats.perkSecond?.id != PerkId.BeamFocus) return null;
+        TrackPerkSummonBeam(target, stats.channelContactSeconds, stats);
+        return beamVictim.Equals(target.Object.Id) && beamContact + .0001f >= stats.perkSecond.condition ? stats.perkSecond : null;
     }
 
     private Vector3 TraceMagicTargets(MagicStatEntry stats, Vector3 origin, Vector3 direction, out Player victim, out MagicProjectile summon)

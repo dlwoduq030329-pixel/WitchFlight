@@ -30,6 +30,12 @@ public sealed class EquipmentDescriptionUI : MonoBehaviour
     [SerializeField] private TMP_Text speedText;
     [SerializeField] private TMP_Text turnSpeedText;
     [SerializeField] private TMP_Text boostCostText;
+    [Header("Broom: dash charges / acceleration")]
+    [SerializeField] private Player flightPlayerPrefab;
+    [SerializeField] private Slider dashChargesSlider;
+    [SerializeField] private Slider dashAccelerationSlider;
+    [SerializeField] private TMP_Text dashChargesText;
+    [SerializeField] private TMP_Text dashAccelerationText;
 
     private EquipmentStatTable Table => equipmentTable != null ? equipmentTable :
         equipmentTable = Resources.Load<EquipmentStatTable>("EquipmentStatTable");
@@ -58,6 +64,16 @@ public sealed class EquipmentDescriptionUI : MonoBehaviour
         SetText(speedText, Choose(stats.displaySpeedLabel, "중간"));
         SetText(turnSpeedText, Choose(stats.displayTurnSpeedLabel, "중간"));
         SetText(boostCostText, Choose(stats.displayBoostCostLabel, "중간"));
+        SetSlider(dashChargesSlider, stats.DashChargeCapacity / 5f);
+        SetText(dashChargesText, $"{stats.DashChargeCapacity}개");
+        float multiplier = flightPlayerPrefab != null ? flightPlayerPrefab.BurstAccelerationMultiplier : 4f;
+        float acceleration = Mathf.Max(.01f, stats.speedStageTransitionSpeed) * multiplier;
+        float fastest = acceleration;
+        if (Table != null && Table.brooms != null)
+            foreach (var entry in Table.brooms)
+                fastest = Mathf.Max(fastest, Mathf.Max(.01f, entry.speedStageTransitionSpeed) * multiplier);
+        SetSlider(dashAccelerationSlider, acceleration / Mathf.Max(.01f, fastest));
+        SetText(dashAccelerationText, $"{acceleration:0.#} m/s²");
     }
 
     private void ShowContent(Sprite icon, string title, string description, string category)

@@ -5,7 +5,7 @@ public sealed class FlightCombatTable : ScriptableObject
 {
     private static FlightCombatTable cached;
     public static FlightCombatTable Default => cached != null ? cached : cached = Resources.Load<FlightCombatTable>("FlightCombatTable");
-    [Header("Shift dash (3 charges)")]
+    [Header("Shift dash (capacity from EquipmentStatTable)")]
     [Tooltip("대쉬 1회 충전 시간. 첫 소모 즉시 충전을 시작하며 추가 소모가 진행 중인 충전을 초기화하지 않습니다.")]
     [Min(.05f)] public float dashRechargeSeconds = 4f;
     [Header("Body ram (host authoritative)")]

@@ -133,7 +133,9 @@ public partial class Player
         {
             botHeldTime += dt;
             bool castTargetAlive = stats.TargetsAllies ? IsBotCombatant(botCastAlly) : hasEnemy;
-            bool release = !castTargetAlive || (stats.requiresTarget ? IsFullyLocked || botHeldTime > 3f :
+            bool release = !castTargetAlive || (stats.focusedBlade
+                ? RainCharging && (RainManaSpent >= RainChargeBudget - .0001f || NowAp <= .0001f)
+                : stats.requiresTarget ? IsFullyLocked || botHeldTime > 3f :
                 botHeldTime >= (stats.IsChanneled ? 1.5f : .35f));
             if (!release) input.buttons.Set(PlayerInputButton.Lock, true);
             else { botHolding = false; botReleaseFrame = true; botAttackTime = settings.attackPauseSeconds; }
@@ -171,7 +173,7 @@ public partial class Player
         if (stats.magic == MagicType.Flare && !HasIncomingBotThreat()) return true;
         if (TimerIsActive(MagicCooldowns[(int)stats.magic]) || NowAp < stats.apCost) return true;
         input.buttons.Set(PlayerInputButton.Lock, true);
-        botHolding = stats.requiresTarget || stats.IsChanneled || stats.effect == MagicEffectKind.DelayedArea;
+        botHolding = stats.focusedBlade || stats.requiresTarget || stats.IsChanneled || stats.effect == MagicEffectKind.DelayedArea;
         botHeldTime = 0;
         if (!botHolding) botReleaseFrame = true;
         return true;

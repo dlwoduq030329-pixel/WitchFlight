@@ -750,7 +750,11 @@ public sealed partial class BattleHud : MonoBehaviour
         if (selectedMagicText != null)
         {
             if (valid && owner.IsRainCharging)
-                selectedMagicText.SetText("칼날비 · {0}명 · 충전 마나 {1:0.0}", owner.RainTargetCount, owner.RainManaSpent);
+            {
+                if (owner.RainFocused)
+                    selectedMagicText.SetText("칼날 집중 · 충전 마나 {0:0.0} / {1:0.0}", owner.RainManaSpent, owner.RainChargeBudget);
+                else selectedMagicText.SetText("칼날비 · {0}명 · 충전 마나 {1:0.0}", owner.RainTargetCount, owner.RainManaSpent);
+            }
             else if (valid && owner.CurrentMagicSlot != 3 && owner.BladeCharges > 0)
                 SetNumericText(selectedMagicText, "칼날 마법 · {0}회", owner.BladeCharges);
             else SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");

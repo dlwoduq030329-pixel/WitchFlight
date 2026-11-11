@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public sealed class BattleMovementLogViewer : MonoBehaviour
+public sealed partial class BattleMovementLogViewer : MonoBehaviour
 {
     [SerializeField] private Material pathMaterial;
     [SerializeField, Min(0.05f)] private float pathWidth=0.6f;
@@ -80,6 +80,9 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
         try
         {
             var loaded=BattleMovementLogFiles.Read(path);
+            densityCancellation?.Cancel(); density=null; densityMode=false;
+            if(densityRoot!=null) densityRoot.SetActive(false);
+            if(importedDensityFiles.Length==0) importedDensityFiles=new[]{path};
             ClearViews(); log=loaded; time=0; round=0; playing=false;
             for(int i=0;i<log.players.Count;i++)
             {
@@ -137,6 +140,7 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
     }
     private void UpdatePaths()
     {
+        if(densityMode) return;
         foreach(var view in views)
         {
             foreach(var part in view.parts)
@@ -174,6 +178,7 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
     }
     private void FocusPaths()
     {
+        if(densityMode) {FocusDensity();return;}
         var points=views.Where(v=>v.visible).SelectMany(v=>v.track.points).Where(p=>round==0||p.round==round).ToArray();
         if(points.Length==0) return;
         var bounds=new Bounds(points[0].position,Vector3.zero);
@@ -208,19 +213,20 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
         GUI.Box(new Rect(0,0,Sidebar,Screen.height),GUIContent.none);
         GUILayout.BeginArea(new Rect(10,10,Sidebar-20,Screen.height-20));
         if (GUILayout.Button("← 메인으로 돌아가기", GUILayout.Height(32))) DeveloperAnalyticsMenu.ReturnToMain();
+        sidebarScroll=GUILayout.BeginScrollView(sidebarScroll);
         GUILayout.Label("전투 동선 기록");
-        GUILayout.Label("서버 콘솔 CSV / JSON 또는 로컬 경기 JSON");
+        GUILayout.Label("서버 콘솔 CSV / XLSX / JSON 또는 로컬 경기 JSON");
         importPath=GUILayout.TextField(importPath);
 #if UNITY_EDITOR
         if(GUILayout.Button("찾아보기…"))
         {
-            string chosen=UnityEditor.EditorUtility.OpenFilePanel("동선 기록 가져오기","","csv,json,jsonl");
+            string chosen=UnityEditor.EditorUtility.OpenFilePanel("동선 기록 가져오기","","csv,xlsx,json,jsonl");
             if(!string.IsNullOrEmpty(chosen)) importPath=chosen;
         }
 #endif
         if(GUILayout.Button("파일 가져오기"))
         {
-            try {var imported=BattleMovementImport.Import(importPath.Trim().Trim('"'));RefreshFiles();Load(imported[0]);status+=$"\n{imported.Length}경기 가져옴";}
+            try {var imported=BattleMovementImport.Import(importPath.Trim().Trim('"'));importedDensityFiles=imported;RefreshFiles();Load(imported[0]);status+=$"\n{imported.Length}경기 가져옴";}
             catch(Exception e) {status=e.Message;}
         }
         GUILayout.BeginHorizontal();
@@ -230,8 +236,9 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
         scroll=GUILayout.BeginScrollView(scroll,GUILayout.Height(Mathf.Min(180,Screen.height*.2f)));
         foreach(string file in files) if(GUILayout.Button(Path.GetFileNameWithoutExtension(file))) Load(file);
         GUILayout.EndScrollView();
-        GUILayout.Label(status);
-        if(log!=null)
+        DrawDensityControls();
+        if(!densityMode) GUILayout.Label(status);
+        if(log!=null && !densityMode)
         {
             GUILayout.Label($"시간 {time:F1} / {log.duration:F1}초");
             time=GUILayout.HorizontalSlider(time,0,Mathf.Max(.01f,log.duration));
@@ -252,6 +259,7 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
         top=GUILayout.Toggle(top,"위에서 보기");
         if(GUILayout.Button("경로 중심으로 이동")) FocusPaths();
         GUILayout.Label("우클릭 드래그: 회전\n휠: 확대 / 휠 버튼 드래그: 이동\n선이 끊긴 곳: 부활·포탈·라운드 변경·기록 누락");
+        GUILayout.EndScrollView();
         GUILayout.EndArea();
         labelStyle??=new GUIStyle(GUI.skin.label) {fontSize=14,alignment=TextAnchor.MiddleCenter};
         foreach(var view in views)
@@ -272,5 +280,5 @@ public sealed class BattleMovementLogViewer : MonoBehaviour
         foreach(var view in views) {Destroy(view.marker);foreach(var part in view.parts) Destroy(part.line.gameObject);}
         views.Clear(); foreach(var mat in materials) Destroy(mat); materials.Clear();
     }
-    private void OnDestroy() {ClearViews();if(viewCamera!=null) Destroy(viewCamera.gameObject);if(font!=null) Destroy(font);}
+    private void OnDestroy() {ClearDensity();ClearViews();if(viewCamera!=null) Destroy(viewCamera.gameObject);if(font!=null) Destroy(font);}
 }

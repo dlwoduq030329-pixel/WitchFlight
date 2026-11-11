@@ -260,7 +260,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void UpdateSpawnShields()
     {
-        bool show = (owner.IsSpawnProtected || owner.HasFestivalGuard) && !owner.IsHiddenBySmokeFor(Player.LocalPlayer) &&
+        bool show = owner.HasOrbitingShield && !owner.IsHiddenBySmokeFor(Player.LocalPlayer) &&
             BattleManager.Instance != null && (BattleManager.Instance.IsGameplayActive || owner.IsCountdownProtected);
         for (int i = 0; i < spawnShields.Length; i++)
         {
@@ -515,7 +515,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (!isActiveAndEnabled || owner == null || owner.Object == null || !owner.Object.IsValid || !owner.IsAlive)
             return;
         MagicStatEntry stats = OwnerStats(magic);
-        if (!stats.requiresTarget) return;
+        if (!stats.requiresTarget && !stats.focusedBlade) return;
         if (owner.Object.HasInputAuthority)
             BattleAudio.PlayMagic(magic, MagicSound.LockComplete, owner.MagicCastPosition, local: true);
         Transform anchor = owner.MagicCastAnchor;
@@ -589,12 +589,7 @@ public sealed class CombatPresentation : MonoBehaviour
         // Utility effects have their own fallback; the optional cast effect is additive.
         bool utility = stats.effect == MagicEffectKind.Flare || stats.effect == MagicEffectKind.Smoke;
         if (!utility || stats.castVfxPrefab != null) ShowCastVfx(stats, origin);
-        if (stats.effect == MagicEffectKind.Flare)
-        {
-            // end is the authoritative rear direction for this self-cast, not a hit point.
-            UtilityMagicVisual.PlayFlare(owner, origin, end, stats);
-            return;
-        }
+        if (stats.effect == MagicEffectKind.Flare) return; // Replicated flare construct owns its three trails.
         if (stats.effect == MagicEffectKind.Smoke) return; // Persistent BattleFlag snapshot owns its VFX.
         if (stats.projectileSpeed > 0f || stats.IsChanneled || stats.effect == MagicEffectKind.Healing ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon) return;

@@ -1222,10 +1222,7 @@ MonoBehaviour:
     flareVfxBrightness: 0
   - magic: 11
     displayName: "\uD50C\uB808\uC5B4"
-    description: "\uC790\uC2E0\uC744 \uCD94\uC801 \uC911\uC778 \uC720\uB3C4\uD0C4\uC758
-      \uCD94\uC801\uC744 \uB04A\uC2B5\uB2C8\uB2E4. \uC9C0\uC18D\uC2DC\uAC04 \uB3D9\uC548
-      \uC774\uB3D9\uC18D\uB3C4\uAC00 10% \uC99D\uAC00\uD558\uACE0, \n\uC790\uC2E0\uC744
-      \uC870\uC900\uD558\uB294 \uC801\uC758 \uB85D\uC628 \uC2DC\uAC04\uC774 20% \uC99D\uAC00\uD569\uB2C8\uB2E4."
+    description: "\uc138 \uac08\ub798\ub85c \ubfcc\ub9b0 \ud50c\ub808\uc5b4\uac00 \uc7a0\uc2dc \ub0a8\uc544 \ub2ff\uc740 \uc801 \ub9c8\ubc95 \ud22c\uc0ac\uccb4\ub97c \ud30c\uad34\ud569\ub2c8\ub2e4. \uc989\ubc1c \ub9c8\ubc95\uc740 \uc81c\uc678\ud558\uba70, \uc9c0\uc18d\uc2dc\uac04 \ub3d9\uc548 \uc774\ub3d9\uc18d\ub3c4\uac00 10% \uc99d\uac00\ud569\ub2c8\ub2e4."
     icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1327,6 +1324,11 @@ MonoBehaviour:
     flareVfxSpeed: 14
     flareVfxScale: 1.8
     flareVfxBrightness: 2
+    flareLength: 12
+    flareSpreadAngle: 30
+    flareParticleExtraLifetime: 1
+    flareInterceptRadius: 2
+    flareSpreadSeconds: 0.35
   - magic: 12
     displayName: "\uC5F0\uB9C9"
     description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
@@ -1896,6 +1898,13 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    rainFocusSpeed: 250
+    rainFocusMinRadius: 0.3
+    rainFocusMaxRadius: 2.4
+    rainFocusMinScale: 1
+    rainFocusMaxScale: 8
+    rainFocusHeadMultiplier: 2
+    rainFocusProjectilePrefab: {fileID: 0}
     rainManaPerSecond: 5
     rainManaPerCircle: 25
     rainManaPerTarget: 50

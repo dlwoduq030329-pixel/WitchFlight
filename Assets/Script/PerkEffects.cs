@@ -29,18 +29,18 @@ public static class PerkEffects
         {
             case PerkId.FireIgnition: s.lockChargeSeconds *= 1f - Mathf.Clamp01(a); mana *= 1f - Mathf.Clamp01(p.secondaryAmount); break;
             case PerkId.IceSlow: s.movementMultiplier = Mathf.Clamp(1f - (1f - s.movementMultiplier) * (1f + a), .05f, 1f); break;
-            case PerkId.VisionAim: case PerkId.BeamWidth: s.hitscanRadius *= 1f + a; break;
-            case PerkId.ThunderRadius: case PerkId.SmokeRadius: s.radius *= 1f + a; break;
-            case PerkId.MineRadius:
-                if (s.effect == MagicEffectKind.PursuitSummon) { s.range *= 1f + a; s.summonAttackRange *= 1f + a; }
-                else s.radius *= 1f + a;
+            case PerkId.VisionAim: s.hitscanRadius *= 1f + a; break;
+            case PerkId.BeamWidth:
+                s.hitscanRadius *= 1f + a;
+                s.damagePerSecond *= 1f + Mathf.Max(0f, p.secondaryAmount);
                 break;
+            case PerkId.ThunderRadius: case PerkId.SmokeRadius: s.radius *= 1f + a; break;
+            // MineRadius (이중계약) changes the number created by Player.CreateSpecialMagic.
             case PerkId.HealingPower: s.healing *= 1f + a; break;
-            case PerkId.BindingLock: s.lockChargeSeconds *= 1f - Mathf.Clamp01(a); break;
-            case PerkId.BindingCost: mana *= 1f - Mathf.Clamp01(a); break;
-            case PerkId.CurseEfficiency: s.damagePerSecond *= 1f + a; break;
-            case PerkId.DarkCost: s.healthCost *= 1f - Mathf.Clamp01(a); break;
-            case PerkId.DarkHarvest: s.healOnHit *= 1f + a; break;
+            // BindingLock vulnerability is applied on the accepted binding hit.
+            case PerkId.BindingCost: s.effectDuration += a; break;
+            case PerkId.DarkCost: s.healOnHit *= 1f + a; break;
+            case PerkId.DarkHarvest: s.damage *= 1f + a; break;
             case PerkId.CurseRange: s.range *= 1f + a; break;
             case PerkId.MineArming:
                 if (s.effect == MagicEffectKind.PursuitSummon) {
@@ -49,15 +49,17 @@ public static class PerkEffects
                 }
                 else s.activationDelay *= 1f - Mathf.Clamp01(a);
                 break;
-            case PerkId.SmokeDuration: s.effectDuration += a; break;
+            case PerkId.FlareEfficiency: s.effectDuration += a; break;
             case PerkId.BladeCharges: s.bladeCharges = Mathf.Max(1, Mathf.RoundToInt(a)); break;
             case PerkId.BladeWound: s.woundHealingMultiplier = 1f - Mathf.Clamp01(a); break;
             case PerkId.StormCount: s.stormShotCount = Mathf.Clamp(Mathf.RoundToInt(a), 1, 120); break;
             case PerkId.StormPrecision: s.stormSpreadAngle *= 1f - Mathf.Clamp01(a); break;
             case PerkId.RainCharge: s.rainManaPerSecond = a; break;
             case PerkId.RainPursuit:
-                s.projectileSpeed *= 1f + a;
-                s.projectileTurnSpeed *= 1f + a;
+                s.focusedBlade = true;
+                s.requiresTarget = s.requiresFullLock = false;
+                s.apCost = s.castSeconds = s.lockChargeSeconds = s.projectileTurnSpeed = 0f;
+                s.projectileSpeed = Mathf.Max(1f, s.rainFocusSpeed);
                 break;
             case PerkId.TimeRadius: s.radius *= 1f + a; break;
             case PerkId.TimeHealing: s.timeHealingPerSecond = a; break;
@@ -65,6 +67,21 @@ public static class PerkEffects
             case PerkId.FestivalGuard: s.festivalGuardCharges = Mathf.Max(0, Mathf.RoundToInt(a)); break;
         }
     }
+    public static MagicStatEntry FocusBladeShot(MagicStatEntry s, float spent, float budget)
+    {
+        s.focusedBlade = true;
+        s.focusedBladeCharge = budget > 0f ? Mathf.Clamp01(spent / budget) : 0f;
+        s.requiresTarget = s.requiresFullLock = false;
+        s.apCost = s.castSeconds = s.projectileTurnSpeed = 0f;
+        s.effect = MagicEffectKind.DirectDamage;
+        s.projectileSpeed = Mathf.Max(1f, s.rainFocusSpeed);
+        s.damage = Mathf.Max(0f, s.perkSecond?.secondaryAmount ?? 40f) +
+            Mathf.Max(0f, spent) * Mathf.Max(0f, s.perkSecond?.amount ?? .8f);
+        s.projectileRadius = Mathf.Lerp(s.rainFocusMinRadius, s.rainFocusMaxRadius, s.focusedBladeCharge);
+        s.projectileVfxPrefab = s.rainFocusProjectilePrefab;
+        return s;
+    }
+
     // Cheap sustained hits must not generate more MP than their channel costs.
     public static float HitManaRefund(MagicStatEntry s, float maximumMp, float fraction)
         => s.IsChanneled ? 0f : Mathf.Max(0f, maximumMp) * Mathf.Max(0f, fraction);

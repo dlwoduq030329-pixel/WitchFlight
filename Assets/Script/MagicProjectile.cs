@@ -18,6 +18,8 @@ public partial class MagicProjectile : NetworkBehaviour
     [Networked] public bool Finished { get; protected set; }
     [Networked] public int PredictionInputTick { get; protected set; }
     [Networked] public float TravelledDistance { get; protected set; }
+    [Networked] public bool FocusedBlade { get; private set; }
+    [Networked] public float FocusedBladeCharge { get; private set; }
     [Networked] public float FlightSpeedFraction { get; protected set; }
     [Networked] public bool FlightExhausted { get; protected set; }
     [Networked] private bool ExhaustionEnabled { get; set; }
@@ -118,6 +120,7 @@ public partial class MagicProjectile : NetworkBehaviour
         fallingVelocity += Vector3.down * Mathf.Max(.1f, flightSettings.homingFallGravity) * dt;
         Vector3 step = fallingVelocity * dt;
         Vector3 next = transform.position + step;
+        if (InterceptedByFlare(transform.position, next)) return;
         bool waterHit = fallingWater != null && fallingWater.isActiveAndEnabled &&
             fallingWater.TryGetSurfaceHeight(next, out float seaY) && next.y <= seaY;
         if (waterHit || (step.sqrMagnitude > .000001f &&
@@ -160,6 +163,7 @@ public partial class MagicProjectile : NetworkBehaviour
         Object.ForceRemoteRenderTimeframe = !Object.HasStateAuthority;
         active.Add(this);
         if (ConstructKind == MagicConstructKind.TimeField) timeFields.Add(this);
+        if (ConstructKind == MagicConstructKind.FlareField) flareFields.Add(this);
     }
 
     public void Initialize(Player shooter, Player target, MagicStatEntry entry, Vector3 aim, int predictionInputTick = 0, NetworkId summonTargetId = default)
@@ -168,6 +172,8 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         ConstructKind = MagicConstructKind.Projectile;
         stats = entry;
+        FocusedBlade = entry.focusedBlade;
+        FocusedBladeCharge = entry.focusedBladeCharge;
         flightSettings = shooter.MagicTable != null ? shooter.MagicTable : MagicStatTable.Default;
         ExhaustionEnabled = entry.requiresTarget && UsesFlightExhaustion(entry.magic, flightSettings);
         FlightSpeedFraction = 1f;
@@ -227,6 +233,8 @@ public partial class MagicProjectile : NetworkBehaviour
             if (Lifetime.Expired(Runner)) Runner.Despawn(Object);
             return;
         }
+        if (ConstructKind == MagicConstructKind.FlareField)
+        { TickFlareField(); return; }
         if (IsConstruct) { TickConstruct(); return; }
         if (iceDamagePending) { TickIceFollowUpDamage(); return; }
         float flightDelta = TimeFlightStep();
@@ -252,6 +260,8 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         }
 
+        if (InterceptedByFlare(transform.position, transform.position)) return;
+        ApplyFlareAttraction();
         if (Magic == MagicType.MagicStorm)
             direction = Vector3.RotateTowards(direction, stormAimDirection,
                 stats.projectileTurnSpeed * Mathf.Deg2Rad * flightDelta, 0f).normalized;
@@ -294,6 +304,7 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         }
         bool collided = TryGetCollision(step, out RaycastHit hit);
+        if (InterceptedByFlare(transform.position, transform.position + direction * (collided ? hit.distance : step))) return;
         if (TryTraceSummon(Runner, ShooterTeam, transform.position, direction,
             collided ? hit.distance : step, stats.projectileRadius, out MagicProjectile body, out float bodyDistance))
         {
@@ -891,6 +902,7 @@ public partial class MagicProjectile : NetworkBehaviour
     {
         if (Magic == MagicType.None) return;
         if (ConstructKind == MagicConstructKind.TimeField) { RenderTimeField(); return; }
+        if (ConstructKind == MagicConstructKind.FlareField) { RenderFlareField(); return; }
         UpdateFlightAudio();
         if (IsConstruct) { RenderConstruct(); return; }
         if (view == null || !view.gameObject.activeSelf) view = ProjectilePredictionView.Attach(this, PresentationStats, view);
@@ -901,6 +913,7 @@ public partial class MagicProjectile : NetworkBehaviour
     {
         flightAudio.Stop();
         active.Remove(this);
+        ClearFlareField();
         ClearTimeField();
         ClearConstructVisual(true);
         if (view != null) view.ReleaseForReuse();
@@ -912,6 +925,7 @@ public partial class MagicProjectile : NetworkBehaviour
         flightAudio.Stop();
         ClearConstructVisual();
         active.Remove(this);
+        ClearFlareField();
         ClearTimeField();
     }
 

@@ -12,7 +12,10 @@ public static class BattleMovementImport
     public static string[] Import(string path)
     {
         if(new FileInfo(path).Length>64L*1024*1024) throw new InvalidDataException("한 번에 64 MB 이하로 나누어 가져오세요.");
-        string text=File.ReadAllText(path).TrimStart('\uFEFF');
+        bool spreadsheet=string.Equals(Path.GetExtension(path),".xlsx",StringComparison.OrdinalIgnoreCase);
+        if(string.Equals(Path.GetExtension(path),".xls",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("구형 XLS는 XLSX 또는 CSV로 저장한 뒤 가져오세요.");
+        string text=spreadsheet?"":File.ReadAllText(path).TrimStart('\uFEFF');
         var packets=new Dictionary<string,SortedDictionary<int,BattleMovementLog>>();
         int totalPoints=0;
         void Add(string json)
@@ -51,7 +54,7 @@ public static class BattleMovementImport
             }
         }
         JsonData root=null;
-        try { root=JsonMapper.ToObject(text); } catch(JsonException) { }
+        if(!spreadsheet) try { root=JsonMapper.ToObject(text); } catch(JsonException) { }
         if(root!=null) Visit(root,0);
         else
         {
@@ -62,7 +65,7 @@ public static class BattleMovementImport
                 try { row=JsonMapper.ToObject(line.Trim()); } catch(Exception) { }
                 if(row!=null) Visit(row,0);
             }
-            foreach(string cell in CsvCells(text))
+            foreach(string cell in spreadsheet?BattleMovementSpreadsheet.Cells(path):CsvCells(text))
             {
                 string value=cell.Trim();
                 if(value.StartsWith("H4sI",StringComparison.Ordinal)) Add(BattleMovementUpload.Decode(value));
