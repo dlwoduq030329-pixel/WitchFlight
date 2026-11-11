@@ -84,8 +84,18 @@ public static class WitchFlightPerkValidation
         Check(S(MagicType.MagicStorm,1).stormShotCount==40,"storm has forty shots");
         Check(Near(S(MagicType.MagicStorm,2).stormSpreadAngle,magic.GetStats(MagicType.MagicStorm).stormSpreadAngle*.5f),"storm spread halved");
         Check(Near(S(MagicType.BladeRain,1).rainManaPerSecond,20f),"rain charge costs twenty mana per second");
-        Check(Near(S(MagicType.BladeRain,2).projectileSpeed,magic.GetStats(MagicType.BladeRain).projectileSpeed*1.3f),"rain flight speed");
-        Check(Near(S(MagicType.BladeRain,2).projectileTurnSpeed,magic.GetStats(MagicType.BladeRain).projectileTurnSpeed*1.3f),"rain tracking speed");
+        var focus = S(MagicType.BladeRain,2);
+        Check(focus.focusedBlade && !focus.requiresTarget && !focus.requiresFullLock && focus.apCost==0f && focus.projectileTurnSpeed==0f,"focus replaces lock with free release");
+        Check(Near(focus.projectileSpeed,250f) && Near(focus.rainManaPerSecond,20f),"focus fast projectile and five second full charge at 200 MP");
+        var empty = PerkEffects.FocusBladeShot(focus,0f,100f);
+        var half = PerkEffects.FocusBladeShot(focus,50f,100f);
+        var full = PerkEffects.FocusBladeShot(focus,100f,100f);
+        Check(Near(empty.damage,40f) && Near(half.damage,80f) && Near(full.damage,120f),"focus damage uses actual spent MP plus forty");
+        Check(Near(full.damage * full.rainFocusHeadMultiplier,240f),"full focus head hit multiplier");
+        Check(Near(PerkEffects.FocusBladeShot(focus,150f,150f).damage,160f),"120 is not a damage cap with larger MP hat");
+        Check(Near(empty.projectileRadius,.3f) && Near(half.projectileRadius,1.35f) && Near(full.projectileRadius,2.4f),"focus collision grows with charge");
+        Check(Near(full.focusedBladeCharge,1f) && full.effect==MagicEffectKind.DirectDamage,"focus is one direct projectile");
+        Check(!S(MagicType.BladeRain,1).focusedBlade && S(MagicType.BladeRain,1).requiresTarget,"first stage keeps normal lock on rain");
         Check(Near(S(MagicType.TimeStop,1).radius,magic.GetStats(MagicType.TimeStop).radius*1.3f),"time radius increased");
         Check(Near(S(MagicType.TimeStop,2).timeHealingPerSecond,10f),"time healing rate");
         Check(Near(S(MagicType.MeowFestival,1).festivalSpeedBonus,.3f),"festival movement bonus");
@@ -97,21 +107,29 @@ public static class WitchFlightPerkValidation
         var thunder=S(MagicType.Thunder,2);
         Check(Near(PerkEffects.AreaHit(thunder,0).damage,thunder.damage*(1+A(PerkId.ThunderCore)))&&Near(PerkEffects.AreaHit(thunder,thunder.radius+.01f).damage,thunder.damage),"thunder core not outside area");
         Check(Near(S(MagicType.Healing,1).healing,magic.GetStats(MagicType.Healing).healing*(1+A(PerkId.HealingPower))),"healing amount");
-        Check(Near(S(MagicType.Binding,2).apCost,magic.GetStats(MagicType.Binding).apCost*Mathf.Max(1-table.manaDiscountCap,1-A(PerkId.BindingCost))),"binding mana");
-        Check(Near(S(MagicType.Dark,1).healthCost,magic.GetStats(MagicType.Dark).healthCost*(1-Mathf.Clamp01(A(PerkId.DarkCost))))&&
-            Near(S(MagicType.Dark,2).healOnHit,magic.GetStats(MagicType.Dark).healOnHit*(1+A(PerkId.DarkHarvest))),"dark health cost / actual hit heal");
-        Check(Near(S(MagicType.Curse,2).ChannelManaPerSecond(125),magic.GetStats(MagicType.Curse).ChannelManaPerSecond(100)),"curse mastery does not discount its low fixed MP cost");
-        Check(Near(S(MagicType.Curse,2).damagePerSecond,magic.GetStats(MagicType.Curse).damagePerSecond*(1+A(PerkId.CurseEfficiency))),"curse mastery amplifies DPS");
+        Check(Near(S(MagicType.Binding,2).apCost,magic.GetStats(MagicType.Binding).apCost),"binding mana unchanged");
+        Check(Near(S(MagicType.Binding,2).effectDuration,magic.GetStats(MagicType.Binding).effectDuration+2f),"binding duration plus two");
+        Check(Near(S(MagicType.Binding,1).lockChargeSeconds,magic.GetStats(MagicType.Binding).lockChargeSeconds),"binding lock time unchanged");
+        Check(Near(S(MagicType.Dark,1).healthCost,magic.GetStats(MagicType.Dark).healthCost) &&
+            Near(S(MagicType.Dark,1).healOnHit,magic.GetStats(MagicType.Dark).healOnHit*1.25f),"dark healing bonus only");
+        Check(Near(S(MagicType.Dark,2).damage,magic.GetStats(MagicType.Dark).damage*1.3f),"dark damage bonus");
+        Check(Near(S(MagicType.Curse,2).damagePerSecond,magic.GetStats(MagicType.Curse).damagePerSecond),"curse slows without DPS boost");
         foreach(var m in new[]{MagicType.Curse,MagicType.Razier})
             Check(Near(PerkEffects.HitManaRefund(S(m,2),200,A(PerkId.ManaRemnant)),0),"channel cannot generate mana via remnant "+m);
         Check(Near(PerkEffects.HitManaRefund(S(MagicType.Fire,2),200,A(PerkId.ManaRemnant)),200*A(PerkId.ManaRemnant)),"single-hit spells retain remnant refund");
         Check(Near(S(MagicType.Mine,2).lockChargeSeconds,magic.GetStats(MagicType.Mine).lockChargeSeconds*(1-Mathf.Clamp01(A(PerkId.MineArming)))),"summon lock");
         Check(Near(S(MagicType.Mine,2).summonAttackInterval,Mathf.Max(.1f,magic.GetStats(MagicType.Mine).summonAttackInterval*(1-Mathf.Clamp01(table.Get(PerkId.MineArming).secondaryAmount)))),"summon attack interval follows perk");
-        Check(Near(S(MagicType.Mine,2).range,magic.GetStats(MagicType.Mine).range*(1+A(PerkId.MineRadius))) &&
-            Near(S(MagicType.Mine,2).summonAttackRange,magic.GetStats(MagicType.Mine).summonAttackRange*(1+A(PerkId.MineRadius))),"summon range");
-        Check(Near(S(MagicType.Razier,1).hitscanRadius,magic.GetStats(MagicType.Razier).hitscanRadius*(1+A(PerkId.BeamWidth))),"beam width");
-        Check(Near(S(MagicType.Smoke,2).radius,magic.GetStats(MagicType.Smoke).radius*(1+A(PerkId.SmokeRadius)))&&Near(S(MagicType.Smoke,2).effectDuration,magic.GetStats(MagicType.Smoke).effectDuration+A(PerkId.SmokeDuration)),"smoke area and duration");
-        float stackedMana=Mathf.Max(1-table.manaDiscountCap,(1-Mathf.Clamp01(A(PerkId.BindingCost)))*(1-Mathf.Clamp01(A(PerkId.FrugalRune))));
+        Check(Near(S(MagicType.Mine,2).range,magic.GetStats(MagicType.Mine).range) &&
+            Near(S(MagicType.Mine,2).summonAttackRange,magic.GetStats(MagicType.Mine).summonAttackRange),"dual summon does not change range");
+        Check(Near(S(MagicType.Razier,1).hitscanRadius,magic.GetStats(MagicType.Razier).hitscanRadius*1.5f),"beam width");
+        Check(Near(S(MagicType.Razier,2).damagePerSecond,magic.GetStats(MagicType.Razier).damagePerSecond*1.2f),"beam base DPS increased once");
+        Check(Near(table.Get(PerkId.BeamFocus).condition,2f) && Near(table.Get(PerkId.BeamFocus).amount,16f) && Near(table.Get(PerkId.BeamFocus).seconds,2f),"continuous beam burn settings");
+        Check(Near(S(MagicType.Smoke,2).radius,magic.GetStats(MagicType.Smoke).radius*(1+A(PerkId.SmokeRadius)))&&Near(S(MagicType.Smoke,2).effectDuration,magic.GetStats(MagicType.Smoke).effectDuration),"smoke area retained and duration unchanged");
+        Check(Near(S(MagicType.Flare,2).effectDuration,magic.GetStats(MagicType.Flare).effectDuration+1f),"flare lasts an additional second");
+        Check(Near(magic.GetStats(MagicType.Flare).flareSpreadAngle,30f),"flare fans rearward at thirty degrees each side");
+        Check(Near(magic.GetStats(MagicType.Flare).flareParticleExtraLifetime,1f),"legacy flare particles last one extra second");
+        Check(Near(S(MagicType.Flare,2).apCost,magic.GetStats(MagicType.Flare).apCost),"flare has no refund or discount");
+        float stackedMana=Mathf.Max(1-table.manaDiscountCap,1-Mathf.Clamp01(A(PerkId.FrugalRune)));
         Check(Near(S(MagicType.Binding,2,PerkRules.Bit(PerkId.FrugalRune)).apCost,magic.GetStats(MagicType.Binding).apCost*stackedMana),"multiplicative mana discount respects editable cap");
         Check(Near(S(MagicType.Fire,2,PerkRules.Bit(PerkId.EchoSpell)).cooldownSeconds,magic.GetStats(MagicType.Fire).cooldownSeconds*Mathf.Max(1-table.cooldownDiscountCap,1-A(PerkId.EchoSpell))),"common cooldown");
         foreach(var p in table.perks)Check(!BattlePerkUI.Description(p).Contains("{"),"description tokens expanded "+p.id);

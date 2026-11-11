@@ -7,6 +7,9 @@ public partial class Player
     [Networked] private bool RainCharging { get; set; }
     [Networked] private bool RainFiring { get; set; }
     [Networked] public float RainManaSpent { get; private set; }
+    [Networked] public bool RainFocused { get; private set; }
+    [Networked] public float RainChargeBudget { get; private set; }
+    private bool rainFullCue;
     [Networked] public int RainTargetCount { get; private set; }
     [Networked] public int RainTargetRevision { get; private set; }
     [Networked, Capacity(RainTargetCapacity)] private NetworkArray<NetworkId> RainTargets => default;
@@ -19,7 +22,7 @@ public partial class Player
     private bool rainNeedsRelease;
     private BladeRainVisual rainVisual;
     public bool IsRainCharging => networkSpawned && RainCharging;
-    public int RainCircleCount => !networkSpawned ? 0 : RainFiring ? RainVolleyCircles : RainCharging
+    public int RainCircleCount => !networkSpawned || RainFocused ? 0 : RainFiring ? RainVolleyCircles : RainCharging
         ? Mathf.Clamp(Mathf.FloorToInt((RainManaSpent + .0001f) / Mathf.Max(1f, RainCircleMana)), 0, Mathf.Clamp(RainCircleLimit,2,16)) : 0;
     public NetworkId GetRainTarget(int index) => networkSpawned && index >= 0 && index < RainTargetCount ? RainTargets[index] : default;
     public bool HasRainTarget(NetworkId id)
@@ -31,6 +34,8 @@ public partial class Player
     {
         if (!held) rainNeedsRelease = false;
         if (rainNeedsRelease) return;
+        if (RainCharging ? RainFocused : SelectedMagicStats.focusedBlade)
+        { ProcessFocusedBlade(held, released); return; }
         if (!RainCharging)
         {
             if (!held || TimerIsActive(MagicCooldowns[(int)MagicType.BladeRain])) return;
@@ -61,6 +66,47 @@ public partial class Player
         LockTargetId = RainTargets[0]; LockProgress = 1; IsFullyLocked = true;
         if (NowAp <= reserve+.0001f) FireBladeRain(true);
         else if (RainManaSpent+reserve >= maximum-.0001f) FireBladeRain(false);
+    }
+    private void ProcessFocusedBlade(bool held, bool released)
+    {
+        if (!RainCharging)
+        {
+            if (!held || TimerIsActive(MagicCooldowns[(int)MagicType.BladeRain]) || !magicProjectilePrefab.IsValid) return;
+            rainStats = SelectedMagicStats;
+            ClearLockTargetInternal(false);
+            RainFocused = RainCharging = true;
+            RainManaSpent = 0f; RainTargetCount = 0; rainFullCue = false;
+            // Snapshot maximum MP at the start; spending MP never moves the charge goalposts.
+            RainChargeBudget = Mathf.Max(0f, MaxAp) * Mathf.Clamp01(rainStats.perkSecond?.condition ?? .5f);
+        }
+        if (released) { FireFocusedBlade(); return; }
+        if (!held) return;
+        float charge = Mathf.Min(Mathf.Max(0f, rainStats.rainManaPerSecond) * Runner.DeltaTime,
+            Mathf.Max(0f, NowAp), Mathf.Max(0f, RainChargeBudget - RainManaSpent));
+        NowAp -= charge; RainManaSpent += charge;
+        LockProgress = RainChargeBudget > 0f ? Mathf.Clamp01(RainManaSpent / RainChargeBudget) : 0f;
+        if (!rainFullCue && RainChargeBudget > 0f && RainManaSpent >= RainChargeBudget - .0001f)
+        {
+            rainFullCue = true;
+            RPC_PresentLockComplete(MagicType.BladeRain);
+        }
+        // Full charge or empty MP stays held until release; no extra release cost.
+    }
+    private void FireFocusedBlade()
+    {
+        MagicStatEntry shotStats = PerkEffects.FocusBladeShot(rainStats, RainManaSpent, RainChargeBudget);
+        Vector3 aim = IsFiniteDirection(castAimDirection) && castAimDirection.sqrMagnitude > .001f
+            ? castAimDirection.normalized : transform.forward;
+        Vector3 origin = MagicCastPosition;
+        LastCastMagic = MagicType.BladeRain; CastSequence++;
+        shotStats.perkCast = CastSequence; shotStats.perkAttacker = ParticipantRef;
+        shotStats.titleCastId = PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordTitleCast(MagicType.BladeRain, false) ?? 0;
+        Runner.Spawn(magicProjectilePrefab, origin, Quaternion.LookRotation(aim), ParticipantRef,
+            onBeforeSpawned: (_, obj) => obj.GetComponent<MagicProjectile>().Initialize(this, null, shotStats, aim));
+        MagicCooldowns.Set((int)MagicType.BladeRain, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, rainStats.cooldownSeconds)));
+        RPC_PresentCast(MagicType.BladeRain, origin, origin + aim, 0);
+        CancelBladeRain();
+        rainNeedsRelease = true;
     }
     private void PruneRainTargets(NetworkInputData input)
     {
@@ -139,6 +185,7 @@ public partial class Player
         if (!RainCharging && !RainFiring && RainTargetCount==0 && RainManaSpent==0) return;
         ClearLockTargetInternal(false);
         RainCharging=RainFiring=false; RainTargetCount=0; RainManaSpent=0; RainVolleyCircles=0;
+        RainFocused=false; RainChargeBudget=0f; rainFullCue=false;
         RainTargetRevision++; rainNeedsRelease=previousButtons.IsSet(PlayerInputButton.Lock);
     }
     private void RenderBladeRain()

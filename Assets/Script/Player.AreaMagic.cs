@@ -92,15 +92,24 @@ public partial class Player
             Vector3 delta = end-origin;
             origin += delta.normalized * Mathf.Max(0f,delta.magnitude-Mathf.Max(.25f,s.projectileRadius+.05f));
         }
-        // Initialize in onBeforeSpawned, so all observers receive the mode in the initial snapshot.
-        NetworkObject spawned = Runner.Spawn(magicProjectilePrefab, origin, Quaternion.identity, ParticipantRef,
-            onBeforeSpawned: (runner, obj) => obj.GetComponent<MagicProjectile>().InitializeConstruct(this, s, magicProjectilePrefab));
-        if (spawned != null)
+        int count = !area && s.perkSecond?.id == PerkId.MineRadius ? 2 : 1;
+        bool created = false;
+        for (int i = 0; i < count; i++)
         {
-            if (!area) MagicProjectile.TrimSummons(this, Mathf.Clamp(s.summonMaxCount,1,16), spawned);
-            // Telegraph/impact stay with the construct. This is only the caster's launch effect.
-            RPC_PresentCast(s.magic, MagicCastPosition, MagicCastPosition, 0f);
+            Vector3 position = origin;
+            if (count > 1)
+            {
+                Vector3 side = transform.right * (i == 0 ? -1f : 1f);
+                position = TraceMagic(new MagicStatEntry { range = 1.5f }, origin, side, out _);
+                position = Vector3.MoveTowards(position, origin, .1f);
+            }
+            NetworkObject spawned = Runner.Spawn(magicProjectilePrefab, position, Quaternion.identity, ParticipantRef,
+                onBeforeSpawned: (runner, obj) => obj.GetComponent<MagicProjectile>().InitializeConstruct(this, s, magicProjectilePrefab));
+            if (spawned == null) continue;
+            created = true;
+            if (!area) MagicProjectile.TrimSummons(this, Mathf.Clamp(Mathf.Max(count, s.summonMaxCount), 1, 16), spawned);
         }
+        if (created) RPC_PresentCast(s.magic, MagicCastPosition, MagicCastPosition, 0f);
     }
 
     private void UpdateAreaAimPreview()

@@ -3,7 +3,11 @@ using UnityEngine;
 
 public partial class Player
 {
-    public const int MaximumDashCharges = 3;
+    [Networked] private int DashChargeCapacity { get; set; }
+    [Networked] private int DashBonusCharges { get; set; }
+    [Networked] private TickTimer DashGuardTimer { get; set; }
+    public int MaximumDashCharges => Mathf.Clamp(DashChargeCapacity, 1, 5) + DashBonusCharges;
+    public bool IsDashGuardActive => Object != null && Object.IsValid && IsAlive && TimerIsActive(DashGuardTimer);
     [Networked] public int DashCharges { get; private set; }
     [Networked] private TickTimer DashRechargeTimer { get; set; }
     [Networked] private float DashRechargeDuration { get; set; }
@@ -16,11 +20,31 @@ public partial class Player
         DashRechargeTimer.IsRunning ? Mathf.Clamp01(1f -
         (DashRechargeTimer.RemainingTime(Runner) ?? 0f) / Mathf.Max(.05f, DashRechargeDuration)) : 0f;
 
-    private void ResetDashCharges()
+    private void ResetDashCharges(int maximumCharges = 3)
     {
+        DashChargeCapacity = Mathf.Clamp(maximumCharges, 1, 5);
+        DashBonusCharges = 0;
+        DashGuardTimer = TickTimer.None;
         DashCharges = MaximumDashCharges;
         DashRechargeTimer = TickTimer.None;
         DashRechargeDuration = 0;
+    }
+
+    // Called on initial spawn and confirmed perk changes, not every simulation tick.
+    private void RefreshDashPerks(bool fill)
+    {
+        int previousBonus = DashBonusCharges;
+        DashBonusCharges = Mathf.Clamp(Mathf.RoundToInt(CommonAmount(PerkId.FirstWind)), 0, 1);
+        DashCharges = fill ? MaximumDashCharges : Mathf.Min(MaximumDashCharges,
+            DashCharges + Mathf.Max(0, DashBonusCharges - previousBonus));
+        if (DashCharges >= MaximumDashCharges) DashRechargeTimer = TickTimer.None;
+        else if (!DashRechargeTimer.IsRunning) StartDashRecharge();
+    }
+
+    private void StartDashGuard()
+    {
+        float seconds = CommonAmount(PerkId.BrakingRune);
+        if (seconds > 0f) DashGuardTimer = TickTimer.CreateFromSeconds(Runner, seconds);
     }
 
     private void StartDashRecharge()

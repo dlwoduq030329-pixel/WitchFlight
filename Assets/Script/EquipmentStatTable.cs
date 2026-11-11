@@ -45,6 +45,13 @@ public struct BroomStatEntry
     [Tooltip("PlayerData.broom과 연결되는 빗자루 종류입니다.")]
     public BroomType broom;
 
+    [Range(1, 5), Tooltip("최대 대쉬 충전 수입니다. 기본 3 / 튼튼 2 / 고속 4 / 로봇 5 / Cleaner 3")]
+    public int maxDashCharges;
+
+    // Older saved balance profiles do not contain this field yet.
+    public int DashChargeCapacity => maxDashCharges > 0 ? Mathf.Clamp(maxDashCharges, 1, 5) :
+        broom == BroomType.Slow ? 2 : broom == BroomType.Speed ? 4 : broom == BroomType.Robot ? 5 : 3;
+
     [Min(1f)]
     [Tooltip("이 빗자루를 착용했을 때의 HP 최대치입니다.")]
     public float maxHp;

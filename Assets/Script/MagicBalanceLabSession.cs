@@ -244,7 +244,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
             if (!editing && ActorsReady)
             {
                 GUI.Label(new Rect(16, 12, width - 32, 32), "F1: 수치 조절 / R: 거리 초기화 · " + (Defending ? "수비" : "공격"), labelStyle);
-                GUI.Label(new Rect(16, 44, width - 32, 64), $"거리 {(pilot.LockAimPoint - bot.LockAimPoint).magnitude:0.0} · 속도 {pilot.Speed:0.0} · HP {pilot.NowHp:0} · MP {pilot.NowAp:0}\n적중 {hitCount}회 · 최근 피해 {lastDamage:0.0} · 대쉬 {pilot.DashCharges}/3 · 충전 {pilot.RechargeProgress:P0}", labelStyle);
+                GUI.Label(new Rect(16, 44, width - 32, 64), $"거리 {(pilot.LockAimPoint - bot.LockAimPoint).magnitude:0.0} · 속도 {pilot.Speed:0.0} · HP {pilot.NowHp:0} · MP {pilot.NowAp:0}\n적중 {hitCount}회 · 최근 피해 {lastDamage:0.0} · 대쉬 {pilot.DashCharges}/{pilot.MaximumDashCharges} · 충전 {pilot.RechargeProgress:P0}", labelStyle);
                 GUI.Label(new Rect(width * .5f - 8, height * .5f - 16, 32, 32), "+", titleStyle);
                 if (worldCamera != null)
                 {
@@ -297,7 +297,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
         }
         UnlimitedMana = GUILayout.Toggle(UnlimitedMana, "내 마나 무제한 (두 캐릭터 모두 사망하지 않음)");
         GUILayout.Label($"현재 거리 {(pilot.LockAimPoint - bot.LockAimPoint).magnitude:0.0} / 내 HP {pilot.NowHp:0} / 적 HP {bot.NowHp:0}", labelStyle);
-        GUILayout.Label($"적중 {hitCount}회 / 최근 피해 {lastDamage:0.0} / 록온 {charge:0.0}초 / 대쉬 {pilot.DashCharges}/3", labelStyle);
+        GUILayout.Label($"적중 {hitCount}회 / 최근 피해 {lastDamage:0.0} / 록온 {charge:0.0}초 / 대쉬 {pilot.DashCharges}/{pilot.MaximumDashCharges}", labelStyle);
         tab = GUILayout.Toolbar(tab, new[] { "마법", "빗자루 / 모자", "실험 조건" });
         using (var view = new GUILayout.ScrollViewScope(scroll))
         {
@@ -376,6 +376,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
         b.maxSpeed = cruise * 1.5f;
         b.turnSpeed = Slider("기체 선회력 (도/초)", b.turnSpeed, 10, 360);
         b.boostMultiplier = Slider("부스트 배수 (3단계 기준)", b.boostMultiplier, 1, 3);
+        b.maxDashCharges = Mathf.RoundToInt(Slider("최대 대쉬 갯수", b.DashChargeCapacity, 1, 5));
         b.maxHp = Slider("최대 체력", b.maxHp, 50, 500);
         h.maxAp = Slider("최대 마나", h.maxAp, 30, 500);
         h.apRecoveryPerSecond = Slider("초당 마나 회복", h.apRecoveryPerSecond, 0, 50);

@@ -13,9 +13,10 @@ public sealed class MagicBalanceLabActor : MonoBehaviour
     public Vector3 LockAimPoint => transform.position + transform.up * 1.6f;
     public Vector3 CastPoint => LockAimPoint + transform.forward * 1.4f;
     public int DashCharges { get; private set; } = 3;
+    public int MaximumDashCharges => broom.DashChargeCapacity;
     public bool IsBoosting => boost > 0f;
     public bool CanManeuver => bound <= 0f;
-    public float RechargeProgress => DashCharges < 3 ? Mathf.Clamp01(recharge / RechargeSeconds) : 0;
+    public float RechargeProgress => DashCharges < MaximumDashCharges ? Mathf.Clamp01(recharge / RechargeSeconds) : 0;
     private float RechargeSeconds => Mathf.Max(.05f, FlightCombatTable.Default != null ? FlightCombatTable.Default.dashRechargeSeconds : 4);
     private CharacterController controller;
     private BroomStatEntry broom;
@@ -96,6 +97,8 @@ public sealed class MagicBalanceLabActor : MonoBehaviour
     {
         float hpRatio = NowHp / Mathf.Max(1, broom.maxHp), mpRatio = NowAp / Mathf.Max(1, hat.maxAp);
         broom = table.GetBroomStats(Broom); hat = table.GetHatStats(Hat);
+        DashCharges = fill ? MaximumDashCharges : Mathf.Min(DashCharges, MaximumDashCharges);
+        if (DashCharges >= MaximumDashCharges) recharge = 0;
         NowHp = fill ? broom.maxHp : Mathf.Max(1, broom.maxHp * hpRatio);
         NowAp = fill ? hat.maxAp : hat.maxAp * mpRatio;
         foreach (var pair in visualBones)
@@ -115,13 +118,13 @@ public sealed class MagicBalanceLabActor : MonoBehaviour
     public void ResetPose(Vector3 position, Quaternion rotation)
     {
         controller.enabled = false; transform.SetPositionAndRotation(position, rotation); controller.enabled = true;
-        Speed = turnRate = boost = recharge = glide = slowed = bound = 0; Velocity = Vector3.zero; DashCharges = 3;
+        Speed = turnRate = boost = recharge = glide = slowed = bound = 0; Velocity = Vector3.zero; DashCharges = MaximumDashCharges;
     }
 
     public void Simulate(Quaternion desired, bool stationary, bool braking, bool dash, bool infiniteMana, float dt)
     {
-        if (DashCharges < 3) { recharge += dt; if (recharge >= RechargeSeconds) { recharge -= RechargeSeconds; DashCharges++; } }
-        if (DashCharges == 3) recharge = 0;
+        if (DashCharges < MaximumDashCharges) { recharge += dt; if (recharge >= RechargeSeconds) { recharge -= RechargeSeconds; DashCharges++; } }
+        if (DashCharges == MaximumDashCharges) recharge = 0;
         boost = Mathf.Max(0, boost - dt); slowed = Mathf.Max(0, slowed - dt); bound = Mathf.Max(0, bound - dt);
         NowAp = infiniteMana ? hat.maxAp : Mathf.Min(hat.maxAp, NowAp + hat.apRecoveryPerSecond * dt);
         if (dash && !braking && boost <= 0 && DashCharges > 0 && bound <= 0) { DashCharges--; boost = 2; }

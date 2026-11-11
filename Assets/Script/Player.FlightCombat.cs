@@ -19,6 +19,9 @@ public partial class Player
     [Networked] private bool SpawnProtectionPending { get; set; }
     public bool IsSpawnProtected => Object != null && Object.IsValid && IsAlive &&
         (IsCountdownProtected || SpawnProtectionPending || TimerIsActive(SpawnProtectionTimer));
+    public bool IsDamageProtected => IsSpawnProtected || IsDashGuardActive;
+    public bool HasOrbitingShield => IsDamageProtected || HasFestivalGuard;
+    public float OrbitingShieldVisibility => IsDashGuardActive || HasFestivalGuard ? 1f : SpawnShieldVisibility;
     public bool IsCountdownProtected => BattleManager.Instance != null &&
         BattleManager.Instance.Phase == BattleStartPhase.Countdown;
     public float SpawnShieldVisibility => IsCountdownProtected
@@ -70,8 +73,8 @@ public partial class Player
             // Capture both outcomes before either pilot can die. Contacts never parry.
             float attackDamage = GetBodyRamDamage(table);
             float counterDamage = counter ? other.GetBodyRamDamage(table) : 0f;
-            if (!other.IsSpawnProtected) other.DropCarriedFlag();
-            if (counter && !IsSpawnProtected) DropCarriedFlag();
+            if (!other.IsDamageProtected) other.DropCarriedFlag();
+            if (counter && !IsDamageProtected) DropCarriedFlag();
             other.TakeDamage(attackDamage, ParticipantRef, MagicType.None, false,
                 table.ramKnockback, table.ramStun, Object.Id);
             if (counter) TakeDamage(counterDamage, other.ParticipantRef, MagicType.None, false,

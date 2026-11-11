@@ -273,6 +273,8 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     }
     public static string Description(PerkDefinition p) => (p.description ?? "")
         .Replace("{amount}",p.amount.ToString("0.##")).Replace("{seconds}",p.seconds.ToString("0.##"))
+        .Replace("{condition}",p.condition.ToString("0.##"))
+        .Replace("{secondary}",p.secondaryAmount.ToString("0.##"))
         .Replace("{percent}",(p.amount*100f).ToString("0.#"))
         .Replace("{secondaryPercent}",(p.secondaryAmount*100f).ToString("0.#"));
     private Sprite Icon(PerkId id)

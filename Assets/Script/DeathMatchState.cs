@@ -47,6 +47,7 @@ public sealed class DeathMatchState : NetworkBehaviour
             Center = caster.LockAimPoint, Radius = Mathf.Min(stats.radius, 100f),
             Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Min(stats.effectDuration, 120f)),
             CasterTeam = caster.TeamIndex,
+            LockTimePenalty = stats.perkSecond?.id == PerkId.SmokeDuration ? Mathf.Max(0f, stats.perkSecond.amount) : 0f,
             Sequence = SmokeSequence
         });
         return true;
@@ -73,6 +74,19 @@ public sealed class DeathMatchState : NetworkBehaviour
                 !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
         }
         return false;
+    }
+
+    public float SmokeLockDurationMultiplier(Vector3 point, int team)
+    {
+        if (Object == null || !Object.IsValid || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return 1f;
+        float penalty = 0f;
+        for (int i = 0; i < SmokeClouds.Length; i++)
+        {
+            SmokeCloudState cloud = SmokeClouds[i];
+            if (cloud.CasterTeam != team && cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner) && cloud.Contains(point))
+                penalty = Mathf.Max(penalty, cloud.LockTimePenalty);
+        }
+        return 1f + penalty;
     }
 
     private void RenderSmoke()

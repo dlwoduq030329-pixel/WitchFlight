@@ -26,6 +26,8 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     private bool launchPoseCaptured;
     private GameObject content;
     private Material material;
+    private GameObject focusedSword;
+    private Material focusedSwordMaterial;
     private ProjectileFormationVisual formation;
     private readonly RaycastHit[] hits = new RaycastHit[32];
     private readonly Collider[] overlaps = new Collider[32];
@@ -108,6 +110,9 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         view.content = CombatPresentation.InstantiateVfx(entry.projectileVfxPrefab, position, root.transform.rotation, root.transform);
         if (view.content == null)
         {
+            if (entry.focusedBlade) view.content = view.CreateFocusedSword(root.transform);
+            else
+            {
             bool mine = entry.effect == MagicEffectKind.Mine;
             view.content = GameObject.CreatePrimitive(mine ? PrimitiveType.Cube : PrimitiveType.Sphere);
             var collider = view.content.GetComponent<Collider>();
@@ -128,8 +133,48 @@ public sealed class ProjectilePredictionView : MonoBehaviour
                 trail.startColor = color;
                 trail.endColor = new Color(color.r, color.g, color.b, 0f);
             }
+            }
         }
+        if (entry.focusedBlade)
+            view.content.transform.localScale *= Mathf.Lerp(entry.rainFocusMinScale, entry.rainFocusMaxScale, entry.focusedBladeCharge);
         return view;
+    }
+
+    private static Mesh focusedSwordMesh;
+    private GameObject CreateFocusedSword(Transform parent)
+    {
+        if (focusedSword != null)
+        {
+            focusedSword.transform.localScale = Vector3.one;
+            focusedSword.SetActive(true);
+            return focusedSword;
+        }
+        var sword = new GameObject("Focused blade");
+        focusedSword = sword;
+        sword.transform.SetParent(parent, false);
+        focusedSwordMaterial = CombatPresentation.CreateEffectMaterial(new Color(.65f, .35f, 1f));
+        if (focusedSwordMesh == null)
+        {
+            focusedSwordMesh = new Mesh { name = "Focused sword shared mesh" };
+            focusedSwordMesh.vertices = new[] {
+                new Vector3(-.25f,0,0), new Vector3(0,.06f,0), new Vector3(.25f,0,0), new Vector3(0,-.06f,0),
+                new Vector3(0,0,1.5f), new Vector3(0,0,-.8f) };
+            focusedSwordMesh.triangles = new[] { 0,1,4,1,2,4,2,3,4,3,0,4, 1,0,5,2,1,5,3,2,5,0,3,5 };
+            focusedSwordMesh.RecalculateNormals(); focusedSwordMesh.RecalculateBounds();
+        }
+        sword.AddComponent<MeshFilter>().sharedMesh = focusedSwordMesh;
+        sword.AddComponent<MeshRenderer>().sharedMaterial = focusedSwordMaterial;
+        void Part(string label, Vector3 position, Vector3 scale)
+        {
+            var part = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            part.name = label; var collider = part.GetComponent<Collider>(); collider.enabled = false; Destroy(collider);
+            part.transform.SetParent(sword.transform, false);
+            part.transform.localPosition = position; part.transform.localScale = scale;
+            part.GetComponent<Renderer>().sharedMaterial = focusedSwordMaterial;
+        }
+        Part("Guard", new Vector3(0,0,-.75f), new Vector3(.7f,.1f,.12f));
+        Part("Grip", new Vector3(0,0,-1f), new Vector3(.1f,.1f,.5f));
+        return sword;
     }
 
     public void ConfirmImpact()
@@ -256,7 +301,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
 
     private void UpdateFormation()
     {
-        if (flightExhausted || (hasSource && source.FlightExhausted) || table == null || !table.projectileFormationEnabled || owner == null ||
+        if (stats.focusedBlade || flightExhausted || (hasSource && source.FlightExhausted) || table == null || !table.projectileFormationEnabled || owner == null ||
             stats.projectileSpeed <= 0f || stats.effect == MagicEffectKind.Mine || stats.magic == MagicType.Blade || stats.magic == MagicType.MagicStorm ||
             (hasSource && source.ConstructKind == MagicConstructKind.SummonBolt))
         {
@@ -391,11 +436,19 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         pending.Remove(this);
         formation?.Dispose();
         formation = null;
-        if (content != null) MagicVfxPool.Release(content);
+        if (content != null)
+        {
+            if (content == focusedSword) content.SetActive(false);
+            else MagicVfxPool.Release(content);
+        }
         content = null;
         if (material != null) Destroy(material);
         material = null;
     }
 
-    private void OnDestroy() => ClearVisuals();
+    private void OnDestroy()
+    {
+        ClearVisuals();
+        if (focusedSwordMaterial != null) Destroy(focusedSwordMaterial);
+    }
 }

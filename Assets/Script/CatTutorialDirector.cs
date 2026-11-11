@@ -721,7 +721,7 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
         return data.Line(body)
             .Replace("{glideSeconds}", (player != null ? player.GlideStopSeconds : 1.5f).ToString("0.#"))
             .Replace("{boostSeconds}", (player != null ? player.BurstBoostSeconds : 2f).ToString("0.#"))
-            .Replace("{dashCharges}", Player.MaximumDashCharges.ToString())
+            .Replace("{dashCharges}", (player != null && player.Object != null && player.Object.IsValid ? player.MaximumDashCharges : 3).ToString())
             .Replace("{dashRecharge}", (flight != null ? flight.dashRechargeSeconds : 4f).ToString("0.#"))
             .Replace("{ramDamage}", (flight != null ? flight.ramDamage : 70f).ToString("0.#"))
             .Replace("{accelerate}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.Accelerate)))

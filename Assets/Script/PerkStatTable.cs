@@ -7,10 +7,11 @@ public enum PerkId
     None = 0, FireBurn = 1, FireIgnition = 2, IceSlow = 3, IceMark = 4,
     VisionAim = 5, VisionCombo = 6, ThunderRadius = 7, ThunderCore = 8,
     HealingPower = 9, HealingCleanse = 10, BindingLock = 11, BindingCost = 12,
-    // Keep the serialized ID/name: CurseEfficiency now amplifies DPS, not the already-low MP cost.
+    // Keep the serialized ID/name: CurseEfficiency now slows its victim while channel damage continues.
     DarkCost = 13, DarkHarvest = 14, CurseRange = 15, CurseEfficiency = 16,
     MineArming = 17, MineRadius = 18, BeamWidth = 19, BeamFocus = 20,
     FlarePulse = 21, FlareEfficiency = 22, SmokeRadius = 23, SmokeDuration = 24,
+    // Keep legacy enum names/IDs for saved perk masks: BrakingRune = 수호진, FirstWind = 돌풍의 축복.
     GuardianKnot = 25, WindTurning = 26, BrakingRune = 27, FirstWind = 28,
     Tailwind = 29, DeepMana = 30, ManaBreath = 31, FrugalRune = 32,
     EchoSpell = 33, ManaRemnant = 34,
@@ -28,11 +29,11 @@ public sealed class PerkDefinition
     public Sprite icon;
     [Tooltip("비율은 0.2 = 20%. 정수 효과는 HP/초/피해량. 각 항목의 설명을 참고하세요.")]
     [Min(0f)] public float amount;
-    [Tooltip("보조 비율. 불꽃: MP 할인, 사역마: 공격 간격 감소, 플레어: 성공 시 쿨타임 할인.")]
-    [Range(0f, 1f)] public float secondaryAmount;
-    [Tooltip("화상 지속 / 얼음 연계 창 / 정화 보호 / 연속 명중 창 / 광선 발동 / 추가 플레어 지연 / 마나 환급 쿨타임(초).")]
+    [Tooltip("보조 값. 불꽃: MP 할인, 사역마: 공격 간격 감소, 확장렌즈: 피해 보너스, 칼날 집중: 기본 피해.")]
+    [Min(0f)] public float secondaryAmount;
+    [Tooltip("화상 지속 / 얼음 연계 창 / 정화 보호 / 연속 명중 창 / 마나 환급 쿨타임(초).")]
     [Min(0f)] public float seconds;
-    [Tooltip("얼음: 채널 보너스 길이(초), 천둥: 중심 반경 비율, 광선: 조준 단절 유예(초).")]
+    [Tooltip("얼음: 채널 보너스 길이(초), 천둥: 중심 반경 비율, 열 집중: 연속 피해 시간(초), 칼날 집중: 최대 MP 대비 충전 비율.")]
     [Min(0f)] public float condition;
 }
 
@@ -102,24 +103,24 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.ThunderCore,"낙뢰 집중","폭발 중심부 피해 {percent}% 증가.",.3f,0,0,.45f),
         D(PerkId.HealingPower,"응급 증폭","회복량 {percent}% 증가.",.5f),
         D(PerkId.HealingCleanse,"정화","둔화·구속 해제. {seconds}초간 새 둔화·구속 지속 시간 {percent}% 감소.",.65f,3),
-        D(PerkId.BindingLock,"신속 결박","록온 시간 {percent}% 감소.",.4f),
-        D(PerkId.BindingCost,"절제된 결박","MP 소모 {percent}% 감소.",.45f),
-        D(PerkId.DarkCost,"절제된 제물","시전 체력 소모 {percent}% 감소.",.2f),
-        D(PerkId.DarkHarvest,"생명 수확","실제 적중 시 회복량 {percent}% 증가.",.25f),
+        D(PerkId.BindingLock,"저주의 결박","결박된 적이 받는 피해량 {percent}% 증가.",0.3f,0.0f,0.0f,0.0f),
+        D(PerkId.BindingCost,"온전한 속박","속박 지속시간 {amount}초 증가.",2.0f,0.0f,0.0f,0.0f),
+        D(PerkId.DarkCost,"피의 환원","적중 시 체력 회복량 {percent}% 증가.",0.25f,0.0f,0.0f,0.0f),
+        D(PerkId.DarkHarvest,"살육의 마법","피해량 {percent}% 증가. 이 마법으로 적 플레이어 처치 시 쿨타임 즉시 초기화.",0.3f,0.0f,0.0f,0.0f),
         D(PerkId.CurseRange,"긴 손아귀","사거리 {percent}% 증가.",.3f),
-        D(PerkId.CurseEfficiency,"깊어지는 저주","저주의 초당 피해 {percent}% 증가. MP 소모는 유지.",.4f),
+        D(PerkId.CurseEfficiency,"저주의 늪","저주로 피해를 받는 동안 적의 이동속도 {percent}% 감소.",0.3f,0.0f,0.0f,0.0f),
         D(PerkId.MineArming,"신속한 사역마","소환체의 록온 시간 {percent}% 감소, 공격 간격 {secondaryPercent}% 감소.",.45f,0,.2f),
-        D(PerkId.MineRadius,"추적의 각인","소환체의 탐색·공격 사거리 {percent}% 증가.",.5f),
-        D(PerkId.BeamWidth,"확장 렌즈","광선 판정 반경 {percent}% 증가.",.5f),
-        D(PerkId.BeamFocus,"열 집중","같은 적에게 {seconds}초 연속 명중 시 피해 {percent}% 증가.",.4f,.75f,0,.25f),
-        D(PerkId.FlarePulse,"연속 살포","{seconds}초 간격으로 추적 해제 {amount}회 추가.",2,.35f),
-        D(PerkId.FlareEfficiency,"효율 방출","추적 해제 성공 시 MP {percent}% 환급, 이번 쿨타임 {secondaryPercent}% 감소.",.3f,0,.2f),
+        D(PerkId.MineRadius,"이중계약","한 번에 사역마를 {amount}마리 소환합니다.",2.0f,0.0f,0.0f,0.0f),
+        D(PerkId.BeamWidth,"확장렌즈","광선 판정 반경 {percent}% 증가, 피해량 {secondaryPercent}% 증가.",0.5f,0.0f,0.2f,0.0f),
+        D(PerkId.BeamFocus,"열 집중","같은 적에게 {condition}초 연속 피해를 주면 {seconds}초간 총 {amount} 화상 피해. 중첩 없이 갱신.",16.0f,2.0f,0.0f,2.0f),
+        D(PerkId.FlarePulse,"텔레키네시스","플레어 유지 중 주변 {amount}m의 적 투사체를 자신에게 유도. 아군을 추적하는 투사체도 포함.",60.0f,0.0f,0.0f,0.0f),
+        D(PerkId.FlareEfficiency,"효율 방출","플레어 유지시간 {amount}초 증가.",1.0f,0.0f,0.0f,0.0f),
         D(PerkId.SmokeRadius,"광역 차폐","연막 반경 {percent}% 증가.",.2f),
-        D(PerkId.SmokeDuration,"고밀도 잔류","연막 유지 시간 {amount}초 증가.",2),
+        D(PerkId.SmokeDuration,"밀집","연막 안의 적이 마법을 록온하는 시간 {percent}% 증가.",0.3f,0.0f,0.0f,0.0f),
         D(PerkId.GuardianKnot,"수호의 매듭","최대 HP {amount} 증가. 즉시 회복 없음.",35),
         D(PerkId.WindTurning,"바람결 타기","선회 능력 {percent}% 증가. 이동 속도는 유지.",.35f),
-        D(PerkId.BrakingRune,"멈춤의 룬","제동 성능 {percent}% 증가.",.45f),
-        D(PerkId.FirstWind,"첫바람의 축복","정지에서 1단계까지 가속 {percent}% 증가.",.45f),
+        D(PerkId.BrakingRune,"수호진","대쉬 시전 시 {amount}초간 무적. 몸 주변에 수호 방패가 회전합니다.",1f),
+        D(PerkId.FirstWind,"돌풍의 축복","최대 대쉬 갯수 {amount}개 증가. 추가된 대쉬는 즉시 충전됩니다.",1f),
         D(PerkId.Tailwind,"순풍의 가호","대쉬 충전 시간 {percent}% 감소.",.3f),
         D(PerkId.DeepMana,"깊은 마력샘","최대 MP {percent}% 증가.",.25f),
         D(PerkId.ManaBreath,"마력의 숨결","자연 MP 회복량 {percent}% 증가.",.3f),
@@ -131,7 +132,7 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.StormCount,"쏟아지는 마탄","발사하는 마탄이 {amount}발로 증가.",40f),
         D(PerkId.StormPrecision,"집중 사격","마탄의 탄퍼짐 {percent}% 감소.",0.5f),
         D(PerkId.RainCharge,"급속 충전","차징 중 초당 마나 소모량이 {amount}로 증가.",20f),
-        D(PerkId.RainPursuit,"쇄도하는 칼날","칼날 비행 속도와 추적 회전 속도 {percent}% 증가.",0.3f),
+        D(PerkId.RainPursuit,"칼날 집중","누르는 동안 최대 마나의 50%까지 충전하고, 놓으면 에임 방향으로 검 하나를 발사합니다. 피해 {secondary} + 소모 마나 × {amount}. 충전량에 따라 크기·판정 증가, 헤드샷 2배.",.8f,0f,40f,.5f),
         D(PerkId.TimeRadius,"확장된 시간","시간 역장의 반지름 {percent}% 증가.",0.3f),
         D(PerkId.TimeHealing,"회복의 시간","역장 내부 아군의 체력을 초당 {amount} 회복. 역장끼리 중첩되지 않음.",10f),
         D(PerkId.FestivalSpeed,"축제의 바람","대축제 대상의 이동속도 {percent}% 증가.",0.3f),

@@ -19,4 +19,7 @@ public static class CombatSmoke
     public static bool ContainsEnemy(NetworkRunner runner, Vector3 point, int team) => DeathMatchState.Instance != null
         ? DeathMatchState.Instance.Runner == runner && DeathMatchState.Instance.ContainsEnemySmoke(point, team)
         : BattleFlag.Instance != null && BattleFlag.Instance.Runner == runner && BattleFlag.Instance.ContainsEnemySmoke(point, team);
+    public static float LockDurationMultiplier(NetworkRunner runner, Vector3 point, int team) => DeathMatchState.Instance != null
+        ? DeathMatchState.Instance.Runner == runner ? DeathMatchState.Instance.SmokeLockDurationMultiplier(point, team) : 1f
+        : BattleFlag.Instance != null && BattleFlag.Instance.Runner == runner ? BattleFlag.Instance.SmokeLockDurationMultiplier(point, team) : 1f;
 }

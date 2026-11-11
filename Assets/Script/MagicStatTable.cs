@@ -14,6 +14,9 @@ public struct MagicStatEntry
     // Authority-only cast snapshot; never serialized into the balancing asset.
     [NonSerialized] public int perkSlot, perkCast;
     [NonSerialized] public int titleCastId;
+    [NonSerialized] public float channelContactSeconds;
+    [NonSerialized] public bool focusedBlade;
+    [NonSerialized] public float focusedBladeCharge;
     [NonSerialized] public float timeHealingPerSecond, festivalSpeedBonus;
     [NonSerialized] public int festivalGuardCharges;
     [NonSerialized] public PerkDefinition perkFirst, perkSecond;
@@ -78,6 +81,14 @@ public struct MagicStatEntry
     public bool requiresTarget;
     public bool requiresFullLock;
 
+    [Header("Flare: three persistent interception trails")]
+    [HideInInspector] public float flareLength; // legacy stationary field, retained for asset compatibility
+    [Tooltip("기존 플레어 입자 수명에 더할 시간. 기본 1초. 분출 종료 후에도 궤적과 방어 판정이 남습니다.")]
+    [Range(0f, 5f)] public float flareParticleExtraLifetime;
+    [Range(0f, 80f)] public float flareSpreadAngle;
+    [Min(.1f)] public float flareInterceptRadius;
+    [HideInInspector] public float flareSpreadSeconds; // legacy stationary field
+
     [Header("Blade Rain")]
     [Min(0f)] public float rainManaPerSecond;
     [Min(1f)] public float rainManaPerCircle;
@@ -85,6 +96,14 @@ public struct MagicStatEntry
     [Range(2, 16)] public int rainMaxCircles;
     [Min(.01f)] public float rainBladeInterval;
     public GameObject rainCircleVfxPrefab;
+
+    [Header("Blade focus (second perk): charge and release")]
+    [Min(1f)] public float rainFocusSpeed;
+    [Min(.01f)] public float rainFocusMinRadius, rainFocusMaxRadius;
+    [Min(.01f)] public float rainFocusMinScale, rainFocusMaxScale;
+    [Min(1f)] public float rainFocusHeadMultiplier;
+    [Tooltip("Optional sword projectile, forward along local +Z. Scaled with charge.")]
+    public GameObject rainFocusProjectilePrefab;
 
     [Header("Meow Festival")]
     [Min(1f)] public float festivalRecoveryMultiplier;
@@ -385,8 +404,9 @@ public sealed class MagicStatTable : ScriptableObject
                 e.effect = MagicEffectKind.Flare; e.apCost = 50; e.cooldownSeconds = 6; e.effectDuration = 3f;
                 e.flareVfxBackOffset = 0.7f; e.flareVfxSpeed = 14f; e.vfxLifetime = 3f;
                 e.flareVfxScale = 1.8f; e.flareVfxBrightness = 2f;
+                e.flareLength = 12f; e.flareSpreadAngle = 30f; e.flareParticleExtraLifetime = 1f; e.flareInterceptRadius = 2f; e.flareSpreadSeconds = .35f;
                 e.displayName = "플레어";
-                e.description = "자신을 추적 중인 유도탄의 추적을 끊습니다. 지속시간 동안 이동속도가 10% 증가하고, 자신을 조준하는 적의 록온 시간이 20% 증가합니다."; break;
+                e.description = "세 갈래로 뿌린 플레어가 잠시 남아 닿은 적 마법 투사체를 파괴합니다. 즉발 마법은 제외하며, 지속시간 동안 이동속도가 10% 증가합니다."; break;
             case MagicType.BladeRain:
                 e.displayName = "칼날비";
                 e.description = "첫 록온은 무료입니다. 이후 누르는 동안 초당 마나 5를 충전하고, 놓으면 기본 마나 50을 소모해 발사합니다. 실제 소모 마나의 절반을 남은 대상들에게 나눕니다.";
@@ -395,6 +415,8 @@ public sealed class MagicStatTable : ScriptableObject
                 e.requiresTarget = e.requiresFullLock = true;
                 e.rainManaPerSecond = 5f; e.rainManaPerCircle = 25f; e.rainManaPerTarget = 50f;
                 e.rainMaxCircles = 16; e.rainBladeInterval = .06f;
+                e.rainFocusSpeed = 250f; e.rainFocusMinRadius = .3f; e.rainFocusMaxRadius = 2.4f;
+                e.rainFocusMinScale = 1f; e.rainFocusMaxScale = 8f; e.rainFocusHeadMultiplier = 2f;
                 e.projectileSpeed = 100f; e.projectileTurnSpeed = 240f;
                 e.projectileRadius = .25f; e.projectileLifetime = 3f;
                 break;
