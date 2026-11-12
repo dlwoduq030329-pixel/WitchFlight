@@ -85,11 +85,6 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _ShowSun: 1
-    - _SunIntensity: 8
-    - _SunSoftness: 0.15
-    - _SunHaloSize: 4
-    - _SunHaloIntensity: 0.6
     - _AtmosphereThickness: 0.64
     - _BumpScale: 1
     - _Cutoff: 0.5
@@ -108,20 +103,25 @@ Material:
     - _OcclusionStrength: 1
     - _Parallax: 0.02
     - _Rotation: 15
+    - _ShowSun: 1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SunDisk: 0
-    - _SunSize: 0.55
+    - _SunHaloIntensity: 0.22
+    - _SunHaloSize: 20
+    - _SunIntensity: 30
+    - _SunSize: 0.86
     - _SunSizeConvergence: 5
+    - _SunSoftness: 0.406
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
-    - _SunColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _GroundColor: {r: 0, g: 0.30119485, b: 0.5188679, a: 1}
     - _SkyTint: {r: 0.8235294, g: 0.9376199, b: 1, a: 1}
+    - _SunColor: {r: 0.9716981, g: 0.7049243, b: 0.21542363, a: 1}
     - _Tint: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
