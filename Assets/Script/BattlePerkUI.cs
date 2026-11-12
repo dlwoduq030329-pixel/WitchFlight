@@ -8,6 +8,7 @@ using UnityEngine.UI;
 [Serializable]
 public sealed class PerkCardView
 {
+    [NonSerialized] public PerkId displayedPerk;
     [Tooltip("특전 아이콘을 표시할 Image. PerkStatTable의 Icon을 사용하며, 비어 있으면 해당 마법의 아이콘을 사용합니다.")]
     public Image icon;
     [Tooltip("특전 이름을 표시할 TMP 텍스트. PerkStatTable의 Display Name을 사용합니다.")]
@@ -118,7 +119,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     }
     public static bool BlocksCombatInput
     {
-        get { if (active == null) return false; active.SampleInput(); return active.gate.BlocksCombat; }
+        get { if (active == null) return false; active.SampleInput(); return active.gate.BlocksCombat || TabCapturesMouse || active.tabBlocksCombat; }
     }
     private bool Allowed => (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsDeathMatch) && Application.isFocused && !CombatPresentation.MenuOpen && BattleManager.Instance != null &&
         (BattleManager.Instance.Phase == BattleStartPhase.Playing || BattleManager.Instance.Phase == BattleStartPhase.Countdown ||
@@ -127,10 +128,11 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     {
         if (inputFrame == Time.frameCount) return;
         inputFrame = Time.frameCount;
-        gate.Sample(Allowed && !BattleEmoteUI.CapturesMouse && CanOfferPerk(PlayerData.Local),Input.GetKey(KeyCode.Space),Input.GetMouseButton(0),Input.GetMouseButton(1));
+        gate.Sample(Allowed && !BattleEmoteUI.CapturesMouse && !(hasAuthoredTab && Input.GetKey(KeyCode.Tab)) && CanOfferPerk(PlayerData.Local),Input.GetKey(KeyCode.Space),Input.GetMouseButton(0),Input.GetMouseButton(1));
     }
     private void Awake()
     {
+        TryBindAuthoredTab();
         if (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch)
         {
             // No generated XP/selection UI and no perk input loop in deathmatch.
@@ -152,7 +154,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         if (teamComparisonRoot != null) { ReadOnly(teamComparisonRoot); Show(teamComparisonRoot,false); }
         if (selectionRoot == null) BuildSelection();
         if (comparisonRoot == null) BuildComparison();
-        TryUseAuthoredTeamComparison();
+        if (!hasAuthoredTab) TryUseAuthoredTeamComparison();
         if (acquiredRoot == null) BuildAcquired();
         if (experienceSlider == null) BuildExperience();
         experienceSlider.interactable = false;
@@ -210,6 +212,15 @@ public sealed partial class BattlePerkUI : MonoBehaviour
             selectionRoot.transform.localScale = Vector3.one * Mathf.Lerp(.92f,1f,Mathf.Min(t,collapse));
         }
         bool compare = Allowed && !BattleEmoteUI.CapturesMouse && !gate.Showing && Input.GetKey(KeyCode.Tab);
+        if (hasAuthoredTab)
+        {
+            UpdateTabInteraction(compare);
+            UpdateAuthoredTab(compare);
+            if (compare) UpdateTabTooltip();
+            UpdateExperience(); UpdateFeedback(); UpdateBenefitAvailability();
+            UpdateLevelUpFeedback();
+            return;
+        }
         bool teamBattle = BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 2;
         if (compare && teamBattle)
         {
@@ -266,6 +277,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     private void Fill(PerkCardView view, PerkId id, string hint, PlayerData data)
     {
         if (view == null) return;
+        view.displayedPerk = id;
         var p = data != null ? data.PerkTable.Get(id) : null;
         SetIcon(view.icon,Icon(id)); Text(view.title,p?.displayName ?? "—");
         Text(view.description,p != null ? Description(p) : "선택 가능한 특전이 없습니다.");
@@ -434,6 +446,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
         if(view.effects != null) for(;n<view.effects.Length;n++)
         {
             var row=view.effects[n]; if(row==null)continue;
+            row.displayedPerk = PerkId.None;
             SetIcon(row.icon,null); Text(row.title,"—"); Text(row.description,ready?"아직 획득하지 않음":"정보 대기 중"); Text(row.hint,"");
         }
     }
@@ -453,6 +466,7 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     private static void ClearEffect(PerkCardView row,bool ready)
     {
         if (row == null) return;
+        row.displayedPerk = PerkId.None;
         SetIcon(row.icon,null); Text(row.title,"—");
         Text(row.description,ready ? "아직 획득하지 않음" : "정보 대기 중"); Text(row.hint,"");
     }
@@ -461,9 +475,10 @@ public sealed partial class BattlePerkUI : MonoBehaviour
     private static void Text(TMP_Text t,string s) { if(t!=null && t.text!=s)t.text=s; }
     private static void SetIcon(Image i,Sprite s) { if(i==null)return; i.sprite=s; i.enabled=s!=null; }
     private static void Show(GameObject root,bool show) { if(root!=null && root.activeSelf!=show)root.SetActive(show); }
-    private void OnApplicationFocus(bool focus) { if(!focus){Show(selectionRoot,false);Show(comparisonRoot,false);Show(teamComparisonRoot,false);Show(acquiredRoot,false);Show(benefitAnimation,false);} }
+    private void OnApplicationFocus(bool focus) { if(!focus){UpdateTabInteraction(false);Show(selectionRoot,false);Show(comparisonRoot,false);Show(teamComparisonRoot,false);Show(acquiredRoot,false);Show(benefitAnimation,false);} }
     private void OnDisable()
     {
+        UpdateTabInteraction(false);
         ResetLevelUpFeedback();
         if(active==this)active=null;
         Show(selectionRoot,false);Show(comparisonRoot,false);Show(acquiredRoot,false);

@@ -1452,7 +1452,7 @@ public sealed partial class BattleHud : MonoBehaviour
         Visible(menuPanel, MenuOpen);
         if (MenuOpen && !wasOpen) RestartMenuEntrance();
         else if (!MenuOpen) PauseMenuEntrance();
-        bool flight = battle != null && battle.IsGameplayActive && !MenuOpen;
+        bool flight = battle != null && battle.IsGameplayActive && !MenuOpen && !BattlePerkUI.TabCapturesMouse;
         Cursor.lockState = flight ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !flight;
     }

@@ -419,11 +419,13 @@ public partial class BattleManager : MonoBehaviour
         battleFlag?.AnnounceKill(killer != null ? killer.playerName.ToString() : "환경 / 더미",
             killer != null ? killer.playerprofile : -1,
             victim != null ? victim.playerName.ToString() : $"Player {deadPlayer.PlayerId}",
-            victim != null ? victim.playerprofile : -1);
+            victim != null ? victim.playerprofile : -1,
+            killer != null ? killer.teamIndex : 0, victim != null ? victim.teamIndex : 0);
         if (IsDeathMatch && DeathMatchState.Instance != null)
             DeathMatchState.Instance.RPC_AnnounceKill(killer != null ? killer.playerName.ToString() : "환경",
                 killer != null ? killer.playerprofile : -1, victim != null ? victim.playerName.ToString() : "플레이어",
-                victim != null ? victim.playerprofile : -1);
+                victim != null ? victim.playerprofile : -1,
+                killer != null ? killer.teamIndex : 0, victim != null ? victim.teamIndex : 0);
         battleFlag?.DropCarrier(deadPlayer, deadObject.transform.position,
             deadPilot != null && deadPilot.DiedFromAltitude);
         pendingRespawns.Add(new PendingRespawn

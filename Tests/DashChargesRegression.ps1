@@ -14,6 +14,7 @@ using Fusion;
 using UnityEngine;
 namespace UnityEngine {
  public static class Mathf {
+  public static bool Approximately(float a,float b)=>Math.Abs(a-b)<.00001f;
   public static float Max(float a,float b)=>Math.Max(a,b);
   public static int Max(int a,int b)=>Math.Max(a,b);
   public static int RoundToInt(float a)=>(int)Math.Round(a);
@@ -47,6 +48,7 @@ public struct NetworkButtons {
  public bool WasPressed(NetworkButtons old,PlayerInputButton b)=>IsSet(b)&&!old.IsSet(b);
 }
 public partial class Player {
+ public float ManaBuffDashRechargeMultiplier=1f;
  public Runner Runner=new(); public Obj Object=new();
  public bool IsAlive=true;
  public float GustBonus,GuardSeconds;
@@ -159,6 +161,20 @@ public partial class Player {
   p.HasFestivalGuard=true;Check(p.HasOrbitingShield,"Festival shield remains after ward expires");
   p.HasFestivalGuard=false;p.IsSpawnProtected=true;p.DamageGate(100);
   Check(p.AcceptedHits==2 && p.HasOrbitingShield,"Spawn protection still works independently");
+  FlightCombatTable.Default.dashRechargeSeconds=8;
+  p=new Player();p.ResetDashCharges();p.TryConsumeDashCharge();
+  Check(Math.Abs(p.DashRechargeDuration-8)<.001,"New baseline is eight seconds");
+  p.Advance(2);float progress=p.DashRechargeProgress;
+  p.ManaBuffDashRechargeMultiplier=4;p.Advance(2);
+  Check(Math.Abs(p.DashRechargeDuration-2)<.001&&Math.Abs(p.DashRechargeProgress-progress)<.001,"Zone entry quadruples speed without losing progress");
+  p.Advance(2.5);Check(Math.Abs(p.DashRechargeProgress-.5f)<.001,"Half a second inside earns quarter charge");
+  p.ManaBuffDashRechargeMultiplier=1;p.Advance(2.5);
+  Check(Math.Abs(p.DashRechargeDuration-8)<.001&&Math.Abs(p.DashRechargeProgress-.5f)<.001,"Zone exit restores normal speed and preserves earned half charge");
+  p.Advance(6.5);Check(p.DashCharges==3,"Remaining half charge takes four seconds outside");
+  p=new Player{ManaBuffDashRechargeMultiplier=4};p.ResetDashCharges();
+  p.TryConsumeDashCharge();p.TryConsumeDashCharge();p.TryConsumeDashCharge();
+  for(int i=1;i<=3;i++){p.Advance(i*2);Check(p.DashCharges==i,"Zone sequential recharge every two seconds");}
+  FlightCombatTable.Default.dashRechargeSeconds=4;
   return checks+" dash checks passed";
  }
 }

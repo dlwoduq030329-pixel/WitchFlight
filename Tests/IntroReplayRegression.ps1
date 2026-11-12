@@ -32,11 +32,14 @@ public class GameObject {
  public bool activeSelf=true;
  public void SetActive(bool value){activeSelf=value;}
 }
+public class Group {public GameObject gameObject=new();}
+public class AuthoredLayout {public Group ownGroup=new(),enemyGroup=new();}
 public class BattleManager {
  public static BattleManager Instance;
  public int ExpectedPlayerCount;
 }
 public class Probe {
+ public AuthoredLayout activeLayout;
  public Panel introPanel;private readonly List<IntroTween> introTweens=new();
  public GameObject localProfileRoot=new(),opponentProfileRoot=new(),teammateProfileRoot=new(),secondEnemyProfileRoot=new();
  public bool IsTeamBattle;
@@ -77,6 +80,15 @@ public static class IntroChecks {
   Check(p.localProfileRoot.activeSelf&&p.opponentProfileRoot.activeSelf&&!p.teammateProfileRoot.activeSelf&&!p.secondEnemyProfileRoot.activeSelf,"duel keeps unused cards hidden");
   BattleManager.Instance.ExpectedPlayerCount=1;p.SetProfileVisibility(true);
   Check(p.localProfileRoot.activeSelf&&!p.opponentProfileRoot.activeSelf,"solo does not reveal an unprepared enemy");
+  for(int size=1;size<=5;size++){
+   BattleManager.Instance.ExpectedPlayerCount=size*2;p.activeLayout=new();
+   p.SetProfileVisibility(false);
+   Check(!p.activeLayout.ownGroup.gameObject.activeSelf&&!p.activeLayout.enemyGroup.gameObject.activeSelf,"authored teams hidden until ready "+size);
+   p.SetProfileVisibility(true);
+   Check(p.activeLayout.ownGroup.gameObject.activeSelf&&p.activeLayout.enemyGroup.gameObject.activeSelf,"authored teams revealed together "+size);
+   p.SetProfileVisibility(false);
+   Check(!p.activeLayout.ownGroup.gameObject.activeSelf&&!p.activeLayout.enemyGroup.gameObject.activeSelf,"authored teams hide between rounds "+size);
+  }
   return n;
  }
 }
@@ -93,5 +105,7 @@ $initializer=Get-Content Assets/Script/BattleIntroInitializer.cs -Raw
 if(!($initializer -match 'DefaultExecutionOrder\(-10000\)' -and $initializer -match 'PrepareBeforeDisplay\(\)')){throw 'Initially active VSUI is not protected before DOTween Awake'}
 $scene=Get-Content Assets/Scenes/Battle.unity -Raw
 if(!($scene -match 'guid: d4d65119bd944da5b1a0b0b5a9b22c70')){throw 'Battle scene initializer missing'}
-if(!($scene -match 'fileID: 5387489171717556408, guid: f85a690f8032072489dd7b498ab4110d, type: 3\}\r?\n      propertyPath: m_IsActive\r?\n      value: 1')){throw 'Battle VSUI must start active'}
+foreach($size in 1..5) {
+ if(!($scene -match ('m_Name: VSUI_'+$size+'vs'+$size+'\r?\n'))){throw "Missing authored VSUI_${size}vs${size}"}
+}
 'Readiness visibility and scene startup wiring verified.'

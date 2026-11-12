@@ -6466,6 +6466,8 @@ MonoBehaviour:
   _BladeSwingSequence: 0
   _BladeSwingStep: 0
   _RainManaSpent: 0
+  _RainFocused: 0
+  _RainChargeBudget: 0
   _RainTargetCount: 0
   _RainTargetRevision: 0
   _RainVolleyStep: 0
@@ -6478,7 +6480,6 @@ MonoBehaviour:
       Data: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
   _CobraActive: 0
   _PortalEntryPosition: {x: 0, y: 0, z: 0}
-  manaBuffRecoveryPerSecond: 10
   _StormShotsRemaining: 0
   _MatchBotSlot: 0
   _FestivalOrigin: {x: 0, y: 0, z: 0}
@@ -6656,6 +6657,7 @@ MonoBehaviour:
   sideHairRenderer: {fileID: 0}
   hairColorTargets: []
   clothColorTargets: []
+  outlineBrightness: 0.35
   eyeColorTargets: []
   eyeTexturePresets: {fileID: 0}
   maxHairLength: 10
@@ -6716,6 +6718,11 @@ MonoBehaviour:
   manaPotionVfxEuler: {x: 0, y: 0, z: 0}
   manaPotionVfxScale: 1
   manaPotionVfxDuration: 1.5
+  manaBuffRecoveryVfxPrefab: {fileID: 7155335147208632822, guid: 97c43495f80a3244fad1301dfafbe252, type: 3}
+  manaBuffRecoveryVfxAnchor: {fileID: 0}
+  manaBuffRecoveryVfxOffset: {x: 0, y: 1, z: 0}
+  manaBuffRecoveryVfxEuler: {x: 0, y: 0, z: 0}
+  manaBuffRecoveryVfxScale: 1
   statusEffectVfxViews:
   - status: 1
     vfxPrefab: {fileID: 5310361573421146954, guid: 138510276a9931c4abde295e7d1cf0a2, type: 3}

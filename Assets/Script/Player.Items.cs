@@ -4,9 +4,15 @@ using System.Collections.Generic;
 
 public partial class Player
 {
-    [Header("ManaBuff area")]
-    [Tooltip("ManaBuff 레이어의 Trigger에 닿아 있는 동안 추가 회복하는 초당 마나. 영역 중첩은 중복 적용하지 않습니다.")]
-    [SerializeField, Min(0f)] private float manaBuffRecoveryPerSecond = 10f;
+    // Host contact state is replicated for client dash prediction and local-only VFX on every viewer.
+    // Recovery multipliers are shared, editable values in FlightCombatTable.
+    [Networked] private NetworkBool ManaBuffActive { get; set; }
+    public bool HasManaBuff => networkSpawned && Object != null && Object.IsValid && ManaBuffActive && IsAlive && !IsReturningToMap &&
+        BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
+    private float ManaBuffManaRecoveryMultiplier => HasManaBuff
+        ? Mathf.Max(1f, FlightCombatTable.Default != null ? FlightCombatTable.Default.manaBuffManaRecoveryMultiplier : 2f) : 1f;
+    private float ManaBuffDashRechargeMultiplier => HasManaBuff
+        ? Mathf.Max(1f, FlightCombatTable.Default != null ? FlightCombatTable.Default.manaBuffDashRechargeMultiplier : 4f) : 1f;
     private readonly List<Collider> manaBuffContacts = new();
     private int manaBuffLayer = -1;
 
@@ -25,7 +31,7 @@ public partial class Player
 
     private void TickManaBuffArea()
     {
-        if (!Object.HasStateAuthority || !IsAlive || IsReturningToMap || manaBuffContacts.Count == 0) return;
+        if (!Object.HasStateAuthority) return;
         bool touching = false;
         for (int i = manaBuffContacts.Count - 1; i >= 0; i--)
         {
@@ -36,10 +42,9 @@ public partial class Player
                 area.gameObject.layer != manaBuffLayer || characterController == null ||
                 !area.bounds.Intersects(characterController.bounds))
             { manaBuffContacts.RemoveAt(i); continue; }
-            touching = true;
+            touching = IsAlive && !IsReturningToMap;
         }
-        if (touching && NowAp < MaxAp && IsPositiveFiniteItemValue(manaBuffRecoveryPerSecond))
-            RestoreAp(manaBuffRecoveryPerSecond * Runner.DeltaTime);
+        if (ManaBuffActive != touching) ManaBuffActive = touching;
     }
 
     // Replicated so input-authority movement prediction uses the same temporary bonus.

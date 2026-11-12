@@ -56,6 +56,7 @@ public sealed partial class BattleIntroPresentation
 
     private void UpdateTeamProfileMotion()
     {
+        if (activeLayout != null) return;
         if (!IsTeamBattle) return;
         foreach (var motion in teamProfileMotions)
             if (motion.source != null && motion.copy != null && motion.copy.gameObject.activeInHierarchy)
@@ -159,6 +160,7 @@ public sealed partial class BattleIntroPresentation
 
     private void SetTeamUIPhase(BattleStartPhase phase)
     {
+        if (activeLayout != null) return;
         bool preparing = IsTeamBattle && (phase == BattleStartPhase.WaitingForPlayers || phase == BattleStartPhase.Intro);
         bool visible = preparing && phase == BattleStartPhase.Intro;
         if (preparing) EnsureTeamIntroUI();

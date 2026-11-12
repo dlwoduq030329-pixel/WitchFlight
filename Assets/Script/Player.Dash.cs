@@ -13,8 +13,8 @@ public partial class Player
     [Networked] private float DashRechargeDuration { get; set; }
 
     private float DashRechargeSeconds => Mathf.Max(.05f,
-        (FlightCombatTable.Default != null ? FlightCombatTable.Default.dashRechargeSeconds : 4f) *
-        (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind))));
+        (FlightCombatTable.Default != null ? FlightCombatTable.Default.dashRechargeSeconds : 8f) *
+        (1f - Mathf.Clamp01(CommonAmount(PerkId.Tailwind))) / ManaBuffDashRechargeMultiplier);
 
     public float DashRechargeProgress => Object != null && Object.IsValid && DashCharges < MaximumDashCharges &&
         DashRechargeTimer.IsRunning ? Mathf.Clamp01(1f -
@@ -57,6 +57,16 @@ public partial class Player
     {
         if (DashCharges >= MaximumDashCharges) return;
         if (!DashRechargeTimer.IsRunning) StartDashRecharge();
+        // Preserve earned progress when entering/leaving a zone or changing a recovery setting.
+        // Rebase the replicated deadline only on rate changes, not every simulation tick.
+        float duration = DashRechargeSeconds;
+        if (!DashRechargeTimer.Expired(Runner) && !Mathf.Approximately(duration, DashRechargeDuration))
+        {
+            float remainingFraction = Mathf.Clamp01((DashRechargeTimer.RemainingTime(Runner) ?? 0f) /
+                Mathf.Max(.05f, DashRechargeDuration));
+            DashRechargeDuration = duration;
+            DashRechargeTimer = TickTimer.CreateFromSeconds(Runner, remainingFraction * duration);
+        }
         if (!DashRechargeTimer.Expired(Runner)) return;
         DashCharges = Mathf.Min(MaximumDashCharges, DashCharges + 1);
         if (DashCharges < MaximumDashCharges) StartDashRecharge();

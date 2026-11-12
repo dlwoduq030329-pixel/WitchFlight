@@ -7,7 +7,12 @@ public sealed class FlightCombatTable : ScriptableObject
     public static FlightCombatTable Default => cached != null ? cached : cached = Resources.Load<FlightCombatTable>("FlightCombatTable");
     [Header("Shift dash (capacity from EquipmentStatTable)")]
     [Tooltip("대쉬 1회 충전 시간. 첫 소모 즉시 충전을 시작하며 추가 소모가 진행 중인 충전을 초기화하지 않습니다.")]
-    [Min(.05f)] public float dashRechargeSeconds = 4f;
+    [Min(.05f)] public float dashRechargeSeconds = 8f;
+    [Header("ManaBuff area recovery")]
+    [Tooltip("ManaBuff Trigger 내부의 자연 마나 회복 배율. 여러 영역이 겹쳐도 중첩하지 않습니다.")]
+    [Min(1f)] public float manaBuffManaRecoveryMultiplier = 2f;
+    [Tooltip("ManaBuff Trigger 내부의 대쉬 충전 속도 배율. 기본 8초 / 4배 = 2초에 1회 충전.")]
+    [Min(1f)] public float manaBuffDashRechargeMultiplier = 4f;
     [Header("Body ram (host authoritative)")]
     public bool enableRamming = true;
     [Min(0f)] public float minimumRamSpeed = 12f;

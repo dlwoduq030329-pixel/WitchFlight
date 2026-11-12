@@ -35,6 +35,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     [Tooltip("Offset from the head in the player's right/up/forward directions.")]
     [SerializeField] private Vector3 headOffset = new Vector3(0f, 0.08f, 0.06f);
     [SerializeField, Range(-60f, 60f)] private float portraitYaw;
+    [Tooltip("개별 VS RawImage 안에서 캐릭터를 위로 올리는 화면 높이 비율. 0.05는 약 5% 위로, 음수는 아래로 이동합니다.")]
+    [SerializeField, Range(-.2f, .2f)] private float portraitVerticalOffset = .05f;
 
     [Header("Presentation events")]
     [SerializeField] private UnityEvent onIntroStarted = new UnityEvent();
@@ -85,6 +87,9 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     // Keep this controller's late execution order: portrait baking must follow animation.
     internal void PrepareBeforeDisplay()
     {
+        DiscoverAuthoredLayouts();
+        SelectAuthoredLayout();
+        if (activeLayout != null) return;
         if (displayPrepared || introPanel == null) return;
         displayPrepared = true;
         PrepareTeamProfileMotion();
@@ -100,6 +105,12 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void SetProfileVisibility(bool visible)
     {
+        if (activeLayout != null)
+        {
+            activeLayout.ownGroup.gameObject.SetActive(visible);
+            activeLayout.enemyGroup.gameObject.SetActive(visible);
+            return;
+        }
         if (localProfileRoot != null) localProfileRoot.SetActive(visible);
         if (opponentProfileRoot != null)
             opponentProfileRoot.SetActive(visible && BattleManager.Instance != null && BattleManager.Instance.ExpectedPlayerCount > 1);
@@ -162,7 +173,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     {
         BattleManager battle = BattleManager.Instance;
         BattleStartPhase phase = battle != null ? battle.Phase : BattleStartPhase.WaitingForPlayers;
-        if (!hasDisplayedPhase || displayedPhase != phase || displayedTeamMode != IsTeamBattle)
+        bool layoutChanged = SelectAuthoredLayout();
+        if (!hasDisplayedPhase || displayedPhase != phase || displayedTeamMode != IsTeamBattle || layoutChanged)
         {
             bool leavingIntro = hasDisplayedPhase && displayedPhase == BattleStartPhase.Intro;
             displayedPhase = phase;
@@ -198,6 +210,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         UpdateTeamProfileMotion();
         FreezeCompletedSnapshot(opponentSnapshot);
         foreach (PortraitSnapshot snapshot in teamSnapshots) FreezeCompletedSnapshot(snapshot);
+        UpdateAuthoredPortraitCameras(phase);
         if (battle == null || (phase != BattleStartPhase.WaitingForPlayers && phase != BattleStartPhase.Intro) ||
             Time.unscaledTime < nextPreparationTime)
             return;
@@ -205,6 +218,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         // Baking runs after animation. Discovery and reliable readiness retries are at most once per second.
         nextPreparationTime = Time.unscaledTime + 1f;
         if (battle.IsRace || !battle.UsesVersusPresentation) return;
+        if (activeLayout != null) { PrepareAuthoredPresentation(phase); return; }
         if (IsTeamBattle) { PrepareTeamPresentation(phase); return; }
         if (!TryResolvePlayers(battle, out Player local, out Player opponent))
             return;
@@ -284,7 +298,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         return false;
     }
 
-    private bool EnsureSnapshot(ref PortraitSnapshot snapshot, Player player, int slot)
+    private bool EnsureSnapshot(ref PortraitSnapshot snapshot, Player player, int slot, RawImage display = null)
     {
         if (snapshot != null && snapshot.Player == player && snapshot.Texture != null && snapshot.Texture.IsCreated())
             return true;
@@ -292,7 +306,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         try
         {
             snapshot = new PortraitSnapshot { Player = player };
-            BuildSnapshot(snapshot, slot);
+            BuildSnapshot(snapshot, slot, display);
             reportedSnapshotFailure = false;
             return true;
         }
@@ -308,7 +322,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         }
     }
 
-    private void BuildSnapshot(PortraitSnapshot snapshot, int slot)
+    private void BuildSnapshot(PortraitSnapshot snapshot, int slot, RawImage display = null)
     {
         Player player = snapshot.Player;
         Transform sourceRoot = player.transform;
@@ -423,8 +437,17 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             }
         }
 
-        snapshot.Texture = new RenderTexture(Mathf.Clamp(portraitResolution, 128, 2048),
-            Mathf.Clamp(portraitResolution, 128, 2048), 24, RenderTextureFormat.ARGB32)
+        // Individual cards retain their authored aspect ratio, with a bounded texture per player.
+        int width = Mathf.Clamp(portraitResolution, 128, display != null ? authoredPortraitResolution : 2048);
+        int height = width;
+        if (display != null)
+        {
+            Rect rect = display.rectTransform.rect;
+            float aspect = rect.width > 0f && rect.height > 0f ? rect.width / rect.height : 1f;
+            if (aspect >= 1f) height = Mathf.Max(32, Mathf.RoundToInt(width / aspect));
+            else width = Mathf.Max(32, Mathf.RoundToInt(height * aspect));
+        }
+        snapshot.Texture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32)
         {
             name = slot == 0 ? "Local face portrait" : "Opponent face portrait",
             antiAliasing = 1,
@@ -444,6 +467,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         Camera camera = cameraObject.GetComponent<Camera>();
         snapshot.Camera = camera;
         camera.targetTexture = snapshot.Texture;
+        camera.aspect = (float)width / height;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = Color.clear;
         camera.cullingMask = 1 << PortraitLayer;
@@ -459,6 +483,9 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
                 Mathf.Min(.06f,catTable.vsCharacterGap));
             catFloat.FrameWithFocus(camera,target,new Vector2(.38f,Mathf.Max(.42f,portraitHalfHeight)));
         }
+        // Offset after companion framing so its initial centering cannot overwrite the composition.
+        if (display != null)
+            camera.transform.position -= camera.transform.up * (camera.orthographicSize * 2f * portraitVerticalOffset);
         camera.allowHDR = false;
         camera.allowMSAA = false;
         camera.useOcclusionCulling = false;
@@ -526,6 +553,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             opponentSnapshot.RenderedFrame = Time.frameCount;
         foreach (PortraitSnapshot snapshot in teamSnapshots)
             if (snapshot != null && snapshot.Camera == camera) snapshot.RenderedFrame = Time.frameCount;
+        foreach (PortraitSnapshot snapshot in authoredSnapshots)
+            if (snapshot != null && snapshot.Camera == camera) snapshot.RenderedFrame = Time.frameCount;
     }
 
     private static void FreezeCompletedSnapshot(PortraitSnapshot snapshot)
@@ -546,7 +575,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         if (phase != BattleStartPhase.Ended)
         {
             bool showCursor = waiting || phase == BattleStartPhase.TrainingTutorial || phase == BattleStartPhase.Intermission ||
-                (phase == BattleStartPhase.Playing && CombatPresentation.MenuOpen);
+                (phase == BattleStartPhase.Playing && CombatPresentation.MenuOpen) || BattlePerkUI.TabCapturesMouse;
             Cursor.lockState = showCursor ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = showCursor;
         }
@@ -596,6 +625,12 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void UpdatePortraitVisibility(BattleStartPhase phase)
     {
+        if (activeLayout != null)
+        {
+            foreach (var card in activeLayout.cards)
+                if (card.portrait != null) card.portrait.enabled = phase == BattleStartPhase.Intro && card.portrait.texture != null;
+            return;
+        }
         bool training = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
         bool visible = !training && phase == BattleStartPhase.Intro;
         if (localPortrait != null)
@@ -607,6 +642,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
 
     private void ReleasePortraits()
     {
+        ReleaseAuthoredPortraits();
         if (localPortrait != null)
             localPortrait.texture = null;
         if (opponentPortrait != null)

@@ -17,7 +17,7 @@ public sealed class MagicBalanceLabActor : MonoBehaviour
     public bool IsBoosting => boost > 0f;
     public bool CanManeuver => bound <= 0f;
     public float RechargeProgress => DashCharges < MaximumDashCharges ? Mathf.Clamp01(recharge / RechargeSeconds) : 0;
-    private float RechargeSeconds => Mathf.Max(.05f, FlightCombatTable.Default != null ? FlightCombatTable.Default.dashRechargeSeconds : 4);
+    private float RechargeSeconds => Mathf.Max(.05f, FlightCombatTable.Default != null ? FlightCombatTable.Default.dashRechargeSeconds : 8);
     private CharacterController controller;
     private BroomStatEntry broom;
     private HatStatEntry hat;

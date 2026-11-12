@@ -436,16 +436,16 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     }
 
     // Snapshot names/profile IDs at the kill, before either PlayerData can disappear.
-    public void AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile)
+    public void AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile, int killerTeam, int victimTeam)
     {
         if (Object == null || !Object.IsValid || !Object.HasStateAuthority || Phase != BattleStartPhase.Playing) return;
-        RPC_AnnounceKill(killerName, killerProfile, victimName, victimProfile);
+        RPC_AnnounceKill(killerName, killerProfile, victimName, victimProfile, killerTeam, victimTeam);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All, Channel = RpcChannel.Reliable)]
-    private void RPC_AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile)
+    private void RPC_AnnounceKill(string killerName, int killerProfile, string victimName, int victimProfile, int killerTeam, int victimTeam)
     {
-        BattleKillFeed.Instance?.ShowKill(killerName, killerProfile, victimName, victimProfile);
+        BattleKillFeed.Instance?.ShowKill(killerName, killerProfile, victimName, victimProfile, killerTeam, victimTeam);
         BattleAudio.Play(BattleSound.KillNotice, local: true);
     }
 

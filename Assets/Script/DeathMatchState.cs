@@ -23,8 +23,8 @@ public sealed class DeathMatchState : NetworkBehaviour
     }
     private void OnDestroy() { ClearSmokeViews(); if (Instance == this) Instance = null; }
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    public void RPC_AnnounceKill(string killer, int killerProfile, string victim, int victimProfile)
-        => BattleKillFeed.Instance?.ShowKill(killer, killerProfile, victim, victimProfile);
+    public void RPC_AnnounceKill(string killer, int killerProfile, string victim, int victimProfile, int killerTeam, int victimTeam)
+        => BattleKillFeed.Instance?.ShowKill(killer, killerProfile, victim, victimProfile, killerTeam, victimTeam);
     public bool CanCreateSmoke(NetworkRunner expectedRunner) => Object != null && Object.IsValid &&
         Object.HasStateAuthority && Runner == expectedRunner && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
         FindFreeSmokeSlot() >= 0;

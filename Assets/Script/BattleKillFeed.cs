@@ -14,6 +14,10 @@ public sealed class BattleKillFeed : MonoBehaviour
     [SerializeField] private TMP_Text victimNameText;
     [SerializeField] private Image killerProfileImage;
     [SerializeField] private Image victimProfileImage;
+    [SerializeField] private Image killerProfileBackground;
+    [SerializeField] private Image victimProfileBackground;
+    private static readonly Color AllyColor = new Color32(0x24, 0x77, 0x80, 0xFF);
+    private static readonly Color EnemyColor = new Color32(0x9D, 0x20, 0x23, 0xFF);
     [Header("Profile lookup")]
     [Tooltip("공용 프로필 테이블. 비우면 Resources/ProfileImageTable을 자동 사용합니다.")]
     [SerializeField] private ProfileImageTable profileTable;
@@ -55,7 +59,7 @@ public sealed class BattleKillFeed : MonoBehaviour
     }
 
     // Called by the host-authenticated BattleFlag RPC. Never derives a kill from local damage.
-    public void ShowKill(string killer, int killerProfile, string victim, int victimProfile)
+    public void ShowKill(string killer, int killerProfile, string victim, int victimProfile, int killerTeam, int victimTeam)
     {
         if (!isActiveAndEnabled) return;
         EnsurePanel();
@@ -68,6 +72,10 @@ public sealed class BattleKillFeed : MonoBehaviour
         SetName(CloneBinding(victimNameText, copy.transform), victim);
         SetProfile(CloneBinding(killerProfileImage, copy.transform), killerProfile);
         SetProfile(CloneBinding(victimProfileImage, copy.transform), victimProfile);
+        PlayerData local = PlayerData.Local;
+        int localTeam = local != null && local.Object != null && local.Object.IsValid ? local.teamIndex : 0;
+        SetTeamColor(CloneBinding(killerProfileBackground, copy.transform), killerTeam, localTeam);
+        SetTeamColor(CloneBinding(victimProfileBackground, copy.transform), victimTeam, localTeam);
         foreach (Graphic graphic in copy.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
         LayoutElement layout = copy.GetComponent<LayoutElement>();
         if (layout == null) layout = copy.AddComponent<LayoutElement>();
@@ -172,12 +180,28 @@ public sealed class BattleKillFeed : MonoBehaviour
 
     private void PreparePanel()
     {
+        if (killerProfileBackground == null) killerProfileBackground = ProfileBackground(killerProfileImage);
+        if (victimProfileBackground == null) victimProfileBackground = ProfileBackground(victimProfileImage);
         group = killPanel.GetComponent<CanvasGroup>();
         if (group == null) group = killPanel.AddComponent<CanvasGroup>();
         authoredScale = killPanel.transform.localScale;
         authoredAlpha = group.alpha > 0f ? group.alpha : 1f;
         group.interactable = group.blocksRaycasts = false;
         killPanel.SetActive(false);
+    }
+
+    private Image ProfileBackground(Image profile)
+    {
+        if (profile == null) return null;
+        for (Transform node = profile.transform.parent; node != null && node != killPanel.transform; node = node.parent)
+            if (node.TryGetComponent<Image>(out var background)) return background;
+        return null;
+    }
+
+    private static void SetTeamColor(Image background, int team, int localTeam)
+    {
+        if (background != null)
+            background.color = team > 0 && localTeam > 0 && team == localTeam ? AllyColor : EnemyColor;
     }
 
     private void EnsurePanel()
@@ -214,7 +238,9 @@ public sealed class BattleKillFeed : MonoBehaviour
     }
     private Image Profile(Transform parent, float x)
     {
-        var image = Rect("Profile", parent, new Vector2(x, 0), new Vector2(72, 72)).gameObject.AddComponent<Image>();
+        var background = Rect("Profile background", parent, new Vector2(x, 0), new Vector2(80, 80)).gameObject.AddComponent<Image>();
+        background.raycastTarget = false;
+        var image = Rect("Profile", background.transform, Vector2.zero, new Vector2(72, 72)).gameObject.AddComponent<Image>();
         image.preserveAspect = true; image.raycastTarget = false;
         return image;
     }

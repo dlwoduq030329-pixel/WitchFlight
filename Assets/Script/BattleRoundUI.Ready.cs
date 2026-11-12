@@ -14,11 +14,13 @@ public sealed partial class BattleRoundUI
     }
     [Header("Round readiness profiles (empty = find Profiles under MagicSelectUI)")]
     [SerializeField] private Transform profilesRoot;
-    [SerializeField] private ReadyProfile[] readyProfiles = new ReadyProfile[4];
+    [Tooltip("Profiles 아래에 배치된 Profile01, Profile02… 슬롯을 사용합니다. 현재 적 플레이어만 표시합니다.")]
+    [SerializeField] private ReadyProfile[] readyProfiles = Array.Empty<ReadyProfile>();
     [SerializeField] private ProfileImageTable profileTable;
     private bool readyRequestPending, requestedReady, profilesBound;
     private float readyRequestedAt;
     private readonly List<PlayerData> readyRoster = new();
+    private readonly List<PlayerData> readyRosterScratch = new();
     private readonly Dictionary<Button, bool> lockedSwapButtons = new();
     private static readonly Color ReadyDark = new Color32(0x3D, 0x3D, 0x3D, 255);
     private static readonly Color ReadyCyan = new Color32(0x44, 0xDC, 0xCC, 255);
@@ -64,35 +66,55 @@ public sealed partial class BattleRoundUI
             Text(label, ready ? "준비 완료 취소" : "준비 완료");
             if (label != null) label.color = ready ? ReadyDark : ReadyCyan;
         }
-        readyRoster.Clear();
-        var runner = HasLocalData ? localData.Runner : NetworkGameManager.Instance?.Runner;
-        foreach (var data in PlayerData.PerkPlayers)
-            if (runner != null && data != null && data.Object != null && data.Object.IsValid &&
-                data.Runner == runner && data.IsLoadoutInitialized) readyRoster.Add(data);
-        readyRoster.Sort(CompareReadyProfiles);
+        RefreshReadyProfileSlots(battle.RoundNumber);
+    }
+
+    private void RefreshReadyProfileSlots(int round)
+    {
+        CollectReadyOpponents();
         if (profileTable == null) profileTable = ProfileImageTable.Default;
         for (int i = 0; i < readyProfiles.Length; i++)
         {
             var slot = readyProfiles[i]; if (slot == null || slot.root == null) continue;
             bool present = i < readyRoster.Count;
             Show(slot.root, present);
-            if (!present) { Show(slot.readyCheck, false); continue; }
+            if (!present)
+            {
+                Show(slot.readyCheck, false);
+                if (slot.image != null) { slot.image.sprite = null; slot.image.enabled = false; }
+                continue;
+            }
             var data = readyRoster[i];
             if (slot.image != null)
             {
                 var sprite = profileTable != null ? profileTable.GetSprite(data.playerprofile) : null;
-                slot.image.sprite = sprite; slot.image.enabled = sprite != null;
+                if (slot.image.sprite != sprite) slot.image.sprite = sprite;
+                if (slot.image.enabled != (sprite != null)) slot.image.enabled = sprite != null;
             }
-            Show(slot.readyCheck, data.MagicChangeRound == battle.RoundNumber && data.RoundSwapReady);
+            Show(slot.readyCheck, data.MagicChangeRound == round && data.RoundSwapReady);
         }
     }
 
-    private int CompareReadyProfiles(PlayerData a, PlayerData b)
+    private void CollectReadyOpponents()
     {
-        int Rank(PlayerData data) => data == localData ? 0 : localData != null && data.teamIndex == localData.teamIndex ? 1 : 2;
-        int rank = Rank(a).CompareTo(Rank(b));
-        return rank != 0 ? rank : a.ParticipantRef.RawEncoded.CompareTo(b.ParticipantRef.RawEncoded);
+        readyRosterScratch.Clear();
+        if (HasLocalData && localData.teamIndex > 0)
+            foreach (var data in PlayerData.PerkPlayers)
+                if (data != null && data.Object != null && data.Object.IsValid && data.Runner == localData.Runner &&
+                    data.IsLoadoutInitialized && data.teamIndex > 0 && data.teamIndex != localData.teamIndex)
+                    readyRosterScratch.Add(data);
+        bool changed = readyRoster.Count != readyRosterScratch.Count;
+        if (!changed)
+            foreach (var data in readyRosterScratch)
+                if (!readyRoster.Contains(data)) { changed = true; break; }
+        if (!changed) return;
+        readyRoster.Clear();
+        readyRoster.AddRange(readyRosterScratch);
+        readyRoster.Sort(CompareReadyProfiles);
     }
+
+    private static int CompareReadyProfiles(PlayerData a, PlayerData b) =>
+        a.ParticipantRef.RawEncoded.CompareTo(b.ParticipantRef.RawEncoded);
 
     private void SetSwapEditingLocked(bool locked)
     {
@@ -116,51 +138,42 @@ public sealed partial class BattleRoundUI
         if (profilesRoot == null)
             foreach (var child in magicSwapPanel.GetComponentsInChildren<Transform>(true))
                 if (string.Equals(child.name, "Profiles", StringComparison.OrdinalIgnoreCase)) { profilesRoot = child; break; }
-        int count = Mathf.Clamp(BattleManager.Instance != null ? BattleManager.Instance.ExpectedPlayerCount : 4, 4, BattleMatchRules.MaxTeamPlayers);
-        if (readyProfiles == null || readyProfiles.Length != count) Array.Resize(ref readyProfiles, count);
         if (profilesRoot == null)
-            profilesRoot = Rect("Profiles", magicSwapPanel.transform, new Vector2(0, 440), new Vector2(360, 70));
-        for (int i = 0; i < count; i++)
         {
-            readyProfiles[i] ??= new ReadyProfile(); var slot = readyProfiles[i];
-            if (slot.root == null && i < profilesRoot.childCount) slot.root = profilesRoot.GetChild(i).gameObject;
-            if (slot.root == null && i > 0 && readyProfiles[0].root != null)
-            {
-                Transform source = readyProfiles[0].root.transform;
-                Transform copy = ParticipantUiSlots.Clone(source, "Profile0" + (i + 1));
-                readyProfiles[i] = slot = ParticipantUiSlots.CloneView(readyProfiles[0], source, copy);
-            }
-            if (slot.root == null)
-            {
-                slot.root = Rect("Profile0" + (i + 1), profilesRoot, new Vector2(-135 + 90 * i, 0), new Vector2(64, 64)).gameObject;
-                slot.image = Image(slot.root.transform, Vector2.zero, new Vector2(64, 64));
-                slot.readyCheck = Label(slot.root.transform, "ProfileCheck", "준비", new Vector2(0, -22), new Vector2(64, 24), 18).gameObject;
-            }
+            readyProfiles = Array.Empty<ReadyProfile>();
+            profilesBound = true;
+            return;
+        }
+        var rows = new List<Transform>();
+        foreach (Transform child in profilesRoot)
+            if (ReadyProfileNumber(child) > 0) rows.Add(child);
+        rows.Sort((a, b) => ReadyProfileNumber(a).CompareTo(ReadyProfileNumber(b)));
+        // Rebind every authored row; old serialized four-slot references must not limit the new UI.
+        readyProfiles = new ReadyProfile[rows.Count];
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var slot = readyProfiles[i] = new ReadyProfile { root = rows[i].gameObject };
             foreach (Transform child in slot.root.GetComponentsInChildren<Transform>(true))
             {
-                if (slot.readyCheck == null && child.name.IndexOf("check", StringComparison.OrdinalIgnoreCase) >= 0)
+                string name = child.name.Trim();
+                // Copies authored in the scene can still have ProfileImage04 / Profile04Check inside.
+                if (slot.readyCheck == null && name.StartsWith("Profile", StringComparison.OrdinalIgnoreCase) &&
+                    name.EndsWith("Check", StringComparison.OrdinalIgnoreCase))
                     slot.readyCheck = child.gameObject;
-                if (slot.image == null && child.name.StartsWith("ProfileImage", StringComparison.OrdinalIgnoreCase))
+                if (slot.image == null && name.StartsWith("ProfileImage", StringComparison.OrdinalIgnoreCase))
                     slot.image = child.GetComponent<Image>();
             }
-            if (slot.image == null) slot.image = slot.root.GetComponent<Image>();
             Show(slot.readyCheck, false);
-        }
-        if (count > 4)
-        {
-            float width = Mathf.Max(360f, ((RectTransform)profilesRoot).rect.width);
-            float cell = width / count;
-            for (int i = 0; i < count; i++)
-            {
-                var rect = readyProfiles[i].root.transform as RectTransform;
-                var layout = rect.GetComponent<LayoutElement>() ?? rect.gameObject.AddComponent<LayoutElement>();
-                layout.ignoreLayout = true;
-                rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f;
-                rect.localScale = Vector3.one * Mathf.Min(1f, (cell - 4f) / Mathf.Max(1f, rect.rect.width));
-                rect.anchoredPosition = new Vector2(-width * .5f + cell * (i + .5f), 0);
-            }
+            Show(slot.root, false);
         }
         Show(profilesRoot.gameObject, true);
         profilesBound = true;
+    }
+
+    private static int ReadyProfileNumber(Transform row)
+    {
+        string name = row.name.Trim();
+        return name.StartsWith("Profile", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(name.Substring("Profile".Length), out int number) ? number : 0;
     }
 }

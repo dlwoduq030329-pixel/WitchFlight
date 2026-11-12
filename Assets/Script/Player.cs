@@ -423,6 +423,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!Object.HasStateAuthority || data == null)
             return;
 
+        ManaBuffActive = false;
         DeathMatchMigrationIdentity = data.DeathMatchIdentity;
         MatchBotSlot = data.MatchBotSlot;
         botRole = data.BotRole;
@@ -602,7 +603,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (GetComponent<DrowningWarning>() == null) gameObject.AddComponent<DrowningWarning>();
 
         bool releaseCursor = BattleManager.Instance == null ||
-            !BattleManager.Instance.IsGameplayActive || CombatPresentation.MenuOpen;
+            !BattleManager.Instance.IsGameplayActive || CombatPresentation.MenuOpen || BattlePerkUI.TabCapturesMouse;
         Cursor.lockState = releaseCursor ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = releaseCursor;
 
@@ -715,6 +716,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
 
         ResetControllerAfterRender();
+        TickManaBuffArea();
         TickDashRecharge();
         if (Object.HasStateAuthority && SpawnProtectionPending)
         {
@@ -726,7 +728,6 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         TickPerkEffects();
         TickMeowFestival();
         TickTimeFieldHealing();
-        TickManaBuffArea();
         TickMagicStorm();
         TickBladeRainVolley();
         if (CatTutorialDirector.TrainingSessionActive && !IsTestBot && Object.HasStateAuthority)
@@ -785,7 +786,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             HeadLookAngles = headLook.GetAngles(transform, data.aimDirection);
         if (CheckAltitudeLimit())
             return;
-        if (!IsBoosting)
+        if (!IsBoosting || HasManaBuff)
             RegenerateAp();
     }
 
@@ -2319,7 +2320,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             MaxAp <= 0f || NowAp >= MaxAp || ApRecoveryPerSecond <= 0f)
             return;
 
-        NowAp = Mathf.Min(MaxAp, NowAp + ApRecoveryPerSecond * Runner.DeltaTime * FestivalRecoveryBonus);
+        NowAp = Mathf.Min(MaxAp, NowAp + ApRecoveryPerSecond * Runner.DeltaTime * FestivalRecoveryBonus * ManaBuffManaRecoveryMultiplier);
     }
 
     public void ReportBattleSceneReady()

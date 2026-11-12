@@ -24,6 +24,47 @@ public sealed class CombatPresentation : MonoBehaviour
     private GameObject manaPotionVfx;
     private float manaPotionVfxUntil;
 
+    [Header("ManaBuff area recovery VFX")]
+    [Tooltip("ManaBuff 영역에 있는 동안 몸에 부착할 반복 재생 VFX. NetworkObject 없는 Loop 프리팹을 지정하세요. 비우면 생성하지 않습니다.")]
+    [SerializeField] private GameObject manaBuffRecoveryVfxPrefab;
+    [Tooltip("비우면 플레이어 루트에 부착합니다.")]
+    [SerializeField] private Transform manaBuffRecoveryVfxAnchor;
+    [SerializeField] private Vector3 manaBuffRecoveryVfxOffset = Vector3.up;
+    [SerializeField] private Vector3 manaBuffRecoveryVfxEuler;
+    [SerializeField, Min(.01f)] private float manaBuffRecoveryVfxScale = 1f;
+    private GameObject manaBuffRecoveryVfx, manaBuffRecoverySource;
+    private bool manaBuffRecoverySpawnAttempted;
+
+    private void UpdateManaBuffRecoveryVfx()
+    {
+        if (owner == null || !owner.HasManaBuff || manaBuffRecoveryVfxPrefab == null)
+        { ClearManaBuffRecoveryVfx(); return; }
+        if (manaBuffRecoverySource != manaBuffRecoveryVfxPrefab) ClearManaBuffRecoveryVfx();
+        if (manaBuffRecoveryVfx == null && !manaBuffRecoverySpawnAttempted)
+        {
+            manaBuffRecoverySource = manaBuffRecoveryVfxPrefab;
+            manaBuffRecoverySpawnAttempted = true;
+            Transform anchor = manaBuffRecoveryVfxAnchor != null ? manaBuffRecoveryVfxAnchor : transform;
+            manaBuffRecoveryVfx = MagicVfxPool.Rent(manaBuffRecoveryVfxPrefab,
+                anchor.TransformPoint(manaBuffRecoveryVfxOffset), anchor.rotation * Quaternion.Euler(manaBuffRecoveryVfxEuler), anchor);
+            if (manaBuffRecoveryVfx != null)
+            {
+                manaBuffRecoveryVfx.transform.localScale *= manaBuffRecoveryVfxScale;
+                RearThreatCamera.ExcludeLocalEffect(manaBuffRecoveryVfx, owner);
+            }
+        }
+        if (manaBuffRecoveryVfx == null) return;
+        bool visible = !owner.IsHiddenBySmokeFor(Player.LocalPlayer);
+        if (manaBuffRecoveryVfx.activeSelf != visible) manaBuffRecoveryVfx.SetActive(visible);
+    }
+
+    private void ClearManaBuffRecoveryVfx()
+    {
+        if (manaBuffRecoveryVfx != null) MagicVfxPool.Release(manaBuffRecoveryVfx);
+        manaBuffRecoveryVfx = manaBuffRecoverySource = null;
+        manaBuffRecoverySpawnAttempted = false;
+    }
+
     public void ShowManaPotionPickup()
     {
         if (!isActiveAndEnabled || manaPotionVfxPrefab == null || owner == null ||
@@ -217,6 +258,7 @@ public sealed class CombatPresentation : MonoBehaviour
         UpdateLockCompleteVfx();
         UpdateStatusEffectVfx();
         UpdateManaPotionVfx();
+        UpdateManaBuffRecoveryVfx();
         if (owner == null || owner.Object == null || !owner.Object.IsValid)
             return;
 
@@ -341,6 +383,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void OnDisable()
     {
+        ClearManaBuffRecoveryVfx();
         ClearManaPotionVfx();
         for (int i = 0; i < spawnShields.Length; i++)
         {
