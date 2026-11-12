@@ -320,7 +320,13 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     // Main scene training button: a local Fusion simulation, never a public room.
     public void StartTraining()
     {
-        if (!IsMatching) StartGame(MatchRequest.Training, null);
+        if (IsMatching)
+        {
+            SetMatchStatus("진행 중인 매칭을 취소하거나 현재 방에서 나간 뒤 훈련장에 입장해주세요.");
+            Debug.LogWarning(MatchStatus, this);
+            return;
+        }
+        StartGame(MatchRequest.Training, null);
     }
 
     // Unity Button.OnClick entry point. Keeps the login/profile when returning to Main.

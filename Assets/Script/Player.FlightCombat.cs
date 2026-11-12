@@ -126,10 +126,11 @@ public partial class Player
 
     internal static float CobraArc(float progress) => Mathf.Sin(Mathf.Clamp01(progress) * Mathf.PI);
     internal static float CobraSpeedFactor(float progress) => 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(progress));
-    internal static float CobraTravelSpeed(float progress, float initialSpeed, float backwardSpeed)
+    internal static float CobraTravelSpeed(float progress, float initialSpeed, float glideSpeed)
     {
-        float retreat = Mathf.Sin(Mathf.PI * Mathf.Clamp01((progress - .35f) / .55f));
-        return initialSpeed * CobraSpeedFactor(progress / .45f) - Mathf.Max(0f, backwardSpeed) * retreat * retreat;
+        float entry = Mathf.Max(.1f, initialSpeed);
+        float glide = Mathf.Clamp(glideSpeed, .1f, entry);
+        return glide + (entry - glide) * CobraSpeedFactor(progress / .45f);
     }
 
     private bool TickCobra()
@@ -149,13 +150,12 @@ public partial class Player
             currentAimTurnSpeed = currentTurnSpeed = 0f;
             SpeedStage = 1;
             Speed = IsAlive && !IsBound && !IsHitStunned
-                ? flightMaxSpeed / 3f * GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() *
-                    (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier : 0f;
+                ? CobraTravelSpeed(1f, CobraInitialSpeed, table != null ? table.cobraGlideSpeed : 10f) : 0f;
             return true;
         }
         transform.rotation = CobraRotation * Quaternion.Euler(-CobraArc(t) * (table != null ? table.cobraPitch : 80f), 0f, 0f);
         // Keep moving throughout the pitch arc. Zero slope at both ends avoids a braking snap.
-        Speed = CobraTravelSpeed(t, CobraInitialSpeed, table != null ? table.cobraBackwardSpeed : 6f);
+        Speed = CobraTravelSpeed(t, CobraInitialSpeed, table != null ? table.cobraGlideSpeed : 10f);
         float next = Mathf.Clamp01(t + Runner.DeltaTime / duration);
         Vector3 movement = CobraRotation * Vector3.forward * Speed * Runner.DeltaTime +
             Vector3.up * ((CobraArc(next) - CobraArc(t)) * (table != null ? table.cobraLift : 2f));

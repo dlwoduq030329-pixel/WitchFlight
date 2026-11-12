@@ -41,8 +41,8 @@ public sealed class FlightCombatTable : ScriptableObject
     [Min(.5f)] public float cobraCooldown = 4f;
     [Range(30f, 100f)] public float cobraPitch = 80f;
     [Min(0f)] public float cobraLift = 2f;
-    [Tooltip("기수를 세운 중간 구간에서 진입 방향의 반대로 미끄러지는 최대 속도(m/s).")]
-    [Min(0f)] public float cobraBackwardSpeed = 6f;
+    [Tooltip("Q 급제동 후에도 진입 방향으로 계속 활공하는 속도(m/s). 진입 속도보다 빨라지지는 않습니다.")]
+    [Min(.1f)] public float cobraGlideSpeed = 10f;
     [Header("Smoke interior visibility")]
     [Min(0f)] public float smokeClearDistance = 5f;
     [Min(.1f)] public float smokeFadeDistance = 2f;
