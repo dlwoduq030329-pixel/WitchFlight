@@ -19,6 +19,9 @@ public class PlayerAppearance : MonoBehaviour
     [SerializeField] private ColorTarget[] hairColorTargets;
     [Header("Cloth color (empty = detect WiccaMaid clothing, excluding props/skin)")]
     [SerializeField] private ColorTarget[] clothColorTargets;
+    [Header("Hair / cloth outline")]
+    [Tooltip("Outline brightness relative to the selected hair or clothing color. Lower values make the outline darker.")]
+    [SerializeField, Range(0f, 1f)] private float outlineBrightness = 0.35f;
     [Header("Eye texture targets (empty = Body / body material / 2nd eye layer)")]
     [SerializeField] private ColorTarget[] eyeColorTargets;
     [Tooltip("Empty uses Resources/EyeTexturePresetTable, shared with the lobby buttons.")]
@@ -34,6 +37,7 @@ public class PlayerAppearance : MonoBehaviour
     private bool missingClothColorWarningShown, missingEyeColorWarningShown;
     private bool missingDirectionWarningShown, missingSideHairWarningShown;
     private MaterialPropertyBlock hairColorBlock;
+    private static readonly int OutlineColorId = Shader.PropertyToID("_OutlineColor");
     private readonly List<ColorTarget> detectedHairColorTargets = new List<ColorTarget>();
     private readonly List<ColorTarget> detectedClothColorTargets = new List<ColorTarget>();
     private readonly List<ColorTarget> detectedEyeColorTargets = new List<ColorTarget>();
@@ -220,12 +224,24 @@ public class PlayerAppearance : MonoBehaviour
                 if (hasBaseColor) hairColorBlock.SetColor("_BaseColor", color);
             }
             else hairColorBlock.SetColor(property, color);
+
+            // Tint only the hair/clothing material slot, preserving its outline opacity.
+            bool hasOutline = material.HasProperty(OutlineColorId);
+            Color outlineColor = color * Mathf.Clamp01(outlineBrightness);
+            if (hasOutline)
+            {
+                outlineColor.a = hairColorBlock.HasColor(OutlineColorId)
+                    ? hairColorBlock.GetColor(OutlineColorId).a : material.GetColor(OutlineColorId).a;
+                hairColorBlock.SetColor(OutlineColorId, outlineColor);
+            }
             target.renderer.SetPropertyBlock(hairColorBlock, index);
             // Hit flashes/death fading must use the new appearance as their base color.
             if (presentation != null)
             {
                 if (mainColor) presentation.SetAppearanceColor(target.renderer, index, color);
                 else presentation.SetAppearanceLayerColor(target.renderer, index, property, color);
+                if (hasOutline)
+                    presentation.SetAppearanceLayerColor(target.renderer, index, "_OutlineColor", outlineColor);
             }
             applied = true;
         }
