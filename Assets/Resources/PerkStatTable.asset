@@ -11,355 +11,392 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ef162653674e7aff43ee948790467556, type: 3}
   m_Name: PerkStatTable
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   perks:
   - id: 1
-    displayName: "고열 잔불"
-    description: "{seconds}초 동안 총 {amount} 화상 피해. 중첩 없이 갱신."
+    displayName: "\uACE0\uC5F4 \uC794\uBD88"
+    description: "{seconds}\uCD08 \uB3D9\uC548 \uCD1D {amount} \uD654\uC0C1 \uD53C\uD574.
+      \uC911\uCCA9 \uC5C6\uC774 \uAC31\uC2E0."
     icon: {fileID: 0}
     amount: 16
     secondaryAmount: 0
     seconds: 2
     condition: 0
   - id: 2
-    displayName: "신속 점화"
-    description: "록온 시간 {percent}% 감소, MP 소모 {secondaryPercent}% 감소."
+    displayName: "\uC2E0\uC18D \uC810\uD654"
+    description: "\uB85D\uC628 \uC2DC\uAC04 {percent}% \uAC10\uC18C, MP \uC18C\uBAA8
+      {secondaryPercent}% \uAC10\uC18C."
     icon: {fileID: 0}
     amount: 0.45
     secondaryAmount: 0.25
     seconds: 0
     condition: 0
   - id: 3
-    displayName: "혹한"
-    description: "둔화 강도 {percent}% 증가."
+    displayName: "\uD639\uD55C"
+    description: "\uB454\uD654 \uAC15\uB3C4 {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.15
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 4
-    displayName: "균열 각인"
-    description: "{seconds}초 내 다른 슬롯의 다음 공격 피해 {percent}% 증가."
+    displayName: "\uADE0\uC5F4 \uAC01\uC778"
+    description: "{seconds}\uCD08 \uB0B4 \uB2E4\uB978 \uC2AC\uB86F\uC758 \uB2E4\uC74C
+      \uACF5\uACA9 \uD53C\uD574 {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 4
     condition: 1
   - id: 5
-    displayName: "확장 조준"
-    description: "즉발 판정 반경 {percent}% 증가."
+    displayName: "\uD655\uC7A5 \uC870\uC900"
+    description: "\uC989\uBC1C \uD310\uC815 \uBC18\uACBD {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.25
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 6
-    displayName: "연속 관통"
-    description: "{seconds}초 내 연속 명중의 두 번째 피해 {percent}% 증가."
+    displayName: "\uC5F0\uC18D \uAD00\uD1B5"
+    description: "{seconds}\uCD08 \uB0B4 \uC5F0\uC18D \uBA85\uC911\uC758 \uB450 \uBC88\uC9F8
+      \uD53C\uD574 {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.75
     secondaryAmount: 0
     seconds: 4
     condition: 0
   - id: 7
-    displayName: "폭풍권"
-    description: "폭발 반경 {percent}% 증가."
+    displayName: "\uD3ED\uD48D\uAD8C"
+    description: "\uD3ED\uBC1C \uBC18\uACBD {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 8
-    displayName: "낙뢰 집중"
-    description: "폭발 중심부 피해 {percent}% 증가."
+    displayName: "\uB099\uB8B0 \uC9D1\uC911"
+    description: "\uD3ED\uBC1C \uC911\uC2EC\uBD80 \uD53C\uD574 {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0.45
   - id: 9
-    displayName: "응급 증폭"
-    description: "회복량 {percent}% 증가."
+    displayName: "\uC751\uAE09 \uC99D\uD3ED"
+    description: "\uD68C\uBCF5\uB7C9 {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.5
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 10
-    displayName: "정화"
-    description: "둔화·구속 해제. {seconds}초간 새 둔화·구속 지속 시간 {percent}% 감소."
+    displayName: "\uC815\uD654"
+    description: "\uB454\uD654\xB7\uAD6C\uC18D \uD574\uC81C. {seconds}\uCD08\uAC04
+      \uC0C8 \uB454\uD654\xB7\uAD6C\uC18D \uC9C0\uC18D \uC2DC\uAC04 {percent}% \uAC10\uC18C."
     icon: {fileID: 0}
     amount: 0.65
     secondaryAmount: 0
     seconds: 3
     condition: 0
   - id: 11
-    displayName: "\uc800\uc8fc\uc758 \uacb0\ubc15"
-    description: "\uacb0\ubc15\ub41c \uc801\uc774 \ubc1b\ub294 \ud53c\ud574\ub7c9 {percent}% \uc99d\uac00."
+    displayName: "\uC800\uC8FC\uC758 \uACB0\uBC15"
+    description: "\uACB0\uBC15\uB41C \uC801\uC774 \uBC1B\uB294 \uD53C\uD574\uB7C9
+      {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 12
-    displayName: "\uc628\uc804\ud55c \uc18d\ubc15"
-    description: "\uc18d\ubc15 \uc9c0\uc18d\uc2dc\uac04 {amount}\ucd08 \uc99d\uac00."
+    displayName: "\uC628\uC804\uD55C \uC18D\uBC15"
+    description: "\uC18D\uBC15 \uC9C0\uC18D\uC2DC\uAC04 {amount}\uCD08 \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 13
-    displayName: "\ud53c\uc758 \ud658\uc6d0"
-    description: "\uc801\uc911 \uc2dc \uccb4\ub825 \ud68c\ubcf5\ub7c9 {percent}% \uc99d\uac00."
+    displayName: "\uD53C\uC758 \uD658\uC6D0"
+    description: "\uC801\uC911 \uC2DC \uCCB4\uB825 \uD68C\uBCF5\uB7C9 {percent}%
+      \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.25
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 14
-    displayName: "\uc0b4\uc721\uc758 \ub9c8\ubc95"
-    description: "\ud53c\ud574\ub7c9 {percent}% \uc99d\uac00. \uc774 \ub9c8\ubc95\uc73c\ub85c \uc801 \ud50c\ub808\uc774\uc5b4 \ucc98\uce58 \uc2dc \ucfe8\ud0c0\uc784 \uc989\uc2dc \ucd08\uae30\ud654."
+    displayName: "\uC0B4\uC721\uC758 \uB9C8\uBC95"
+    description: "\uD53C\uD574\uB7C9 {percent}% \uC99D\uAC00. \uC774 \uB9C8\uBC95\uC73C\uB85C
+      \uC801 \uD50C\uB808\uC774\uC5B4 \uCC98\uCE58 \uC2DC \uCFE8\uD0C0\uC784 \uC989\uC2DC
+      \uCD08\uAE30\uD654."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 15
-    displayName: "긴 손아귀"
-    description: "사거리 {percent}% 증가."
+    displayName: "\uAE34 \uC190\uC544\uADC0"
+    description: "\uC0AC\uAC70\uB9AC {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 16
-    displayName: "\uc800\uc8fc\uc758 \ub2aa"
-    description: "\uc800\uc8fc\ub85c \ud53c\ud574\ub97c \ubc1b\ub294 \ub3d9\uc548 \uc801\uc758 \uc774\ub3d9\uc18d\ub3c4 {percent}% \uac10\uc18c."
+    displayName: "\uC800\uC8FC\uC758 \uB2AA"
+    description: "\uC800\uC8FC\uB85C \uD53C\uD574\uB97C \uBC1B\uB294 \uB3D9\uC548
+      \uC801\uC758 \uC774\uB3D9\uC18D\uB3C4 {percent}% \uAC10\uC18C."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 17
-    displayName: "신속한 사역마"
-    description: "소환체의 록온 시간 {percent}% 감소, 공격 간격 {secondaryPercent}% 감소."
+    displayName: "\uC2E0\uC18D\uD55C \uC0AC\uC5ED\uB9C8"
+    description: "\uC18C\uD658\uCCB4\uC758 \uB85D\uC628 \uC2DC\uAC04 {percent}% \uAC10\uC18C,
+      \uACF5\uACA9 \uAC04\uACA9 {secondaryPercent}% \uAC10\uC18C."
     icon: {fileID: 0}
     amount: 0.45
     secondaryAmount: 0.2
     seconds: 0
     condition: 0
   - id: 18
-    displayName: "\uc774\uc911\uacc4\uc57d"
-    description: "\ud55c \ubc88\uc5d0 \uc0ac\uc5ed\ub9c8\ub97c {amount}\ub9c8\ub9ac \uc18c\ud658\ud569\ub2c8\ub2e4."
+    displayName: "\uC774\uC911\uACC4\uC57D"
+    description: "\uD55C \uBC88\uC5D0 \uC0AC\uC5ED\uB9C8\uB97C {amount}\uB9C8\uB9AC
+      \uC18C\uD658\uD569\uB2C8\uB2E4."
     icon: {fileID: 0}
     amount: 2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 19
-    displayName: "\ud655\uc7a5\ub80c\uc988"
-    description: "\uad11\uc120 \ud310\uc815 \ubc18\uacbd {percent}% \uc99d\uac00, \ud53c\ud574\ub7c9 {secondaryPercent}% \uc99d\uac00."
+    displayName: "\uD655\uC7A5\uB80C\uC988"
+    description: "\uAD11\uC120 \uD310\uC815 \uBC18\uACBD {percent}% \uC99D\uAC00,
+      \uD53C\uD574\uB7C9 {secondaryPercent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.5
     secondaryAmount: 0.2
     seconds: 0
     condition: 0
   - id: 20
-    displayName: "\uc5f4 \uc9d1\uc911"
-    description: "\uac19\uc740 \uc801\uc5d0\uac8c {condition}\ucd08 \uc5f0\uc18d \ud53c\ud574\ub97c \uc8fc\uba74 {seconds}\ucd08\uac04 \ucd1d {amount} \ud654\uc0c1 \ud53c\ud574. \uc911\ucca9 \uc5c6\uc774 \uac31\uc2e0."
+    displayName: "\uC5F4 \uC9D1\uC911"
+    description: "\uAC19\uC740 \uC801\uC5D0\uAC8C {condition}\uCD08 \uC5F0\uC18D
+      \uD53C\uD574\uB97C \uC8FC\uBA74 {seconds}\uCD08\uAC04 \uCD1D {amount} \uD654\uC0C1
+      \uD53C\uD574. \uC911\uCCA9 \uC5C6\uC774 \uAC31\uC2E0."
     icon: {fileID: 0}
     amount: 16
     secondaryAmount: 0
     seconds: 2
     condition: 2
   - id: 21
-    displayName: "\ud154\ub808\ud0a4\ub124\uc2dc\uc2a4"
-    description: "\ud50c\ub808\uc5b4 \uc720\uc9c0 \uc911 \uc8fc\ubcc0 {amount}m\uc758 \uc801 \ud22c\uc0ac\uccb4\ub97c \uc790\uc2e0\uc5d0\uac8c \uc720\ub3c4. \uc544\uad70\uc744 \ucd94\uc801\ud558\ub294 \ud22c\uc0ac\uccb4\ub3c4 \ud3ec\ud568."
+    displayName: "\uD154\uB808\uD0A4\uB124\uC2DC\uC2A4"
+    description: "\uD50C\uB808\uC5B4 \uC720\uC9C0 \uC911 \uC8FC\uBCC0 {amount}m\uC758
+      \uC801 \uD22C\uC0AC\uCCB4\uB97C \uC790\uC2E0\uC5D0\uAC8C \uC720\uB3C4. \uC544\uAD70\uC744
+      \uCD94\uC801\uD558\uB294 \uD22C\uC0AC\uCCB4\uB3C4 \uD3EC\uD568."
     icon: {fileID: 0}
     amount: 60
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 22
-    displayName: "\ud6a8\uc728 \ubc29\ucd9c"
-    description: "\ud50c\ub808\uc5b4 \uc720\uc9c0\uc2dc\uac04 {amount}\ucd08 \uc99d\uac00."
+    displayName: "\uD6A8\uC728 \uBC29\uCD9C"
+    description: "\uD50C\uB808\uC5B4 \uC720\uC9C0\uC2DC\uAC04 {amount}\uCD08 \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 1
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 23
-    displayName: "광역 차폐"
-    description: "연막 반경 {percent}% 증가."
+    displayName: "\uAD11\uC5ED \uCC28\uD3D0"
+    description: "\uC5F0\uB9C9 \uBC18\uACBD {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 24
-    displayName: "\ubc00\uc9d1"
-    description: "\uc5f0\ub9c9 \uc548\uc758 \uc801\uc774 \ub9c8\ubc95\uc744 \ub85d\uc628\ud558\ub294 \uc2dc\uac04 {percent}% \uc99d\uac00."
+    displayName: "\uBC00\uC9D1"
+    description: "\uC5F0\uB9C9 \uC548\uC758 \uC801\uC774 \uB9C8\uBC95\uC744 \uB85D\uC628\uD558\uB294
+      \uC2DC\uAC04 {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 25
-    displayName: "수호의 매듭"
-    description: "최대 HP {amount} 증가. 즉시 회복 없음."
-    icon: {fileID: 0}
+    displayName: "\uC218\uD638\uC758 \uB9E4\uB4ED"
+    description: "\uCD5C\uB300 HP {amount} \uC99D\uAC00. \uC989\uC2DC \uD68C\uBCF5
+      \uC5C6\uC74C."
+    icon: {fileID: 21300000, guid: 9b30db4ee353f8841af412b338aec957, type: 3}
     amount: 35
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 26
-    displayName: "바람결 타기"
-    description: "선회 능력 {percent}% 증가. 이동 속도는 유지."
-    icon: {fileID: 0}
+    displayName: "\uBC14\uB78C\uACB0 \uD0C0\uAE30"
+    description: "\uC120\uD68C \uB2A5\uB825 {percent}% \uC99D\uAC00. \uC774\uB3D9
+      \uC18D\uB3C4\uB294 \uC720\uC9C0."
+    icon: {fileID: 21300000, guid: bca735c1b35eba641822ca7861900761, type: 3}
     amount: 0.35
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 27
-    displayName: "\uc218\ud638\uc9c4"
-    description: "\ub300\uc26c \uc2dc\uc804 \uc2dc {amount}\ucd08\uac04 \ubb34\uc801. \ubab8 \uc8fc\ubcc0\uc5d0 \uc218\ud638 \ubc29\ud328\uac00 \ud68c\uc804\ud569\ub2c8\ub2e4."
-    icon: {fileID: 0}
+    displayName: "\uC218\uD638\uC9C4"
+    description: "\uB300\uC26C \uC2DC\uC804 \uC2DC {amount}\uCD08\uAC04 \uBB34\uC801.
+      \uBAB8 \uC8FC\uBCC0\uC5D0 \uC218\uD638 \uBC29\uD328\uAC00 \uD68C\uC804\uD569\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 3dded0674db4a8042b331879885d8667, type: 3}
     amount: 1
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 28
-    displayName: "\ub3cc\ud48d\uc758 \ucd95\ubcf5"
-    description: "\ucd5c\ub300 \ub300\uc26c \uac2f\uc218 {amount}\uac1c \uc99d\uac00. \ucd94\uac00\ub41c \ub300\uc26c\ub294 \uc989\uc2dc \ucda9\uc804\ub429\ub2c8\ub2e4."
-    icon: {fileID: 0}
+    displayName: "\uB3CC\uD48D\uC758 \uCD95\uBCF5"
+    description: "\uCD5C\uB300 \uB300\uC26C \uAC2F\uC218 {amount}\uAC1C \uC99D\uAC00.
+      \uCD94\uAC00\uB41C \uB300\uC26C\uB294 \uC989\uC2DC \uCDA9\uC804\uB429\uB2C8\uB2E4."
+    icon: {fileID: 21300000, guid: 9a9efc0b97d66c248a4bd496478b2865, type: 3}
     amount: 1
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 29
-    displayName: "순풍의 가호"
-    description: "대쉬 충전 시간 {percent}% 감소."
-    icon: {fileID: 0}
+    displayName: "\uC21C\uD48D\uC758 \uAC00\uD638"
+    description: "\uB300\uC26C \uCDA9\uC804 \uC2DC\uAC04 {percent}% \uAC10\uC18C."
+    icon: {fileID: 21300000, guid: 9d9507a7c088798409073817d471e05d, type: 3}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 30
-    displayName: "깊은 마력샘"
-    description: "최대 MP {percent}% 증가."
-    icon: {fileID: 0}
+    displayName: "\uAE4A\uC740 \uB9C8\uB825\uC0D8"
+    description: "\uCD5C\uB300 MP {percent}% \uC99D\uAC00."
+    icon: {fileID: 21300000, guid: fffb10d14abcd0f4888f1e5f54b3a4c0, type: 3}
     amount: 0.25
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 31
-    displayName: "마력의 숨결"
-    description: "자연 MP 회복량 {percent}% 증가."
-    icon: {fileID: 0}
+    displayName: "\uB9C8\uB825\uC758 \uC228\uACB0"
+    description: "\uC790\uC5F0 MP \uD68C\uBCF5\uB7C9 {percent}% \uC99D\uAC00."
+    icon: {fileID: 21300000, guid: 9e892cb3eb97bdf4f8bc892c492aef53, type: 3}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 32
-    displayName: "절약의 룬"
-    description: "마법 MP 소모 {percent}% 감소. 패링·부스트 제외."
-    icon: {fileID: 0}
+    displayName: "\uC808\uC57D\uC758 \uB8EC"
+    description: "\uB9C8\uBC95 MP \uC18C\uBAA8 {percent}% \uAC10\uC18C. \uD328\uB9C1\xB7\uBD80\uC2A4\uD2B8
+      \uC81C\uC678."
+    icon: {fileID: 21300000, guid: c97e7a189b89c7447ba631baf1d07513, type: 3}
     amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 33
-    displayName: "되울림의 주문"
-    description: "마법 쿨타임 {percent}% 감소. 패링 제외."
-    icon: {fileID: 0}
+    displayName: "\uB418\uC6B8\uB9BC\uC758 \uC8FC\uBB38"
+    description: "\uB9C8\uBC95 \uCFE8\uD0C0\uC784 {percent}% \uAC10\uC18C. \uD328\uB9C1
+      \uC81C\uC678."
+    icon: {fileID: 21300000, guid: 9c9196e4c78b2764a8ff38d13e8e584b, type: 3}
     amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 34
-    displayName: "잔향 흡수"
-    description: "적중 시 최대 MP {percent}% 회복. 재발동 {seconds}초. 지속형 마법 제외."
-    icon: {fileID: 0}
+    displayName: "\uC794\uD5A5 \uD761\uC218"
+    description: "\uC801\uC911 \uC2DC \uCD5C\uB300 MP {percent}% \uD68C\uBCF5. \uC7AC\uBC1C\uB3D9
+      {seconds}\uCD08. \uC9C0\uC18D\uD615 \uB9C8\uBC95 \uC81C\uC678."
+    icon: {fileID: 21300000, guid: db9e5181d2de750469ac66102b01294f, type: 3}
     amount: 0.08
     secondaryAmount: 0
     seconds: 3
     condition: 0
   - id: 35
-    displayName: "연속 검격"
-    description: "검기 공격 횟수가 {amount}회로 증가."
+    displayName: "\uC5F0\uC18D \uAC80\uACA9"
+    description: "\uAC80\uAE30 \uACF5\uACA9 \uD69F\uC218\uAC00 {amount}\uD68C\uB85C
+      \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 5
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 36
-    displayName: "깊은 상처"
-    description: "상처의 받는 회복량 감소율이 {percent}%로 증가."
+    displayName: "\uAE4A\uC740 \uC0C1\uCC98"
+    description: "\uC0C1\uCC98\uC758 \uBC1B\uB294 \uD68C\uBCF5\uB7C9 \uAC10\uC18C\uC728\uC774
+      {percent}%\uB85C \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.75
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 37
-    displayName: "쏟아지는 마탄"
-    description: "발사하는 마탄이 {amount}발로 증가."
+    displayName: "\uC3DF\uC544\uC9C0\uB294 \uB9C8\uD0C4"
+    description: "\uBC1C\uC0AC\uD558\uB294 \uB9C8\uD0C4\uC774 {amount}\uBC1C\uB85C
+      \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 40
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 38
-    displayName: "집중 사격"
-    description: "마탄의 탄퍼짐 {percent}% 감소."
+    displayName: "\uC9D1\uC911 \uC0AC\uACA9"
+    description: "\uB9C8\uD0C4\uC758 \uD0C4\uD37C\uC9D0 {percent}% \uAC10\uC18C."
     icon: {fileID: 0}
     amount: 0.5
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 39
-    displayName: "급속 충전"
-    description: "차징 중 초당 마나 소모량이 {amount}로 증가."
+    displayName: "\uAE09\uC18D \uCDA9\uC804"
+    description: "\uCC28\uC9D5 \uC911 \uCD08\uB2F9 \uB9C8\uB098 \uC18C\uBAA8\uB7C9\uC774
+      {amount}\uB85C \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 20
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 40
-    displayName: "칼날 집중"
-    description: "누르는 동안 최대 마나의 50%까지 충전하고, 놓으면 에임 방향으로 검 하나를 발사합니다. 피해 {secondary} + 소모 마나 × {amount}. 충전량에 따라 크기·판정 증가, 헤드샷 2배."
+    displayName: "\uCE7C\uB0A0 \uC9D1\uC911"
+    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uCD5C\uB300 \uB9C8\uB098\uC758
+      50%\uAE4C\uC9C0 \uCDA9\uC804\uD558\uACE0, \uB193\uC73C\uBA74 \uC5D0\uC784 \uBC29\uD5A5\uC73C\uB85C
+      \uAC80 \uD558\uB098\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4. \uD53C\uD574 {secondary}
+      + \uC18C\uBAA8 \uB9C8\uB098 \xD7 {amount}. \uCDA9\uC804\uB7C9\uC5D0 \uB530\uB77C
+      \uD06C\uAE30\xB7\uD310\uC815 \uC99D\uAC00, \uD5E4\uB4DC\uC0F7 2\uBC30."
     icon: {fileID: 0}
     amount: 0.8
     secondaryAmount: 40
     seconds: 0
     condition: 0.5
   - id: 41
-    displayName: "확장된 시간"
-    description: "시간 역장의 반지름 {percent}% 증가."
+    displayName: "\uD655\uC7A5\uB41C \uC2DC\uAC04"
+    description: "\uC2DC\uAC04 \uC5ED\uC7A5\uC758 \uBC18\uC9C0\uB984 {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 42
-    displayName: "회복의 시간"
-    description: "역장 내부 아군의 체력을 초당 {amount} 회복. 역장끼리 중첩되지 않음."
+    displayName: "\uD68C\uBCF5\uC758 \uC2DC\uAC04"
+    description: "\uC5ED\uC7A5 \uB0B4\uBD80 \uC544\uAD70\uC758 \uCCB4\uB825\uC744
+      \uCD08\uB2F9 {amount} \uD68C\uBCF5. \uC5ED\uC7A5\uB07C\uB9AC \uC911\uCCA9\uB418\uC9C0
+      \uC54A\uC74C."
     icon: {fileID: 0}
     amount: 10
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 43
-    displayName: "축제의 바람"
-    description: "대축제 대상의 이동속도 {percent}% 증가."
+    displayName: "\uCD95\uC81C\uC758 \uBC14\uB78C"
+    description: "\uB300\uCD95\uC81C \uB300\uC0C1\uC758 \uC774\uB3D9\uC18D\uB3C4
+      {percent}% \uC99D\uAC00."
     icon: {fileID: 0}
     amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 44
-    displayName: "먀오녀의 수호"
-    description: "대축제 지속 중 피해를 {amount}회 방어."
+    displayName: "\uBA00\uC624\uB140\uC758 \uC218\uD638"
+    description: "\uB300\uCD95\uC81C \uC9C0\uC18D \uC911 \uD53C\uD574\uB97C {amount}\uD68C
+      \uBC29\uC5B4."
     icon: {fileID: 0}
     amount: 1
     secondaryAmount: 0
