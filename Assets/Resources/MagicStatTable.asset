@@ -1222,7 +1222,7 @@ MonoBehaviour:
     flareVfxBrightness: 0
   - magic: 11
     displayName: "\uD50C\uB808\uC5B4"
-    description: "\uc138 \uac08\ub798\ub85c \ubfcc\ub9b0 \ud50c\ub808\uc5b4\uac00 \uc7a0\uc2dc \ub0a8\uc544 \ub2ff\uc740 \uc801 \ub9c8\ubc95 \ud22c\uc0ac\uccb4\ub97c \ud30c\uad34\ud569\ub2c8\ub2e4. \uc989\ubc1c \ub9c8\ubc95\uc740 \uc81c\uc678\ud558\uba70, \uc9c0\uc18d\uc2dc\uac04 \ub3d9\uc548 \uc774\ub3d9\uc18d\ub3c4\uac00 10% \uc99d\uac00\ud569\ub2c8\ub2e4."
+    description: "0.5초마다 후방 세 갈래로 플레어를 방출합니다. 개별 플레어가 나를 추적하는 마법을 유인하고 접촉하면 파괴합니다. 지속시간 동안 이동속도 10% 증가."
     icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1329,6 +1329,8 @@ MonoBehaviour:
     flareParticleExtraLifetime: 1
     flareInterceptRadius: 2
     flareSpreadSeconds: 0.35
+    flareBurstInterval: 0.5
+    flareAttractionRadius: 30
   - magic: 12
     displayName: "\uC5F0\uB9C9"
     description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.

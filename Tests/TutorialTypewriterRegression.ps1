@@ -9,12 +9,26 @@ function Method($name){
 $code=@'
 using System;
 public static class Time {public static float unscaledTime;}
-public static class Mathf {public static float Max(float a,float b)=>Math.Max(a,b);public static int FloorToInt(float x)=>(int)Math.Floor(x);}
+public static class Mathf {public const float Infinity=float.PositiveInfinity;public static float Max(float a,float b)=>Math.Max(a,b);public static int FloorToInt(float x)=>(int)Math.Floor(x);}
+public struct Vector2 {
+ public float x,y; public Vector2(float x,float y){this.x=x;this.y=y;}
+ public static Vector2 up=>new(0,1);
+ public static Vector2 operator+(Vector2 a,Vector2 b)=>new(a.x+b.x,a.y+b.y);
+ public static Vector2 operator*(Vector2 a,float b)=>new(a.x*b,a.y*b);
+}
+public class RectTransform {
+ public enum Axis {Vertical}
+ public class Rect {public float width=241,height=48;}
+ public Rect rect=new();public object parent;public Vector2 anchoredPosition,anchorMin=new(0,1),anchorMax=new(0,1),pivot=new(.5f,.5f);
+ public void SetSizeWithCurrentAnchors(Axis axis,float value){rect.height=value;}
+}
 public class GO {public bool active;public void SetActive(bool v){active=v;}}
 public class TextInfo {public int characterCount;}
 public class Label {
  public string text;public int maxVisibleCharacters=int.MaxValue,parses;
  public GO gameObject=new();public TextInfo textInfo=new();
+ public RectTransform rectTransform=new();public int measures;
+ public Vector2 GetPreferredValues(string text,float width,float height){measures++;return new(width,text.Length>50?200:40);}
  public void ForceMeshUpdate(bool includeInactive){parses++;textInfo.characterCount=System.Text.RegularExpressions.Regex.Replace(text,"<[^>]+>","").Length;}
 }
 public class Graphic {public bool raycastTarget;}
@@ -31,6 +45,9 @@ public class Harness {
  public Label explanationText=new(),nextHint=new();public Button next=new();public Avatar avatar=new();public Table table=new();
  public Step[] Steps={new(),new(),new()};
  void BeginPractice(){practiceCalls++;practiceStarted=true;}
+ public RectTransform speechBubble=new(),speechNameTag=new();
+ public float speechBaseHeight=145,speechTextHeight=48;
+ public Vector2 speechBasePosition=new(0,30),speechTextPosition=new(0,-70),speechNamePosition=new(0,80);
  void CloseGreeting(){greetingCloses++;}
  void ShowStep(){stepShows++;StartDialogueTyping();RefreshDialogueHint();}
  public void Start(float delay=0){showAt=Time.unscaledTime+delay;dialogueWaiting=delay>0;if(!dialogueWaiting)StartDialogueTyping();RefreshDialogueHint();}
@@ -62,11 +79,16 @@ public static class Checks {
   Check(!h.next.interactable&&!h.advanceQueued,"After reveal, wait for highlighted target");h.Tick(.21f);h.ClickTarget();Check(h.advanceQueued,"Target click advances guided step");
   h=New();h.table.tutorialCharactersPerSecond=10;h.Start();h.Tick(.3f);Check(h.explanationText.maxVisibleCharacters==3,"Inspector speed is respected");
   h=New();h.stepDialogue="";h.Start();Check(!h.dialogueTyping,"Empty line cannot stall");
+  h=New();h.stepDialogue=new string('a',100);h.Start();
+  Check(h.speechBubble.rect.height==305 && h.explanationText.rectTransform.rect.height==208,"Long sentence grows bubble and text together");
+  Check(h.speechBubble.anchoredPosition.y==110 && h.speechNameTag.anchoredPosition.y==240,"Bubble bottom stays fixed and name moves above it");
+  h.Tick(.1f);h.Tick(.2f);Check(h.explanationText.measures==1,"No resizing per revealed character");
+  h.stepDialogue="short";h.Start();Check(h.speechBubble.rect.height==145 && h.speechBubble.anchoredPosition.y==30 && h.speechNameTag.anchoredPosition.y==80,"Short sentence restores authored layout without growth accumulating");
   return n+" tutorial reveal/click checks passed";
  }
 }
 '@
-$methods=@('StartDialogueTyping','RefreshDialogueHint','FinishDialogueTyping','UpdateDialogueTyping','Next','TargetClicked')|ForEach-Object {Method $_}
+$methods=@('StartDialogueTyping','FitSpeechBubble','RefreshDialogueHint','FinishDialogueTyping','UpdateDialogueTyping','Next','TargetClicked')|ForEach-Object {Method $_}
 $code=$code.Replace('__METHODS__',($methods -join "`n"))
 Add-Type -TypeDefinition $code
 [Checks]::Run()

@@ -31,6 +31,7 @@ public sealed class VoiceShopUI : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float previewVolume = 1f;
     [SerializeField] private UnityEvent onPurchaseSucceeded = new();
     [SerializeField] private UnityEvent onPurchaseFailed = new();
+    [SerializeField] private StorePurchaseFeedback purchaseFeedback;
 
     private static VoiceShopUI activeSelection;
     private string previewedItemId;
@@ -199,7 +200,17 @@ public sealed class VoiceShopUI : MonoBehaviour
         if (success) CancelPurchase();
         else if (confirmationDialog != null) confirmationDialog.text = message;
         Refresh();
-        if (success) onPurchaseSucceeded.Invoke(); else onPurchaseFailed.Invoke();
+        if (success)
+        {
+            purchaseFeedback?.PrepareSuccess();
+            onPurchaseSucceeded.Invoke();
+        }
+        else if (message == "재화가 부족합니다." && purchaseFeedback != null)
+        {
+            CancelPurchase();
+            purchaseFeedback.ShowInsufficientFunds();
+        }
+        else onPurchaseFailed.Invoke();
     }
     public void CancelPurchase()
     {

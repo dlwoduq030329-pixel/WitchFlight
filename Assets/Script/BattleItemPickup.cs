@@ -81,7 +81,9 @@ public sealed class BattleItemPickup : NetworkBehaviour
         BattleManager battle = BattleManager.Instance;
         BattleFlag flag = BattleFlag.Instance;
         bool deathMatch = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch;
-        if (battle == null || (!deathMatch &&
+        // Raid progression belongs to the boss director; there is deliberately no flag.
+        bool raid = battle is RaidBattleManager;
+        if (battle == null || (!deathMatch && !raid &&
             (flag == null || flag.Object == null || !flag.Object.IsValid || flag.Runner != Runner)))
         {
             previousPositions.Clear();

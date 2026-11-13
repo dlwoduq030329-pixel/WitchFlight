@@ -44,6 +44,8 @@ public sealed class CombatMagicVisual : MonoBehaviour
     private Color shieldRimColor;
     private float shieldRimWidth, shieldRadius, shieldPulseUntil;
     private int shieldStartSequence;
+    private ReactiveShieldVfx reactiveShield;
+    private float reactiveOpacity, reactiveHitUntil, reactiveEndAt;
     private static readonly int DissolveAmountId = Shader.PropertyToID("_DissolveAmount");
     private readonly List<ShieldDissolveTarget> shieldDissolveTargets = new List<ShieldDissolveTarget>();
 
@@ -122,12 +124,24 @@ public sealed class CombatMagicVisual : MonoBehaviour
         GameObject view = CombatPresentation.InstantiateVfx(prefab, position, rotation, root.transform);
         if (view != null)
         {
+            effect.reactiveShield = view.GetComponentInChildren<ReactiveShieldVfx>(true);
+            if (effect.reactiveShield != null)
+            {
+                effect.shieldOffset = 0f;
+                effect.reactiveOpacity = Mathf.Clamp01(opacity);
+                effect.shieldRadius = rimRadius;
+                view.transform.localScale *= rimRadius / Mathf.Max(.1f, effect.reactiveShield.Radius);
+                root.transform.SetPositionAndRotation(player.LockAimPoint, Quaternion.identity);
+                view.transform.localPosition = Vector3.zero;
+                view.transform.localRotation = Quaternion.identity;
+                effect.reactiveShield.SetBaseVisibility(effect.reactiveOpacity);
+            }
             // Hold the authored shield size for the accepted block window. Pool startup
             // samples the animation's zero-scale first frame before this call.
             if (holdForParry) HoldShieldPose(view);
             effect.InitializeShieldDissolve(view, opacity);
         }
-        if (holdForParry || view == null)
+        if (effect.reactiveShield == null && (holdForParry || view == null))
             effect.CreateShieldRim(rimRadius, rimWidth, rimColor ?? new Color(.35f, .95f, 1f, .9f), view == null);
         RearThreatCamera.ExcludeLocalEffect(root, player);
         return effect;
@@ -204,9 +218,18 @@ public sealed class CombatMagicVisual : MonoBehaviour
         return rim;
     }
 
-    public void ParrySuccess(Vector3 facing)
+    public void ParrySuccess(Vector3 facing, Vector3 hitOffset = default)
     {
         if (facing.sqrMagnitude > .0001f) shieldFacing = facing.normalized;
+        if (reactiveShield != null && follow != null)
+        {
+            transform.SetPositionAndRotation(follow.LockAimPoint, Quaternion.identity);
+            Vector3 contact = hitOffset.sqrMagnitude > .0001f ? hitOffset : shieldFacing * shieldRadius;
+            reactiveShield.ReportHit(follow.LockAimPoint + contact);
+            reactiveHitUntil = Time.unscaledTime + reactiveShield.RecoverySeconds;
+            expires = Mathf.Max(expires, reactiveHitUntil);
+            return;
+        }
         shieldPulseUntil = Time.unscaledTime + .12f;
         if (ownedMaterial != null && shieldImpactRing == null)
         {
@@ -236,7 +259,8 @@ public sealed class CombatMagicVisual : MonoBehaviour
     {
         if (!heldShield || shieldEnding) return;
         shieldEnding = true;
-        expires = Time.unscaledTime + duration;
+        reactiveEndAt = Time.unscaledTime;
+        expires = Mathf.Max(Time.unscaledTime + duration, reactiveHitUntil);
         // No lingering bright outline after the real block window has ended.
         if (shieldRim != null) shieldRim.enabled = false;
         foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>())
@@ -327,7 +351,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
             else if (!follow.IsParrying || follow.IsReturningToMap) EndParry();
             if (!shieldEnding)
             {
-                expires = Time.unscaledTime + duration;
+                expires = Mathf.Max(Time.unscaledTime + duration, reactiveHitUntil);
                 if (shieldRim != null)
                 {
                     bool pulse = Time.unscaledTime < shieldPulseUntil;
@@ -338,6 +362,14 @@ public sealed class CombatMagicVisual : MonoBehaviour
         }
         UpdateShieldDissolve(heldShield && !shieldEnding ? 0f : Mathf.Clamp01(1f - (expires - Time.unscaledTime) / duration));
         if (Time.unscaledTime >= expires) { MagicVfxPool.Release(gameObject); return; }
+        if (reactiveShield != null)
+        {
+            float fade = heldShield && !shieldEnding ? 1f : Mathf.Clamp01(1f -
+                (Time.unscaledTime - (shieldEnding ? reactiveEndAt : expires - duration)) / duration);
+            reactiveShield.SetBaseVisibility(reactiveOpacity * fade);
+            transform.SetPositionAndRotation(follow.LockAimPoint, Quaternion.identity);
+            return;
+        }
         // Follow translation, but retain the world direction of the blocked attack during this flash.
         transform.position = follow.LockAimPoint + shieldFacing * shieldOffset;
         Vector3 up = Mathf.Abs(Vector3.Dot(shieldFacing, Vector3.up)) > .99f ? Vector3.forward : Vector3.up;

@@ -81,9 +81,11 @@ public struct MagicStatEntry
     public bool requiresTarget;
     public bool requiresFullLock;
 
-    [Header("Flare: three persistent interception trails")]
+    [Header("Flare: rear decoy bursts")]
+    [Min(.25f)] public float flareBurstInterval;
+    [Min(0f)] public float flareAttractionRadius;
     [HideInInspector] public float flareLength; // legacy stationary field, retained for asset compatibility
-    [Tooltip("기존 플레어 입자 수명에 더할 시간. 기본 1초. 분출 종료 후에도 궤적과 방어 판정이 남습니다.")]
+    [Tooltip("기존 플레어 입자 수명에 더할 시간. 기본 1초. 분출 종료 후에도 불꽃이 수명 동안 유지됩니다. 연기는 연출 전용입니다.")]
     [Range(0f, 5f)] public float flareParticleExtraLifetime;
     [Range(0f, 80f)] public float flareSpreadAngle;
     [Min(.1f)] public float flareInterceptRadius;
@@ -401,12 +403,13 @@ public sealed class MagicStatTable : ScriptableObject
                 e.apPerSecond = 1; e.cooldownSeconds = 0.375f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "누르는 동안 정면에 직선 광선을 유지하며 마나를 소모합니다."; break;
             case MagicType.Flare:
+                e.flareBurstInterval = .5f; e.flareAttractionRadius = 30f;
                 e.effect = MagicEffectKind.Flare; e.apCost = 50; e.cooldownSeconds = 6; e.effectDuration = 3f;
                 e.flareVfxBackOffset = 0.7f; e.flareVfxSpeed = 14f; e.vfxLifetime = 3f;
                 e.flareVfxScale = 1.8f; e.flareVfxBrightness = 2f;
                 e.flareLength = 12f; e.flareSpreadAngle = 30f; e.flareParticleExtraLifetime = 1f; e.flareInterceptRadius = 2f; e.flareSpreadSeconds = .35f;
                 e.displayName = "플레어";
-                e.description = "세 갈래로 뿌린 플레어가 잠시 남아 닿은 적 마법 투사체를 파괴합니다. 즉발 마법은 제외하며, 지속시간 동안 이동속도가 10% 증가합니다."; break;
+                e.description = "0.5초마다 후방 세 갈래로 플레어를 방출합니다. 개별 플레어가 나를 추적하는 마법을 유인하고 접촉하면 파괴합니다. 지속시간 동안 이동속도 10% 증가."; break;
             case MagicType.BladeRain:
                 e.displayName = "칼날비";
                 e.description = "첫 록온은 무료입니다. 이후 누르는 동안 초당 마나 5를 충전하고, 놓으면 기본 마나 50을 소모해 발사합니다. 실제 소모 마나의 절반을 남은 대상들에게 나눕니다.";

@@ -51,7 +51,7 @@ namespace IceFlareChecks {
   public bool IsAlive=true,Parrying,Invulnerable;public int TeamIndex=2,HitSequence,Received;
   public bool IsParrying=>Parrying;
   public float Health=100;public Vector3 LockAimPoint;
-  public void ReceiveMagicHit(MagicStatEntry s,int a,NetworkId id,Vector3 incomingDirection=default) {
+  public void ReceiveMagicHit(MagicStatEntry s,int a,NetworkId id,Vector3 incomingDirection=default,Vector3? impactPoint=null) {
    if(Parrying||Invulnerable)return;
    Received++;HitSequence++;Health-=s.damage;if(Health<=0)IsAlive=false;
   }

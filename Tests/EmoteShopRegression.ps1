@@ -103,6 +103,13 @@ public static class EmoteShopChecks {
   Check(ItemInventory.OwnsEmote(6)&&DataConfig.SetEmote(0,6)&&DataConfig.GetEmote(0)==6,"paid emote must equip immediately");
   Check(card.priceText.text=="구매완료"&&card.ownedCheck.active&&!card.button.interactable,"inventory event must refresh card immediately");
   Check(ItemInventory.Parse(Backend.GameData.Server.itemInventoryJson).equippedItems.Contains("voice:3.2"),"purchase changed existing equipment");
+  var nextCard=new Card(){itemId="2.2"};nextCard.OnEnable();
+  Check(nextCard.button.interactable&&!ItemInventory.OwnsEmote(7),"first purchase must not disable another product");
+  Check(db.TryPurchaseEmote("2.2",out _)&&DataConfig.money==0&&Backend.GameData.Writes==2,"second different purchase must succeed without reopening the store");
+  Check(ItemInventory.OwnsEmote(6)&&ItemInventory.OwnsEmote(7)&&nextCard.priceText.text=="구매완료","second purchase must preserve first ownership and refresh its own card");
+  Check(DataConfig.SetEmote(1,7)&&DataConfig.GetEmote(1)==7,"second paid emote must equip immediately");
+  nextCard.OnDisable();card.OnDisable();
+  db=Reset();db.TryPurchaseEmote("2.1",out _);
   Check(!db.TryPurchaseEmote("2.1",out _)&&Backend.GameData.Writes==1,"duplicate purchase charged twice");card.OnDisable();
   DataConfig.inventory=JsonUtility.ToJson(new Inventory());db.TryPurchaseEmote("2.1",out _);Check(ItemInventory.OwnsEmote(6)&&DataConfig.money==2000&&Backend.GameData.Writes==1,"server-owned item reload must not charge again");
   db=Reset();Backend.GameData.Server.money=100;Check(!db.TryPurchaseEmote("2.1",out _)&&Backend.GameData.Writes==0&&!ItemInventory.OwnsEmote(6),"insufficient funds must not grant");

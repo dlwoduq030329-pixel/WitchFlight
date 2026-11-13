@@ -6,6 +6,8 @@ public sealed class TrainingPracticeProgress
     public bool Charged { get; private set; }
     private int lastSpeed, castAtStart, parryAtStart, choicesAtStart;
     private float boostSeconds;
+    private float recoverySeconds, lastMana, lastDash;
+    private bool wasInRecoveryArea, recoveredMana, recoveredDash;
 
     public void Reset(int speed, int casts, int parries, int choices)
     {
@@ -13,6 +15,22 @@ public sealed class TrainingPracticeProgress
         lastSpeed = speed; castAtStart = casts; parryAtStart = parries; choicesAtStart = choices;
         boostSeconds = 0;
         StoppedWhileGliding = false;
+        recoverySeconds = 0f;
+        wasInRecoveryArea = recoveredMana = recoveredDash = false;
+    }
+
+    public bool ObserveManaRecovery(bool inside, float mana, float dash, float deltaTime)
+    {
+        if (!inside)
+        { recoverySeconds = 0f; wasInRecoveryArea = recoveredMana = recoveredDash = false; return false; }
+        if (wasInRecoveryArea)
+        {
+            recoveredMana |= mana > lastMana + .001f;
+            recoveredDash |= dash > lastDash + .001f;
+            if (deltaTime > 0f) recoverySeconds += deltaTime;
+        }
+        lastMana = mana; lastDash = dash; wasInRecoveryArea = true;
+        return recoverySeconds >= .75f && recoveredMana && recoveredDash;
     }
 
     public bool StoppedWhileGliding { get; private set; }

@@ -10,6 +10,17 @@ public partial class Player
         SpawnProtectionTimer = TickTimer.None;
     }
 
+    public void PrepareManaRecoveryPractice()
+    {
+        if (!CatTutorialDirector.ManaRecoveryPracticeActive || Object == null || !Object.IsValid ||
+            !Object.HasStateAuthority || IsTestBot) return;
+        // Re-arm only on entry, so even a long flight with full resources has visible recovery.
+        NowAp = MaxAp * .5f;
+        DashCharges = Mathf.Max(0, MaximumDashCharges - 1);
+        DashRechargeTimer = TickTimer.None;
+        StartDashRecharge();
+    }
+
     public void SetTrainingPosition(Vector3 position, Quaternion rotation)
     {
         if (BattleManager.Instance == null || !BattleManager.Instance.IsTraining || Object == null || !Object.HasStateAuthority) return;
