@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 public sealed partial class RoomMatchSettingsUI
 {
-    [Header("2v2 code room: select my team (empty = automatic)")]
+    [Header("Team code room: select my team (empty = automatic)")]
     [SerializeField] private TMP_Dropdown teamDropdown;
     [Tooltip("선택: 본인 초상화 RectTransform. 비우면 현재 대기방의 내 카드에서 자동으로 찾습니다.")]
     [SerializeField] private RectTransform teamDropdownAnchor;
@@ -12,7 +12,8 @@ public sealed partial class RoomMatchSettingsUI
     private TMP_Dropdown boundTeamDropdown;
     private bool generatedTeamDropdown;
     private bool allowTeamA, allowTeamB;
-    private (int teamA, int teamB, int mine)? teamOptionsKey;
+    private (int teamA, int teamB, int mine, int capacity)? teamOptionsKey;
+    private bool suppressedForTeamCards;
     private readonly System.Collections.Generic.List<Toggle> teamOptionToggles = new();
     private linkuserinfo waitingRoomInfo;
     private float nextWaitingRoomLookup;
@@ -26,9 +27,11 @@ public sealed partial class RoomMatchSettingsUI
             if (info != null && info.UsesTeamCards)
             {
                 // The authored cards own selection; do not overlay legacy dropdowns.
-                OnDisable();
+                if (!suppressedForTeamCards) OnDisable();
+                suppressedForTeamCards = true;
                 return;
             }
+        suppressedForTeamCards = false;
         PlayerData local = PlayerData.Local;
         bool show = manager != null && manager.IsWaitingInCodeRoom &&
             BattleMatchRules.IsTeamMode(manager.CurrentMatchMode) && local != null &&
@@ -70,16 +73,17 @@ public sealed partial class RoomMatchSettingsUI
             if (data == null) continue;
             if (data.teamIndex == 1) teamA++; else if (data.teamIndex == 2) teamB++;
         }
-        allowTeamA = local.teamIndex == 1 || teamA < 2;
-        allowTeamB = local.teamIndex == 2 || teamB < 2;
-        var key = (teamA, teamB, local.teamIndex);
+        int capacity = BattleMatchRules.PlayerCount(manager.CurrentMatchMode) / 2;
+        allowTeamA = local.teamIndex == 1 || teamA < capacity;
+        allowTeamB = local.teamIndex == 2 || teamB < capacity;
+        var key = (teamA, teamB, local.teamIndex, capacity);
         if (key != teamOptionsKey)
         {
             // Close a stale menu when another player's request claims its last free place.
             if (teamDropdown.IsExpanded) teamDropdown.Hide();
             teamOptionsKey = key;
-            teamDropdown.options[0].text = $"A팀 ({teamA}/2)" + (!allowTeamA ? " · 정원" : "");
-            teamDropdown.options[1].text = $"B팀 ({teamB}/2)" + (!allowTeamB ? " · 정원" : "");
+            teamDropdown.options[0].text = $"A팀 ({teamA}/{capacity})" + (!allowTeamA ? " · 정원" : "");
+            teamDropdown.options[1].text = $"B팀 ({teamB}/{capacity})" + (!allowTeamB ? " · 정원" : "");
             teamDropdown.SetValueWithoutNotify(local.teamIndex == 1 ? 0 : 1);
             teamDropdown.RefreshShownValue();
         }
@@ -107,6 +111,7 @@ public sealed partial class RoomMatchSettingsUI
     public void SelectTeam(int value)
     {
         PlayerData local = PlayerData.Local;
+        if (local == null || local.Object == null || !local.Object.IsValid || !local.IsLoadoutInitialized) return;
         if (manager != null && manager.IsWaitingInCodeRoom && BattleMatchRules.IsTeamMode(manager.CurrentMatchMode) &&
             local != null && local.Runner == manager.Runner && (value == 0 ? allowTeamA : value == 1 && allowTeamB))
             local.RequestWaitingTeam(value + 1);

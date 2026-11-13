@@ -109,15 +109,22 @@ public sealed class MagicVfxPool : MonoBehaviour
 
     private void Update()
     {
+        // Release removes deadlines for an entire hierarchy and shifts this list.
+        // Advance each clock once before any removals, or an unrelated surviving
+        // effect can be visited twice and have its lifetime extended twice this frame.
         for (int i = deadlines.Count - 1; i >= 0; i--)
         {
-            if (i >= deadlines.Count) continue;
             Deadline item = deadlines[i];
             if (item.clock != null)
             {
                 item.at += Time.deltaTime * (1f - item.clock.Multiplier);
                 deadlines[i] = item;
             }
+        }
+        for (int i = deadlines.Count - 1; i >= 0; i--)
+        {
+            if (i >= deadlines.Count) continue;
+            Deadline item = deadlines[i];
             if (item.root != null && Time.time < item.at) continue;
             deadlines.RemoveAt(i);
             if (item.root != null) Release(item.root);

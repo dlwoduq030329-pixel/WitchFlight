@@ -2139,7 +2139,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void ApplyKnockback()
     {
-        if (KnockbackVelocity.sqrMagnitude <= 0.001f)
+        // GoForward can kill this player through a wall-hit callback or counter-ram
+        // in the same input tick. Die disables the controller before we get here.
+        if (!IsAlive || !gameObject.activeInHierarchy ||
+            (characterController != null && (!characterController.enabled || !characterController.gameObject.activeInHierarchy)) ||
+            KnockbackVelocity.sqrMagnitude <= 0.001f)
             return;
 
         Vector3 delta = ConstrainMapMovement(KnockbackVelocity * Runner.DeltaTime);
@@ -2264,6 +2268,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         StopChannel();
         IsAlive = false;
+        KnockbackVelocity = Vector3.zero;
         CobraActive = false;
         ResetItemBoost();
         FlareProtection = TickTimer.None;
@@ -2646,6 +2651,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void GoForward()
     {
+        if (!IsAlive || !gameObject.activeInHierarchy ||
+            (characterController != null && (!characterController.enabled || !characterController.gameObject.activeInHierarchy))) return;
         Vector3 start = transform.position;
         Vector3 velocity = transform.forward * Speed;
         Vector3 movement = ConstrainMapMovement(transform.forward * Speed * Runner.DeltaTime);
@@ -2653,6 +2660,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             characterController.Move(movement);
         else
             transform.position += movement;
+        // CharacterController.Move invokes collision callbacks synchronously.
+        if (!IsAlive) return;
         TryRam(start, transform.position, velocity);
         LastFlightVelocity = (transform.position - start) / Mathf.Max(.001f, Runner.DeltaTime);
     }

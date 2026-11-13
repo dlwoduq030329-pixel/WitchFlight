@@ -51,6 +51,9 @@ public sealed partial class BattleRoundUI : MonoBehaviour
     private int descriptionRevision, requestedDescriptionRevision;
     private float requestStarted, resultShownAt;
     private string cachedScore, cachedResult;
+    private int? displayedSwapSecond;
+    private (int round, int team, int winsA, int winsB, int allowed)? displayedRoundSummary;
+    private string cachedSwapCountdown, cachedRoundSummary;
     private BattleResultsPresentation resultsPresentation;
 
     private void Awake()
@@ -182,8 +185,20 @@ public sealed partial class BattleRoundUI : MonoBehaviour
 
     private void RefreshSwap(BattleManager battle)
     {
-        Text(swapCountdownText, $"마법 교체  {Mathf.CeilToInt(battle.PhaseRemainingSeconds)}초");
-        Text(roundScoreText, $"ROUND {battle.RoundNumber} 종료  ·  {Score(battle)}  ·  최대 {battle.AllowedMagicChanges}슬롯 변경");
+        int seconds = Mathf.CeilToInt(battle.PhaseRemainingSeconds);
+        if (displayedSwapSecond != seconds)
+        {
+            displayedSwapSecond = seconds;
+            cachedSwapCountdown = $"마법 교체  {seconds}초";
+        }
+        var summary = (battle.RoundNumber, localTeam, battle.Team1Wins, battle.Team2Wins, battle.AllowedMagicChanges);
+        if (displayedRoundSummary != summary)
+        {
+            displayedRoundSummary = summary;
+            cachedRoundSummary = $"ROUND {battle.RoundNumber} 종료  ·  {Score(battle)}  ·  최대 {battle.AllowedMagicChanges}슬롯 변경";
+        }
+        Text(swapCountdownText, cachedSwapCountdown);
+        Text(roundScoreText, cachedRoundSummary);
         Text(selectedMagicNameText, selectedMagic == MagicType.None ? "변경할 마법을 선택하세요" : Name(selectedMagic));
         RefreshMagicDescription();
         if (HasLocalData)
