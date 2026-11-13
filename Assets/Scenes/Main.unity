@@ -12280,6 +12280,14 @@ MonoBehaviour:
   modeDropdown: {fileID: 8668958373682918555}
   statusText: {fileID: 0}
   uiFont: {fileID: 11400000, guid: 2607acfb2d72dc446a071f3f200a0a54, type: 2}
+  mapImage: {fileID: 991728509}
+  teamModeSprites:
+  - {fileID: 21300000, guid: 67f608e090434ee3bd3ee21a3b4de1d6, type: 3}
+  - {fileID: 21300000, guid: 79a0751899d5471bb3600fac622745ad, type: 3}
+  - {fileID: 21300000, guid: 43a60365f17248f4bdeb245d89df8fc6, type: 3}
+  - {fileID: 21300000, guid: 0265f21eacd34182ad479207f05f3973, type: 3}
+  - {fileID: 21300000, guid: 1f5291f1cb73482b94019625261745df, type: 3}
+  raidModeSprite: {fileID: 21300000, guid: dd1dd7693d8e4fbca0eb20b18c514618, type: 3}
 --- !u!1 &247577241
 GameObject:
   m_ObjectHideFlags: 0
@@ -38069,7 +38077,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4614782080702164151, guid: 19c7c37a63078d548abc10d298ce5085, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4919356615361056334, guid: 19c7c37a63078d548abc10d298ce5085, type: 3}
       propertyPath: m_text
@@ -43109,9 +43117,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: 21300000, guid: 67f608e090434ee3bd3ee21a3b4de1d6, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -63957,7 +63965,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1442237847
 RectTransform:
   m_ObjectHideFlags: 0
@@ -88602,11 +88610,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1919623641}
   m_CullTransparentMesh: 1
---- !u!224 &1927855016 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 8223062063922647946, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
-  m_PrefabInstance: {fileID: 218581912103391646}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1928292567
 GameObject:
   m_ObjectHideFlags: 0
@@ -110123,6 +110126,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1624466656350343378, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
       insertIndex: 5
       addedObject: {fileID: 1911022123}
+    - targetCorrespondingSourceObject: {fileID: 1624466656350343378, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1041427795}
     - targetCorrespondingSourceObject: {fileID: 566748219426502829, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1324275842}
@@ -110132,9 +110138,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 566748219426502829, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1223318993}
-    - targetCorrespondingSourceObject: {fileID: 1624466656350343378, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1041427795}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 7528474537614309872, guid: 70b54e6e19823c24bbe5ca6d2f7792af, type: 3}
       insertIndex: -1
@@ -137176,6 +137179,7 @@ MonoBehaviour:
   cancelButton: {fileID: 1260117064}
   voiceShop: {fileID: 5100545705664200588}
   confirmationTween: {fileID: 524885334}
+  purchaseFeedback: {fileID: 897650132268094101}
   onPurchaseSucceeded:
     m_PersistentCalls:
       m_Calls:
@@ -137203,7 +137207,6 @@ MonoBehaviour:
           m_StringArgument: ChulSuccess
           m_BoolArgument: 1
         m_CallState: 2
-  purchaseFeedback: {fileID: 897650132268094101}
 --- !u!114 &897650132268094001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -137636,6 +137639,21 @@ MonoBehaviour:
   itemName: {fileID: 1516097705}
   priceText: {fileID: 2010394174}
   ownedCheck: {fileID: 458938910}
+--- !u!114 &897650132268094101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5100545705664200585}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66ab10b98b2b43f49f5450ac0609e348, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  popup: {fileID: 1041427794}
+  messageText: {fileID: 1176300308}
+  entryAnimation: {fileID: 1041427801}
 --- !u!114 &898898164878934718
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -447618,18 +447636,3 @@ SceneRoots:
   - {fileID: 1068988625}
   - {fileID: 2521649570482340426}
   - {fileID: 5573198205804703758}
---- !u!114 &897650132268094101
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5100545705664200585}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 66ab10b98b2b43f49f5450ac0609e348, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  popup: {fileID: 1041427794}
-  messageText: {fileID: 1176300308}
-  entryAnimation: {fileID: 1041427801}
