@@ -16,6 +16,7 @@ public sealed class RaidResultsPresentation : MonoBehaviour
     [SerializeField] private GameObject gameOverUI;
     [SerializeField] private GameObject mvpUI;
     [SerializeField] private TMP_Text content, damage, takenDamage, kill, death;
+    [SerializeField] private TMP_Text rewardTotal, rewardKills, rewardDamage;
     [SerializeField] private Button nextButton, mainButton;
     [SerializeField] private BattleResultsTable settings;
     [Serializable] public sealed class AwardPanel
@@ -152,6 +153,13 @@ public sealed class RaidResultsPresentation : MonoBehaviour
         var defeat = Find(gameOverUI.transform, "Defeat"); if (defeat != null) defeat.gameObject.SetActive(!director.Cleared);
         var data = PlayerData.Local;
         var result = data != null ? director.Boss.ResultFor(data.ParticipantRef) : default;
+        // Use the same raid result row for both the displayed amount and the payment.
+        // Normal battle statistics are intentionally not recorded in this mode.
+        Set(rewardTotal, $"X{BattleMatchRewards.Calculate(result.Damage, result.Kills)}");
+        Set(rewardKills, $"+{Math.Max(0, result.Kills)} x100");
+        double displayedDamage = float.IsNaN(result.Damage) || float.IsInfinity(result.Damage)
+            ? 0d : Math.Floor(Math.Max(0d, result.Damage));
+        Set(rewardDamage, $"+{displayedDamage:0} / 10");
         if (data != null && !data.IsMatchBot && result.Player == data.ParticipantRef)
             BattleMatchRewards.Request("raid:" + director.Boss.Runner.GetInstanceID() + ":" + director.Boss.Object.Id,
                 result.Damage, result.Kills);
@@ -281,6 +289,9 @@ public sealed class RaidResultsPresentation : MonoBehaviour
             if (takenDamage == null) takenDamage = FindText(gameOverUI, "TakenDamage");
             if (kill == null) kill = FindText(gameOverUI, "Kill");
             if (death == null) death = FindText(gameOverUI, "Death");
+            if (rewardTotal == null) rewardTotal = FindText(gameOverUI, "BosangText");
+            if (rewardKills == null) rewardKills = Find(gameOverUI.transform, "WhyBosangText01", "WhyBosangText1")?.GetComponent<TMP_Text>();
+            if (rewardDamage == null) rewardDamage = Find(gameOverUI.transform, "WhyBosangText02", "WhyBosangText2")?.GetComponent<TMP_Text>();
             if (nextButton == null) nextButton = Find(gameOverUI.transform, "NextButton", "ConfirmButton")?.GetComponent<Button>();
             Bind(nextButton, ShowMvp);
             if (nextButton != null) Set(nextButton.GetComponentInChildren<TMP_Text>(true), "다음");

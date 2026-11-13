@@ -192,6 +192,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] public int ParryStartSequence { get; private set; }
     [Networked] public int ParrySequence { get; private set; }
     [Networked] public Vector3 ParryFacingDirection { get; private set; }
+    [Networked] public Vector3 ParryHitOffset { get; private set; }
     [Networked] public int DeathSequence { get; private set; }
 
     [SerializeField] private PlayerEquipment equipment;
@@ -762,7 +763,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         TickTimeFieldHealing();
         TickMagicStorm();
         TickBladeRainVolley();
-        if (CatTutorialDirector.TrainingSessionActive && !IsTestBot && Object.HasStateAuthority)
+        if (CatTutorialDirector.TrainingSessionActive && !CatTutorialDirector.ManaRecoveryPracticeActive && !IsTestBot && Object.HasStateAuthority)
             RestoreAp(MaxAp);
         if (!IsAlive) return;
         if (TickDrowning()) return;
@@ -1750,7 +1751,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         {
             int hit = victim.HitSequence;
             victim.ReceiveMagicHit(victim.ResolveHeadHit(stats, origin, direction,
-                Vector3.Distance(origin, end), stats.hitscanRadius), ParticipantRef, Object.Id, direction);
+                Vector3.Distance(origin, end), stats.hitscanRadius), ParticipantRef, Object.Id, direction, end);
             if (victim.HitSequence == hit) ResetVisionMiss(stats);
         }
         else { ResetVisionMiss(stats); NotifyFaceMiss(); }
@@ -1931,7 +1932,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     }
 
     // Called only by authoritative projectiles/rays; Ice's status cannot pass through a parry.
-    public void ReceiveMagicHit(MagicStatEntry stats, PlayerRef attacker, NetworkId attackerId = default, Vector3 incomingDirection = default)
+    public void ReceiveMagicHit(MagicStatEntry stats, PlayerRef attacker, NetworkId attackerId = default, Vector3 incomingDirection = default, Vector3? impactPoint = null)
     {
         if (Object == null || !Object.HasStateAuthority || !IsAlive ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return;
@@ -1939,7 +1940,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         // Binding also counts as an incoming magic hit, despite its zero damage.
         if (IsParrying)
         {
-            RegisterParry(incomingDirection, attacker, attackerId);
+            RegisterParry(incomingDirection, attacker, attackerId, impactPoint);
             return;
         }
         if (CatTutorialDirector.TrainingSessionActive && !IsTestBot) return;
@@ -2154,7 +2155,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         );
     }
 
-    private void RegisterParry(Vector3 incomingDirection, PlayerRef attacker, NetworkId attackerId)
+    private void RegisterParry(Vector3 incomingDirection, PlayerRef attacker, NetworkId attackerId, Vector3? impactPoint = null)
     {
         PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleBlock(attacker);
         PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordMission(MissionObjective.ParrySuccess);
@@ -2169,7 +2170,17 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             facing = source != null ? (source.LockAimPoint - LockAimPoint).normalized : transform.forward;
         }
         ParryFacingDirection = IsFiniteDirection(facing) && facing.sqrMagnitude > .0001f ? facing.normalized : transform.forward;
+        Vector3 offset = impactPoint.HasValue ? impactPoint.Value - LockAimPoint : Vector3.zero;
+        ParryHitOffset = IsFiniteDirection(offset) && offset.sqrMagnitude > .0001f ? offset : ParryFacingDirection;
         ParrySequence++;
+        RPC_ParryShieldHit(ParryFacingDirection, ParryHitOffset);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All, Channel = RpcChannel.Reliable)]
+    private void RPC_ParryShieldHit(Vector3 facing, Vector3 hitOffset)
+    {
+        if (presentation == null) presentation = GetComponent<CombatPresentation>();
+        if (presentation != null) presentation.ShowParryImpact(facing, hitOffset);
     }
 
     private Player FindPlayer(PlayerRef playerRef)

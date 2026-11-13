@@ -81,7 +81,7 @@ public sealed class RaidMagicProjectile : MagicProjectile
         Finished = true;
         transform.position = point;
         if (player != null && player.IsAlive && player.TeamIndex != ShooterTeam)
-            player.ReceiveMagicHit(stats, Shooter, ShooterId, direction);
+            player.ReceiveMagicHit(stats, Shooter, ShooterId, direction, point);
         Lifetime = TickTimer.CreateFromSeconds(Runner, .2f);
         RPC_RaidImpact(point);
     }

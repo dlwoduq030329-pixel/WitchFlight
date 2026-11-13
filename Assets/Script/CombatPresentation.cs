@@ -140,10 +140,11 @@ public sealed class CombatPresentation : MonoBehaviour
     private bool initialized;
     private int lastHit;
     private int lastDeath;
-    private int lastParry;
     [Header("Parry directional VFX")]
     [Tooltip("직접 만든 반구 VFX. 볼록한 방향은 +Z. 패링 중 옅게 유지되고, 성공 시 투사체가 날아온 쪽을 향합니다. 비우면 선으로 반구를 생성합니다.")]
     [SerializeField] private GameObject parryShieldVfxPrefab;
+    [Tooltip("패링에만 사용하는 ReactiveShield. 카운트다운/부활 보호막은 위의 기존 프리팹을 유지합니다.")]
+    [SerializeField] private GameObject reactiveParryShieldVfxPrefab;
     [SerializeField, Min(0.05f)] private float parryShieldDuration = 0.35f;
     [Tooltip("Shield_03 머티리얼의 원래 불투명도에 곱합니다. 낮을수록 더 비쳐 보입니다.")]
     [SerializeField, Range(0f, 1f)] private float parryShieldOpacity = .75f;
@@ -268,7 +269,6 @@ public sealed class CombatPresentation : MonoBehaviour
             if (deathSettings != null) DefeatBurstVfx.Prewarm(deathSettings.deathBurstPrefab);
             lastHit = owner.HitSequence;
             lastDeath = owner.DeathSequence;
-            lastParry = owner.ParrySequence;
             initialized = true;
             if (!owner.IsAlive && owner.DeathSequence > 0)
                 StartDeathFade();
@@ -289,12 +289,6 @@ public sealed class CombatPresentation : MonoBehaviour
         }
         UpdateActiveParryShield();
         UpdateSpawnShields();
-        if (lastParry != owner.ParrySequence)
-        {
-            lastParry = owner.ParrySequence;
-            if (activeParryShield != null) activeParryShield.ParrySuccess(owner.ParryFacingDirection);
-            else CombatMagicVisual.Shield(owner, parryShieldVfxPrefab, parryShieldDuration, owner.ParryFacingDirection, parryShieldForwardOffset, parryShieldOpacity);
-        }
         UpdateChannelVisual();
         UpdateMaterials();
         UpdateSmokeVisibility();
@@ -329,9 +323,7 @@ public sealed class CombatPresentation : MonoBehaviour
         }
         if (activeParryShield == null)
         {
-            activeParryShield = CombatMagicVisual.Shield(owner, parryShieldVfxPrefab, parryEndDissolveSeconds,
-                owner.transform.forward, parryShieldForwardOffset, parryShieldOpacity * parryActiveOpacityMultiplier,
-                true, parryRimRadius, parryRimWidth, parryRimColor);
+            activeParryShield = CreateParryShield();
             activeParryStartSequence = owner.ParryStartSequence - 1;
         }
         if (activeParryStartSequence != owner.ParryStartSequence)
@@ -340,6 +332,22 @@ public sealed class CombatPresentation : MonoBehaviour
             if (activeParryShield != null) activeParryShield.RefreshParry();
             CombatTransientEffect.PlayPulse(owner.MagicCastAnchor.position, parryRimColor, .25f, .08f, owner);
         }
+    }
+
+    private CombatMagicVisual CreateParryShield()
+    {
+        return CombatMagicVisual.Shield(owner,
+            reactiveParryShieldVfxPrefab != null ? reactiveParryShieldVfxPrefab : parryShieldVfxPrefab,
+            parryEndDissolveSeconds, owner.transform.forward, parryShieldForwardOffset,
+            parryShieldOpacity * parryActiveOpacityMultiplier, true, parryRimRadius, parryRimWidth, parryRimColor);
+    }
+
+    // Each confirmed block has its own reliable event, including multiple hits in one snapshot.
+    public void ShowParryImpact(Vector3 facing, Vector3 hitOffset)
+    {
+        if (!isActiveAndEnabled || owner == null || owner.Object == null || !owner.Object.IsValid || !owner.IsAlive) return;
+        if (activeParryShield == null) activeParryShield = CreateParryShield();
+        if (activeParryShield != null) activeParryShield.ParrySuccess(facing, hitOffset);
     }
 
     private bool CanShowEnemyOutline()

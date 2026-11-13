@@ -157,7 +157,7 @@ public class Player {
  public float LockProgress,Speed,channelDamageTime,LastReceivedDamage;
  public PlayerRef LastAttacker;
  public Vector3 KnockbackVelocity,ChannelEnd;
- public Vector3 ParryFacingDirection;
+ public Vector3 ParryFacingDirection,ParryHitOffset;
  public Vector3 LockAimPoint=>transform.position;
  public Vector3 MagicCastPosition=>transform.position+CastOffset;
  public Vector3 CastOffset,LastTraceOrigin,LastCastOrigin,LastLaunchDirection;
@@ -182,6 +182,7 @@ public class Player {
  public int Predictions;
  public void TryPredictProjectile(MagicStatEntry s){Predictions++;}
  public void RPC_PresentCast(MagicType m,Vector3 a,Vector3 b,float v){LastCastOrigin=a;}
+ public void RPC_ParryShieldHit(Vector3 facing,Vector3 hitOffset){}
  public int LockReadyEvents,LockClearEvents;public MagicType LastReadyMagic;
  public void RPC_PresentLockComplete(MagicType m){if(m==MagicType.None)LockClearEvents++;else {LockReadyEvents++;LastReadyMagic=m;}}
  public int DamageDirectionEvents;public Vector3 DamageDirectionPosition;

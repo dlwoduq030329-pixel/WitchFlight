@@ -14,7 +14,7 @@ public sealed partial class BattleRoundUI
     }
     [Header("Round readiness profiles (empty = find Profiles under MagicSelectUI)")]
     [SerializeField] private Transform profilesRoot;
-    [Tooltip("Profiles 아래에 배치된 Profile01, Profile02… 슬롯을 사용합니다. 현재 적 플레이어만 표시합니다.")]
+    [Tooltip("Profiles 아래에 배치된 Profile01, Profile02… 슬롯에 본인을 포함한 아군과 적군 모두를 표시합니다.")]
     [SerializeField] private ReadyProfile[] readyProfiles = Array.Empty<ReadyProfile>();
     [SerializeField] private ProfileImageTable profileTable;
     private bool readyRequestPending, requestedReady, profilesBound;
@@ -71,7 +71,7 @@ public sealed partial class BattleRoundUI
 
     private void RefreshReadyProfileSlots(int round)
     {
-        CollectReadyOpponents();
+        CollectReadyParticipants();
         if (profileTable == null) profileTable = ProfileImageTable.Default;
         for (int i = 0; i < readyProfiles.Length; i++)
         {
@@ -95,13 +95,13 @@ public sealed partial class BattleRoundUI
         }
     }
 
-    private void CollectReadyOpponents()
+    private void CollectReadyParticipants()
     {
         readyRosterScratch.Clear();
         if (HasLocalData && localData.teamIndex > 0)
             foreach (var data in PlayerData.PerkPlayers)
                 if (data != null && data.Object != null && data.Object.IsValid && data.Runner == localData.Runner &&
-                    data.IsLoadoutInitialized && data.teamIndex > 0 && data.teamIndex != localData.teamIndex)
+                    data.IsLoadoutInitialized && data.teamIndex > 0)
                     readyRosterScratch.Add(data);
         bool changed = readyRoster.Count != readyRosterScratch.Count;
         if (!changed)

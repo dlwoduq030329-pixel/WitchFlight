@@ -113,7 +113,7 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.MineRadius,"이중계약","한 번에 사역마를 {amount}마리 소환합니다.",2.0f,0.0f,0.0f,0.0f),
         D(PerkId.BeamWidth,"확장렌즈","광선 판정 반경 {percent}% 증가, 피해량 {secondaryPercent}% 증가.",0.5f,0.0f,0.2f,0.0f),
         D(PerkId.BeamFocus,"열 집중","같은 적에게 {condition}초 연속 피해를 주면 {seconds}초간 총 {amount} 화상 피해. 중첩 없이 갱신.",16.0f,2.0f,0.0f,2.0f),
-        D(PerkId.FlarePulse,"텔레키네시스","플레어 유지 중 주변 {amount}m의 적 투사체를 자신에게 유도. 아군을 추적하는 투사체도 포함.",60.0f,0.0f,0.0f,0.0f),
+        D(PerkId.FlarePulse,"텔레키네시스","개별 플레어의 유인 반경이 {amount}m로 증가하고 아군을 추적하는 마법도 유인합니다.",60.0f,0.0f,0.0f,0.0f),
         D(PerkId.FlareEfficiency,"효율 방출","플레어 유지시간 {amount}초 증가.",1.0f,0.0f,0.0f,0.0f),
         D(PerkId.SmokeRadius,"광역 차폐","연막 반경 {percent}% 증가.",.2f),
         D(PerkId.SmokeDuration,"밀집","연막 안의 적이 마법을 록온하는 시간 {percent}% 증가.",0.3f,0.0f,0.0f,0.0f),

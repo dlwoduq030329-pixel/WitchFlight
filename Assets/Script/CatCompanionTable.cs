@@ -5,7 +5,7 @@ public enum CatAnimation { StandingIdle, SittingIdle, Loaf, Standing, Walk, Run,
 // Append new targets: existing assets store these enum values as integers.
 public enum CatTutorialTarget { None, Wardrobe, WeaponTab, CustomBack, BattleMenu, Training, CreateRoom, RandomMatch, BattleBack, DeathMatch, JoinRoom }
 public enum CatGreetingKind { Welcome, Victory, Defeat }
-public enum CatTrainingAction { None, SpeedUpAndDown, AimAndFire, SwitchSlots, Parry, ChoosePerk, Boost, QuickBrake, Emote }
+public enum CatTrainingAction { None, SpeedUpAndDown, AimAndFire, SwitchSlots, Parry, ChoosePerk, Boost, QuickBrake, Emote, ManaBoosterRecovery }
 
 [Serializable]
 public class CatAnimationEntry
