@@ -55,6 +55,18 @@ public static class PracticeChecks {
   p.Reset(0,0,0,0);
   Check(!p.IncreasedSpeed && !p.SelectedSecond && !p.Charged, "new exercise clears previous progress");
   Check(!Observe(CatTrainingAction.Boost,boost:true,dt:.01f), "boost progress resets");
+  Check(!p.ObserveManaRecovery(false,50,2,.5f), "outside zone cannot complete recovery practice");
+  Check(!p.ObserveManaRecovery(true,50,2,.5f), "entry alone is not recovery");
+  Check(!p.ObserveManaRecovery(true,51,2,.8f), "mana alone is insufficient");
+  Check(p.ObserveManaRecovery(true,52,2.2f,.1f), "both resources recovering inside completes practice");
+  p.Reset(0,0,0,0);
+  p.ObserveManaRecovery(true,50,2,0);
+  Check(!p.ObserveManaRecovery(true,55,2.1f,.1f), "brief fly-through cannot pass");
+  p.ObserveManaRecovery(false,60,2.3f,2);
+  Check(!p.ObserveManaRecovery(true,100,3,2), "outside recovery is not credited on re-entry");
+  Check(!p.ObserveManaRecovery(true,100,3,2), "merely waiting with full resources cannot fake recovery");
+  p.Reset(0,0,0,0);p.ObserveManaRecovery(true,50,2,0);
+  Check(!p.ObserveManaRecovery(true,50,2.1f,1), "dash alone is insufficient");
 
   var g = new CatTutorialDirector {practiceArmed=true,CurrentPractice=CatTrainingAction.Parry,practiceTarget=new Player()};
   CatTutorialDirector.trainingDirector=g;

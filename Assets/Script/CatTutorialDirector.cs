@@ -33,6 +33,9 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
     private RectTransform highlightedButton;
     private Canvas highlightedCanvas;
     private TMP_Text arrow, nameText;
+    private RectTransform speechBubble, speechNameTag;
+    private float speechBaseHeight, speechTextHeight;
+    private Vector2 speechBasePosition, speechTextPosition, speechNamePosition;
     private readonly Dictionary<CatTutorialTarget, Button> targets = new();
     private Button subscribed, replayButton;
     private Transform lobbyUI;
@@ -184,8 +187,19 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
             // Authored fitter expands both axes; long personality lines need bounded wrapping.
             var fitter = explanationText.GetComponent<ContentSizeFitter>();
             if (fitter != null) fitter.horizontalFit = fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
-            explanationText.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 155);
-            explanationText.enableAutoSizing = true; explanationText.fontSizeMin = 22; explanationText.fontSizeMax = 36;
+            // Keep the scene/prefab's font size and Auto Size settings editable by the designer.
+            // Forcing Auto Size here enlarged Main's authored 20pt dialogue up to 36pt.
+            explanationText.textWrappingMode = TextWrappingModes.Normal;
+            speechBubble = explanationText.transform.parent as RectTransform;
+            var layout = speechBubble.GetComponent<LayoutGroup>();
+            if (layout != null) layout.enabled = false;
+            speechBaseHeight = speechBubble.rect.height;
+            speechBasePosition = speechBubble.anchoredPosition;
+            speechTextHeight = explanationText.rectTransform.rect.height;
+            if (speechTextHeight < 1f) speechTextHeight = Mathf.Max(1f, speechBaseHeight - 48f);
+            speechTextPosition = explanationText.rectTransform.anchoredPosition;
+            speechNameTag = nameText != null ? nameText.transform.parent as RectTransform : null;
+            if (speechNameTag != null) speechNamePosition = speechNameTag.anchoredPosition;
         }
         // The authored static CatImage is replaced by the live portrait.
         foreach (var image in tutorialUI.GetComponentsInChildren<Image>(true)) if (image.name == "CatImage") image.enabled = false;
@@ -297,6 +311,7 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
     {
         dialogueWaiting = false;
         explanationText.text = stepDialogue;
+        FitSpeechBubble(stepDialogue);
         // Parse once. TMP preserves wrapping/rich text while only revealing glyphs.
         explanationText.maxVisibleCharacters = int.MaxValue;
         explanationText.ForceMeshUpdate(true);
@@ -304,6 +319,21 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
         dialogueStartedAt = Time.unscaledTime;
         dialogueTyping = dialogueCharacterCount > 0;
         explanationText.maxVisibleCharacters = dialogueTyping ? 0 : int.MaxValue;
+    }
+
+    private void FitSpeechBubble(string text)
+    {
+        if (speechBubble == null) return;
+        var rect = explanationText.rectTransform;
+        // Measure the complete line once, not the partially revealed typewriter text.
+        float preferred = explanationText.GetPreferredValues(text, Mathf.Max(1f, rect.rect.width), Mathf.Infinity).y;
+        float extra = Mathf.Max(0f, preferred + 8f - speechTextHeight);
+        speechBubble.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, speechBaseHeight + extra);
+        speechBubble.anchoredPosition = speechBasePosition + Vector2.up * (extra * speechBubble.pivot.y);
+        rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, speechTextHeight + extra);
+        rect.anchoredPosition = speechTextPosition + Vector2.up * (extra * (rect.pivot.y - (rect.anchorMin.y + rect.anchorMax.y) * .5f));
+        if (speechNameTag != null && speechNameTag.parent == speechBubble.parent)
+            speechNameTag.anchoredPosition = speechNamePosition + Vector2.up * extra;
     }
 
     private void RefreshDialogueHint()
@@ -606,6 +636,7 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
         dialogueWaiting = dialogueTyping = false;
         explanationText.maxVisibleCharacters = int.MaxValue;
         explanationText.text = table.Greeting(kind, body);
+        FitSpeechBubble(explanationText.text);
         if (nameText != null) nameText.text = table.GetCatName(body);
         foreach (var blocker in blockers) blocker.gameObject.SetActive(false);
         highlight.gameObject.SetActive(false);

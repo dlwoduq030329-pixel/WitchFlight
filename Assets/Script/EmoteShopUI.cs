@@ -10,6 +10,7 @@ public sealed class EmoteShopUI : MonoBehaviour
     [SerializeField] private Button confirmButton, cancelButton;
     [SerializeField] private VoiceShopUI voiceShop;
     [SerializeField] private DOTweenAnimation confirmationTween;
+    [SerializeField] private StorePurchaseFeedback purchaseFeedback;
     [SerializeField] private UnityEngine.Events.UnityEvent onPurchaseSucceeded = new();
     private static EmoteShopUI active;
     private string pendingId;
@@ -75,7 +76,13 @@ public sealed class EmoteShopUI : MonoBehaviour
         if (success)
         {
             CancelPurchase();
+            purchaseFeedback?.PrepareSuccess();
             onPurchaseSucceeded.Invoke();
+        }
+        else if (message == "재화가 부족합니다." && purchaseFeedback != null)
+        {
+            CancelPurchase();
+            purchaseFeedback.ShowInsufficientFunds();
         }
         else
         {

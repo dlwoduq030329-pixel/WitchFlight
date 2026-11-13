@@ -9,6 +9,11 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
     [SerializeField] private TMP_Dropdown modeDropdown;
     [SerializeField] private TMP_Text statusText;
     [SerializeField] private TMP_FontAsset uiFont;
+    [Header("WaitingRoomUI / Panel / MapImage")]
+    [SerializeField] private Image mapImage;
+    [Tooltip("1vs1부터 5vs5까지 순서대로. 같은 인원수의 봇전도 이 이미지를 사용합니다.")]
+    [SerializeField] private Sprite[] teamModeSprites = new Sprite[5];
+    [SerializeField] private Sprite raidModeSprite;
     private NetworkGameManager manager;
     private TMP_Dropdown boundDropdown;
     private float nextModeLookup;
@@ -26,7 +31,9 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
             modeDropdown.interactable = false;
         }
         if (!visible || modeDropdown == null) return;
-        int selectedMode = BattleMatchRules.DropdownIndex(manager.CurrentMatchMode);
+        BattleMatchMode mode = manager.CurrentMatchMode;
+        int selectedMode = BattleMatchRules.DropdownIndex(mode);
+        RefreshModeImage(mode);
         if (modeDropdown.value != selectedMode) modeDropdown.SetValueWithoutNotify(selectedMode);
         modeDropdown.interactable = manager.IsRoomHost;
         var status = (manager.ConnectedPlayerCount, manager.RequiredPlayerCount, manager.IsRoomHost);
@@ -55,6 +62,7 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
             {
                 if (info == null || info.CodeWaitingRoomPanel == null || info.CodeRoomModeDropdown == null) continue;
                 modeDropdown = info.CodeRoomModeDropdown;
+                mapImage = info.CodeWaitingRoomPanel.transform.Find("Panel/MapImage")?.GetComponent<Image>();
                 break;
             }
         }
@@ -69,6 +77,23 @@ public sealed partial class RoomMatchSettingsUI : MonoBehaviour
         modeDropdown.SetValueWithoutNotify(BattleMatchRules.DropdownIndex(manager.CurrentMatchMode));
         modeDropdown.interactable = manager != null && manager.IsWaitingInCodeRoom && manager.IsRoomHost;
         boundDropdown.onValueChanged.AddListener(SelectMode);
+    }
+    private void RefreshModeImage(BattleMatchMode mode)
+    {
+        if (mapImage == null) return;
+        Sprite sprite;
+        if (mode == BattleMatchMode.GiantMeowRaid) sprite = raidModeSprite;
+        else
+        {
+            int index = BattleMatchRules.PlayerCount(mode) / 2 - 1;
+            sprite = teamModeSprites != null && index >= 0 && index < teamModeSprites.Length
+                ? teamModeSprites[index] : null;
+        }
+        // Reuse the scene Image and imported sprites. No portrait cloning or texture
+        // composition at runtime; network mode changes are already observed above.
+        if (sprite == null || mapImage.sprite == sprite) return;
+        mapImage.sprite = sprite;
+        mapImage.preserveAspect = true;
     }
     private void OnDestroy()
     {

@@ -12,11 +12,15 @@ public sealed partial class CatTutorialDirector
     private Player practiceTarget;
     private PlayerData practiceData;
     private float nextTargetCheck;
+    private TrainingManaRoute manaRoute;
+    private bool manaRecoveryInside;
 
     // Training is a single-player runner. These gates never change online match rules.
     public static bool TrainingSessionActive => BattleManager.Instance != null && BattleManager.Instance.IsTraining &&
         BattleManager.Instance.Phase == BattleStartPhase.TrainingTutorial;
     public static bool PracticeInputActive => TrainingSessionActive && trainingDirector != null && trainingDirector.practiceArmed;
+    public static bool ManaRecoveryPracticeActive => TrainingSessionActive && trainingDirector != null &&
+        trainingDirector.practiceStarted && trainingDirector.CurrentPractice == CatTrainingAction.ManaBoosterRecovery;
     public static bool CanTrainingBotAttack(MagicTestBot bot) => PracticeInputActive &&
         trainingDirector.CurrentPractice == CatTrainingAction.Parry && trainingDirector.practiceCompletedAt < 0f &&
         trainingDirector.practiceTarget != null && bot.gameObject == trainingDirector.practiceTarget.gameObject;
@@ -56,6 +60,18 @@ public sealed partial class CatTutorialDirector
         practiceReadyAt = Time.unscaledTime + .25f;
         practiceCompletedAt = -1f;
         practiceEmote = practiceLockedCast = false;
+        manaRecoveryInside = false;
+        if (CurrentPractice == CatTrainingAction.ManaBoosterRecovery)
+        {
+            manaRoute = new TrainingManaRoute();
+            if (!manaRoute.Begin(player, canvas, nextHint))
+            {
+                manaRoute.Dispose(); manaRoute = null; practiceStarted = false;
+                nextHint.text = "ManaBooster 영역을 찾지 못했어요. 영역을 활성화한 뒤 다시 클릭해주세요.";
+                Debug.LogError("ManaBooster practice: active ManaBuff trigger not found in the training scene.", this);
+                return;
+            }
+        }
         if (CurrentPractice == CatTrainingAction.ChoosePerk) data.GrantTrainingPracticeChoice();
         practiceProgress.Reset(player.CurrentSpeedStage, player.CastSequence, player.ParrySequence, data.PerkChoicesUsed);
         if (CurrentPractice == CatTrainingAction.AimAndFire || CurrentPractice == CatTrainingAction.Parry)
@@ -71,7 +87,7 @@ public sealed partial class CatTutorialDirector
     private void UpdatePractice()
     {
         if (!practiceStarted) { SetPracticeCursor(false); return; }
-        if (CombatPresentation.MenuOpen) return;
+        if (CombatPresentation.MenuOpen) { manaRoute?.SetVisible(false); return; }
         // The click which starts practice must never become a cast/choice or skip a lesson.
         if (!practiceArmed)
         {
@@ -81,6 +97,7 @@ public sealed partial class CatTutorialDirector
         SetPracticeCursor(true);
         Player player = Player.LocalPlayer;
         if (player == null || player.Object == null || !player.Object.IsValid) return;
+        manaRoute?.Tick(player);
         if (practiceCompletedAt >= 0f)
         {
             nextHint.text = "성공!";
@@ -124,6 +141,18 @@ public sealed partial class CatTutorialDirector
             case CatTrainingAction.Emote:
                 nextHint.text = "감정표현 키 유지 → 방향 선택 → 떼기";
                 break;
+            case CatTrainingAction.ManaBoosterRecovery:
+                bool inside = manaRoute != null && manaRoute.IsInside(player) && player.HasManaBuff;
+                if (inside && !manaRecoveryInside) player.PrepareManaRecoveryPractice();
+                manaRecoveryInside = inside;
+                completed = practiceProgress.ObserveManaRecovery(inside, player.NowAp,
+                    player.DashCharges + player.DashRechargeProgress, Time.deltaTime);
+                nextHint.text = inside ? "S를 눌러 머무르며 마나·대쉬 회복 확인" :
+                    manaRoute == null || !manaRoute.HasDestination ? "활성화된 ManaBooster 영역을 기다리는 중" :
+                    manaRoute != null && manaRoute.MustLeaveFirst ? "영역 밖으로 나간 뒤 안내선을 따라 다시 진입" :
+                    !manaRoute.HasRoute ? "목표 방향으로 이동하며 장애물을 우회해주세요" :
+                    "파란 안내선을 따라 이동 · 도착 전에 S로 감속";
+                break;
         }
         if (completed) practiceCompletedAt = Time.unscaledTime;
     }
@@ -137,6 +166,8 @@ public sealed partial class CatTutorialDirector
 
     private void EndPracticeStep()
     {
+        manaRoute?.Dispose(); manaRoute = null;
+        manaRecoveryInside = false;
         if (practiceTarget != null) practiceTarget.GetComponent<MagicTestBot>()?.ResetTrainingAttack();
         practiceStarted = practiceArmed = false;
         practiceCompletedAt = -1f;

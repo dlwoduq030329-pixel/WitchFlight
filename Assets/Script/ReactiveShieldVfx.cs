@@ -36,6 +36,7 @@ public sealed class ReactiveShieldVfx : MonoBehaviour
     private static readonly int AmbientId = Shader.PropertyToID("_AmbientEnergy");
     private static readonly int DisplacementId = Shader.PropertyToID("_Displacement");
     private static readonly int RotationId = Shader.PropertyToID("_FragmentRotation");
+    private static readonly int VisibilityId = Shader.PropertyToID("_BaseVisibility");
     private readonly Vector4[] hits = new Vector4[MaxImpacts];
     private readonly Vector4[] timings = new Vector4[MaxImpacts];
     private MaterialPropertyBlock properties;
@@ -43,11 +44,14 @@ public sealed class ReactiveShieldVfx : MonoBehaviour
     private MeshRenderer meshRenderer;
     private Mesh generatedMesh;
     private int nextImpact;
+    private float baseVisibility = 1f;
     public float Radius => radius;
+    public float RecoverySeconds => recoverySeconds;
     public int CellCount => 10 * (1 << (2 * Mathf.Clamp(subdivisions, 0, 3))) + 2;
 
     private void OnEnable()
     {
+        baseVisibility = 1f;
         if (generatedMesh == null) Rebuild();
         ClearHits();
     }
@@ -71,6 +75,17 @@ public sealed class ReactiveShieldVfx : MonoBehaviour
         nextImpact = 0;
         for (int i = 0; i < MaxImpacts; i++) { hits[i] = Vector4.zero; timings[i] = Vector4.zero; }
         UploadProperties();
+    }
+
+    // Fade the idle surface after the block window; confirmed hit waves finish independently.
+    public void SetBaseVisibility(float value)
+    {
+        value = Mathf.Clamp01(value);
+        if (Mathf.Approximately(baseVisibility, value)) return;
+        baseVisibility = value;
+        if (properties == null || meshRenderer == null) { UploadProperties(); return; }
+        properties.SetFloat(VisibilityId, value);
+        meshRenderer.SetPropertyBlock(properties, 0);
     }
 
     [ContextMenu("Rebuild shield / Apply settings")]
@@ -110,7 +125,10 @@ public sealed class ReactiveShieldVfx : MonoBehaviour
         properties.SetFloat(AmbientId, ambientEnergy);
         properties.SetFloat(DisplacementId, outwardDisplacement);
         properties.SetFloat(RotationId, fragmentRotation * Mathf.Deg2Rad);
-        meshRenderer.SetPropertyBlock(properties);
+        properties.SetFloat(VisibilityId, baseVisibility);
+        // The VFX pool restores material-slot blocks (even empty ones). A slot block
+        // overrides the renderer-wide block, so hits must write to this mesh's slot.
+        meshRenderer.SetPropertyBlock(properties, 0);
     }
 
     private void OnDestroy() => ReleaseMesh();

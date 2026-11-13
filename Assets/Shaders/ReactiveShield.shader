@@ -10,6 +10,7 @@ Shader "WitchFlight/VFX/Reactive Shield"
         _ShieldRadius("Radius", Float) = 2
         _Displacement("Fragment travel", Float) = .38
         _FragmentRotation("Fragment rotation", Float) = .42
+        _BaseVisibility("Idle surface visibility", Range(0,1)) = 1
     }
     SubShader
     {
@@ -29,6 +30,7 @@ Shader "WitchFlight/VFX/Reactive Shield"
             CBUFFER_START(UnityPerMaterial)
                 float4 _EnergyColor, _ImpactColor;
                 float _SurfaceOpacity, _EdgeWidth, _AmbientEnergy, _ShieldRadius, _Displacement, _FragmentRotation;
+                float _BaseVisibility;
             CBUFFER_END
             float4 _ShieldHits[8];
             float4 _ShieldTimings[8];
@@ -91,7 +93,7 @@ Shader "WitchFlight/VFX/Reactive Shield"
                 float hit=saturate(i.energy.x+i.energy.y*.75);
                 float3 color=lerp(_EnergyColor.rgb,_ImpactColor.rgb,hit);
                 float intensity=.16+edge*.85+rim*.45+i.energy.z+i.energy.y*1.3+i.energy.x;
-                float alpha=saturate(_SurfaceOpacity+edge*.42+rim*.2+i.energy.x*.48+i.energy.y*.25+i.energy.z*.25);
+                float alpha=saturate((_SurfaceOpacity+edge*.42+rim*.2+i.energy.z*.25)*_BaseVisibility+i.energy.x*.48+i.energy.y*.25);
                 return half4(color*intensity,alpha);
             }
             ENDHLSL

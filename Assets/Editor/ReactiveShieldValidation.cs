@@ -59,10 +59,10 @@ public static class ReactiveShieldValidation
                 File.WriteAllBytes("Temp/ReactiveShieldValidation/"+name+".png",pixels.EncodeToPNG());
             }
             Capture("idle");
-            var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);
+            var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block,0);
             var hits=new Vector4[8];var timings=new Vector4[8];
             hits[0]=new Vector4(.25f,.15f,-.956f,1.5f);timings[0]=new Vector4(Time.time-.22f,.6f,1.15f,1f);
-            block.SetVectorArray("_ShieldHits",hits);block.SetVectorArray("_ShieldTimings",timings);renderer.SetPropertyBlock(block);
+            block.SetVectorArray("_ShieldHits",hits);block.SetVectorArray("_ShieldTimings",timings);renderer.SetPropertyBlock(block,0);
             Capture("impact");
             File.WriteAllText("Temp/ReactiveShieldValidation/result.txt","PASS: geometry levels 0-3, prefab and GPU shader rendering.");
             Debug.Log("Reactive Shield validation passed. Captures: Temp/ReactiveShieldValidation");

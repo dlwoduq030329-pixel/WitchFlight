@@ -180,6 +180,7 @@ public partial class MagicProjectile : NetworkBehaviour
         FlightExhausted = false;
         sweptTarget = null;
         fallingVelocity = Vector3.zero;
+        decoyField = null;
         fallingWater = null;
         timeLifetimeRemainder = 0f;
         stormAimDirection = Vector3.zero;
@@ -262,6 +263,7 @@ public partial class MagicProjectile : NetworkBehaviour
 
         if (InterceptedByFlare(transform.position, transform.position)) return;
         ApplyFlareAttraction();
+        bool followsFlare = TryGetFlareAim(out Vector3 flareAim);
         if (Magic == MagicType.MagicStorm)
             direction = Vector3.RotateTowards(direction, stormAimDirection,
                 stats.projectileTurnSpeed * Mathf.Deg2Rad * flightDelta, 0f).normalized;
@@ -273,9 +275,9 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         }
         MagicProjectile summonTarget = FindSummonTargetById();
-        if ((target != null || summonTarget != null) && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
+        if ((followsFlare || target != null || summonTarget != null) && (stats.requiresTarget || stats.projectileTurnSpeed > 0f))
         {
-            Vector3 desired = (target != null ? target.LockAimPoint : summonTarget.transform.position) - transform.position;
+            Vector3 desired = (followsFlare ? flareAim : target != null ? target.LockAimPoint : summonTarget.transform.position) - transform.position;
             if (HasFlightExhaustion && target != null)
                 desired = HomingAimDelta(desired, target.ParryHintVelocity,
                     stats.projectileSpeed * FlightSpeedFraction * (flightDelta / Mathf.Max(.000001f, Runner.DeltaTime)),
@@ -356,6 +358,7 @@ public partial class MagicProjectile : NetworkBehaviour
         if (!Runner.TryFindObject(TargetId, out NetworkObject obj) || obj == null)
             return null;
         Player target = obj.GetComponent<Player>();
+        if (target == null && obj.TryGetComponent(out MagicProjectile decoy) && decoy.ConstructKind == MagicConstructKind.FlareField) return null;
         // Summon bodies share the same network target ID path as players.
         if (target == null && FindSummonTargetById() != null) return null;
         if (target == null || !target.IsAlive || target.IsStealthed || target.TeamIndex == ShooterTeam)
@@ -589,7 +592,7 @@ public partial class MagicProjectile : NetworkBehaviour
                 ? directHit.ResolveHeadHit(stats, headTraceOrigin.Value, direction,
                     Vector3.Distance(headTraceOrigin.Value, point), stats.projectileRadius)
                 : stats;
-            directHit.ReceiveMagicHit(hitStats, Shooter, ShooterId, direction);
+            directHit.ReceiveMagicHit(hitStats, Shooter, ShooterId, direction, point);
             if (ConstructKind == MagicConstructKind.SummonBolt && !directHit.IsAlive &&
                 Runner.TryFindObject(ShooterId, out NetworkObject catOwner) && catOwner != null)
                 catOwner.GetComponent<Player>()?.NotifySummonKillAudio(point);
