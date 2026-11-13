@@ -70,6 +70,10 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private bool dashFovWinding;
     private int dashFovPortal;
     private float dashFovAge = -1f, dashFovStart, dashFovStartedAt, dashFovStartDistance, dashFovRelease;
+    [Header("Dash refraction shockwave")]
+    [SerializeField] private DashRefractionPulse dashRefraction = new();
+    internal Vector4 DashRefractionRing => dashRefraction != null ? dashRefraction.Ring : Vector4.zero;
+    internal Vector4 DashRefractionShape => dashRefraction != null ? dashRefraction.Shape : Vector4.zero;
     // Retain serialized legacy values for rollback; character afterimages are replaced by a world-space trail.
     [SerializeField, HideInInspector] private PlayerDirectionalBlurSettings playerMotionBlur = new();
     [Header("Player flight trail (world-space path)")]
@@ -172,7 +176,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     internal Vector4 BackgroundBlurParameters => new Vector4(UsesMaskedBackgroundBlur ?
         Mathf.Clamp01(motionBlurIntensity) * Mathf.Clamp(motionBlurDistanceMultiplier, 1f, MaxExtendedBlurIntensity) * effectWeight * TurnMotionScale : 0f,
         Mathf.Clamp(motionBlurClamp, 0f, 0.2f) * TurnMotionScale, (int)motionBlurQuality, 0f);
-    internal bool HasCustomBlur => HasPeripheralBlur || BackgroundBlurParameters.x > 0.001f ||
+    internal bool HasCustomBlur => (dashRefraction != null && dashRefraction.Active) || HasPeripheralBlur || BackgroundBlurParameters.x > 0.001f ||
         (playerBlur != null && playerBlur.HasBlur);
 
     private MotionBlurMode EffectiveBlurMode => keepLocalPlayerSharp
@@ -259,10 +263,11 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         bool boundaryView = player != null && player.Object != null && player.Object.IsValid &&
             (player.IsReturningToMap || (cameraFollow != null && cameraFollow.IsBoundaryPresentationActive));
         UpdateDashFovStart(player, canShow && !boundaryView);
+        dashRefraction?.Update(player, viewCamera, canShow && !boundaryView);
         UpdateTurnBlur(canShow && !boundaryView);
         UpdateLockOnFocus(player, canShow && !boundaryView);
         flightSensation.Update(player, transform, canShow && !boundaryView);
-        playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur, playerMotionBlur, false);
+        playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur || (dashRefraction != null && dashRefraction.Active), playerMotionBlur, false);
 
         if (!canShow)
         {
@@ -638,6 +643,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnDisable()
     {
+        dashRefraction?.Reset();
         dashFovPlayer = null;
         dashFovAge = -1f;
         RenderPipelineManager.beginCameraRendering -= UpdateFlightTrail;

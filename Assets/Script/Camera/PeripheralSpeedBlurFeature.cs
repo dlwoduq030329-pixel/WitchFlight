@@ -56,7 +56,7 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
         {
             public TextureHandle source, motion, mask, depth;
             public Material material;
-            public Vector4 peripheral, background, trail, anchor, rect, focus, flight, sampling, clearRect;
+            public Vector4 peripheral, background, trail, anchor, rect, focus, flight, sampling, clearRect, dashRing, dashShape;
             public bool needsMotion;
         }
 
@@ -70,7 +70,8 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
         }
 
         private void SetParameters(Material value, Vector4 peripheral, Vector4 background,
-            Vector4 trail, Vector4 anchor, Vector4 rect, Vector4 focus, Vector4 flight, Vector4 sampling, Vector4 clearRect)
+            Vector4 trail, Vector4 anchor, Vector4 rect, Vector4 focus, Vector4 flight, Vector4 sampling, Vector4 clearRect,
+            Vector4 dashRing, Vector4 dashShape)
         {
             value.SetVector("_PeripheralBlur", peripheral);
             value.SetVector("_BackgroundBlur", background);
@@ -81,6 +82,8 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
             value.SetVector("_FlightMotion", flight);
             value.SetVector("_BlurSampling", sampling);
             value.SetVector("_PlayerClearRect", clearRect);
+            value.SetVector("_DashRefractionRing", dashRing);
+            value.SetVector("_DashRefractionShape", dashShape);
         }
 
         public override void RecordRenderGraph(RenderGraph graph, ContextContainer frameData)
@@ -130,13 +133,15 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
                 data.anchor = effects.PlayerBlur?.Anchor ?? Vector4.zero;
                 data.rect = effects.PlayerBlur?.ScreenRect ?? Vector4.zero;
                 data.clearRect = effects.PlayerBlur?.ClearRect ?? new Vector4(1, 1, 0, 0);
+                data.dashRing = effects.DashRefractionRing;
+                data.dashShape = effects.DashRefractionShape;
                 builder.UseTexture(data.source);
                 if (data.needsMotion) builder.UseTexture(data.motion);
                 builder.UseTexture(data.mask); builder.UseTexture(data.depth);
                 builder.SetRenderAttachment(destination, 0);
                 builder.SetRenderFunc((PassData d, RasterGraphContext context) =>
                 {
-                    SetParameters(d.material, d.peripheral, d.background, d.trail, d.anchor, d.rect, d.focus, d.flight, d.sampling, d.clearRect);
+                    SetParameters(d.material, d.peripheral, d.background, d.trail, d.anchor, d.rect, d.focus, d.flight, d.sampling, d.clearRect, d.dashRing, d.dashShape);
                     if (d.needsMotion) d.material.SetTexture("_SpeedMotionTexture", (RTHandle)d.motion);
                     d.material.SetTexture("_PlayerMotionMask", (RTHandle)d.mask);
                     d.material.SetTexture("_SpeedSceneDepth", (RTHandle)d.depth);
@@ -171,7 +176,7 @@ public sealed class PeripheralSpeedBlurFeature : ScriptableRendererFeature
                 effects.BackgroundBlurParameters, effects.PlayerBlur?.Trail ?? Vector4.zero,
                 effects.PlayerBlur?.Anchor ?? Vector4.zero, effects.PlayerBlur?.ScreenRect ?? Vector4.zero,
                 effects.LockOnBlurParameters, effects.FlightMotion, effects.BlurSamplingParameters,
-                effects.PlayerBlur?.ClearRect ?? new Vector4(1, 1, 0, 0));
+                effects.PlayerBlur?.ClearRect ?? new Vector4(1, 1, 0, 0), effects.DashRefractionRing, effects.DashRefractionShape);
             if (effects.NeedsBackgroundMotionVectors)
                 material.SetTexture("_SpeedMotionTexture", Shader.GetGlobalTexture("_MotionVectorTexture"));
             material.SetTexture("_PlayerMotionMask", mask);
