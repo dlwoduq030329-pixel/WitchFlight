@@ -1014,6 +1014,34 @@ MonoBehaviour:
       \uAE30\uBCF8 {dashRecharge}\uCD08\uB9C8\uB2E4 \uD558\uB098\uC529 \uCDA9\uC804\uB429\uB2C8\uB2E4\uC639."
     - "\uB300\uC26C\uB294 \uCD5C\uB300 {dashCharges}\uD68C\uB2E4\uC639! {dashRecharge}\uCD08\uB9C8\uB2E4
       \uD558\uB098\uC529 \uB3CC\uC544\uC624\uB2C8 \uACC4\uC0B0\uD574\uC11C \uC4F0\uB77C\uB0E5."
+  - id: mana_booster_recovery
+    highlight: 0
+    waitForTargetClick: 0
+    practice: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "ManaBooster 존에 가라냥! 안에 있으면 마나는 {zoneManaRecovery}배, 대쉬 충전은 {zoneDashRecovery}배다옹. 나도 충전되나냥?"
+    - "ManaBooster 존에서 쉬어 가라냥. 마나는 {zoneManaRecovery}배, 대쉬 충전은 {zoneDashRecovery}배다옹. 쩝… 간식도 있으면 좋겠냥."
+    - "마나랑 대쉬가 부족하면 ManaBooster 존으로 가라옹. 안에선 마나 {zoneManaRecovery}배, 대쉬 충전 {zoneDashRecovery}배다냥. 무리하지 말라고."
+    - "ManaBooster 존에서… 쉬어라냥. 마나는 {zoneManaRecovery}배, 대쉬 충전은 {zoneDashRecovery}배… 나도 좀 충전해야겠옹…"
+    - "ManaBooster 존에 같이 가자냥! 안에 있으면 마나 {zoneManaRecovery}배, 대쉬 충전 {zoneDashRecovery}배다옹. 내가 옆에 있어 줄게냥."
+    - "ManaBooster 존으로 이동해 재정비하십시오옹. 내부에서는 마나 회복이 {zoneManaRecovery}배, 대쉬 충전이 {zoneDashRecovery}배 빨라집니다."
+    - "ManaBooster 존에서 힘을 채우라옹! 마나 {zoneManaRecovery}배, 대쉬 충전 {zoneDashRecovery}배다냥. 이 몸은 준비 없이 나서지 않는다옹."
+  - id: mana_booster_border
+    highlight: 0
+    waitForTargetClick: 0
+    practice: 0
+    animation: 1
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "화면 가장자리가 파래지면 존 안이다냥! 밖으로 나오면 사라진다옹. 화면에 물든 건 아니냥!"
+    - "화면 가장자리가 파래지면 잘 들어온 거다냥. 밖에선 효과가 끝나니, 배 채우듯 충전하고 가라옹."
+    - "파란 화면 테두리가 보이면 회복 효과를 받고 있는 거다냥. 밖으로 나오면 끝이니까 잘 봐라옹."
+    - "화면 가장자리가 파랗다냥… 존 안이라는 뜻이옹. 나가면 사라져… 눈 감으면 안 보이겠네냥…"
+    - "화면 가장자리가 파랗게 빛나면 존 안이다냥! 밖으로 나오면 사라지니까, 충전하고 같이 가자옹."
+    - "화면 가장자리의 파란빛으로 효과 적용을 확인하실 수 있습니다옹. 영역을 벗어나면 사라집니다."
+    - "파란 화면 테두리가 보이면 존 안이다냥! 밖에선 효과도 끝이니, 힘을 채운 뒤 우아하게 나가라옹."
   - id: dash_ram
     highlight: 0
     waitForTargetClick: 0

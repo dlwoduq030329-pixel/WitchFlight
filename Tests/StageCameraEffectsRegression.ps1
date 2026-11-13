@@ -12,7 +12,7 @@ function Method([string]$source,[string]$name) {
 $stubs = @'
 using System;
 namespace CameraChecks {
- public static class Time {public static float unscaledTime,unscaledDeltaTime=.1f;public static int frameCount;}
+ public static class Time {public static float timeScale=1,unscaledTime,unscaledDeltaTime=.1f;public static int frameCount;}
  public static class Mathf {
   public static float Max(float a,float b)=>Math.Max(a,b);public static float Abs(float a)=>Math.Abs(a);public static float Exp(float a)=>(float)Math.Exp(a);
   public static float Min(float a,float b)=>Math.Min(a,b);
@@ -39,7 +39,7 @@ namespace CameraChecks {
   public void ResetWorldToCameraMatrix(){Resets++;}
  }
  public class Obj {public bool IsValid=true,HasInputAuthority=true;}
- public class Player {public Obj Object=new();public bool IsAlive=true,IsReturningToMap,IsBoosting;public int CurrentSpeedStage;}
+ public class Player {public Obj Object=new();public bool IsAlive=true,IsReturningToMap,IsBoosting,IsDashWindingUp;public float DashWindupProgress;public int CurrentSpeedStage,PortalExitSequence;}
  public static class CombatPresentation {public static bool MenuOpen;}
  public class BattleManager {public static BattleManager Instance=new();public bool IsGameplayActive=true;}
  public class FollowProbe {
@@ -65,8 +65,11 @@ $fovProbe = @'
  }
  public class FovProbe {
   public FollowProbe cameraFollow;
+  public Player dashFovPlayer;public bool dashFovWinding;public int dashFovPortal;
+  public float dashFovAge=-1,dashFovStart,dashFovStartedAt,dashFovStartDistance,dashFovRelease;
+  public float dashFovContraction=5,dashFovExpandSeconds=.22f,FlightCameraDistance;
   public Camera viewCamera=new();public float originalFieldOfView=60,fieldOfViewIncrease,stage1FieldOfViewIncrease=3,stage2FieldOfViewIncrease=6,extraFieldOfView=10,fieldOfViewTransitionSpeed=5;
-'@ + (Method $effects 'UpdateFieldOfView') + (Method $effects 'StageFieldOfViewIncrease') +
+'@ + (Method $effects 'UpdateDashFovStart') + (Method $effects 'ApplyDashFovStart') + (Method $effects 'UpdateFieldOfView') + (Method $effects 'StageFieldOfViewIncrease') +
     (Method $effects 'FastTurnWeight') + (Method $effects 'RecoverTurnBlur') + '}'
 $checks = @'
  public static class Tests {
@@ -79,6 +82,27 @@ $checks = @'
    Check(Near(FollowProbe.EvaluateTopSpeedKick(.395f,.45f,.12f,.55f),.225f),"camera returns smoothly");
    Check(FollowProbe.EvaluateTopSpeedKick(.67f,.45f,.12f,.55f)==0&&FollowProbe.EvaluateTopSpeedKick(10,.45f,.12f,.55f)==0,"kick returns exactly to base distance");
    for(int i=0;i<100;i++){float v=FollowProbe.EvaluateTopSpeedKick(i*.01f,.45f,.12f,.55f);Check(v>=0&&v<=.45001f,"kick cannot overshoot "+i);}
+   var fx=new FovProbe();var flyer=new Player();Time.unscaledTime=0;
+   fx.UpdateDashFovStart(flyer,true);flyer.IsDashWindingUp=true;fx.UpdateDashFovStart(flyer,true);
+   flyer.DashWindupProgress=.5f;fx.ApplyDashFovStart();
+   Check(Near(fx.viewCamera.fieldOfView,57.5f),"FOV contraction follows simulated windup progress");
+   flyer.DashWindupProgress=1;fx.ApplyDashFovStart();Check(Near(fx.viewCamera.fieldOfView,55),"FOV reaches configured compression");
+   Time.unscaledTime=.08f;flyer.IsDashWindingUp=false;flyer.IsBoosting=true;fx.UpdateDashFovStart(flyer,true);
+   fx.viewCamera.fieldOfView=70;fx.ApplyDashFovStart();Check(Near(fx.viewCamera.fieldOfView,55),"release expands from current FOV without a jump");
+   Time.unscaledTime=.19f;fx.UpdateDashFovStart(flyer,true);fx.viewCamera.fieldOfView=70;fx.ApplyDashFovStart();
+   Check(Near(fx.viewCamera.fieldOfView,62.5f),"FOV expands only after actual boost begins");
+   Time.unscaledTime=.31f;fx.UpdateDashFovStart(flyer,true);fx.viewCamera.fieldOfView=70;fx.ApplyDashFovStart();
+   Check(Near(fx.viewCamera.fieldOfView,70) && fx.dashFovAge<0,"expansion restores ordinary speed framing");
+   flyer.IsBoosting=false;flyer.IsDashWindingUp=true;fx.UpdateDashFovStart(flyer,true);
+   flyer.IsDashWindingUp=false;fx.UpdateDashFovStart(flyer,true);
+   Check(fx.dashFovAge<0 && !fx.dashFovWinding,"cancelled preparation cannot trigger expansion");
+   var delayed=new FollowProbe();
+   Time.unscaledTime=0;delayed.targetPlayer.CurrentSpeedStage=2;delayed.UpdateTopSpeedKick(true);
+   Time.unscaledTime=.04f;Check(Near(delayed.UpdateTopSpeedKick(true),0),"preparation keeps camera distance fixed");
+   Time.unscaledTime=.08f;delayed.targetPlayer.CurrentSpeedStage=3;delayed.targetPlayer.IsBoosting=true;
+   Check(Near(delayed.UpdateTopSpeedKick(true),0) && Near(delayed.topSpeedKickStartedAt,.08f),"camera release starts with actual acceleration without extra delay");
+   Time.unscaledTime=.14f;Check(Near(delayed.UpdateTopSpeedKick(true),.4f),"camera retreats during actual acceleration");
+   Time.unscaledTime=.20f;Check(Near(delayed.UpdateTopSpeedKick(true),.8f),"dash reaches the original peak distance");
    var p=new FollowProbe();Time.unscaledTime=0;p.targetPlayer.CurrentSpeedStage=2;Check(p.UpdateTopSpeedKick(true)==0,"initial target does not kick");
    p.targetPlayer.CurrentSpeedStage=3;p.UpdateTopSpeedKick(true);Time.unscaledTime=.12f;Check(Near(p.UpdateTopSpeedKick(true),.45f),"2-to-3 transition starts one pulse");
    float start=p.topSpeedKickStartedAt;p.UpdateTopSpeedKick(true);Check(p.topSpeedKickStartedAt==start,"multiple calls in a frame do not retrigger");

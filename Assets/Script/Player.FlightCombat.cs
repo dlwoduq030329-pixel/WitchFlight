@@ -113,6 +113,7 @@ public partial class Player
         CobraTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.2f, table.cobraSeconds));
         CobraCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(table.cobraSeconds, table.cobraCooldown));
         SpeedStage = 1;
+        DashWindupTimer = TickTimer.None;
         BurstBoostTimer = TickTimer.None;
         GlideElapsed = 0f;
         IsBoosting = false;

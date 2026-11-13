@@ -8,6 +8,8 @@ public sealed class FlightCombatTable : ScriptableObject
     [Header("Shift dash (capacity from EquipmentStatTable)")]
     [Tooltip("대쉬 1회 충전 시간. 첫 소모 즉시 충전을 시작하며 추가 소모가 진행 중인 충전을 초기화하지 않습니다.")]
     [Min(.05f)] public float dashRechargeSeconds = 8f;
+    [Tooltip("대쉬 가속 전 FOV 수축 시간. 이 시간이 끝나면 가속과 카메라 후퇴가 함께 시작됩니다.")]
+    [Min(0f)] public float dashWindupSeconds = .08f;
     [Header("ManaBuff area recovery")]
     [Tooltip("ManaBuff Trigger 내부의 자연 마나 회복 배율. 여러 영역이 겹쳐도 중첩하지 않습니다.")]
     [Min(1f)] public float manaBuffManaRecoveryMultiplier = 2f;
