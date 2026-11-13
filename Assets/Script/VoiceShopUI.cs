@@ -188,14 +188,16 @@ public sealed class VoiceShopUI : MonoBehaviour
         var db = DatabaseManager.Instance;
         if (db == null) { SetStatus("로그인 후 구매할 수 있습니다."); return; }
         bool success;
+        string message;
         purchasing = true;
         try
         {
-            success = db.TryPurchaseVoice(itemId, out string message);
+            success = db.TryPurchaseVoice(itemId, out message);
             SetStatus(message);
         }
         finally { purchasing = false; }
         if (success) CancelPurchase();
+        else if (confirmationDialog != null) confirmationDialog.text = message;
         Refresh();
         if (success) onPurchaseSucceeded.Invoke(); else onPurchaseFailed.Invoke();
     }

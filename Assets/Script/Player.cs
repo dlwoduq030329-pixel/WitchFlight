@@ -14,6 +14,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private float GlideElapsed { get; set; }
     [Networked] private float GlideStartSpeed { get; set; }
     [Networked] private TickTimer BurstBoostTimer { get; set; }
+    [Networked] private TickTimer DashWindupTimer { get; set; }
+    [Networked] public float DashWindupDuration { get; private set; }
+    public bool IsDashWindingUp => networkSpawned && Object != null && Object.IsValid && DashWindupTimer.IsRunning;
+    public float DashWindupProgress => IsDashWindingUp
+        ? Mathf.Clamp01(1f - (DashWindupTimer.RemainingTime(Runner) ?? 0f) / Mathf.Max(.001f, DashWindupDuration)) : 0f;
     public bool UsesAutomaticCruise => automaticCruise && !IsMatchBot && !IsTestBot;
     public bool IsGliding => UsesAutomaticCruise && GlideElapsed > 0f;
     public float GlideStopSeconds => Mathf.Max(.05f, glideStopSeconds);
@@ -27,6 +32,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!boostHeld) boostNeedsRelease = false;
         if (braking)
         {
+            DashWindupTimer = TickTimer.None;
             BurstBoostTimer = TickTimer.None;
             if (GlideElapsed <= 0f) GlideStartSpeed = Mathf.Max(0f, Speed);
             GlideElapsed = Mathf.Min(glideStopSeconds, GlideElapsed + Runner.DeltaTime);
@@ -35,19 +41,40 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
         GlideElapsed = 0f;
+        TickDashWindup();
         if (allowBoost && buttons.WasPressed(previousButtons, PlayerInputButton.Boost) &&
-            !TimerIsActive(BurstBoostTimer) && !boostNeedsRelease && !IsBound && !IsHitStunned)
+            !DashWindupTimer.IsRunning && !TimerIsActive(BurstBoostTimer) && !boostNeedsRelease && !IsBound && !IsHitStunned)
         {
-            if (TryConsumeDashCharge()) StartCruiseBoost();
+            if (TryConsumeDashCharge()) BeginDashWindup();
         }
         IsBoosting = TimerIsActive(BurstBoostTimer) && !IsBound && !IsHitStunned;
         SpeedStage = IsBoosting ? 3 : 2;
     }
 
-    // Shared by Shift and booster pickups. Repeated activation refreshes the burst,
+    private void BeginDashWindup()
+    {
+        DashWindupDuration = Mathf.Max(0f, FlightCombatTable.Default != null ? FlightCombatTable.Default.dashWindupSeconds : .08f);
+        if (DashWindupDuration <= 0f) { StartCruiseBoost(); return; }
+        DashWindupTimer = TickTimer.CreateFromSeconds(Runner, DashWindupDuration);
+    }
+
+    private void TickDashWindup()
+    {
+        if (!DashWindupTimer.IsRunning) return;
+        if (!IsAlive || IsBound || IsHitStunned || IsReturningToMap || CobraActive)
+        {
+            DashWindupTimer = TickTimer.None;
+            return;
+        }
+        // The simulation owns the release; cameras observe it, never delay gameplay independently.
+        if (DashWindupTimer.Expired(Runner)) StartCruiseBoost();
+    }
+
+    // Shared by Shift release and booster pickups. Repeated activation refreshes the burst,
     // without multiplying speed bonuses or shortening an existing longer burst.
     private void StartCruiseBoost()
     {
+        DashWindupTimer = TickTimer.None;
         float remaining = BurstBoostTimer.RemainingTime(Runner) ?? 0f;
         BurstBoostTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(remaining, Mathf.Max(.05f, burstBoostSeconds)));
         GlideElapsed = 0f;
@@ -454,6 +481,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         Speed = 0f;
         SpeedStage = UsesAutomaticCruise ? 2 : 0;
         GlideElapsed = 0f;
+        DashWindupTimer = TickTimer.None;
         BurstBoostTimer = TickTimer.None;
         ResetItemBoost();
         ResetDashCharges(broomStats.DashChargeCapacity);
@@ -503,7 +531,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         previousButtons = default;
         HeadLookAngles = Vector2.zero;
         if (!IsAlive || IsReturningToMap || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
-        { BurstBoostTimer = TickTimer.None; GlideElapsed = 0f; }
+        { DashWindupTimer = TickTimer.None; BurstBoostTimer = TickTimer.None; GlideElapsed = 0f; }
         pendingMagic = MagicType.None;
         castTimer = TickTimer.None;
 
@@ -675,7 +703,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             !BattleManager.Instance.IsGameplayActive || !IsAlive || IsReturningToMap || IsHitStunned))
         { StopChannel(); StopMagicStorm(); CancelBladeRain(); }
 
-        // Every tick must receive a held input to sustain boost.
+        if (!IsAlive || IsReturningToMap || IsBound || IsHitStunned || CobraActive ||
+            BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive || RaceFinished)
+            DashWindupTimer = TickTimer.None;
+
+        // Recompute boost state from the replicated timer each simulation tick.
         IsBoosting = false;
 
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive || RaceFinished)
@@ -749,6 +781,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         if (UpdateMapBoundaryReturn())
         {
+            DashWindupTimer = TickTimer.None;
             CobraActive = false;
             CobraTimer = TickTimer.None;
             areaAimArmed = false;
@@ -1354,9 +1387,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void UpdateHeldBoost(bool held)
     {
         if (!held) boostNeedsRelease = false;
-        if (held && !boostNeedsRelease && !TimerIsActive(BurstBoostTimer) && !IsHitStunned && !IsBound)
+        TickDashWindup();
+        if (held && !boostNeedsRelease && !DashWindupTimer.IsRunning && !TimerIsActive(BurstBoostTimer) && !IsHitStunned && !IsBound)
         {
-            if (TryConsumeDashCharge()) StartCruiseBoost();
+            if (TryConsumeDashCharge()) BeginDashWindup();
             boostNeedsRelease = true;
         }
         IsBoosting = TimerIsActive(BurstBoostTimer) && !IsHitStunned && !IsBound;
@@ -2645,6 +2679,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         SpeedStage = 0;
         Speed = 0f;
         IsBoosting = false;
+        DashWindupTimer = TickTimer.None;
         BurstBoostTimer = TickTimer.None;
         boostNeedsRelease = true; // Release Shift before another burst after hitting a wall.
         if (Vector3.Dot(KnockbackVelocity, hit.normal) < 0f)

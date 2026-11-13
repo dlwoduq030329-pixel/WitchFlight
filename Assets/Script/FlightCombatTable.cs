@@ -8,6 +8,8 @@ public sealed class FlightCombatTable : ScriptableObject
     [Header("Shift dash (capacity from EquipmentStatTable)")]
     [Tooltip("대쉬 1회 충전 시간. 첫 소모 즉시 충전을 시작하며 추가 소모가 진행 중인 충전을 초기화하지 않습니다.")]
     [Min(.05f)] public float dashRechargeSeconds = 8f;
+    [Tooltip("대쉬 가속 전 FOV 수축 시간. 이 시간이 끝나면 가속과 카메라 후퇴가 함께 시작됩니다.")]
+    [Min(0f)] public float dashWindupSeconds = .08f;
     [Header("ManaBuff area recovery")]
     [Tooltip("ManaBuff Trigger 내부의 자연 마나 회복 배율. 여러 영역이 겹쳐도 중첩하지 않습니다.")]
     [Min(1f)] public float manaBuffManaRecoveryMultiplier = 2f;
@@ -41,8 +43,8 @@ public sealed class FlightCombatTable : ScriptableObject
     [Min(.5f)] public float cobraCooldown = 4f;
     [Range(30f, 100f)] public float cobraPitch = 80f;
     [Min(0f)] public float cobraLift = 2f;
-    [Tooltip("기수를 세운 중간 구간에서 진입 방향의 반대로 미끄러지는 최대 속도(m/s).")]
-    [Min(0f)] public float cobraBackwardSpeed = 6f;
+    [Tooltip("Q 급제동 후에도 진입 방향으로 계속 활공하는 속도(m/s). 진입 속도보다 빨라지지는 않습니다.")]
+    [Min(.1f)] public float cobraGlideSpeed = 10f;
     [Header("Smoke interior visibility")]
     [Min(0f)] public float smokeClearDistance = 5f;
     [Min(.1f)] public float smokeFadeDistance = 2f;

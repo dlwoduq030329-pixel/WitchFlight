@@ -12,7 +12,17 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [SerializeField] private Volume speedVolume;
     [Header("Flight sensation (actual speed / acceleration / scenery)")]
     [SerializeField] private FlightSpeedPresentation flightSensation = new();
-    public float FlightCameraDistance => flightSensation != null ? flightSensation.CameraDistance : 0f;
+    public float FlightCameraDistance
+    {
+        get
+        {
+            float distance = flightSensation != null ? flightSensation.CameraDistance : 0f;
+            if (dashFovAge < 0f) return distance;
+            float releaseAge = dashFovWinding ? 0f : dashFovAge;
+            return Mathf.Lerp(dashFovStartDistance, distance,
+                Mathf.SmoothStep(0f, 1f, releaseAge / Mathf.Max(.01f, dashFovExpandSeconds)));
+        }
+    }
     [Header("Death presentation")]
     [SerializeField] private bool deathGrayscale = true;
     [Header("Stage 3 effects")]
@@ -52,6 +62,18 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     [InspectorName("Stage 3 Field Of View Increase")]
     [SerializeField, Range(0f, 30f)] private float extraFieldOfView = 30f;
     [SerializeField, Min(0.01f)] private float fieldOfViewTransitionSpeed = 5f;
+    [Header("Dash start: narrow then widen")]
+    [Tooltip("대쉬 시작 직전 화면에서 줄일 화각입니다. 0이면 이 연출을 끕니다.")]
+    [SerializeField, Range(0f, 15f)] private float dashFovContraction = 5f;
+    [SerializeField, Min(.01f)] private float dashFovExpandSeconds = .22f;
+    private Player dashFovPlayer;
+    private bool dashFovWinding;
+    private int dashFovPortal;
+    private float dashFovAge = -1f, dashFovStart, dashFovStartedAt, dashFovStartDistance, dashFovRelease;
+    [Header("Dash refraction shockwave")]
+    [SerializeField] private DashRefractionPulse dashRefraction = new();
+    internal Vector4 DashRefractionRing => dashRefraction != null ? dashRefraction.Ring : Vector4.zero;
+    internal Vector4 DashRefractionShape => dashRefraction != null ? dashRefraction.Shape : Vector4.zero;
     // Retain serialized legacy values for rollback; character afterimages are replaced by a world-space trail.
     [SerializeField, HideInInspector] private PlayerDirectionalBlurSettings playerMotionBlur = new();
     [Header("Player flight trail (world-space path)")]
@@ -154,7 +176,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     internal Vector4 BackgroundBlurParameters => new Vector4(UsesMaskedBackgroundBlur ?
         Mathf.Clamp01(motionBlurIntensity) * Mathf.Clamp(motionBlurDistanceMultiplier, 1f, MaxExtendedBlurIntensity) * effectWeight * TurnMotionScale : 0f,
         Mathf.Clamp(motionBlurClamp, 0f, 0.2f) * TurnMotionScale, (int)motionBlurQuality, 0f);
-    internal bool HasCustomBlur => HasPeripheralBlur || BackgroundBlurParameters.x > 0.001f ||
+    internal bool HasCustomBlur => (dashRefraction != null && dashRefraction.Active) || HasPeripheralBlur || BackgroundBlurParameters.x > 0.001f ||
         (playerBlur != null && playerBlur.HasBlur);
 
     private MotionBlurMode EffectiveBlurMode => keepLocalPlayerSharp
@@ -240,10 +262,12 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
         bool boundaryView = player != null && player.Object != null && player.Object.IsValid &&
             (player.IsReturningToMap || (cameraFollow != null && cameraFollow.IsBoundaryPresentationActive));
+        UpdateDashFovStart(player, canShow && !boundaryView);
+        dashRefraction?.Update(player, viewCamera, canShow && !boundaryView);
         UpdateTurnBlur(canShow && !boundaryView);
         UpdateLockOnFocus(player, canShow && !boundaryView);
         flightSensation.Update(player, transform, canShow && !boundaryView);
-        playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur, playerMotionBlur, false);
+        playerBlur?.Update(player, canShow, UsesMaskedBackgroundBlur || (dashRefraction != null && dashRefraction.Active), playerMotionBlur, false);
 
         if (!canShow)
         {
@@ -262,6 +286,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         int displayStage = boundaryView ? 0 : player.CobraActive ? 3 : player.CurrentSpeedStage;
         UpdateFieldOfView(displayStage, false, flightSensation.FieldOfViewScale(displayStage),
             flightSensation.ExtraFieldOfView);
+        ApplyDashFovStart();
 
         // Extra peripheral blur follows real forward speed; selecting stage 3 at rest
         // does not trigger it. Boost reaches the same capped maximum, never an overload.
@@ -352,6 +377,61 @@ public sealed class SpeedCameraEffects : MonoBehaviour
             windLines.SetPresentation(showWindLines ?
                 (flightSensation.enabled ? flightSensation.WindWeight : weight) * windOpacity * (1f - altitudeFullBlack) : 0f,
                 windColor, windLineCount, windSpeed * flightSensation.WindTravel, windMinWidth, windMaxWidth);
+    }
+
+    private void UpdateDashFovStart(Player player, bool allowed)
+    {
+        if (!allowed || dashFovContraction <= 0f || Time.timeScale <= 0f || Time.unscaledDeltaTime > .25f)
+        {
+            dashFovPlayer = null;
+            dashFovWinding = false;
+            dashFovAge = -1f;
+            return;
+        }
+        // Do not replay a windup after changing targets, menus or portals.
+        if (dashFovPlayer != player || dashFovPortal != player.PortalExitSequence)
+        {
+            dashFovPlayer = player;
+            dashFovPortal = player.PortalExitSequence;
+            dashFovWinding = false;
+            dashFovAge = -1f;
+            return;
+        }
+        if (player.IsDashWindingUp)
+        {
+            if (!dashFovWinding)
+            {
+                dashFovStart = viewCamera.fieldOfView;
+                dashFovStartDistance = FlightCameraDistance;
+            }
+            dashFovWinding = true;
+            dashFovAge = 0f;
+        }
+        else if (dashFovWinding)
+        {
+            dashFovWinding = false;
+            dashFovRelease = viewCamera.fieldOfView;
+            dashFovStartedAt = Time.unscaledTime;
+            dashFovAge = player.IsBoosting ? 0f : -1f;
+        }
+        else if (!player.IsBoosting) dashFovAge = -1f;
+        else if (dashFovAge >= 0f) dashFovAge = Time.unscaledTime - dashFovStartedAt;
+    }
+
+    private void ApplyDashFovStart()
+    {
+        if (dashFovAge < 0f) return;
+        if (dashFovWinding)
+        {
+            float narrowFov = Mathf.Clamp(dashFovStart - dashFovContraction, 1f, 179f);
+            viewCamera.fieldOfView = Mathf.Lerp(dashFovStart, narrowFov,
+                Mathf.SmoothStep(0f, 1f, dashFovPlayer.DashWindupProgress));
+            return;
+        }
+        float expandSeconds = Mathf.Max(.01f, dashFovExpandSeconds);
+        if (dashFovAge >= expandSeconds) { dashFovAge = -1f; return; }
+        viewCamera.fieldOfView = Mathf.Lerp(dashFovRelease, viewCamera.fieldOfView,
+            Mathf.SmoothStep(0f, 1f, dashFovAge / expandSeconds));
     }
 
     private void UpdateFieldOfView(int stage, bool immediate = false, float speedScale = 1f, float additional = 0f)
@@ -563,6 +643,9 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnDisable()
     {
+        dashRefraction?.Reset();
+        dashFovPlayer = null;
+        dashFovAge = -1f;
         RenderPipelineManager.beginCameraRendering -= UpdateFlightTrail;
         flightTrail?.Dispose();
         ResetFlightMotion();

@@ -40,7 +40,7 @@ public class BattleManager {public static BattleManager Instance=new();public bo
 public enum PerkId {Tailwind,FirstWind,BrakingRune}
 public enum BattleItemType {HealthPotion,ManaPotion,Booster}
 public enum BattleSound {HealthPotion,BoosterPickup}
-public class FlightCombatTable { public static FlightCombatTable Default=new(); public float dashRechargeSeconds=4; }
+public class FlightCombatTable { public static FlightCombatTable Default=new(); public float dashRechargeSeconds=4,dashWindupSeconds; }
 public enum PlayerInputButton {Decelerate,Boost}
 public struct NetworkButtons {
  public int Bits;
@@ -58,7 +58,7 @@ public partial class Player {
  public float Tailwind,Speed=26,GlideElapsed,GlideStartSpeed,glideStopSeconds=1.5f,burstBoostSeconds=2;
  public int SpeedStage=2;
  public bool boostNeedsRelease,IsBound,IsHitStunned,IsBoosting;
- public TickTimer BurstBoostTimer;
+ public TickTimer BurstBoostTimer,DashWindupTimer; public float DashWindupDuration; public bool IsReturningToMap,CobraActive;
  public NetworkButtons previousButtons;
  public bool UsesAutomaticCruise=true,HasItemSpeedBoost;
  public float ItemBoostMultiplier=1,ItemSpeedBoostRemaining;
@@ -79,6 +79,36 @@ public partial class Player {
  static int checks;
  static void Check(bool pass,string name){checks++;if(!pass)throw new Exception(name);}
  public static string Run(){
+  FlightCombatTable.Default.dashWindupSeconds=.08f;
+  var windup=new Player{GuardSeconds=1};windup.ResetDashCharges();windup.Input(true);
+  Check(windup.DashCharges==2 && !windup.IsBoosting && windup.SpeedStage==2,"Preparation consumes one charge but keeps cruise speed");
+  Check(!windup.IsDashGuardActive && !windup.BurstBoostTimer.IsRunning,"Boost duration and guard do not start during compression");
+  windup.Advance(.04);windup.Input(false);windup.Input(true);
+  Check(windup.DashCharges==2 && !windup.IsBoosting,"Repeated press during preparation cannot spend again");
+  var preparing=windup.Snapshot();
+  windup.Advance(.081);windup.Input(false);
+  Check(windup.IsBoosting && windup.SpeedStage==3 && !windup.DashWindupTimer.IsRunning,"Release starts acceleration even after Shift released");
+  Check(Math.Abs(windup.BurstBoostTimer.End-2.081)<.001 && Math.Abs(windup.DashGuardTimer.End-1.081)<.001,"Full boost and guard durations begin at actual release");
+  preparing.Advance(.081);preparing.Input(false);
+  Check(preparing.BurstBoostTimer.End==windup.BurstBoostTimer.End && preparing.DashCharges==windup.DashCharges,"Restoring a windup snapshot releases deterministically");
+  foreach(int reason in new[]{0,1,2,3,4}) {
+   var cancel=new Player();cancel.ResetDashCharges();cancel.Input(true);
+   if(reason==0)cancel.IsBound=true;if(reason==1)cancel.IsHitStunned=true;
+   if(reason==2)cancel.IsAlive=false;if(reason==3)cancel.IsReturningToMap=true;if(reason==4)cancel.CobraActive=true;
+   cancel.Advance(.1);cancel.Input(false);
+   Check(!cancel.DashWindupTimer.IsRunning && !cancel.IsBoosting,"Interrupted windup never releases: "+reason);
+  }
+  var brake=new Player();brake.ResetDashCharges();brake.Input(true);
+  brake.ProcessCruiseInput(new NetworkButtons{Bits=1},true);brake.Advance(.2);brake.Input(false);
+  Check(!brake.IsBoosting && !brake.DashWindupTimer.IsRunning,"Braking cancels pending acceleration");
+  var pickup=new Player();pickup.ResetDashCharges();pickup.Input(true);pickup.Advance(.04);
+  pickup.TryApplyBattleItem(BattleItemType.Booster,0,1.5f,5);
+  Check(pickup.IsBoosting && !pickup.DashWindupTimer.IsRunning,"Pickup remains immediate and cancels pending release");
+  double pickupEnd=pickup.BurstBoostTimer.End;pickup.Advance(.2);pickup.Input(false);
+  Check(pickup.BurstBoostTimer.End==pickupEnd,"Pending Shift cannot re-trigger a pickup boost");
+  var bot=new Player();bot.ResetDashCharges();bot.UpdateHeldBoost(true);bot.Advance(.081);bot.UpdateHeldBoost(false);
+  Check(bot.IsBoosting && bot.DashCharges==2,"Bot releases the same scheduled dash");
+  FlightCombatTable.Default.dashWindupSeconds=0;
   var p=new Player();p.ResetDashCharges();Check(p.DashCharges==3,"Three starting charges");
   p.Input(true);Check(p.DashCharges==2 && p.IsBoosting,"Shift spends one charge");
   Check(Math.Abs(p.DashRechargeTimer.End-4)<.001,"Recharge starts immediately");
@@ -179,7 +209,7 @@ public partial class Player {
  }
 }
 '@
-$methods = @('ProcessCruiseInput','StartCruiseBoost','UpdateHeldBoost') | ForEach-Object { Method $_ }
+$methods = @('ProcessCruiseInput','BeginDashWindup','TickDashWindup','StartCruiseBoost','UpdateHeldBoost') | ForEach-Object { Method $_ }
 $items=Get-Content Assets/Script/Player.Items.cs -Raw
 $itemMethod=[regex]::Match($items,'(?ms)^    internal bool TryApplyBattleItem\([^{}]*?\)\r?\n    \{.*?^    \}').Value
 if(!$itemMethod){throw 'Missing production item method'}

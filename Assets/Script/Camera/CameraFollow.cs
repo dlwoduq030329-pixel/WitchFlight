@@ -344,6 +344,7 @@ public partial class CameraFollow : MonoBehaviour
         bool hasPreviousState = lastKickSpeedStage != int.MinValue;
         bool stageRaised = hasPreviousState && stage > 0 && stage > lastKickSpeedStage;
         bool boostStarted = hasPreviousState && boostingAtTopStage && !lastKickBoosting;
+        // IsBoosting rises only when the simulated windup ends: release immediately here.
         float currentDistance = EvaluateTopSpeedKick(Time.unscaledTime - topSpeedKickStartedAt,
             topSpeedKickPeakDistance, topSpeedKickOutSeconds, topSpeedKickReturnSeconds, topSpeedKickStartDistance);
         if (stageRaised || boostStarted)

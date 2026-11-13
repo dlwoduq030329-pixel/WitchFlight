@@ -8,6 +8,9 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed partial class BattleHud : MonoBehaviour
 {
+    [Header("ManaBooster zone screen border (scene-authored)")]
+    [SerializeField] private GameObject manaBoosterScreenOverlay;
+    private ManaBoosterScreenBorder manaBoosterScreenBorder;
     // Cache display formatting, not gameplay values. Bars and feedback still update every frame.
     private NetworkString<_32> cachedPlayerName;
     private string cachedPlayerNameText = string.Empty;
@@ -572,6 +575,8 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void Awake()
     {
+        if (manaBoosterScreenOverlay != null)
+            manaBoosterScreenBorder = manaBoosterScreenOverlay.GetComponent<ManaBoosterScreenBorder>();
         if (GetComponent<BattleTitleNotificationUI>() == null) gameObject.AddComponent<BattleTitleNotificationUI>();
         BindSceneMenu();
         ValidateStatusEffectViews();
@@ -678,6 +683,8 @@ public sealed partial class BattleHud : MonoBehaviour
                 Mathf.Max(0, Mathf.CeilToInt(respawnAt - Time.unscaledTime)));
         }
         BindPlayer(valid);
+        if (manaBoosterScreenBorder != null)
+            manaBoosterScreenBorder.SetVisible(valid && owner.HasManaBuff && !MenuOpen);
         BindSpeedStageImages(valid && owner.IsAlive && battle.IsGameplayActive ? owner.CurrentSpeedStage : 0);
         BindStatusEffectViews(valid && battle.IsGameplayActive && !MenuOpen);
         BindAim(valid && owner.IsAlive && battle.IsGameplayActive && !MenuOpen);
@@ -1728,6 +1735,8 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void HideViews()
     {
+        if (manaBoosterScreenBorder != null) manaBoosterScreenBorder.HideImmediately();
+        else Visible(manaBoosterScreenOverlay, false);
         BindStatusEffectViews(false);
         BindSpeedStageImages(0);
         HideFlagCarrierMarker();

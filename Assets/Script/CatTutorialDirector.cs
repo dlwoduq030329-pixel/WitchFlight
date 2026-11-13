@@ -723,6 +723,8 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
             .Replace("{boostSeconds}", (player != null ? player.BurstBoostSeconds : 2f).ToString("0.#"))
             .Replace("{dashCharges}", (player != null && player.Object != null && player.Object.IsValid ? player.MaximumDashCharges : 3).ToString())
             .Replace("{dashRecharge}", (flight != null ? flight.dashRechargeSeconds : 8f).ToString("0.#"))
+            .Replace("{zoneManaRecovery}", Mathf.Max(1f, flight != null ? flight.manaBuffManaRecoveryMultiplier : 2f).ToString("0.#"))
+            .Replace("{zoneDashRecovery}", Mathf.Max(1f, flight != null ? flight.manaBuffDashRechargeMultiplier : 4f).ToString("0.#"))
             .Replace("{ramDamage}", (flight != null ? flight.ramDamage : 70f).ToString("0.#"))
             .Replace("{accelerate}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.Accelerate)))
             .Replace("{aim}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.LockOn)))

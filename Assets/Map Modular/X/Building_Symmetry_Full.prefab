@@ -1,5 +1,37 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &945712139931759658
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 360c1539cf8e78d4eb36e84c4b8b7c5b, type: 3}
+  m_PrefabInstance: {fileID: 134740750400555387}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 455998820381650576}
+  - component: {fileID: 3654615349579773655}
+  m_Layer: 0
+  m_Name: 'Building_Symmetry_Full (Missing Prefab with guid: 360c1539cf8e78d4eb36e84c4b8b7c5b)'
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &455998820381650576
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 360c1539cf8e78d4eb36e84c4b8b7c5b, type: 3}
+  m_PrefabInstance: {fileID: 134740750400555387}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 945712139931759658}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: 51, y: 21.972046, z: -13}
+  m_LocalScale: {x: 0.010000003, y: 0.009999998, z: 0.009999998}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3555795916297591784}
+  m_LocalEulerAnglesHint: {x: 90, y: 0, z: 180}
 --- !u!1 &5815761437183302996
 GameObject:
   m_ObjectHideFlags: 0
@@ -104,16 +136,6 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 3654615349579773655}
   m_SourcePrefab: {fileID: 100100000, guid: 360c1539cf8e78d4eb36e84c4b8b7c5b, type: 3}
---- !u!4 &455998820381650576 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 360c1539cf8e78d4eb36e84c4b8b7c5b, type: 3}
-  m_PrefabInstance: {fileID: 134740750400555387}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &945712139931759658 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 360c1539cf8e78d4eb36e84c4b8b7c5b, type: 3}
-  m_PrefabInstance: {fileID: 134740750400555387}
-  m_PrefabAsset: {fileID: 0}
 --- !u!64 &3654615349579773655
 MeshCollider:
   m_ObjectHideFlags: 0

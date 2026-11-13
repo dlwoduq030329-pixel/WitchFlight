@@ -10,6 +10,7 @@ public sealed class EmoteShopUI : MonoBehaviour
     [SerializeField] private Button confirmButton, cancelButton;
     [SerializeField] private VoiceShopUI voiceShop;
     [SerializeField] private DOTweenAnimation confirmationTween;
+    [SerializeField] private UnityEngine.Events.UnityEvent onPurchaseSucceeded = new();
     private static EmoteShopUI active;
     private string pendingId;
     private TMP_Text dialog, itemName, price, confirmLabel;
@@ -71,7 +72,11 @@ public sealed class EmoteShopUI : MonoBehaviour
         purchasing = true;
         try { if (db != null) success = db.TryPurchaseEmote(pendingId, out message); }
         finally { purchasing = false; }
-        if (success) CancelPurchase();
+        if (success)
+        {
+            CancelPurchase();
+            onPurchaseSucceeded.Invoke();
+        }
         else
         {
             if (dialog != null) dialog.text = message;

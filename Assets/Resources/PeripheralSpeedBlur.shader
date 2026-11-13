@@ -25,6 +25,8 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
             float4 _FlightMotion; // player world displacement xyz, translation-only enabled
             float4 _BlurSampling; // fast-turn weight, max adjacent tap spacing in pixels
             float4 _PlayerClearRect; // current rendered character bounds, bottom-left viewport coordinates
+            float4 _DashRefractionRing; // bottom-left center xy, expanding radius, amplitude (screen height)
+            float4 _DashRefractionShape; // band half width, sin cycles, viewport aspect
 
             float PlayerClearArea(float2 uv)
             {
@@ -72,6 +74,31 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
             {
                 if (any(uv < 0.0) || any(uv > 1.0)) return 0;
                 return SAMPLE_TEXTURE2D_X(_PlayerMotionMask, sampler_LinearClamp, uv).rg;
+            }
+
+            float2 DashRefractionUV(float2 uv, half playerMask)
+            {
+                if (_DashRefractionRing.w <= 0.000001 || playerMask > 0.001) return uv;
+                float2 center = _DashRefractionRing.xy;
+                #if UNITY_UV_STARTS_AT_TOP
+                    center.y = 1.0 - center.y;
+                #endif
+                float aspect = max(.1, _DashRefractionShape.z);
+                float2 radial = (uv - center) * float2(aspect, 1);
+                float distanceFromCenter = length(radial);
+                float band = (distanceFromCenter - _DashRefractionRing.z) / max(.02, _DashRefractionShape.x);
+                if (abs(band) >= 1 || distanceFromCenter < .00001) return uv;
+                // Smooth compact support: neither side of the sin wave leaves a hard ring boundary.
+                float envelope = .5 + .5 * cos(band * PI);
+                float displacement = sin(band * PI * _DashRefractionShape.y) * envelope * _DashRefractionRing.w;
+                float2 offset = radial / distanceFromCenter * displacement / float2(aspect, 1);
+                float2 edge = min(uv, 1.0 - uv);
+                offset *= smoothstep(0, .025, min(edge.x, edge.y));
+                offset *= 1.0 - PlayerClearArea(uv);
+                float2 refracted = clamp(uv + offset, _BlitTexture_TexelSize.xy * .5, 1 - _BlitTexture_TexelSize.xy * .5);
+                // Do not pull the character's silhouette into the surrounding shockwave.
+                float preserve = max(PlayerClearArea(refracted), step(.001, PlayerMask(refracted).r));
+                return lerp(refracted, uv, preserve);
             }
 
             float FocusBlurMask(float2 uv)
@@ -124,9 +151,10 @@ Shader "Hidden/WitchFlight/PeripheralSpeedBlur"
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 float2 uv = input.texcoord;
-                half4 original = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
                 half mask = PlayerMask(uv).r;
-                half3 background = BackgroundBlur(uv, original.rgb, mask);
+                float2 backgroundUV = DashRefractionUV(uv, mask);
+                half4 original = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, backgroundUV);
+                half3 background = BackgroundBlur(backgroundUV, original.rgb, mask);
                 float2 anchor = _PlayerAnchor.xy;
                 float2 shift = _PlayerTrail.xy;
                 float4 rect = _PlayerRect;
