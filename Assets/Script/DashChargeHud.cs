@@ -27,9 +27,14 @@ public sealed class DashChargeHud : MonoBehaviour
     private void OnEnable()
     {
         previousPlayer = null; previousCharges = -1; previousCapacity = -1;
-        fillGraphics = new Graphic[segments.Length];
-        fillColors = new Color[segments.Length];
-        flashStarted = new float[segments.Length];
+        // HUD visibility toggles frequently between rounds. Reuse storage while
+        // still rebinding the authored graphics and their current colours each enable.
+        if (fillGraphics == null || fillGraphics.Length != segments.Length)
+        {
+            fillGraphics = new Graphic[segments.Length];
+            fillColors = new Color[segments.Length];
+            flashStarted = new float[segments.Length];
+        }
         for (int i = 0; i < segments.Length; i++)
         {
             fillGraphics[i] = segments[i] != null && segments[i].fillRect != null

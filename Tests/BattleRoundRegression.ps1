@@ -37,8 +37,11 @@ public static class Mathf {
  public static int Clamp(int a,int b,int c)=>Math.Clamp(a,b,c);public static float Clamp(float a,float b,float c)=>Math.Clamp(a,b,c);public static float Clamp01(float a)=>Math.Clamp(a,0,1);
  public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);public static float Pow(float a,float b)=>(float)Math.Pow(a,b);
 }
-public class Player {public bool IsAlive=true,DiedFromAltitude;public int TeamIndex=1;public Transform transform=new();}
+public class Player {public bool IsAlive=true,DiedFromAltitude;public int TeamIndex=1;public float NowHp=100;public Transform transform=new();}
 public class PlayerData {
+ public static IEnumerable<PlayerData> PerkPlayers=>BattleManager.Instance.playerDatas.Values;
+ public void RecordTitleRoundStart(int round){} public void RecordTitleFlagRoundEnd(bool carried,int team,float hp){}
+ public void RecordTitleLoadoutChange(MagicType first,MagicType second){}
  public bool RoundSwapReady,IsMatchBot;
  public void SetRoundReadyFromHost(bool v){if(Object.HasStateAuthority)RoundSwapReady=v;}
  public static PlayerData FindPerkData(NetworkRunner r,PlayerRef p)=>BattleManager.Instance.runner==r&&BattleManager.Instance.playerDatas.TryGetValue(p,out var d)?d:null;
@@ -54,7 +57,8 @@ public class BattleResultsTable { public static BattleResultsTable Default=new()
 public class BattleFlag {
  public NetworkRunner Runner=new();public NetworkObject Object=new();public Transform transform=new();
  public bool IsPrepared,HasEnded,HasStarted,IsDescending,IsOvertime,startRequested;
- public bool mapTourStarted;
+ public bool mapTourStarted,mapTourSkipRequested;
+ public bool CanSkipLocalMapTour()=>false; // This suite checks timed transitions; skip rules have separate coverage.
  public void SelectMatchAwards(){}
  public bool AllReady=true;public int PickupTeam;
  public float initialFlagHeight,introSeconds,matchSeconds,magicChangeSeconds;
@@ -85,6 +89,7 @@ public class BattleManager {
  public int Changes,Resets,Results;public Dictionary<PlayerRef,PlayerData> playerDatas=new();
  public void startGame()=>battleFlag.RequestStart();
  public void TickRespawns(){}
+ public void RecordRoundMagicPicks(){}
  public void BeginMagicChange(){Changes++;}
  public void ResetPlayersForNextRound(){Resets++;}
  public void NotifyBattleEnded(int team){Results++;}

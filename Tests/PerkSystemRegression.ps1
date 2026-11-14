@@ -11,6 +11,7 @@ $combat=Get-Content Tests/MagicCombatRegression.ps1 -Raw
 $stubs=[regex]::Match($combat,'(?ms)\$stubs = @''\r?\n(.*?)\r?\n''@').Groups[1].Value
 $stubs=$stubs.Substring(0,$stubs.IndexOf('namespace CombatChecks'))
 $stubs=$stubs.Replace('public class Object {}','public enum HideFlags {DontSave} public class Object {public HideFlags hideFlags;}')
+$stubs=$stubs.Replace('public class SerializeField:Attribute {}','public class SerializeField:Attribute {} public class HideInInspector:Attribute {}')
 $stubs=$stubs.Replace('public class ScriptableObject:Object {}','public class ScriptableObject:Object { public static T CreateInstance<T>() where T:new()=>new T(); }')
 $stubs=$stubs.Replace('where T:class=>null;','where T:class=>(T)Activator.CreateInstance(typeof(T));')
 $stubs=$stubs.Replace('public static float Max(float a,float b)=>Math.Max(a,b);','public static float Max(float a,float b)=>Math.Max(a,b); public static float Abs(float v)=>Math.Abs(v);')
@@ -111,7 +112,9 @@ public static class Tests {
   Check(Near(S(MagicType.Fire).lockChargeSeconds,.44f)&&Near(S(MagicType.Fire).apCost,45),"fire mastery remains fast and affordable without changing 45 base damage");
   Check(Near(S(MagicType.Ice).movementMultiplier,.31f)&&Near(S(MagicType.Ice).movementMultiplier*table.flagCarrierSpeedMultiplier,.248f),"new ice slow plus carrier penalty is not an immobilize");
   Check(Near(S(MagicType.Vision).damage*(1+table.Amount(PerkId.VisionCombo)),43.75f),"vision second consecutive hit rewards aim");
-  Check(Near(PerkEffects.AreaHit(S(MagicType.Thunder),0).damage,130)&&Near(S(MagicType.Thunder).radius,14.4f),"thunder mastery does not one-shot 160 HP broom");
+  Check(Near(PerkEffects.AreaHit(S(MagicType.Thunder),0).damage,156)&&Near(S(MagicType.Thunder).radius,24f),"thunder mastery scales the new damage and radius");
+  Check(Near(S(MagicType.Thunder,0).radius,20f)&&Near(S(MagicType.Thunder,1).radius,24f),"thunder base and radius perk use 20 and 24");
+  Check(Near(PerkEffects.AreaHit(S(MagicType.Thunder),10.7f).damage,156)&&Near(PerkEffects.AreaHit(S(MagicType.Thunder),10.9f).damage,120),"thunder core follows the enlarged radius at 10.8");
   Check(Near(S(MagicType.Healing).healing,60),"healing first perk delivers sixty HP");
   Check(Near(S(MagicType.Binding).lockChargeSeconds,.36f)&&Near(S(MagicType.Binding).apCost,27.5f),"binding retains fast affordable setup");
   Check(Near(S(MagicType.Dark).healthCost,24)&&Near(S(MagicType.Dark).healOnHit,50),"dark mastery limits net healing to 26 per actual hit");

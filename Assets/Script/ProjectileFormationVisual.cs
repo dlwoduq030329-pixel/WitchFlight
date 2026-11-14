@@ -7,7 +7,7 @@ internal sealed class ProjectileFormationVisual
     private readonly MagicStatTable table;
     private readonly GameObject root;
     private readonly Transform[] satellites;
-    private readonly Vector3[] scales, previousPositions;
+    private readonly Vector3[] scales, previousPositions, ringOffsets;
     private readonly Vector3 birthPosition, birthForward;
     private readonly Quaternion birthRotation;
     private readonly Vector3 coreScale;
@@ -35,10 +35,12 @@ internal sealed class ProjectileFormationVisual
         satellites = new Transform[count];
         scales = new Vector3[count];
         previousPositions = new Vector3[count];
+        ringOffsets = new Vector3[count];
         Color color = CombatPresentation.MagicColor(stats.magic);
         for (int i = 0; i < count; i++)
         {
-            Vector3 initial = birthPosition + birthRotation * RingOffset(i, count) * 0.15f;
+            ringOffsets[i] = RingOffset(i, count);
+            Vector3 initial = birthPosition + birthRotation * ringOffsets[i] * 0.15f;
             GameObject view = CombatPresentation.InstantiateVfx(table.GetSecondaryProjectileVfx(stats),
                 initial, birthRotation, root.transform);
             if (view == null)
@@ -81,7 +83,9 @@ internal sealed class ProjectileFormationVisual
         Quaternion flightRotation = Quaternion.LookRotation(forward);
         for (int i = 0; i < satellites.Length; i++)
         {
-            Vector3 radial = RingOffset(i, satellites.Length);
+            // Index/count never change during this formation's lifetime. Keep live table
+            // settings below, but avoid repeating the same sin/cos for every satellite/frame.
+            Vector3 radial = ringOffsets[i];
             Vector3 initial = birthPosition + birthRotation * radial * 0.15f;
             Vector3 retreat = birthPosition - birthForward * Mathf.Max(0f, table.projectileSatelliteBackDistance)
                 + birthRotation * radial * Mathf.Max(0f, table.projectileSatelliteSpread);

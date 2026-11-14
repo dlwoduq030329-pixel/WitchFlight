@@ -1,0 +1,229 @@
+namespace HomingDiagnostics {
+public static class ShotVariants {
+__SUMMON_BOLT__
+__FOCUS_SHOT__
+}
+public sealed class RainOrigin : MonoBehaviour {
+    public Vector3 LockAimPoint => transform.position;
+__RAIN_POSITION__
+}
+public static partial class Entry {
+    public static void ValidateOnly() {
+        try {
+            Directory.SetCurrentDirectory(Path.GetDirectoryName(Application.dataPath));
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);Load();
+            var m=NewMotion(new Case{broom=2,hz=64,heading=0},95);
+            var s=new StringBuilder();
+            s.AppendLine("Before: transform="+m.transform.position+" bounds="+m.controller.bounds.center);
+            for(int i=0;i<64;i++){m.Step(false,false,Quaternion.identity);Physics.SyncTransforms();}
+            Vector3 root=m.transform.position,old=new Vector3(0,100,95);
+            s.AppendLine("After: transform="+root+" bounds="+m.controller.bounds.center);
+            s.AppendLine("Current native overlap="+Physics.OverlapSphere(root+Vector3.up*1.2f,.1f).Length+" old overlap="+Physics.OverlapSphere(old+Vector3.up*1.2f,.1f).Length);
+            m.controller.enabled=false;m.controller.enabled=true;Physics.SyncTransforms();
+            s.AppendLine("After re-enable: transform="+m.transform.position+" bounds="+m.controller.bounds.center);
+            s.AppendLine("Current native overlap="+Physics.OverlapSphere(root+Vector3.up*1.2f,.1f).Length+" old overlap="+Physics.OverlapSphere(old+Vector3.up*1.2f,.1f).Length);
+            File.WriteAllText("summary.txt",s.ToString());UnityEngine.Object.DestroyImmediate(m.gameObject);EditorApplication.Exit(0);
+        }catch(Exception e){Debug.LogException(e);EditorApplication.Exit(1);}
+    }
+    sealed class Variant {public string name;public MagicStatEntry stats;public float startRange;}
+    static readonly string[] Modes={"cruise","boost","brakeHold","brake06Boost"};
+    static readonly string[] Maneuvers={"straight","yaw90","yaw180","up60","down60","diagonalUp","upThenDown"};
+    static float NumberOrZero(string s,string key)=>Regex.IsMatch(s,@"(?m)^\s+"+key+@": [\d.eE+-]+\s*$")?N(s,key):0;
+    static bool RayHits(Vector3 origin,Vector3 direction,float distance,float width,Collider target) {
+        int count=width>0?Physics.SphereCastNonAlloc(origin,width,direction,hits,distance,~0,QueryTriggerInteraction.Ignore):Physics.RaycastNonAlloc(origin,direction,hits,distance,~0,QueryTriggerInteraction.Ignore);
+        for(int i=0;i<count;i++)if(hits[i].collider==target)return true;
+        return false;
+    }
+    // A bounded measurement window for ongoing channels, NOT a change to their lifetime.
+    static string NonProjectile(MagicStatEntry entry,Case c,string aimPolicy,bool initiallyStopped=false) {
+        float distance=entry.range*c.rangeFraction;
+        var m=NewMotion(c,distance);if(initiallyStopped)m.Speed=0;
+        float dt=m.Runner.DeltaTime;var initial=Quaternion.Euler(0,c.heading,0);
+        Vector3 origin=Aim(m)-Vector3.forward*distance,initialAim=Aim(m)-origin;
+        Vector3 areaCenter=Aim(m);float raise=attackRaise;
+        bool area=entry.effect==MagicEffectKind.DelayedArea;
+        bool channel=entry.effect==MagicEffectKind.GuidedChannel||entry.effect==MagicEffectKind.BeamChannel;
+        // Thunder's area was already held/confirmed: arm raise is complete at t=0.
+        float delay=area?Mathf.Max(.1f,entry.strikeDelay):Mathf.Max(raise,entry.castSeconds);
+        Vector3 snapshot=initialAim.normalized;
+        if(aimPolicy=="lead")snapshot=(initialAim+m.transform.forward*m.Speed*delay).normalized;
+        float duration=channel?4f:delay+dt,contact=0,damage=0,firstHit=-1,exit=-1;bool priorTarget=false;
+        string endReason=area?"outside-sphere":channel?"window-ended":"ray-missed";
+        try {
+            for(int tick=0;tick*dt<=duration;tick++) {
+                float time=tick*dt;Controls(c,time,out bool brake,out bool boost);
+                m.Step(brake,boost,Desired(c,time,initial));Physics.SyncTransforms();
+                bool raising=time+dt<delay-.00001f;
+                // Production validates guided-channel targets BEFORE advancing the raise timer.
+                if(raising&&entry.effect!=MagicEffectKind.GuidedChannel)continue;
+                bool hit;
+                if(area)hit=Vector3.Distance(areaCenter,Aim(m))<=Mathf.Max(.1f,entry.radius);
+                else {
+                    var delta=Aim(m)-origin;
+                    Vector3 ray=aimPolicy=="perfect-track"?delta.normalized:snapshot;
+                    if(entry.effect==MagicEffectKind.GuidedChannel) {
+                        Vector3 casterRoot=origin-Vector3.up*aimHeight*scale;
+                        float lockRange=Mathf.Min(maxLock,entry.range);
+                        Vector3 casterForward=aimPolicy=="perfect-track"?delta.normalized:Vector3.forward;
+                        hit=(m.transform.position-casterRoot).sqrMagnitude<=lockRange*lockRange&&Vector3.Dot(casterForward,delta)>=0&&Vector3.Angle(ray,delta)<=entry.autoAimHalfAngle;
+                        if(!hit){exit=time;endReason=delta.magnitude>entry.range?"out-of-range":"out-of-cone";break;}
+                    } else hit=RayHits(origin,ray,Mathf.Max(.1f,entry.range),Mathf.Max(0,entry.hitscanRadius),m.controller);
+                }
+                if(raising)continue;
+                if(!channel) {if(hit){firstHit=time;damage=entry.damage;endReason=area?"inside-sphere":"instant-ray";}break;}
+                if(hit!=priorTarget)contact=0;
+                priorTarget=hit;contact+=dt;
+                if(contact+.00001f>=Mathf.Max(.02f,entry.channelTickSeconds)) {
+                    if(hit){damage+=Mathf.Max(0,entry.damagePerSecond)*contact;if(firstHit<0)firstHit=time;}
+                    contact=0;
+                }
+            }
+            return FormattableString.Invariant($"{entry.magic},{aimPolicy},{c.broom},{c.hz},{c.rangeFraction},{c.heading},{c.maneuver},{c.speedMode},{initiallyStopped},{delay:F4},{(firstHit>=0?"CONTACT":"NO_CONTACT")},{firstHit:F4},{damage:F4},{exit:F4},{endReason}");
+        } finally {UnityEngine.Object.DestroyImmediate(m.gameObject);}
+    }
+    sealed class VolleyShot {
+        public Vector3 position,direction,stormAim;public float born,travelled;
+    }
+    static List<string> RunInteractionCases() {
+        var instant=new List<string>{"magic,aimPolicy,broom,hz,rangeFraction,heading,maneuver,speedMode,initiallyStopped,delay,result,firstHit,damageBeforeStop,channelExit,reason"};
+        foreach(var kind in new[]{MagicType.Vision,MagicType.Dark,MagicType.Thunder,MagicType.Curse,MagicType.Razier})
+        foreach(int broom in crafts.Keys)foreach(int hz in new[]{30,60,64,120})foreach(float range in new[]{.25f,.5f,.95f})
+        foreach(int heading in new[]{0,90,180})foreach(string maneuver in new[]{"straight","yaw90","up60","down60"})foreach(string mode in Modes) {
+            var c=new Case{broom=broom,hz=hz,rangeFraction=range,heading=heading,maneuver=maneuver,speedMode=mode};
+            foreach(string policy in kind==MagicType.Thunder?new[]{"fixed-area"}:kind==MagicType.Vision||kind==MagicType.Dark?new[]{"snapshot","lead"}:new[]{"fixed","perfect-track"})
+                instant.Add(NonProjectile(entries[kind],c,policy));
+        }
+        foreach(int broom in crafts.Keys)foreach(int hz in new[]{30,60,64,120})
+            instant.Add(NonProjectile(entries[MagicType.Thunder],new Case{broom=broom,hz=hz,rangeFraction=.5f,maneuver="straight",speedMode="brakeHold"},"fixed-area",true));
+        File.WriteAllLines("all-instant-area-channel.csv",instant);return instant;
+    }
+    public static void RunInteractions() {
+        try {
+            CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;
+            Directory.SetCurrentDirectory(Path.GetDirectoryName(Application.dataPath));
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);Load();ValidateNativeQueries();
+            var rows=RunInteractionCases();File.WriteAllText("summary.txt","Validated instant/area/channel cases: "+(rows.Count-1));
+            EditorApplication.Exit(0);
+        }catch(Exception e){Debug.LogException(e);EditorApplication.Exit(1);}
+    }
+    // Full storm/rain volley: stop at FIRST collision. No post-hit stun/knockback is invented.
+    // Shooter stays at the launch point, or moves straight at its actual stage-two speed.
+    // "direct" locks the caster aim; "track" follows the current target each new shot;
+    // "lead" is a perfect manual lead bound, not an auto-aim mechanic.
+    static string Volley(MagicStatEntry e,Case c,int circles,bool casterMoves) {
+        bool storm=e.magic==MagicType.MagicStorm;
+        var m=NewMotion(c,e.range*c.rangeFraction);float dt=m.Runner.DeltaTime;
+        var initial=Quaternion.Euler(0,c.heading,0);var origin=Aim(m)-Vector3.forward*(e.range*c.rangeFraction);
+        var fixedAim=(Aim(m)-origin).normalized;var shots=new List<VolleyShot>();
+        var originObject=new GameObject("rain origin");var rain=originObject.AddComponent<RainOrigin>();
+        int emitted=0,waves=0;float nextWave=Mathf.Ceil(.12f/dt)*dt;
+        float stormDuration=Mathf.Max(.01f,e.stormDuration);int total=storm?Mathf.Clamp(e.stormShotCount,1,120):circles*10;
+        float end=(storm?stormDuration:nextWave+10*Mathf.Ceil(Mathf.Max(.01f,e.rainBladeInterval)/dt)*dt)+Mathf.Max(.1f,e.projectileLifetime)+dt;
+        float triggerAt=-1,hitAt=-1,minSeparation=float.MaxValue;
+        UnityEngine.Random.InitState(c.seed);
+        try {
+            for(int tick=0;tick*dt<=end;tick++) {
+                float time=tick*dt;float nearest=shots.Count>0?shots.Min(s=>(Aim(m)-s.position).magnitude):float.MaxValue;
+                if(triggerAt<0&&c.trigger>0&&nearest<=c.trigger)triggerAt=time;
+                float elapsed=triggerAt<0?-1:time-triggerAt;
+                Controls(c,elapsed,out bool brake,out bool boost);
+                if(c.targetFirst){m.Step(brake,boost,elapsed<0?initial:Desired(c,elapsed,initial));Physics.SyncTransforms();}
+                Vector3 caster=origin+(casterMoves?Vector3.forward*crafts[2].maxSpeed*2/3*time:Vector3.zero);
+                int due=storm?Mathf.Min(total,1+Mathf.FloorToInt(time*total/stormDuration+.0001f)):time+1e-6f>=nextWave&&waves<10?emitted+circles:emitted;
+                if(!storm&&due>emitted){waves++;nextWave=time+Mathf.Ceil(Mathf.Max(.01f,e.rainBladeInterval)/dt)*dt;}
+                while(emitted<due) {
+                    int circle=emitted%circles;rain.transform.SetPositionAndRotation(caster,Quaternion.identity);
+                    Vector3 start=storm?caster:rain.RainCirclePosition(circle);
+                    Vector3 aim=storm&&c.aimPolicy=="direct"?fixedAim:(Aim(m)-start).normalized;
+                    if(storm&&c.aimPolicy=="lead")aim=Flight.HomingAimDelta(Aim(m)-start,m.transform.forward*m.Speed,e.projectileSpeed,60).normalized;
+                    var shot=new VolleyShot{position=start,direction=aim,stormAim=aim,born=time};
+                    if(storm) {
+                        Vector2 cone=UnityEngine.Random.insideUnitCircle*Mathf.Tan(e.stormLaunchAngle*Mathf.Deg2Rad);
+                        Vector2 spread=UnityEngine.Random.insideUnitCircle*Mathf.Tan(e.stormSpreadAngle*Mathf.Deg2Rad);
+                        var q=Quaternion.LookRotation(aim);shot.direction=(q*new Vector3(cone.x,cone.y,1)).normalized;shot.stormAim=(q*new Vector3(spread.x,spread.y,1)).normalized;
+                    }
+                    shots.Add(shot);emitted++;
+                }
+                for(int index=shots.Count-1;index>=0;index--) {
+                    var shot=shots[index];
+                    if(time-shot.born>=e.projectileLifetime){shots.RemoveAt(index);continue;}
+                    minSeparation=Mathf.Min(minSeparation,(Aim(m)-shot.position).magnitude);
+                    shot.direction=storm?Vector3.RotateTowards(shot.direction,shot.stormAim,e.projectileTurnSpeed*Mathf.Deg2Rad*dt,0).normalized:
+                        Flight.ResolveHomingDirection(true,shot.direction,Aim(m)-shot.position,e.projectileTurnSpeed,dt);
+                    float step=Mathf.Min(e.projectileSpeed*dt,Mathf.Max(0,e.range-shot.travelled));
+                    if(NativeHit(shot.position,shot.direction,step,Mathf.Max(.02f,e.projectileRadius),m.controller)){hitAt=time;break;}
+                    shot.position+=shot.direction*step;shot.travelled+=step;
+                    if(shot.travelled>=e.range-.001f)shots.RemoveAt(index);
+                }
+                if(hitAt>=0)break;
+                if(!c.targetFirst){m.Step(brake,boost,elapsed<0?initial:Desired(c,elapsed,initial));Physics.SyncTransforms();}
+                if(emitted==total&&shots.Count==0)break;
+            }
+            return FormattableString.Invariant($"{e.magic},{c.aimPolicy},{c.seed},{c.broom},{c.hz},{c.targetFirst},{c.rangeFraction},{c.heading},{c.trigger},{c.maneuver},{c.speedMode},{circles},{casterMoves},{total},{emitted},{(hitAt>=0?"CONTACT":"NO_CONTACT")},{hitAt:F4},{triggerAt:F4},{minSeparation:F4}");
+        } finally {UnityEngine.Object.DestroyImmediate(m.gameObject);UnityEngine.Object.DestroyImmediate(originObject);}
+    }
+    public static void RunAll() {
+        try {
+            CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;
+            Directory.SetCurrentDirectory(Path.GetDirectoryName(Application.dataPath));
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);Load();ValidateNativeQueries();
+            var variants=new List<Variant>();
+            foreach(var e in entries.Values.Where(e=>e.projectileSpeed>0)) {
+                var shot=e.effect==MagicEffectKind.PursuitSummon?ShotVariants.SummonBoltStats(e):e;
+                variants.Add(new Variant{name=e.magic==MagicType.Mine?"SummonBolt":e.magic.ToString(),stats=shot,startRange=e.magic==MagicType.Mine?Mathf.Max(1,e.summonAttackRange):e.range});
+            }
+            foreach(float charge in new[]{0f,.5f,1f})variants.Add(new Variant{name="FocusedBlade"+(int)(charge*100),stats=ShotVariants.FocusBladeShot(entries[MagicType.BladeRain],100*charge,100),startRange=entries[MagicType.BladeRain].range});
+            var stats=new List<string>{"magic,effect,target,speed,referenceTurn,effectiveInitialTurn,projectileRadius,hitscanRadius,range,flightBudget,lifetime,damage,damagePerSecond,areaRadius,strikeDelay"};
+            foreach(var e in entries.Values) {
+                bool ex=e.requiresTarget&&Flight.UsesFlightExhaustion(e.magic,table);
+                stats.Add(FormattableString.Invariant($"{e.magic},{e.effect},{e.requiresTarget},{e.projectileSpeed},{e.projectileTurnSpeed},{(ex?Flight.FlightTurnSpeed(e.projectileTurnSpeed,e.projectileSpeed,table):e.projectileTurnSpeed)},{e.projectileRadius},{e.hitscanRadius},{e.range},{Flight.FlightDistance(e,table)},{Flight.FlightLifetime(e,table)},{e.damage},{e.damagePerSecond},{e.radius},{e.strikeDelay}"));
+            }
+            File.WriteAllLines("all-magic-stats.csv",stats);
+            var all=new List<Result>();var rateChecks=new List<Result>();
+            foreach(var v in variants) {
+                fire=v.stats;var subset=new List<Result>();
+                foreach(int broom in crafts.Keys)foreach(bool order in new[]{false,true})
+                foreach(float range in new[]{.25f,.5f,.95f})foreach(int heading in new[]{0,90,180})
+                foreach(float trigger in new[]{0f,5f,15f,25f,40f,60f,80f})foreach(string maneuver in Maneuvers)foreach(string mode in Modes)
+                foreach(string aimPolicy in fire.requiresTarget?new[]{"direct"}:new[]{"direct","lead"}) {
+                    if(trigger>v.startRange*range)continue;
+                    if(trigger==0&&(maneuver!="straight"||mode!="cruise"))continue;
+                    var c=new Case{spellTag=v.name,aimPolicy=aimPolicy,broom=broom,hz=64,targetFirst=order,rangeFraction=range,startDistance=v.startRange*range,heading=heading,trigger=trigger,maneuver=maneuver,speedMode=mode};
+                    subset.Add(Sim(c));
+                }
+                all.AddRange(subset);
+                foreach(var r in subset.Where(r=>r.test.broom==2&&r.test.rangeFraction==.95f&&r.test.heading==0))foreach(int hz in new[]{30,60,120}) {
+                    var c=r.test;
+                    rateChecks.Add(Sim(new Case{spellTag=c.spellTag,aimPolicy=c.aimPolicy,broom=2,hz=hz,targetFirst=c.targetFirst,rangeFraction=c.rangeFraction,startDistance=c.startDistance,heading=c.heading,trigger=c.trigger,maneuver=c.maneuver,speedMode=c.speedMode}));
+                }
+                Debug.Log("Completed single-shot variant "+v.name+": "+subset.Count);
+            }
+            File.WriteAllLines("all-projectile.csv",new[]{Header}.Concat(all.Select(r=>r.Csv)));
+            File.WriteAllLines("all-cross-rate.csv",new[]{Header}.Concat(rateChecks.Select(r=>r.Csv)));
+            var instant=RunInteractionCases();
+            var volleys=new List<string>{"magic,aimPolicy,seed,broom,hz,targetFirst,rangeFraction,heading,trigger,maneuver,speedMode,circles,casterMoves,totalShots,emittedBeforeStop,result,firstHit,triggerTime,minAimDistance"};
+            foreach(var kind in new[]{MagicType.MagicStorm,MagicType.BladeRain})foreach(int broom in crafts.Keys)
+            foreach(float range in new[]{.5f,.95f})foreach(int heading in new[]{0,90})foreach(float trigger in new[]{0f,25f,60f})
+            foreach(string maneuver in new[]{"straight","yaw90","upThenDown"})foreach(string mode in new[]{"cruise","boost"})
+            foreach(bool moves in new[]{false,true})foreach(string policy in kind==MagicType.MagicStorm?new[]{"direct","track","lead"}:new[]{"track"})
+            foreach(int count in kind==MagicType.MagicStorm?new[]{1}:new[]{2,4,8})foreach(int seed in kind==MagicType.MagicStorm?new[]{0,1,2,3,4,5,6,7}:new[]{0}) {
+                if(trigger==0&&(maneuver!="straight"||mode!="cruise"))continue;
+                if(trigger>entries[kind].range*range)continue;
+                var c=new Case{broom=broom,hz=64,targetFirst=true,rangeFraction=range,heading=heading,trigger=trigger,maneuver=maneuver,speedMode=mode,seed=seed,aimPolicy=policy};
+                volleys.Add(Volley(entries[kind],c,count,moves));
+            }
+            File.WriteAllLines("all-volleys.csv",volleys);
+            var summary=new StringBuilder("All 17 authored spells inventoried; base loadout without perks/buffs. Focused Blade 0/50/100% supplemental.\n");
+            summary.AppendLine($"Native Unity {Application.unityVersion}; single-shot cases {all.Count}; rate checks {rateChecks.Count}; instant/area/channel cases {instant.Count-1}; volley cases {volleys.Count-1}.");
+            summary.AppendLine("Single-shot results concern one emitted projectile, not dodging every shot of a multi-shot spell. Volleys are separate, stopping on first collision.");
+            summary.AppendLine("Healing, Flare, Smoke, TimeStop, MeowFestival have no offensive projectile/hit to evade. Their incoming-hit dodge rate is N/A, not PASS.");
+            summary.AppendLine("Summon: tests emitted bolt at actual summon attack range; navigation and indefinite repeated summoning are not simulated.");
+            summary.AppendLine("Hitscan: measurement starts at click with authored attack raise/cast delay and fixed/leading aim. No post-fire dodge interval exists.");
+            summary.AppendLine("Channels: 4-second sample, stationary caster, fixed vs perfect-tracking aim bounds; this is not a realistic attacker skill model.");
+            summary.AppendLine("Storm: current-point tracking and ideal leading are test input policies; already-emitted shots always keep their launch aim snapshot.");
+            summary.AppendLine("No Battle scene, Fusion transport, visual rig/extra colliders, walls, hit reactions, or resource expenditure simulated; no gameplay values changed.");
+            File.WriteAllText("summary.txt",summary.ToString());Debug.Log(summary.ToString());EditorApplication.Exit(0);
+        } catch(Exception e){Debug.LogException(e);File.WriteAllText("diagnostic-error.txt",e.ToString());EditorApplication.Exit(1);}
+    }
+}
+}

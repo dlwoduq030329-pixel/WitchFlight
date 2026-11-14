@@ -24,15 +24,19 @@ namespace SlotLabelChecks {
   public Sprite GetIcon(MagicType magic)=>magic==MagicType.None?null:GetStats(magic).icon;
  }
  public class PlayerData {public MagicType magic1=MagicType.Curse,magic2=MagicType.Razier;}
- public class BattleManager {public float PhaseRemainingSeconds=40;public int RoundNumber=1,AllowedMagicChanges=2;}
+ public class BattleManager {public float PhaseRemainingSeconds=40;public int RoundNumber=1,AllowedMagicChanges=2,Team1Wins,Team2Wins;}
  public class Probe {
   public TMP_Text swapCountdownText=new(),roundScoreText=new(),selectedMagicNameText=new(),slot1Text=new(),slot2Text=new();
   public Image slot1Icon=new(),slot2Icon=new();public PlayerData localData=new();public Button equipButton=new();
   public bool HasLocalData=true,CanEdit=true,requestPending,showSlotNumberInText;public int selectedSlot=1;
   public MagicType selectedMagic;public MagicStatTable magicTable=MagicStatTable.Default;
-  public void RefreshMagicDescription(){}public string Score(BattleManager battle)=>"0 : 0";
+  public int localTeam=1;
+  public int? displayedSwapSecond;
+  public (int round,int team,int winsA,int winsB,int allowed)? displayedRoundSummary;
+  public string cachedSwapCountdown,cachedRoundSummary;
+  public void RefreshMagicDescription(){}
 '@
-foreach($name in @('RefreshSwap','SlotText','Name','Icon','Text')) { $code += Method $name }
+foreach($name in @('RefreshSwap','Score','SlotText','Name','Icon','Text')) { $code += Method $name }
 $code += @'
  }
  public static class Tests {
@@ -56,6 +60,21 @@ $code += @'
    p.showSlotNumberInText=true;p.RefreshSwap(b);
    Check(p.slot2Text.text=="▶ 2번 · 새 얼음 이름"&&p.slot1Text.text=="1번 · 비어 있음","legacy/generated numbered selection style still available");
    p.slot1Text=p.slot2Text=null;p.RefreshSwap(b);Check(true,"optional labels remain null-safe");
+   string countdown=p.cachedSwapCountdown, summary=p.cachedRoundSummary;
+   for(int i=0;i<300;i++)p.RefreshSwap(b);
+   Check(ReferenceEquals(countdown,p.cachedSwapCountdown)&&ReferenceEquals(summary,p.cachedRoundSummary),"unchanged refreshes reuse formatted strings");
+   b.PhaseRemainingSeconds=39.2f;p.RefreshSwap(b);
+   Check(ReferenceEquals(countdown,p.cachedSwapCountdown),"fractional countdown still rounds up to same second");
+   b.PhaseRemainingSeconds=39;p.RefreshSwap(b);
+   Check(p.swapCountdownText.text=="마법 교체  39초","countdown changes at displayed second boundary");
+   b.Team1Wins=1;p.RefreshSwap(b);
+   Check(p.roundScoreText.text.Contains("나 1 : 0 상대"),"score updates without changing round");
+   p.localTeam=2;p.RefreshSwap(b);
+   Check(p.roundScoreText.text.Contains("나 0 : 1 상대"),"local team change invalidates score");
+   b.AllowedMagicChanges=1;b.RoundNumber=2;p.RefreshSwap(b);
+   Check(p.roundScoreText.text=="ROUND 2 종료  ·  나 0 : 1 상대  ·  최대 1슬롯 변경","round and allowance invalidate summary");
+   p.swapCountdownText=new();p.roundScoreText=new();p.RefreshSwap(b);
+   Check(p.swapCountdownText.text=="마법 교체  39초"&&p.roundScoreText.text==p.cachedRoundSummary,"replacement labels receive cached text");
    return count;
   }
  }
