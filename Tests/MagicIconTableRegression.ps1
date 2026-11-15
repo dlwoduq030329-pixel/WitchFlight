@@ -1,4 +1,4 @@
-# Read-only checks: real icon resolvers with Unity doubles, plus effective prefab/scene bindings.
+﻿# Read-only checks: real icon resolvers with Unity doubles, plus effective prefab/scene bindings.
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $customSource = Get-Content Assets/Script/MagicCustomizationUI.cs -Raw
@@ -6,6 +6,7 @@ $hudSource = Get-Content Assets/Script/BattleMagicUI.cs -Raw
 $vsSource = Get-Content Assets/Script/linkuserinfo.cs -Raw
 $roundSource = Get-Content Assets/Script/BattleRoundUI.cs -Raw
 $tableSource = Get-Content Assets/Script/MagicStatTable.cs -Raw
+$tableSource += "`n" + ((Get-Content 'Assets/Script/BasicAttackSettings.cs' -Raw) -replace '(?m)^using [^;]+;\r?\n','')
 $enums = [regex]::Match((Get-Content Assets/Script/PlayerData.cs -Raw), 'public enum MagicType\s*\{[^}]+\}').Value
 $fixture = Get-Content Tests/MagicCustomizationRegression.ps1 -Raw
 $stubs = [regex]::Match($fixture, '(?s)\$stubs = @''\r?\n(.*?)\r?\n''@').Groups[1].Value

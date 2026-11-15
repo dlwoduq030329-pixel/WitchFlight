@@ -118,12 +118,16 @@ public sealed partial class CatTutorialDirector
                     : practiceProgress.IncreasedSpeed ? "S로 속도 낮추기" : "속도 높이기";
                 break;
             case CatTrainingAction.AimAndFire:
-                nextHint.text = practiceProgress.Charged ? "조준 키를 떼어 발사" : "봇을 조준해 록온 완료";
+                string castKey = "좌클릭";
+                nextHint.text = player.CurrentMagicSlot != 1 ? ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.MagicSlot1)) + "로 1번 마법 선택" :
+                    practiceProgress.Charged ? castKey + "을 떼어 발사" : "봇을 조준해 좌클릭 유지";
                 MaintainPracticeTarget(player);
                 break;
             case CatTrainingAction.SwitchSlots:
                 // Start on slot 1; require an actual change to 2 and back to 1.
-                nextHint.text = practiceProgress.SelectedSecond ? "1번 슬롯 선택" : "2번 슬롯 선택";
+                nextHint.text = practiceProgress.SelectedSecond
+                    ? ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.MagicSlot1)) + "로 1번 마법 선택/해제"
+                    : ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.MagicSlot2)) + "로 2번 마법 선택/해제";
                 break;
             case CatTrainingAction.Parry:
                 nextHint.text = "타이밍에 맞춰 공격 막기";
@@ -134,9 +138,6 @@ public sealed partial class CatTutorialDirector
                 break;
             case CatTrainingAction.Boost:
                 nextHint.text = player.UsesAutomaticCruise ? "대쉬 키를 한 번 눌러 가속" : "전진하며 부스트 유지";
-                break;
-            case CatTrainingAction.QuickBrake:
-                nextHint.text = player.CurrentSpeedStage < 3 ? "부스트 키로 3단계 가속" : "최고 속도에서 급제동 키";
                 break;
             case CatTrainingAction.Emote:
                 nextHint.text = "감정표현 키 유지 → 방향 선택 → 떼기";

@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -12,10 +12,10 @@ public partial class Player
     [Networked] private TickTimer BladeAbilityTimer { get; set; }
     private MagicStatEntry bladeStats;
     public bool IsBladeArmed => networkSpawned && Object != null && Object.IsValid && IsAlive && BladeCharges > 0 &&
-        GetSelectedMagic() == MagicType.Blade && TimerIsActive(BladeAbilityTimer);
+        (CurrentMagicSlot == 0 || GetSelectedMagic() == MagicType.Blade) && TimerIsActive(BladeAbilityTimer);
 
     public bool ShowBladeWeapon => networkSpawned && Object != null && Object.IsValid && IsAlive &&
-        GetSelectedMagic() == MagicType.Blade && TimerIsActive(BladeAbilityTimer) &&
+        (CurrentMagicSlot == 0 || GetSelectedMagic() == MagicType.Blade) && TimerIsActive(BladeAbilityTimer) &&
         (BladeCharges > 0 || bladeSwing.IsActive);
 
     public bool TryGetBladeWeaponRotation(out Quaternion rotation)

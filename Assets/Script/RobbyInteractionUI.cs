@@ -8,6 +8,8 @@ public sealed class RobbyInteractionUI : MonoBehaviour
     [SerializeField] private TMP_Text promptText;
     [SerializeField] private UnityEngine.UI.Text legacyText;
     private RobbyInteractionZone displayed;
+    public static bool ConsumedInteractionThisFrame => interactionFrame == Time.frameCount;
+    private static int interactionFrame = -1;
     private void Awake()
     {
         var promptNode = transform.Find("Interactive") ?? transform.Find("InterActive");
@@ -51,6 +53,7 @@ public sealed class RobbyInteractionUI : MonoBehaviour
         }
         if (next != null && Input.GetKeyDown(KeyCode.E))
         {
+            interactionFrame = Time.frameCount;
             if (next.IsOccupiedByOther(player))
             { Debug.Log("[Robby interaction] 다른 플레이어가 사용 중입니다.", next); return; }
             if (next.Kind == RobbyInteractionZone.Action.Pet && next.CatTarget == null ||

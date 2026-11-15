@@ -49,10 +49,13 @@ public sealed class ControlSettingsUI : MonoBehaviour
             if (row != null && row.action == ControlAction.LockOn) row.action = ControlAction.QuickBrake;
             if (row != null && row.action == ControlAction.MagicUse) row.action = ControlAction.Emote;
             if (row == null || row.button == null) continue;
-            if (row.action == ControlAction.QuickBrake || row.action == ControlAction.Emote)
+            if (row.action == ControlAction.QuickBrake)
+            { row.button.transform.parent.gameObject.SetActive(false); continue; }
+            if (row.action == ControlAction.MagicSlot1 || row.action == ControlAction.MagicSlot2 || row.action == ControlAction.Emote)
                 foreach (var label in row.button.transform.parent.GetComponentsInChildren<TMP_Text>(true))
                     if (!label.transform.IsChildOf(row.button.transform))
-                        label.text = row.action == ControlAction.QuickBrake ? "급제동" : "감정표현";
+                        label.text = row.action == ControlAction.Emote ? "감정표현" :
+                            row.action == ControlAction.MagicSlot1 ? "1번 마법 선택/해제" : "2번 마법 선택/해제";
             if (row.keyText == null) row.keyText = row.button.GetComponentInChildren<TMP_Text>(true);
             row.listener = () => BeginRebind(row);
             row.button.onClick.AddListener(row.listener);

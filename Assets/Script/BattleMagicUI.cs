@@ -22,7 +22,7 @@ public sealed class BattleMagicUI : MonoBehaviour
     [SerializeField] private Slider magic2CooldownSlider;
     [Tooltip("2번 마법의 남은 쿨타임(초). 쿨타임 중에만 텍스트 오브젝트를 활성화합니다. 비워두어도 됩니다.")]
     [SerializeField] private TextMeshProUGUI magic2CooldownText;
-    [Header("Selected magic slot FX (number keys 1 / 2)")]
+    [Header("Selected magic slot FX (Q / E direct cast)")]
     [Tooltip("1번 SkillSlider의 FX 자식. 비우면 해당 Slider의 FX_CircularFeather_B / fx / FX 자식을 찾습니다.")]
     [SerializeField] private GameObject magic1SelectedFx;
     [Tooltip("2번 SkillSlider의 FX 자식. 선택한 슬롯 하나만 활성화합니다. 3번 슬롯·사망·라운드 대기 중에는 둘 다 끕니다.")]
@@ -63,10 +63,25 @@ public sealed class BattleMagicUI : MonoBehaviour
 
     private void OnEnable()
     {
+        ControlSettings.Changed += RefreshMagicKeys;
+        RefreshMagicKeys();
         cleared = false;
         ResolveSelectedFx();
         Clear();
         magicInit();
+    }
+
+    private void RefreshMagicKeys()
+    {
+        RefreshMagicKeyLabel(magic1CooldownSlider, 1);
+        RefreshMagicKeyLabel(magic2CooldownSlider, 2);
+    }
+    public static void RefreshMagicKeyLabel(Slider slider, int slot)
+    {
+        if (slider == null) return;
+        var label = slider.transform.Find("Image/Text (TMP)")?.GetComponent<TMP_Text>();
+        if (label != null) label.text = ControlSettings.KeyLabel(ControlSettings.GetKey(
+            slot == 1 ? ControlAction.MagicSlot1 : ControlAction.MagicSlot2));
     }
 
     private void Update()
@@ -283,5 +298,5 @@ public sealed class BattleMagicUI : MonoBehaviour
         SetCooldownText(parryCooldownText, 0f, 3);
     }
 
-    private void OnDisable() => Clear();
+    private void OnDisable() { ControlSettings.Changed -= RefreshMagicKeys; Clear(); }
 }

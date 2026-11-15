@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 using Fusion;
@@ -109,6 +109,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private Coroutine battleInitializationRoutine;
     private Vector2 accumulatedLook;
     private NetworkButtons latchedButtons;
+    private MagicSelectionInput magicSelectionInput;
+    private bool magicInputWasHeld;
     private bool pendingEmoteCombatSuppression;
     private Player inputPlayer;
     private enemyLockOn inputTargeting;
@@ -136,6 +138,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             accumulatedLook = Vector2.zero;
             latchedButtons = default;
+            magicInputWasHeld = false;
+            if (!ControlSettings.Held(ControlAction.MagicUse)) magicSelectionInput.SampleCast(false);
             pendingEmoteCombatSuppression = false;
             return;
         }
@@ -146,13 +150,17 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * ControlSettings.SensitivityMultiplier;
         LatchButton(PlayerInputButton.Accelerate, ControlSettings.Down(ControlAction.Accelerate));
         LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
-        LatchButton(PlayerInputButton.QuickBrake, ControlSettings.Down(ControlAction.QuickBrake));
         if (BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
         else LatchButton(PlayerInputButton.Parry, ControlSettings.Down(ControlAction.Parry));
         LatchButton(PlayerInputButton.Boost, ControlSettings.Down(ControlAction.Boost));
-        LatchButton(PlayerInputButton.MagicSlot1, ControlSettings.Down(ControlAction.MagicSlot1));
-        LatchButton(PlayerInputButton.MagicSlot2, ControlSettings.Down(ControlAction.MagicSlot2));
-        LatchButton(PlayerInputButton.MagicSlot3, Input.GetKeyDown(KeyCode.Alpha3));
+        if (!BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput)
+        {
+            bool fireHeld = ControlSettings.Held(ControlAction.MagicUse);
+            if (ControlSettings.Down(ControlAction.MagicSlot1)) { latchedButtons.Set(PlayerInputButton.Lock, false); magicSelectionInput.Toggle(1, fireHeld); }
+            if (ControlSettings.Down(ControlAction.MagicSlot2)) { latchedButtons.Set(PlayerInputButton.Lock, false); magicSelectionInput.Toggle(2, fireHeld); }
+            LatchButton(PlayerInputButton.Lock, ControlSettings.Down(ControlAction.MagicUse));
+        }
+
     }
 
     private void UpdateCodeRoomRobbyToggle()
@@ -1210,21 +1218,19 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             data.suppressActions = true;
             accumulatedLook = Vector2.zero;
             latchedButtons = default;
+            magicInputWasHeld = false;
+            if (!ControlSettings.Held(ControlAction.MagicUse)) magicSelectionInput.SampleCast(false);
             pendingEmoteCombatSuppression = false;
             input.Set(data);
             return;
         }
         data.buttons.Set(PlayerInputButton.Accelerate, ControlSettings.Held(ControlAction.Accelerate));
         data.buttons.Set(PlayerInputButton.Decelerate, Input.GetKey(KeyCode.S));
-        data.buttons.Set(PlayerInputButton.QuickBrake, ControlSettings.Held(ControlAction.QuickBrake));
         data.buttons.Set(PlayerInputButton.TurnLeft, ControlSettings.Held(ControlAction.TurnLeft));
         data.buttons.Set(PlayerInputButton.TurnRight, ControlSettings.Held(ControlAction.TurnRight));
-        data.buttons.Set(PlayerInputButton.Lock, ControlSettings.Held(ControlAction.LockOn));
+        data.buttons.Set(PlayerInputButton.Lock, ControlSettings.Held(ControlAction.MagicUse));
         data.buttons.Set(PlayerInputButton.Parry, ControlSettings.Held(ControlAction.Parry));
         data.buttons.Set(PlayerInputButton.Boost, ControlSettings.Held(ControlAction.Boost));
-        data.buttons.Set(PlayerInputButton.MagicSlot1, ControlSettings.Held(ControlAction.MagicSlot1));
-        data.buttons.Set(PlayerInputButton.MagicSlot2, ControlSettings.Held(ControlAction.MagicSlot2));
-        data.buttons.Set(PlayerInputButton.MagicSlot3, Input.GetKey(KeyCode.Alpha3));
         data.buttons.Set(PlayerInputButton.Menu, Input.GetKey(KeyCode.Escape));
 
         for (int i = 0; i <= (int)PlayerInputButton.QuickBrake; i++)
@@ -1233,6 +1239,13 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 data.buttons.Set(i, true);
         }
         latchedButtons = default;
+        bool magicWasHeld = magicInputWasHeld;
+        bool castHeld = magicSelectionInput.SampleCast(data.buttons.IsSet(PlayerInputButton.Lock));
+        magicInputWasHeld = castHeld;
+        data.usesToggleSelection = true;
+        data.selectedMagicSlot = magicSelectionInput.Slot;
+        data.magicSelectionRevision = magicSelectionInput.Revision;
+        data.buttons.Set(PlayerInputButton.Lock, castHeld);
         data.look = BattleEmoteUI.CapturesMouse ? Vector2.zero : accumulatedLook;
         data.suppressCombat = BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput || pendingEmoteCombatSuppression;
         pendingEmoteCombatSuppression = false;
@@ -1245,6 +1258,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         Player local = Player.LocalPlayer;
         if (local != null)
         {
+            local.SetLocalMagicInputSlot(data.selectedMagicSlot);
             data.portalExitSequence = local.PortalExitSequence;
             if (inputPlayer != local)
             {
@@ -1278,7 +1292,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                     data.steerToAim = true;
                 }
             }
-            if (inputCamera != null && (data.buttons.IsSet(PlayerInputButton.Lock) || local.IsMagicStormActive))
+            if (inputCamera != null && (castHeld || magicWasHeld || local.IsMagicStormActive))
                 data.magicAimDirection = local.GetDotAimDirection(BattleHud.GetMagicAimRay(inputCamera));
             // Include the release tick: that is when the area position becomes fixed.
             if (inputCamera != null)

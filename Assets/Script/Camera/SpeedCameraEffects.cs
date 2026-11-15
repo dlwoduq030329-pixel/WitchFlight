@@ -325,7 +325,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         }
         // Read the existing local selection; no extra target search or physics query.
         // Independent of the optional shoulder-camera experiment.
-        bool charging = ControlSettings.Held(ControlAction.LockOn) &&
+        bool charging = player.MagicInputHeld &&
             !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput &&
             focusSelector != null && focusSelector.HasSelectedTarget &&
             player.SelectedMagicStats.requiresTarget && player.CanAcquireMagicTarget();

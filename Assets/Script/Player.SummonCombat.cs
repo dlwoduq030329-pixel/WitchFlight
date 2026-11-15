@@ -8,21 +8,22 @@ public partial class Player
     public float SummonFlightBraking => brakeSpeed;
     public float SummonFlightTurnResponse => turnAccel;
 
-    public bool TryGetMagicTarget(NetworkId id, out Player player, out MagicProjectile summon, out Vector3 point)
+    public bool TryGetMagicTarget(NetworkId id, out Player player, out MagicProjectile summon, out Vector3 point, int inputSlot = 0)
     {
         player = null; summon = null; point = default;
-        if (Runner == null || !Runner.TryFindObject(id, out NetworkObject obj) || obj == null || !obj.IsValid) return false;
+        if (Object == null || !Object.IsValid || Runner == null || !Runner.TryFindObject(id, out NetworkObject obj) || obj == null || !obj.IsValid) return false;
+        MagicStatEntry stats = inputSlot >= 1 && inputSlot <= 2 ? GetMagicStats(GetMagicInSlot(inputSlot)) : SelectedMagicStats;
         player = obj.GetComponent<Player>();
         if (player != null)
         {
             point = player.LockAimPoint;
-            return IsValidLockTarget(player);
+            return IsValidLockTarget(player, stats);
         }
-        if (SelectedMagicStats.TargetsAllies) return false; // Healing never selects enemy summon bodies.
+        if (stats.TargetsAllies) return false; // Healing never selects enemy summon bodies.
         summon = obj.GetComponent<MagicProjectile>();
         if (summon == null || !summon.IsSummonEnemyOf(this)) return false;
         point = summon.transform.position;
-        float range = SelectedMagicStats.range > 0f ? Mathf.Min(maxLockDistance, SelectedMagicStats.range) : maxLockDistance;
+        float range = stats.range > 0f ? Mathf.Min(maxLockDistance, stats.range) : maxLockDistance;
         range *= LockRangeMultiplier;
         Vector3 delta = point - LockAimPoint;
         return delta.sqrMagnitude <= range * range && Vector3.Dot(transform.forward, delta) >= 0f &&

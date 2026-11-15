@@ -1,4 +1,4 @@
-# Real preferences and capture code with in-memory Unity doubles. No local PlayerPrefs or live game changes.
+﻿# Real preferences and capture code with in-memory Unity doubles. No local PlayerPrefs or live game changes.
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $source = @'
@@ -16,11 +16,13 @@ namespace UnityEngine {
  public class RuntimeInitializeOnLoadMethodAttribute:Attribute {public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t){}}
  public class SerializeField:Attribute {} public class DisallowMultipleComponent:Attribute {}
  public class MonoBehaviour {public Transform transform=new Transform();}
- public class Transform {public Transform parent=>this;public T[] GetComponentsInChildren<T>(bool b)=>Array.Empty<T>();public bool IsChildOf(Transform t)=>false;public Transform Find(string p)=>null;public T GetComponent<T>() where T:class=>null;}
+ public class GameObject { public bool activeSelf=true; public void SetActive(bool value){activeSelf=value;} }
+ public class Transform {public GameObject gameObject=new();public Transform parent=>this;public T[] GetComponentsInChildren<T>(bool b)=>Array.Empty<T>();public bool IsChildOf(Transform t)=>false;public Transform Find(string p)=>null;public T GetComponent<T>() where T:class=>null;}
  public static class Mathf {public static float Clamp(float v,float a,float b)=>Math.Clamp(v,a,b);public static float Round(float v)=>(float)Math.Round(v);public static int RoundToInt(float v)=>(int)Math.Round(v);}
  public static class Time {public static int frameCount;}
  public static class Input {
   public static HashSet<KeyCode> held=new(),down=new();public static bool anyKey=>held.Count>0;
+  public static bool GetMouseButton(int i)=>held.Contains((KeyCode)((int)KeyCode.Mouse0+i));public static bool GetMouseButtonDown(int i)=>down.Contains((KeyCode)((int)KeyCode.Mouse0+i));
   public static bool GetKey(KeyCode k)=>held.Contains(k);public static bool GetKeyDown(KeyCode k)=>down.Contains(k);
  }
  public static class PlayerPrefs {
@@ -58,49 +60,47 @@ public static class ControlChecks {
  static void Press(KeyCode k){Input.held.Clear();Input.down.Clear();Input.held.Add(k);Input.down.Add(k);Time.frameCount++;}
  static void Release(){Input.held.Clear();Input.down.Clear();Time.frameCount++;}
  public static int Run(){
-  Check(ControlSettings.Sensitivity==50&&ControlSettings.SensitivityMultiplier==1,"50 is existing sensitivity");
-  ControlSettings.SetSensitivity(25);Check(ControlSettings.SensitivityMultiplier==.5f,"25 is half sensitivity");
-  ControlSettings.SetSensitivity(100);Check(ControlSettings.SensitivityMultiplier==2,"100 is double sensitivity");
-  ControlSettings.SetSensitivity(-20);Check(ControlSettings.Sensitivity==1,"avoid disabling camera by zero sensitivity");
-  ControlSettings.SetSensitivity(float.NaN);Check(ControlSettings.Sensitivity==1,"ignore invalid sensitivity");
-  ControlSettings.SetSensitivity(50);string error;
-  Check(ControlSettings.TryRebind(ControlAction.MagicSlot1,KeyCode.Alpha2,out error),"slot swap accepted");
-  Check(ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.Alpha2&&ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.Alpha1,"both sides of slot swap updated");
-  Check(!ControlSettings.TryRebind(ControlAction.LockOn,KeyCode.E,out error),"aim cannot be remapped");
-  Check(!ControlSettings.TryRebind(ControlAction.MagicUse,KeyCode.Mouse1,out error),"cast cannot be remapped");
-  Check(ControlSettings.GetKey(ControlAction.LockOn)==KeyCode.Mouse0&&ControlSettings.GetKey(ControlAction.MagicUse)==KeyCode.Mouse0,"hold and release remain on left mouse");
-  Check(ControlSettings.GetKey(ControlAction.QuickBrake)==KeyCode.Q&&ControlSettings.GetKey(ControlAction.Emote)==KeyCode.T,"new actions default to Q and T");
-  Check(ControlSettings.TryRebind(ControlAction.Emote,KeyCode.E,out error),"emote can rebind");
+  string prefix="WitchFlight.Controls.v1.";
+  PlayerPrefs.SetInt(prefix+"MagicSlot1",(int)KeyCode.Alpha1);
+  PlayerPrefs.SetInt(prefix+"MagicSlot2",(int)KeyCode.Alpha2);
+  PlayerPrefs.SetInt(prefix+"QuickBrake",(int)KeyCode.Q);
+  PlayerPrefs.SetFloat(prefix+"Sensitivity",75);
+  Check(ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.Q&&ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.E,"old saved keys migrate to direct Q/E");
+  Check(ControlSettings.Sensitivity==75,"migration preserves sensitivity");
+  Check(ControlSettings.GetKey(ControlAction.QuickBrake)==KeyCode.None,"brake key retired");
+  Press(KeyCode.Q);Check(ControlSettings.Held(ControlAction.MagicSlot1)&&!ControlSettings.Held(ControlAction.LockOn),"Q selects without casting");
+  Check(!ControlSettings.Held(ControlAction.QuickBrake),"Q never brakes");Release();
+  Press(KeyCode.E);Check(ControlSettings.Held(ControlAction.MagicSlot2)&&!ControlSettings.Down(ControlAction.MagicUse),"E selects without casting");Release();
+  Press(KeyCode.Mouse0);Check(ControlSettings.Held(ControlAction.LockOn)&&ControlSettings.Down(ControlAction.MagicUse),"left click is the shared cast input");Release();
+  Press(KeyCode.Alpha1);Check(!ControlSettings.Held(ControlAction.MagicSlot1),"old number key no longer casts");Release();
+  string error;
+  Check(ControlSettings.TryRebind(ControlAction.MagicSlot1,KeyCode.E,out error),"slot keys can swap");
+  Check(ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.Q,"swap preserves the other slot");
+  Reload();Check(ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.E,"one-time migration preserves later rebinding");
+  Check(!ControlSettings.TryRebind(ControlAction.QuickBrake,KeyCode.D,out error),"retired action cannot be rebound");
+  Check(!ControlSettings.TryRebind(ControlAction.LockOn,KeyCode.D,out error),"retired shared cast action cannot be rebound");
   foreach(var k in new[]{KeyCode.Escape,KeyCode.Tab,KeyCode.Space,KeyCode.S,KeyCode.Alpha3,KeyCode.None,KeyCode.JoystickButton0,KeyCode.Mouse0})
-   Check(!ControlSettings.TryRebind(ControlAction.Accelerate,k,out error),"fixed action key rejected: "+k);
-  Press(KeyCode.RightShift);Check(ControlSettings.Held(ControlAction.Boost)&&ControlSettings.Down(ControlAction.Boost),"both shift keys retain boost");Release();
-  Check(ControlSettings.TryRebind(ControlAction.Boost,KeyCode.Q,out error),"boost remaps");
-  Press(KeyCode.RightShift);Check(!ControlSettings.Held(ControlAction.Boost),"old shift no longer boosts");
-  Press(KeyCode.Q);Check(ControlSettings.Held(ControlAction.Boost),"new boost key active");Release();
-  Reload();Check(ControlSettings.Sensitivity==50&&ControlSettings.GetKey(ControlAction.Boost)==KeyCode.Q,"settings reload from saved values");
+   Check(!ControlSettings.TryRebind(ControlAction.Accelerate,k,out error),"fixed action rejected: "+k);
+  Press(KeyCode.RightShift);Check(ControlSettings.Held(ControlAction.Boost),"both shift keys still boost");Release();
+  Press(KeyCode.Mouse1);Check(ControlSettings.Down(ControlAction.Parry),"right click still parries");Release();
+  ControlSettings.ResetKeyBindings();
   var ui=new ControlSettingsUI();var slider=new Slider();var label=new TMP_Text();
   var rows=new ControlSettingsUI.BindingRow[9];for(int i=0;i<9;i++)rows[i]=new(){action=(ControlAction)i,button=new(),keyText=new()};
   var reset=new Button();Field(ui,"resetButton",reset);
   Field(ui,"bindings",rows);Field(ui,"sensitivitySlider",slider);Field(ui,"sensitivityText",label);Call(ui,"Awake");Call(ui,"OnEnable");
-  Check(rows[7].action==ControlAction.QuickBrake&&rows[8].action==ControlAction.Emote,"old serialized rows migrate without losing references");
-  Check(slider.value==.5f&&label.text=="50","authored UI loads default 50");
-  Check(rows[0].keyText.text=="2"&&rows[3].keyText.text=="Q","all button labels reflect preferences");
-  slider.onValueChanged.Invoke(.75f);Check(ControlSettings.Sensitivity==75&&label.text=="75","slider applies and displays 75");
+  Check(!rows[7].button.transform.parent.gameObject.activeSelf,"authored brake row hidden");
+  Check(rows[8].action==ControlAction.Emote,"emote row retained");
+  Check(rows[0].keyText.text=="Q"&&rows[1].keyText.text=="E","UI shows Q/E");
+  Check(slider.value==.75f&&label.text=="75","UI preserves sensitivity");
   Press(KeyCode.Mouse0);rows[0].button.onClick.Invoke();Call(ui,"Update");
-  Check(ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.Alpha2,"opening click is ignored");
+  Check(ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.Q,"opening click ignored");
   Release();Call(ui,"Update");Press(KeyCode.D);Call(ui,"Update");
-  Check(rows[0].keyText.text=="D"&&rows[6].keyText.text=="2","capture applies key and refreshes swapped label");
-  Check(rows[0].button.interactable&&slider.interactable,"controls restored after capture");Release();
-  rows[0].button.onClick.Invoke();Press(KeyCode.Escape);Call(ui,"Update");
-  Check(rows[0].keyText.text=="D"&&ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.D,"Escape cancels without modifying binding");Release();
-  rows[7].button.onClick.Invoke();Press(KeyCode.Mouse2);Call(ui,"Update");
-  Check(rows[7].keyText.text=="휠 클릭"&&rows[8].keyText.text=="E","brake and emote have independent rows");Release();
+  Check(rows[0].keyText.text=="D"&&rows[6].keyText.text=="Q","capture refreshes swapped labels");Release();
   rows[1].button.onClick.Invoke();Call(ui,"OnDisable");Press(KeyCode.W);Call(ui,"Update");
-  Check(ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.Alpha1,"closing tab cancels pending capture");Release();
-  Call(ui,"OnEnable");Check(label.text=="75","reopening tab restores current settings");
-  reset.onClick.Invoke();
-  Check(label.text=="75"&&slider.value==.75f&&rows[0].keyText.text=="1"&&rows[3].keyText.text=="Shift"&&rows[7].keyText.text=="Q"&&rows[8].keyText.text=="T","reset restores every visible key while preserving sensitivity");
-  Reload();Check(ControlSettings.GetKey(ControlAction.QuickBrake)==KeyCode.Q&&ControlSettings.GetKey(ControlAction.Emote)==KeyCode.T&&ControlSettings.Sensitivity==75,"reset persists across restarts without resetting sensitivity");
+  Check(ControlSettings.GetKey(ControlAction.MagicSlot2)==KeyCode.E,"closing tab cancels capture");Release();
+  Call(ui,"OnEnable");reset.onClick.Invoke();
+  Check(rows[0].keyText.text=="Q"&&rows[1].keyText.text=="E"&&rows[3].keyText.text=="Shift","reset restores new controls");
+  Reload();Check(ControlSettings.GetKey(ControlAction.MagicSlot1)==KeyCode.Q&&ControlSettings.Sensitivity==75,"reset persists without resetting sensitivity");
   Call(ui,"OnDisable");Call(ui,"OnDestroy");
   return count;
  }

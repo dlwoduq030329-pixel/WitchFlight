@@ -400,7 +400,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
         }
         if (GUILayout.Button("선택한 유도 마법 사거리의 95%에 배치"))
         { distance = Magic.GetStats(Defending ? botMagic : playerMagic).range * .95f; ResetTrial(); }
-        GUILayout.Label("공격: 좌클릭으로 도주 봇 공격. 유도 마법은 길게 누른 뒤 놓아 발사.\n수비: 제자리 봇이 나를 향해 반복 발사.\n마우스: 방향 / S: 감속 / Shift: 대쉬\nF1: 조작 ↔ 슬라이더. 편집 중에도 비행합니다.\n회피 판단을 켜고 속도·감속을 조절해 보세요.\n비교용 직진은 회피 판단을 끄고 도주 선회 폭을 0으로 설정합니다.", labelStyle);
+        GUILayout.Label("공격: 좌클릭으로 선택된 실험 마법을 시전. 유도 마법은 길게 누른 뒤 놓아 발사.\n수비: 제자리 봇이 나를 향해 반복 발사.\n마우스: 방향 / S: 감속 / Shift: 대쉬\nF1: 조작 ↔ 슬라이더. 편집 중에도 비행합니다.\n회피 판단을 켜고 속도·감속을 조절해 보세요.\n비교용 직진은 회피 판단을 끄고 도주 선회 폭을 0으로 설정합니다.", labelStyle);
     }
 
     private void OnDestroy()

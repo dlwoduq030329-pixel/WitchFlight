@@ -773,25 +773,13 @@ MonoBehaviour:
     animation: 8
     dreamyPauseSeconds: 0.8
     personalityLines:
-    - "\uC801\uC744 \uBCF4\uACE0 {aim}\uB97C \uB204\uB974\uB77C\uB0E5. \n\uCD08\uB85D
-      \uC870\uC900\uC810\uC774\uBA74 \uB193\uC544 \uC3F4\uB77C\uC639! \n\uCEA3\uB2D9\uC0C9
-      \uB9D0\uC774\uB2E4\uB0E5"
-    - "\uC801\uC744 \uBCF4\uACE0 {aim}\uB97C \uB204\uB974\uB77C\uB0E5. \n\uCD08\uB85D\uC0C9\uC73C\uB85C
-      \uBCC0\uD558\uBA74 \uB193\uC544 \uC3F4\uB77C\uC639. \n\uC775\uC744 \uB54C\uAE4C\uC9C0
-      \uAE30\uB2E4\uB9AC\uB4EF\uB0E5."
-    - "\uC801\uC744 \uBCF4\uBA70 {aim}\uB97C \uB20C\uB7EC\uB77C\uC639. \n\uC870\uC900\uC810\uC774
-      \uCD08\uB85D\uC0C9\uC774 \uB418\uBA74 \uB193\uC544 \uC3F4\uB77C\uB0E5."
-    - "\uC801\uC744 \uBCF4\uACE0 {aim}\uB97C \uB204\uB974\uB77C\uB0E5\u2026\n\uCD08\uB85D
-      \uC870\uC900\uC810\uC774\uBA74 \uB193\uC544 \uBC1C\uC0AC\u2026\n\uCEA3\uB2D9
-      \uAC19\uB2E4\uC639\u2026"
-    - "\uC801\uC744 \uBCF4\uBA70 {aim}\uB97C \uB204\uB974\uACE0, \uCD08\uB85D \uC870\uC900\uC810\uC774
-      \uB418\uBA74 \uB193\uC544 \uC3F4\uB77C\uB0E5.\n\uC131\uACF5\uD558\uBA74 \uB098\uBD80\uD130
-      \uBD10\uB77C\uC639!"
-    - "\uC801\uC744 \uBCF4\uBA70 {aim}\uB97C \uC720\uC9C0\uD558\uC2ED\uC2DC\uC639.
-      \n\uC870\uC900\uC810\uC774 \uCD08\uB85D\uC0C9\uC774 \uB418\uBA74 \uB193\uC544
-      \uBC1C\uC0AC\uD574 \uBCF4\uC2DC\uC9C0\uC694."
-    - "\uC801\uC744 \uBCF4\uBA70 {aim}\uB97C \uB204\uB974\uB77C\uC639! \n\uCD08\uB85D\uC0C9\uC73C\uB85C
-      \uBCC0\uD558\uBA74 \uB193\uC544 \uBA85\uC911\uC2DC\uCF1C\uB77C\uB0E5."
+    - "{slot1}로 마법부터 골라라냥.\n적을 보며 좌클릭을 꾹! 어… 내가 적은 아니다옹!"
+    - "{slot1}로 마법을 고르고 적을 보며 좌클릭을 꾹 눌러라냥.\n쩝… 익을 때까지 기다리듯이옹."
+    - "{slot1}로 마법을 골라라옹.\n적을 보며 좌클릭을 꾹 눌러. 두 번 말 안 한다냥."
+    - "{slot1}로 마법을 고르고… 좌클릭을 꾹…\n적을 봐야 한다냥… 눈 감으면 안 된다옹…"
+    - "{slot1}로 마법을 고르고 적을 보며 좌클릭을 꾹!\n잘하고 있다냥. 옆에 있을게옹!"
+    - "{slot1}로 마법을 선택하십시옹.\n적을 조준하며 좌클릭을 유지해 주시지요."
+    - "{slot1}로 마법을 골라라옹!\n적을 보며 좌클릭을 꾹 눌러라냥. 이 몸에게 실력을 보여라옹!"
   - id: release
     highlight: 0
     waitForTargetClick: 0
@@ -847,21 +835,41 @@ MonoBehaviour:
     animation: 1
     dreamyPauseSeconds: 0.8
     personalityLines:
-    - "{slot2}\uB85C 2\uBC88, {slot1}\uB85C 1\uBC88 \uB9C8\uBC95\uC774\uB2E4\uB0E5!
-      \n\uBC14\uAFD4 \uBD10\uB77C\uB0E5!"
-    - "{slot2}\uB85C 2\uBC88, {slot1}\uB85C 1\uBC88\uC5D0 \uB3CC\uC544\uC640\uB77C\uB0E5.
-      \uBC18\uCC2C \uBC14\uAFB8\uB4EF \uACE8\uB77C \uC4F0\uB294 \uAC70\uB2E4\uC639."
-    - "{slot2}\uB85C 2\uBC88, {slot1}\uB85C 1\uBC88\uC5D0 \uB3CC\uC544\uC640\uB77C\uC639.\n\uD5F7\uAC08\uB9AC\uBA74
-      \uB2E4\uC2DC \uC54C\uB824\uB294 \uC904\uAC8C\uB0E5."
-    - "{slot2}\uB85C 2\uBC88, {slot1}\uB85C 1\uBC88\uC5D0 \uB3CC\uC544\uC640\uB77C\uB0E5\u2026
-      \n\uB458, \uD558\uB098\u2026 \uC7A0 \uC138\uB294 \uAC70 \uC544\uB2C8\uC639\u2026"
-    - "{slot2}\uB85C 2\uBC88 \uB9C8\uBC95\uC744 \uACE0\uB974\uACE0 {slot1}\uB85C
-      \uB3CC\uC544\uC640\uB77C\uB0E5. \n\uB124\uAC00 \uC775\uC219\uD574\uC9C8 \uB54C\uAE4C\uC9C0
-      \uAC19\uC774 \uD574 \uC904\uAC8C\uC639."
-    - "{slot2}\uB85C 2\uBC88 \uB9C8\uBC95\uC744 \uC120\uD0DD\uD55C \uB4A4 {slot1}\uB85C
-      1\uBC88\uC5D0 \uB3CC\uC544\uC640 \uC8FC\uC2ED\uC2DC\uC624\uC639."
-    - "{slot2}\uB85C 2\uBC88 \uB9C8\uBC95\uC744 \uACE0\uB978 \uB4A4 {slot1}\uB85C
-      \uB3CC\uC544\uC624\uB77C\uC639! \n\uB2A5\uC219\uD558\uAC8C \uD574 \uBCF4\uB77C\uB0E5."
+    - "{slot1}는 1번, {slot2}는 2번 선택이다냥!\n같은 키를 또 누르면 해제! 어… 켰다 껐다옹!"
+    - "{slot1}로 1번, {slot2}로 2번을 고르라냥.\n다시 누르면 해제다옹. 쩝… 메뉴 고르듯이냥."
+    - "{slot1}는 1번, {slot2}는 2번 선택이다옹.\n같은 키를 다시 누르면 해제. 헷갈리지 마라냥."
+    - "{slot1}는 1번… {slot2}는 2번 선택이다냥…\n다시 누르면 해제… 어… 뭘 골랐더라옹…"
+    - "{slot1}로 1번, {slot2}로 2번을 골라 보라냥!\n같은 키를 다시 누르면 해제다옹. 같이 해 보자냥!"
+    - "{slot1}와 {slot2}로 마법을 선택하십시옹.\n같은 키를 다시 누르시면 선택이 해제됩니다."
+    - "{slot1}는 1번, {slot2}는 2번 선택이다옹!\n다시 누르면 해제다냥. 이 몸처럼 우아하게 골라라옹!"
+  - id: direct_instant_cast
+    highlight: 0
+    waitForTargetClick: 0
+    practice: 0
+    animation: 0
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "고른 즉발 마법은 좌클릭을 누르면 나간다냥!\n꾹 쥐지 않아도 되는 거다옹!"
+    - "고른 즉발 마법은 좌클릭을 누르면 나간다냥.\n쩝… 기다릴 필요 없는 간식 같구나옹."
+    - "고른 즉발 마법은 좌클릭을 누르는 순간 쏜다옹.\n꼭 맞혀라냥. 보고 있으니까옹."
+    - "고른 즉발 마법은 좌클릭을 누르면 나간다냥…\n어… 벌써 나갔네옹…"
+    - "고른 즉발 마법은 좌클릭을 누르면 바로 쏜다냥!\n잘 맞히면 같이 기뻐해 줄게옹!"
+    - "고른 즉발 마법은 좌클릭을 눌러 바로 시전하십시옹.\n마법마다 시전 방식을 살펴보시지요."
+    - "고른 즉발 마법은 좌클릭을 누르면 쏘는 거다옹!\n이 몸 앞에서 멋지게 맞혀 보라냥!"
+  - id: basic_attack
+    highlight: 0
+    waitForTargetClick: 0
+    practice: 0
+    animation: 0
+    dreamyPauseSeconds: 0.8
+    personalityLines:
+    - "마법 선택을 풀면 좌클릭은 평타다냥!\n세 발까지 모이고 4초마다 한 발! 셋… 다음은 뭐더라옹?"
+    - "마법을 해제하면 좌클릭으로 평타다냥.\n세 발까지 모이고 4초마다 한 발! 간식처럼 아껴라옹."
+    - "마법을 해제하면 좌클릭은 평타다옹.\n최대 세 발, 4초마다 한 발 충전. 기억해 둬라냥."
+    - "마법을 해제하면 좌클릭은 평타다냥…\n세 발까지… 4초마다 한 발… 기다리다 졸았네옹…"
+    - "마법을 해제하면 좌클릭으로 평타다냥!\n최대 세 발, 4초마다 한 발씩! 같이 세어 줄게옹!"
+    - "선택한 마법을 해제하면 좌클릭으로 평타를 쏩니다옹.\n최대 세 발이며 4초마다 한 발씩 충전됩니다."
+    - "마법을 해제하면 좌클릭은 평타다옹!\n최대 세 발, 4초마다 한 발! 이 몸 앞에서 낭비하지 마라냥!"
   - id: parry
     highlight: 0
     waitForTargetClick: 0
@@ -1111,27 +1119,6 @@ MonoBehaviour:
       \uC218 \uC788\uC2B5\uB2C8\uB2E4."
     - "\uB9C8\uBC95\uC774 \uCAD3\uC544\uC624\uBA74 \uAE09\uC120\uD68C\uB85C \uB530\uB3CC\uB9AC\uB77C\uC639!
       \n\uC9C1\uC9C4\uB9CC \uD558\uB294 \uD45C\uC801\uC774 \uB418\uC9C0 \uB9D0\uB77C\uB0E5."
-  - id: quick_brake
-    highlight: 0
-    waitForTargetClick: 0
-    practice: 7
-    animation: 6
-    dreamyPauseSeconds: 0.8
-    personalityLines:
-    - "{boost}\uB85C \uBE68\uB77C\uC84C\uC73C\uBA74 {brake}\uB85C \uAE09\uC81C\uB3D9\uC774\uB2E4\uB0E5!\n
-      \uB098\uB294 \uC65C \uC55E\uC73C\uB85C \uC3E0\uB838\uB0D0\uC639?"
-    - "{boost}\uB85C \uBE68\uB77C\uC84C\uC744 \uB54C {brake}\uB85C \uAE09\uC81C\uB3D9\uD574\uB77C\uB0E5.
-      \n\uAC04\uC2DD \uADF8\uB987\uBD80\uD130 \uC7A1\uACA0\uB2E4\uC639."
-    - "{boost}\uB85C \uCDA9\uBD84\uD788 \uBE68\uB77C\uC9C4 \uB4A4 {brake}\uB2E4\uC639.
-      \n\uAE09\uC81C\uB3D9\uC744 \uC775\uD600\uB77C\uB0E5."
-    - "{boost}\uB85C \uBE60\uB974\uAC8C \uB0A0\uB2E4 {brake}\uB85C \uAE09\uC81C\uB3D9\uC774\uB2E4\uB0E5\u2026
-      \n\uBAB8\uC740 \uBA48\uCDC4\uB294\uB370 \uAFC8\uC740 \uAC14\uB124\uC639\u2026"
-    - "{boost}\uB85C \uBE60\uB974\uAC8C \uB0A0\uB2E4\uAC00 {brake}\uB85C \uAE09\uC81C\uB3D9\uD574\uB77C\uB0E5.
-      \n\uBA48\uCD94\uBA74 \uB098\uB3C4 \uC798\uD588\uB0D0\uACE0 \uBD10 \uC918\uC639."
-    - "{boost}\uB85C \uCDA9\uBD84\uD788 \uAC00\uC18D\uD55C \uB4A4 {brake}\uB97C \uB20C\uB7EC
-      \uAE09\uC81C\uB3D9\uD574 \uBCF4\uC2ED\uC2DC\uC624\uC639."
-    - "{boost}\uB85C \uBE60\uB974\uAC8C \uB0A0\uB2E4\uAC00 {brake}\uB85C \uAE09\uC81C\uB3D9\uD558\uB77C\uC639!
-      \n\uBA4B\uC9C0\uAC8C \uBA48\uCD94\uB77C\uB0E5."
   - id: emote
     highlight: 0
     waitForTargetClick: 0

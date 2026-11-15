@@ -19,8 +19,8 @@ public partial class Player
     {
         if (localAreaAimStarted) return;
         localAreaAimStarted = true;
-        areaAimDistance = Mathf.Max(1f, SelectedMagicStats.areaAimDistance);
-        areaSnapTarget = FindAreaSnapTarget(camera, ray, SelectedMagicStats);
+        areaAimDistance = Mathf.Max(1f, InputMagicStats.areaAimDistance);
+        areaSnapTarget = FindAreaSnapTarget(camera, ray, InputMagicStats);
     }
 
     private Player FindAreaSnapTarget(Camera camera, Ray ray, MagicStatEntry stats)
@@ -53,7 +53,7 @@ public partial class Player
     public bool SampleAreaAimInput(Camera camera, bool held, out Vector3 point)
     {
         point = default;
-        if (camera == null || !CanAimAreaMagic())
+        if (camera == null || !CanAimAreaMagic(true))
         { ResetLocalAreaAim(); return false; }
         Ray ray = BattleHud.GetMagicAimRay(camera);
         if (held) BeginLocalAreaAim(camera, ray);
@@ -71,13 +71,16 @@ public partial class Player
         areaAimDistance = 0f;
     }
 
-    private bool CanAimAreaMagic()
+    private bool CanAimAreaMagic(bool inputSample = false)
     {
+        if (Object == null || !Object.IsValid) return false;
+        MagicStatEntry stats = inputSample ? InputMagicStats : SelectedMagicStats;
+        int slot = inputSample ? LocalMagicInputSlot : CurrentMagicSlot;
         return Object != null && Object.IsValid && IsAlive && !IsReturningToMap && !IsHitStunned &&
             BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
-            SelectedMagicStats.effect == MagicEffectKind.DelayedArea && pendingMagic == MagicType.None &&
-            magicProjectilePrefab.IsValid && GetMagicCooldownRemaining(CurrentMagicSlot) <= 0f &&
-            NowAp >= Mathf.Max(0f, SelectedMagicStats.apCost);
+            stats.effect == MagicEffectKind.DelayedArea && (slot != CurrentMagicSlot || pendingMagic == MagicType.None) &&
+            magicProjectilePrefab.IsValid && GetMagicCooldownRemaining(slot) <= 0f &&
+            NowAp >= Mathf.Max(0f, stats.apCost);
     }
 
     private void ProcessAreaAim(NetworkInputData data, bool held, bool pressed, bool released)
@@ -97,9 +100,9 @@ public partial class Player
     public bool TryGetAreaAimPoint(Ray cameraRay, out Vector3 point)
     {
         point = default;
-        if (Object == null || !Object.IsValid || SelectedMagicStats.effect != MagicEffectKind.DelayedArea ||
+        if (Object == null || !Object.IsValid || InputMagicStats.effect != MagicEffectKind.DelayedArea ||
             !IsFiniteDirection(cameraRay.direction) || cameraRay.direction.sqrMagnitude < .001f) return false;
-        MagicStatEntry s = SelectedMagicStats;
+        MagicStatEntry s = InputMagicStats;
         if (IsAreaSnapTarget(areaSnapTarget) && ValidateAreaPoint(areaSnapTarget.LockAimPoint, s, out point) &&
             MagicProjectile.HasSummonSight(cameraRay.origin, point))
         {
@@ -183,9 +186,9 @@ public partial class Player
 
     private void UpdateAreaAimPreview()
     {
-        bool held = ControlSettings.Held(ControlAction.MagicUse);
+        bool held = MagicInputHeld;
         if (!held) previewNeedsRelease = false;
-        bool eligible = Object != null && Object.IsValid && Object.HasInputAuthority && CanAimAreaMagic() &&
+        bool eligible = Object != null && Object.IsValid && Object.HasInputAuthority && CanAimAreaMagic(true) &&
             !CombatPresentation.MenuOpen && !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput &&
             Cursor.lockState == CursorLockMode.Locked;
         if (!eligible)
@@ -197,7 +200,7 @@ public partial class Player
         }
         if (!held || previewNeedsRelease)
         { if (areaPreview != null) areaPreview.gameObject.SetActive(false); return; }
-        MagicStatEntry s = SelectedMagicStats;
+        MagicStatEntry s = InputMagicStats;
         if (areaAimCamera == null || !areaAimCamera.isActiveAndEnabled) areaAimCamera = Camera.main;
         Camera camera = areaAimCamera;
         if (camera != null) BeginLocalAreaAim(camera, BattleHud.GetMagicAimRay(camera));

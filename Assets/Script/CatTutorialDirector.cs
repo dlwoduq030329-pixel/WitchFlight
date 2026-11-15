@@ -282,6 +282,8 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
     {
         EndPracticeStep();
         Unsubscribe(); advanceQueued = false;
+        // Older/custom tables may still contain the retired brake exercise.
+        while (Steps != null && step < Steps.Length && Steps[step].practice == CatTrainingAction.QuickBrake) step++;
         if (Steps == null || step >= Steps.Length) { Complete(); return; }
         var data = Steps[step];
         highlightedButton = targets.TryGetValue(data.highlight, out var highlighted) && highlighted != null
@@ -758,12 +760,11 @@ public sealed partial class CatTutorialDirector : MonoBehaviour
             .Replace("{zoneDashRecovery}", Mathf.Max(1f, flight != null ? flight.manaBuffDashRechargeMultiplier : 4f).ToString("0.#"))
             .Replace("{ramDamage}", (flight != null ? flight.ramDamage : 70f).ToString("0.#"))
             .Replace("{accelerate}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.Accelerate)))
-            .Replace("{aim}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.LockOn)))
+            .Replace("{aim}", "좌클릭")
             .Replace("{parry}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.Parry)))
             .Replace("{slot1}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.MagicSlot1)))
             .Replace("{slot2}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.MagicSlot2)))
             .Replace("{boost}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.Boost)))
-            .Replace("{brake}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.QuickBrake)))
             .Replace("{emote}", ControlSettings.KeyLabel(ControlSettings.GetKey(ControlAction.Emote)));
     }
 

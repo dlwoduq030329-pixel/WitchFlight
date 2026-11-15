@@ -18,7 +18,7 @@ $stubs=$stubs.Replace('public static float Max(float a,float b)=>Math.Max(a,b);'
 $enums=[regex]::Match((Get-Content Assets/Script/PlayerData.cs -Raw),'public enum MagicType\s*\{[^}]+\}').Value
 $stubs=$stubs.Replace('public static class Mathf {','public static class Mathf { public static int Clamp(int v,int a,int b)=>Math.Clamp(v,a,b); public static int Max(int a,int b)=>Math.Max(a,b); public static int RoundToInt(float v)=>(int)Math.Round(v); public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t); public static float Min(params float[] v)=>System.Linq.Enumerable.Min(v);')
 $code=$stubs+"`nnamespace Fusion {public enum PlayerRef {None,A,B}}`nnamespace PerkChecks { $enums }`n"
-foreach($file in 'MagicStatTable','PerkStatTable','PerkRules','PerkEffects','PerkInputGate') {
+foreach($file in 'BasicAttackSettings','MagicStatTable','PerkStatTable','PerkRules','PerkEffects','PerkInputGate') {
     $code+="`nnamespace PerkChecks {`n"+(Get-Content "Assets/Script/$file.cs" -Raw)+"`n}`n"
 }
 $validation=Get-Content Assets/Editor/WitchFlightPerkValidation.cs -Raw

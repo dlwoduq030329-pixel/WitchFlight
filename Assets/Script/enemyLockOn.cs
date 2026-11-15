@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -41,7 +41,7 @@ public class enemyLockOn : MonoBehaviour
         else if (localDesignator == this) localDesignator = null;
         // A wheel-click during charging must also re-evaluate the lock selection.
         // Friendly healing/support keeps its own target selection.
-        if (owner != null && owner.Object != null && owner.Object.IsValid && !owner.SelectedMagicStats.TargetsAllies)
+        if (owner != null && owner.Object != null && owner.Object.IsValid && !owner.InputMagicStats.TargetsAllies)
         {
             currentTarget = null;
             nextRefreshTime = 0f;
@@ -132,7 +132,7 @@ public class enemyLockOn : MonoBehaviour
     public Player CurrentTarget => currentTarget != null ? currentTarget.GetComponent<Player>() : null;
     // Read-only camera presentation state; includes summon targets and requires no new search.
     public bool HasSelectedTarget => wasHeld && currentTarget != null && currentTarget.IsValid &&
-        owner != null && owner.GetSelectedMagic() == sampledMagic;
+        owner != null && owner.InputMagicStats.magic == sampledMagic;
     // Use the same predicted progress as the lock ring, and reject progress belonging
     // to the previous target while a newly selected target reaches the simulation.
     public float SelectedTargetProgress => HasSelectedTarget && owner.HasLockTarget(currentTarget)
@@ -143,28 +143,28 @@ public class enemyLockOn : MonoBehaviour
     // Called from OnInput, including latched clicks that happened between network ticks.
     private bool wasHeld;
     private MagicType sampledMagic;
-    public NetworkId GetInputTarget() => GetInputTarget(ControlSettings.Held(ControlAction.LockOn));
+    public NetworkId GetInputTarget() => GetInputTarget(owner != null && owner.MagicInputHeld);
 
     public NetworkId GetInputTarget(bool held)
     {
         if (owner == null || owner.Object == null || !owner.Object.IsValid ||
             !owner.Object.HasInputAuthority || BattleManager.Instance == null ||
             !BattleManager.Instance.IsGameplayActive || !owner.IsAlive || CombatPresentation.MenuOpen ||
-            BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput || !owner.CanAcquireMagicTarget() || !TryGetAlignedAim(out _))
+            BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput || !owner.CanAcquireMagicTarget(owner.LocalMagicInputSlot) || !TryGetAlignedAim(out _))
         {
             currentTarget = null;
             wasHeld = false;
             return default;
         }
 
-        if (sampledMagic != owner.GetSelectedMagic())
+        if (sampledMagic != owner.InputMagicStats.magic)
         {
-            sampledMagic = owner.GetSelectedMagic();
+            sampledMagic = owner.InputMagicStats.magic;
             currentTarget = null;
             wasHeld = false;
             nextRefreshTime = 0f;
         }
-        if (owner.SelectedMagicStats.TargetsAllies)
+        if (owner.InputMagicStats.TargetsAllies)
         {
             // Healing continuously previews an instant ally lock, even before clicking.
             // Refresh on press so a quick click cannot heal a stale selection.
@@ -194,7 +194,7 @@ public class enemyLockOn : MonoBehaviour
 
     private NetworkObject FindClosestVisibleEnemy(bool excludeRainTargets = false)
     {
-        if (!owner.SelectedMagicStats.TargetsAllies && designatedTarget != null &&
+        if (!owner.InputMagicStats.TargetsAllies && designatedTarget != null &&
             designatedTarget.Object != null && designatedTarget.Object.IsValid && designatedTarget.Runner == owner.Runner &&
             designatedTarget.IsTargetableBy(owner) && IsVisible(designatedTarget.Object) &&
             (!excludeRainTargets || !owner.HasRainTarget(designatedTarget.Object.Id)))
@@ -208,7 +208,7 @@ public class enemyLockOn : MonoBehaviour
                 continue;
             if (excludeRainTargets && owner.HasRainTarget(candidate.Object.Id)) continue;
             Vector3 point = TargetingViewport(candidate.LockAimPoint);
-            float score = owner.SelectedMagicStats.TargetsAllies
+            float score = owner.InputMagicStats.TargetsAllies
                 ? Vector3.Angle(targetCamera.transform.forward, candidate.LockAimPoint - targetCamera.transform.position)
                 : new Vector2(point.x - 0.5f, point.y - 0.5f).sqrMagnitude;
             if (score < bestScore)
@@ -217,7 +217,7 @@ public class enemyLockOn : MonoBehaviour
                 best = candidate.Object;
             }
         }
-        if (owner.SelectedMagicStats.TargetsAllies) return best;
+        if (owner.InputMagicStats.TargetsAllies) return best;
         foreach (var candidate in MagicProjectile.ActiveProjectiles)
         {
             if (candidate == null || !candidate.IsSummonEnemyOf(owner) || !IsVisible(candidate.Object)) continue;
@@ -231,7 +231,7 @@ public class enemyLockOn : MonoBehaviour
 
     public void SampleBladeRain(ref NetworkInputData input)
     {
-        if (owner == null || owner.GetSelectedMagic() != MagicType.BladeRain || !owner.IsRainCharging) return;
+        if (owner == null || owner.InputMagicStats.magic != MagicType.BladeRain || !owner.IsRainCharging) return;
         input.rainTargetRevision = owner.RainTargetRevision;
         input.rainVisible0 = VisibleRainTarget(0);
         input.rainVisible1 = VisibleRainTarget(1);
@@ -249,7 +249,7 @@ public class enemyLockOn : MonoBehaviour
     // Do not call a wall/behind-camera rejection a range failure.
     private bool HasEnemyInRange()
     {
-        float configured = owner.SelectedMagicStats.range;
+        float configured = owner.InputMagicStats.range;
         float range = (configured > 0f ? Mathf.Min(maxTargetDistance, configured) : maxTargetDistance) * owner.LockRangeMultiplier;
         foreach (Player enemy in Player.ActiveCombatants)
             if (enemy != null && enemy.Runner == owner.Runner && enemy.IsTargetableBy(owner) &&
@@ -282,29 +282,29 @@ public class enemyLockOn : MonoBehaviour
     {
         return BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive &&
             !CombatPresentation.MenuOpen && !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput && TryGetAlignedAim(out _) &&
-            owner.CanAcquireMagicTarget() && candidate != null && IsVisible(candidate.Object);
+            owner.CanAcquireMagicTarget(owner.LocalMagicInputSlot) && candidate != null && IsVisible(candidate.Object);
     }
 
     private bool IsVisible(NetworkObject candidate)
     {
         if (targetCamera == null)
             targetCamera = Camera.main;
-        if (targetCamera != null && candidate != null && candidate.IsValid && owner.SelectedMagicStats.TargetsAllies)
+        if (targetCamera != null && candidate != null && candidate.IsValid && owner.InputMagicStats.TargetsAllies)
         {
             Player ally = candidate.GetComponent<Player>();
             if (!owner.IsHealingAlly(ally)) return false;
-            float allyRange = owner.SelectedMagicStats.range > 0f
-                ? Mathf.Min(maxTargetDistance, owner.SelectedMagicStats.range) : maxTargetDistance;
+            float allyRange = owner.InputMagicStats.range > 0f
+                ? Mathf.Min(maxTargetDistance, owner.InputMagicStats.range) : maxTargetDistance;
             allyRange *= owner.LockRangeMultiplier;
             return (ally.LockAimPoint-owner.LockAimPoint).sqrMagnitude <= allyRange*allyRange &&
                 Vector3.Dot(targetCamera.transform.forward, ally.LockAimPoint-targetCamera.transform.position) > 0f &&
                 HasLineOfSight(targetCamera.transform.position, ally);
         }
         if (targetCamera == null || candidate == null || !candidate.IsValid ||
-            !owner.TryGetMagicTarget(candidate.Id, out Player player, out _, out Vector3 targetPoint))
+            !owner.TryGetMagicTarget(candidate.Id, out Player player, out _, out Vector3 targetPoint, owner.LocalMagicInputSlot))
             return false;
 
-        MagicStatEntry stats = owner.SelectedMagicStats;
+        MagicStatEntry stats = owner.InputMagicStats;
         float range = (stats.range > 0f ? Mathf.Min(maxTargetDistance, stats.range) : maxTargetDistance) * owner.LockRangeMultiplier;
         if ((targetPoint - owner.LockAimPoint).sqrMagnitude > range * range)
             return false;

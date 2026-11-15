@@ -94,12 +94,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 2
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -181,9 +195,9 @@ MonoBehaviour:
     displayCategory: 
     displayCastType: 
     displayFeatures: 
-    apCost: 45
+    apCost: 40
     cooldownSeconds: 3.75
-    lockChargeSeconds: 0.8
+    lockChargeSeconds: 0.4
     castSeconds: 0
     projectileSpeed: 85
     projectileTurnSpeed: 220
@@ -191,7 +205,7 @@ MonoBehaviour:
     projectileRadius: 0.12
     hitscanRadius: 0
     range: 130
-    damage: 45
+    damage: 60
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
@@ -201,12 +215,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -289,7 +317,7 @@ MonoBehaviour:
     displayFeatures: 
     apCost: 30
     cooldownSeconds: 2.7
-    lockChargeSeconds: 0.35
+    lockChargeSeconds: 0.2
     castSeconds: 0
     projectileSpeed: 95
     projectileTurnSpeed: 320
@@ -297,7 +325,7 @@ MonoBehaviour:
     projectileRadius: 0.12
     hitscanRadius: 0
     range: 90
-    damage: 25
+    damage: 45
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 0.4
@@ -307,12 +335,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -393,7 +435,7 @@ MonoBehaviour:
     displayCategory: 
     displayCastType: 
     displayFeatures: 
-    apCost: 30
+    apCost: 10
     cooldownSeconds: 2
     lockChargeSeconds: 0
     castSeconds: 0
@@ -413,12 +455,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -480,7 +536,10 @@ MonoBehaviour:
     flareVfxBrightness: 0
   - magic: 4
     displayName: "\uCC9C\uB465 \uB9C8\uBC95"
-    description: "\uc2dc\uc804 \uc2dc \uc870\uc900\uc810\uc5d0 \uac00\uc7a5 \uac00\uae4c\uc6b4 \uc801 \uc704\uce58\ub97c \uc870\uc900\ud569\ub2c8\ub2e4. \ud720\ub85c \uc218\ub3d9 \uac70\ub9ac\ub97c \uc870\uc808\ud560 \uc218 \uc788\uc73c\uba70, \ub193\uc73c\uba74 \ud655\uc815\ub41c \uc704\uce58\uc5d0 1\ucd08 \ub4a4 \ub099\ub8b0\uac00 \ub5a8\uc5b4\uc9d1\ub2c8\ub2e4."
+    description: "\uC2DC\uC804 \uC2DC \uC870\uC900\uC810\uC5D0 \uAC00\uC7A5 \uAC00\uAE4C\uC6B4
+      \uC801 \uC704\uCE58\uB97C \uC870\uC900\uD569\uB2C8\uB2E4. \uD720\uB85C \uC218\uB3D9
+      \uAC70\uB9AC\uB97C \uC870\uC808\uD560 \uC218 \uC788\uC73C\uBA70, \uB193\uC73C\uBA74
+      \uD655\uC815\uB41C \uC704\uCE58\uC5D0 1\uCD08 \uB4A4 \uB099\uB8B0\uAC00 \uB5A8\uC5B4\uC9D1\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: aece16bd1eb03fe4ab6583a486a6154c, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -517,12 +576,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -622,12 +695,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -716,9 +803,9 @@ MonoBehaviour:
     projectileTurnSpeed: 0
     projectileLifetime: 4
     projectileRadius: 0
-    hitscanRadius: 2
+    hitscanRadius: 1.75
     range: 130
-    damage: 50
+    damage: 100
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
@@ -728,12 +815,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -772,9 +873,9 @@ MonoBehaviour:
     summonMoveAnimation: {fileID: 0}
     summonAttackAnimation: {fileID: 0}
     summonDeathAnimation: {fileID: 0}
-    healthCost: 30
+    healthCost: 20
     healing: 0
-    healOnHit: 40
+    healOnHit: 0
     damagePerSecond: 0
     apPerSecond: 0
     maxApFractionPerSecond: 0
@@ -815,8 +916,8 @@ MonoBehaviour:
     displayCastType: 
     displayFeatures: 
     apCost: 50
-    cooldownSeconds: 18
-    lockChargeSeconds: 0.6
+    cooldownSeconds: 7
+    lockChargeSeconds: 0.3
     castSeconds: 0
     projectileSpeed: 85
     projectileTurnSpeed: 300
@@ -834,12 +935,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -940,12 +1055,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -1047,12 +1176,26 @@ MonoBehaviour:
     placementDistance: 2
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -1152,12 +1295,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -1219,7 +1376,11 @@ MonoBehaviour:
     flareVfxBrightness: 0
   - magic: 11
     displayName: "\uD50C\uB808\uC5B4"
-    description: "0.5초마다 후방 세 갈래로 플레어를 방출합니다. 개별 플레어가 나를 추적하는 마법을 유인하고 접촉하면 파괴합니다. 지속시간 동안 이동속도 10% 증가."
+    description: "0.5\uCD08\uB9C8\uB2E4 \uD6C4\uBC29 \uC138 \uAC08\uB798\uB85C \uD50C\uB808\uC5B4\uB97C
+      \uBC29\uCD9C\uD569\uB2C8\uB2E4. \uAC1C\uBCC4 \uD50C\uB808\uC5B4\uAC00 \uB098\uB97C
+      \uCD94\uC801\uD558\uB294 \uB9C8\uBC95\uC744 \uC720\uC778\uD558\uACE0 \uC811\uCD09\uD558\uBA74
+      \uD30C\uAD34\uD569\uB2C8\uB2E4. \uC9C0\uC18D\uC2DC\uAC04 \uB3D9\uC548 \uC774\uB3D9\uC18D\uB3C4
+      10% \uC99D\uAC00."
     icon: {fileID: 21300000, guid: 3c2fbf96dffcf0c4cb1932cf6b7b14d1, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1256,12 +1417,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0.5
+    flareAttractionRadius: 30
+    flareLength: 12
+    flareParticleExtraLifetime: 1
+    flareSpreadAngle: 30
+    flareInterceptRadius: 2
+    flareSpreadSeconds: 0.35
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -1321,13 +1496,6 @@ MonoBehaviour:
     flareVfxSpeed: 14
     flareVfxScale: 1.8
     flareVfxBrightness: 2
-    flareLength: 12
-    flareSpreadAngle: 30
-    flareParticleExtraLifetime: 1
-    flareInterceptRadius: 2
-    flareSpreadSeconds: 0.35
-    flareBurstInterval: 0.5
-    flareAttractionRadius: 30
   - magic: 12
     displayName: "\uC5F0\uB9C9"
     description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
@@ -1370,12 +1538,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -1463,7 +1645,7 @@ MonoBehaviour:
     projectileSpeed: 100
     projectileTurnSpeed: 0
     projectileLifetime: 1.2
-    projectileRadius: 2.4
+    projectileRadius: 7
     hitscanRadius: 0
     range: 100
     damage: 20
@@ -1476,12 +1658,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -1564,10 +1760,10 @@ MonoBehaviour:
     cooldownSeconds: 5
     lockChargeSeconds: 0
     castSeconds: 0
-    projectileSpeed: 85
+    projectileSpeed: 110
     projectileTurnSpeed: 180
     projectileLifetime: 1.8
-    projectileRadius: 0.234
+    projectileRadius: 0.5
     hitscanRadius: 0
     range: 120
     damage: 10
@@ -1580,12 +1776,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 2
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}
@@ -1593,9 +1803,9 @@ MonoBehaviour:
     timeAllySpeed: 0
     timeProjectileSpeed: 0.01
     stormShotCount: 30
-    stormDuration: 2
+    stormDuration: 1.5
     stormLaunchAngle: 24
-    stormSpreadAngle: 2.5
+    stormSpreadAngle: 1
     bladeCharges: 0
     bladeAbilityDuration: 0
     bladeWeaponVfxPrefab: {fileID: 0}
@@ -1686,12 +1896,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 100000, guid: 66f12a64bdb6455a86cc1fbe7ae10d75, type: 3}
@@ -1792,12 +2016,26 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 0
     requiresFullLock: 0
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
     rainManaPerSecond: 0
     rainManaPerCircle: 0
     rainManaPerTarget: 0
     rainMaxCircles: 0
     rainBladeInterval: 0
     rainCircleVfxPrefab: {fileID: 0}
+    rainFocusSpeed: 0
+    rainFocusMinRadius: 0
+    rainFocusMaxRadius: 0
+    rainFocusMinScale: 0
+    rainFocusMaxScale: 0
+    rainFocusHeadMultiplier: 0
+    rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 1.5
     festivalHealPerSecond: 5
     timeFieldVfxPrefab: {fileID: 0}
@@ -1897,6 +2135,19 @@ MonoBehaviour:
     placementDistance: 0
     requiresTarget: 1
     requiresFullLock: 1
+    flareBurstInterval: 0
+    flareAttractionRadius: 0
+    flareLength: 0
+    flareParticleExtraLifetime: 0
+    flareSpreadAngle: 0
+    flareInterceptRadius: 0
+    flareSpreadSeconds: 0
+    rainManaPerSecond: 5
+    rainManaPerCircle: 25
+    rainManaPerTarget: 50
+    rainMaxCircles: 16
+    rainBladeInterval: 0.06
+    rainCircleVfxPrefab: {fileID: 575105189756329235, guid: 228432bee3aa4e9da1c19f2048cf0d1e, type: 3}
     rainFocusSpeed: 250
     rainFocusMinRadius: 0.3
     rainFocusMaxRadius: 2.4
@@ -1904,12 +2155,6 @@ MonoBehaviour:
     rainFocusMaxScale: 8
     rainFocusHeadMultiplier: 2
     rainFocusProjectilePrefab: {fileID: 0}
-    rainManaPerSecond: 5
-    rainManaPerCircle: 25
-    rainManaPerTarget: 50
-    rainMaxCircles: 16
-    rainBladeInterval: 0.06
-    rainCircleVfxPrefab: {fileID: 575105189756329235, guid: 228432bee3aa4e9da1c19f2048cf0d1e, type: 3}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
     timeFieldVfxPrefab: {fileID: 0}

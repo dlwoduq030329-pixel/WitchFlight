@@ -1,4 +1,4 @@
-# PowerShell 7. Runs the actual controller, DataConfig and MagicStatTable with UI/SDK stubs.
+﻿# PowerShell 7. Runs the actual controller, DataConfig and MagicStatTable with UI/SDK stubs.
 # Offline behavior checks only; does not connect to BACKND/Photon or run Unity Play Mode.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -10,6 +10,7 @@ $perkFormatter = [regex]::Match((Get-Content (Join-Path $repo 'Assets/Script/Bat
 $dataConfig = Get-Content (Join-Path $repo 'Assets/Script/DataConfig.cs') -Raw
 $playerConfig = Get-Content (Join-Path $repo 'Assets/Script/PlayerConfig.cs') -Raw
 $magicTable = Get-Content (Join-Path $repo 'Assets/Script/MagicStatTable.cs') -Raw
+$magicTable += "`n" + ((Get-Content (Join-Path $repo 'Assets/Script/BasicAttackSettings.cs') -Raw) -replace '(?m)^using [^;]+;\r?\n','')
 $equipment = Get-Content (Join-Path $repo 'Assets/Script/PlayerEquipment.cs') -Raw
 $playerData = Get-Content (Join-Path $repo 'Assets/Script/PlayerData.cs') -Raw
 $magicEnum = [regex]::Match($playerData, 'public enum MagicType\s*\{[^}]+\}').Value

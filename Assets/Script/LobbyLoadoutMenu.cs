@@ -1,4 +1,4 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -124,7 +124,9 @@ public sealed class LobbyLoadoutMenu : MonoBehaviour
     {
         if (label == null || magicTable == null) return;
         MagicStatEntry stats = magicTable.GetStats((MagicType)magic);
-        string targeting = stats.requiresTarget ? $"록온 {stats.lockChargeSeconds:0.##}초" : "록온 없이 좌클릭을 놓아 사용";
+        string targeting = stats.requiresTarget ? $"좌클릭 유지 · 록온 {stats.lockChargeSeconds:0.##}초 후 떼어 발사" :
+            stats.effect == MagicEffectKind.DelayedArea ? "좌클릭 유지 · 조준 후 떼어 발사" :
+            stats.IsChanneled ? "좌클릭을 누르는 동안 시전" : "좌클릭으로 시전";
         label.text = $"마나 {stats.apCost:0} / 피해 {stats.damage:0} / {targeting}";
     }
 

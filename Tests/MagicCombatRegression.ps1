@@ -1,8 +1,9 @@
-# Offline checks of actual Player combat methods. No live BACKND/Fusion connection.
+﻿# Offline checks of actual Player combat methods. No live BACKND/Fusion connection.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $player = Get-Content (Join-Path $repo 'Assets/Script/Player.cs') -Raw
 $table = Get-Content (Join-Path $repo 'Assets/Script/MagicStatTable.cs') -Raw
+$table += "`n" + ((Get-Content (Join-Path $repo 'Assets/Script/BasicAttackSettings.cs') -Raw) -replace '(?m)^using [^;]+;\r?\n','')
 $enum = [regex]::Match((Get-Content (Join-Path $repo 'Assets/Script/PlayerData.cs') -Raw), 'public enum MagicType\s*\{[^}]+\}').Value
 function Method([string]$name) {
     $m = [regex]::Match($player, '(?ms)^    (?:private|public) (?:static )?[\w<>]+ ' + $name + '\([^{}]*?\)\r?\n    \{.*?^    \}')

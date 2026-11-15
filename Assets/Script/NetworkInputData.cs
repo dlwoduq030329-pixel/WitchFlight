@@ -1,5 +1,25 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
+
+// Local mode selection. A selection change while holding fire requires a fresh click.
+public struct MagicSelectionInput
+{
+    public int Slot { get; private set; }
+    public int Revision { get; private set; }
+    private bool waitForRelease;
+    public void Toggle(int slot, bool fireHeld)
+    {
+        if (slot < 1 || slot > 2) return;
+        Slot = Slot == slot ? 0 : slot;
+        Revision++;
+        waitForRelease |= fireHeld;
+    }
+    public bool SampleCast(bool fireHeld)
+    {
+        if (!fireHeld) waitForRelease = false;
+        return fireHeld && !waitForRelease;
+    }
+}
 
 // 버튼은 NetworkButtons로 전송해 Host가 각 입력의 눌림/해제를 한 번만 판정합니다.
 public enum PlayerInputButton
@@ -21,6 +41,10 @@ public enum PlayerInputButton
 public struct NetworkInputData : INetworkInput
 {
     public NetworkButtons buttons;
+    // Bots keep their separate slot/Lock protocol; zero is the human basic-attack mode.
+    public NetworkBool usesToggleSelection;
+    public int selectedMagicSlot;
+    public int magicSelectionRevision;
     public Vector2 look;
     public Vector3 aimDirection;
     // Dot-targeted hitscan aim is independent of the smoothed flight steering aim.

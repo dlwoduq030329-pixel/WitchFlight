@@ -22,7 +22,10 @@ for section in (lobby, training):
     entries = steps(section)
     assert len({m[1] for m in entries}) == len(entries), "Duplicate tutorial step ID"
     for step in entries:
-        lines = [json.loads(s) for s in re.findall(r"^    - (.+)$", step[0], re.M)]
+        # Unity may fold double-quoted YAML scalars across physical lines.
+        scalars = re.findall(r'^    - ("(?:[^"\\]|\\.)*")', step[0], re.M | re.S)
+        lines = [json.loads(re.sub(r"\\x([0-9A-Fa-f]{2})", lambda m: "\\u00" + m[1],
+                                re.sub(r"\n[ \t]*", " ", value))) for value in scalars]
         assert len(lines) == 7 and len(set(lines)) == 7, step[1]
         for line in lines:
             assert 0 < len(line) <= 90, (step[1], len(line))
@@ -80,14 +83,19 @@ for step_id, (target_id, target_name, button_name) in expected.items():
 
 practices = {m[1]: int(re.search(r"practice: (\d+)", m[0])[1]) for m in steps(training)}
 parry = next(m[0] for m in steps(training) if m[1] == "parry")
-assert parry.count("{parry}을 눌러 타이밍에 맞춰 공격을 막아보라옹~") == 7
+assert parry.count("{parry}") == 7, "Each personality keeps the rebound parry key"
 assert "노랗" not in parry
+assert "quick_brake" not in practices and "{brake}" not in training
+assert "direct_instant_cast" in practices
+slots = next(m[0] for m in steps(training) if m[1] == "slots")
+assert slots.count("{slot1}") >= 7 and slots.count("{slot2}") >= 7
+assert "ControlAction.MagicSlot1" in director and "ControlAction.MagicSlot2" in director
 for name, action in {"speed": 1, "aim": 2, "slots": 3, "parry": 4,
-                     "perk_select": 5, "boost": 6, "quick_brake": 7, "emote": 8}.items():
+                     "perk_select": 5, "boost": 6, "emote": 8}.items():
     assert practices[name] == action, "Keep interactive practice linked"
 update = director.split("    private void UpdateHighlight()", 1)[1].split("    private string Dialogue", 1)[0]
 assert "new Vector3[" not in update and "GetComponentInParent" not in update
 assert "highlightedCanvas != null" in update
 assert "GetComponentInParent<Canvas>(true)" in director, "Menu can still be inactive during its transition"
-print(f"Tutorial checks passed: 36 short steps, 252 lines (max {longest} chars), "
+print(f"Tutorial checks passed: {len(steps(lobby)) + len(steps(training))} short steps, {(len(steps(lobby)) + len(steps(training))) * 7} lines (max {longest} chars), "
       "4 Main-scene buttons, enum IDs and practice actions.")

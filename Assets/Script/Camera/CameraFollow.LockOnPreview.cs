@@ -47,7 +47,7 @@ public partial class CameraFollow
             lockOnPreviewUpdatedFrame = Time.frameCount;
             // Selection gates presentation; the predicted charge shown by the lock
             // ring drives its amount. No extra target search/raycast from rendering.
-            bool charging = ControlSettings.Held(ControlAction.LockOn) &&
+            bool charging = targetPlayer.MagicInputHeld &&
                 !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput &&
                 lockOnPreviewSelector != null && lockOnPreviewSelector.HasSelectedTarget &&
                 targetPlayer.SelectedMagicStats.requiresTarget && targetPlayer.CanAcquireMagicTarget();

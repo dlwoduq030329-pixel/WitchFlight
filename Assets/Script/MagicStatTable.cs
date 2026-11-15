@@ -340,6 +340,7 @@ public sealed class MagicStatTable : ScriptableObject
 
     public static MagicStatEntry DefaultEntry(MagicType magic)
     {
+        if (magic == MagicType.BasicAttack) return BasicAttackSettings.Stats;
         var e = new MagicStatEntry {
             magic = magic, displayName = magic.ToString(), cooldownSeconds = 3f,
             lockChargeSeconds = 0f, projectileLifetime = 4f, projectileRadius = 0.12f,
@@ -449,7 +450,7 @@ public sealed class MagicStatTable : ScriptableObject
                 break;
             case MagicType.Blade:
                 e.displayName = "칼날 마법";
-                e.description = "시전 후 10초 안에 좌클릭 3회로 보라색 검기를 발사합니다. 무기 교체 시 해제됩니다. 적중한 적은 8초간 상처 상태가 되어 받는 회복량이 50% 감소합니다.";
+                e.description = "시전 후 10초 안에 좌클릭을 3회 눌러 보라색 검기를 발사합니다. 무기 교체 시 해제됩니다. 적중한 적은 8초간 상처 상태가 되어 받는 회복량이 50% 감소합니다.";
                 e.effect = MagicEffectKind.BladeVolley;
                 e.damage = 20f; e.apCost = 30f; e.cooldownSeconds = 8f;
                 e.bladeCharges = 3; e.bladeShotInterval = 0f; e.bladeAbilityDuration = 10f;
@@ -469,6 +470,7 @@ public sealed class MagicStatTable : ScriptableObject
 
     public MagicStatEntry GetStats(MagicType magic)
     {
+        if (magic == MagicType.BasicAttack) return BasicAttackSettings.Stats;
         if (magics != null)
             foreach (MagicStatEntry entry in magics)
                 if (entry.magic == magic) return ApplyHomingTurnSettings(entry);

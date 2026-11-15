@@ -98,7 +98,13 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     private readonly List<Burst> bursts = new List<Burst>(8);
     private PlayerRobby owner;
     private Transform castRoot;
-    private int selected, bladeLeft;
+    private int selected = -1, bladeLeft;
+    private bool waitForCastRelease;
+    private MagicStatEntry armedBladeStats;
+    private int basicCharges = 3;
+    private float basicRecharge, basicReadyAt;
+    private int BasicCapacity => Mathf.Max(1, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.capacity : 3);
+    private float BasicRechargeSeconds => Mathf.Max(.05f, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.rechargeSeconds : 4);
     private float charge, bladeUntil, nextBlade, nextChannel;
     private bool held, visible, inputActive;
     private bool acquiredLock;
@@ -168,10 +174,15 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         RefreshLoadout();
         SetPracticeVisible(false);
     }
-    private void OnEnable() { DataConfig.Changed += RefreshLoadout; }
+    private void OnEnable() { DataConfig.Changed += RefreshLoadout; ControlSettings.Changed += RefreshKeys; RefreshKeys(); }
+    private void RefreshKeys()
+    {
+        for (int i = 0; i < skillSliders.Length && i < 2; i++) BattleMagicUI.RefreshMagicKeyLabel(skillSliders[i], i + 1);
+    }
     private void OnDisable()
     {
         DataConfig.Changed -= RefreshLoadout;
+        ControlSettings.Changed -= RefreshKeys;
         Cancel();
         for (int i = 0; i < shots.Count; i++) MagicVfxPool.Release(shots[i].view);
         shots.Clear(); bursts.Clear();
@@ -200,7 +211,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     }
     private void UpdateSelection()
     {
-        if (owner != null) owner.SelectPracticeStaff(slots[selected].magic);
+        if (owner != null) owner.SelectPracticeStaff(selected >= 0 ? slots[selected].magic : MagicType.BasicAttack);
         for (int i = 0; i < 2; i++) if (selectedFx[i] != null)
         {
             selectedFx[i].SetActive(i == selected);
@@ -232,6 +243,13 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         if (PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.InteractionBusy)
         { if (held || pendingRelease) Cancel(); return; }
         if (!active) return;
+        if (basicCharges < BasicCapacity)
+        {
+            basicRecharge += Time.deltaTime;
+            while (basicRecharge >= BasicRechargeSeconds && basicCharges < BasicCapacity)
+            { basicRecharge -= BasicRechargeSeconds; basicCharges++; }
+        }
+        if (basicCharges >= BasicCapacity) basicRecharge = 0;
         if (owner != PlayerRobby.LocalPlayer)
         {
             owner = PlayerRobby.LocalPlayer;
@@ -258,20 +276,37 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             if (seconds != lastSeconds[i] && cooldownText[i] != null)
             { cooldownText[i].SetText(seconds > 0 ? "{0}" : "", seconds); lastSeconds[i] = seconds; }
         }
-        if (Input.GetKeyDown(KeyCode.Alpha1)) Select(0);
-        if (Input.GetKeyDown(KeyCode.Alpha2)) Select(1);
-        var stats = slots[selected];
+        // Interaction Update runs before practice LateUpdate; E near a seat/cat/drink
+        // belongs to that interaction, including occupied/invalid interaction prompts.
+        if (RobbyInteractionUI.ConsumedInteractionThisFrame) { Cancel(); return; }
+        bool firstPressed = ControlSettings.Down(ControlAction.MagicSlot1);
+        bool secondPressed = ControlSettings.Down(ControlAction.MagicSlot2);
+        bool mouseHeld = ControlSettings.Held(ControlAction.MagicUse);
+        if (firstPressed) Select(selected == 0 ? -1 : 0);
+        if (secondPressed) Select(selected == 1 ? -1 : 1);
+        if ((firstPressed || secondPressed) && mouseHeld) waitForCastRelease = true;
+        if (!mouseHeld) waitForCastRelease = false;
+        bool castHeld = mouseHeld && !waitForCastRelease;
+        bool castPressed = ControlSettings.Down(ControlAction.MagicUse) && !waitForCastRelease;
+        var stats = selected >= 0 ? slots[selected] : BasicAttackSettings.Stats;
         bool lockable = stats.requiresTarget && CanLock(stats);
         ShowLock(held && lockable, stats.lockChargeSeconds > 0 ? Mathf.Clamp01(charge / stats.lockChargeSeconds) : 1);
         if (bladeLeft > 0 && Time.time >= bladeUntil) ClearBlade();
-        if (Input.GetMouseButtonDown(0))
+        if (castPressed)
         {
             if (pendingRelease) return;
-            TraceCast($"입력: {stats.magic}, 슬롯={selected + 1}, 남은 쿨타임={Mathf.Max(0, readyAt[selected] - Time.time):F2}");
+            TraceCast($"입력: {stats.magic}, 슬롯={selected + 1}, 남은 쿨타임={Mathf.Max(0, selected >= 0 ? readyAt[selected] - Time.time : basicReadyAt - Time.time):F2}");
             if (bladeLeft > 0 && Time.time >= nextBlade)
             {
-                QueueRelease(stats, true);
-                nextBlade = Time.time + Mathf.Max(.1f, stats.bladeShotInterval);
+                QueueRelease(armedBladeStats, true);
+                nextBlade = Time.time + Mathf.Max(.1f, armedBladeStats.bladeShotInterval);
+                return;
+            }
+            if (bladeLeft > 0) return;
+            if (selected < 0)
+            {
+                if (basicCharges <= 0 || Time.time < basicReadyAt || !CanLock(stats)) return;
+                QueueRelease(stats, false);
                 return;
             }
             if (Time.time < readyAt[selected] || stats.magic == MagicType.None)
@@ -285,12 +320,12 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             else if (!stats.requiresTarget && !stats.IsChanneled && stats.effect != MagicEffectKind.DelayedArea)
             { Cast(stats); held = false; }
         }
-        if (held && Input.GetMouseButton(0))
+        if (held && castHeld)
         {
             if (!stats.requiresTarget || lockable) charge += Time.deltaTime;
             else { charge = 0; acquiredLock = false; }
             if (stats.requiresTarget && lockable && charge >= stats.lockChargeSeconds && !acquiredLock)
-            { acquiredLock = true; TraceCast("록온 완료: 마우스를 놓으면 발사"); }
+            { acquiredLock = true; TraceCast("록온 완료: 좌클릭을 놓으면 발사"); }
             if (stats.IsChanneled && owner.PracticeRaiseRemaining <= .00001f)
             {
                 if (channel == null) channel = CombatMagicVisual.Beam(stats.magic, stats.beamVfxPrefab, stats.beamMaterial);
@@ -304,7 +339,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
                 }
             }
         }
-        if (held && Input.GetMouseButtonUp(0))
+        if (held && !castHeld)
         {
             if (stats.IsChanneled) { StopChannel(); BeginCooldown(stats); }
             // The HUD and charging input already established this lock. Do not
@@ -315,17 +350,26 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             held = false; charge = 0; if (!pendingRelease) owner.SetPracticeCasting(false);
         }
     }
-    private void Select(int slot) { if (selected == slot) return; Cancel(); selected = slot; UpdateSelection(); if (owner != null) owner.PlayPracticeEquip(); }
-    private void Cancel() { pendingRelease = false; held = false; charge = 0; acquiredLock = false; StopChannel(); ClearBlade(); HideLock(); if (owner != null) owner.SetPracticeCasting(false); }
+    private void Select(int slot)
+    {
+        if (selected == slot) return;
+        Cancel(slot >= 0 && slots[slot].magic != MagicType.Blade);
+        selected = slot;
+        UpdateSelection();
+        if (owner != null) owner.PlayPracticeEquip();
+    }
+    private void Cancel(bool clearBlade = true) { pendingRelease = false; held = false; charge = 0; acquiredLock = false; StopChannel(); if (clearBlade) ClearBlade(); HideLock(); if (owner != null) owner.SetPracticeCasting(false); }
     private void ClearBlade() { bladeLeft = 0; MagicVfxPool.Release(bladeView); bladeView = null; }
     private void StopChannel() { if (channel != null) Destroy(channel.gameObject); channel = null; }
-    private void BeginCooldown(MagicStatEntry stats) => readyAt[selected] = Time.time + stats.cooldownSeconds;
+    private void BeginCooldown(MagicStatEntry stats) { if (selected >= 0) readyAt[selected] = Time.time + stats.cooldownSeconds; }
     private bool CanLock(MagicStatEntry stats)
     {
         var camera = RobbyPlayerCamera.PracticeCamera;
-        if (camera == null || !target.gameObject.activeInHierarchy) return false;
+        if (camera == null || target == null || !target.gameObject.activeInHierarchy) return false;
         Vector3 delta = target.AimPoint - RobbyPlayerCamera.TargetingPosition;
-        return delta.magnitude <= stats.range && Vector3.Angle(AimRay(camera).direction, delta) <= lockCone &&
+        float cone = stats.magic == MagicType.BasicAttack
+            ? (BasicAttackSettings.Default != null ? BasicAttackSettings.Default.aimAssistAngle : 12f) : lockCone;
+        return delta.magnitude <= stats.range && Vector3.Angle(AimRay(camera).direction, delta) <= cone &&
             !Blocked(Origin, target.AimPoint, out _);
     }
     private Vector3 AimEnd(MagicStatEntry stats)
@@ -370,6 +414,14 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     }
     private void ExecuteCast(MagicStatEntry stats)
     {
+        if (stats.magic == MagicType.BasicAttack)
+        {
+            // Revalidate after the wand-raising delay; a vanished target must not cost a charge.
+            if (basicCharges <= 0 || !CanLock(stats)) return;
+            if (basicCharges == BasicCapacity) basicRecharge = 0;
+            basicCharges--;
+            basicReadyAt = Time.time + Mathf.Max(.05f, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.shotInterval : .2f);
+        }
         Vector3 origin = Origin, direction = AimDirection(stats);
         owner.SendPracticeEvent(1, stats.magic, origin, direction);
         Play(stats.castVfxPrefab, origin, Quaternion.LookRotation(direction), stats.vfxLifetime);
@@ -377,6 +429,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         switch (stats.effect)
         {
             case MagicEffectKind.BladeVolley:
+                armedBladeStats = stats;
                 bladeLeft = Mathf.Max(1, stats.bladeCharges); bladeUntil = Time.time + Mathf.Max(.1f, stats.bladeAbilityDuration);
                 bladeView = MagicVfxPool.Rent(stats.bladeWeaponVfxPrefab, origin, owner.transform.rotation, castRoot);
                 if (bladeView != null) { bladeView.transform.localPosition = stats.bladeWeaponOffset; bladeView.transform.localRotation = Quaternion.Euler(stats.bladeWeaponEuler); }
@@ -422,7 +475,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
                 bursts.Add(new Burst { stats = stats, origin = summon, direction = (target.AimPoint - summon).normalized,
                     remaining = Mathf.Clamp(Mathf.CeilToInt(stats.effectDuration / Mathf.Max(.1f, stats.summonAttackInterval)), 1, 120),
                     next = Time.time + stats.activationDelay, interval = Mathf.Max(.1f, stats.summonAttackInterval), guided = true }); break;
-            default: Fire(stats, origin, direction, stats.requiresTarget); break;
+            default: Fire(stats, origin, direction, stats.requiresTarget || stats.magic == MagicType.BasicAttack); break;
         }
     }
     private void TickBursts()

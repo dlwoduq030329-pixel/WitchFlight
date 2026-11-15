@@ -37,7 +37,7 @@ public class Camera {
 public struct Color {public float r,g,b,a;public Color(float r,float g,float b,float a){this.r=r;this.g=g;this.b=b;this.a=a;}}
 public class Outline {public bool enabled;public Color OutlineColor;}
 public enum MagicType {Fire,Healing,BladeRain}
-public struct MagicStatEntry {public bool TargetsAllies;}
+public struct MagicStatEntry {public MagicType magic;public bool TargetsAllies;}
 public class NetworkObject {public bool IsValid=true,HasInputAuthority;public int Id;public Player Player;public MagicProjectile Summon;}
 public class Player {
  public static Player LocalPlayer;public static List<Player> ActiveCombatants=new();
@@ -47,7 +47,8 @@ public class Player {
  public HashSet<int> RainTargets=new();
  public bool HasRainTarget(int id)=>RainTargets.Contains(id);
  public bool IsTargetableBy(Player p)=>IsAlive&&!Stealth&&p!=this&&TeamIndex!=p.TeamIndex;
- public bool CanAcquireMagicTarget()=>true;public MagicType GetSelectedMagic()=>Magic;
+ public int LocalMagicInputSlot=1;public MagicStatEntry InputMagicStats {get {var s=SelectedMagicStats;s.magic=Magic;return s;}}
+ public bool CanAcquireMagicTarget(int slot=0)=>true;public MagicType GetSelectedMagic()=>Magic;
  public bool IsHiddenBySmokeFor(Player p)=>Hidden;
 }
 public class MagicProjectile {

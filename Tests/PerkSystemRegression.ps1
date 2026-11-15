@@ -1,4 +1,4 @@
-# Offline execution of the production rules, table, stat transform and input policy.
+﻿# Offline execution of the production rules, table, stat transform and input policy.
 # Does not replace Fusion weaving or two-client Play Mode verification.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -17,7 +17,7 @@ $stubs=$stubs.Replace('where T:class=>null;','where T:class=>(T)Activator.Create
 $stubs=$stubs.Replace('public static float Max(float a,float b)=>Math.Max(a,b);','public static float Max(float a,float b)=>Math.Max(a,b); public static float Abs(float v)=>Math.Abs(v);')
 $enums=[regex]::Match((Get-Content Assets/Script/PlayerData.cs -Raw),'public enum MagicType\s*\{[^}]+\}').Value
 $code=$stubs+"`nnamespace Fusion {public enum PlayerRef {None,A,B}}`nnamespace PerkChecks { $enums }`n"
-foreach($file in 'MagicStatTable','PerkStatTable','PerkRules','PerkEffects','PerkInputGate') {
+foreach($file in 'BasicAttackSettings','MagicStatTable','PerkStatTable','PerkRules','PerkEffects','PerkInputGate') {
     $code+="`nnamespace PerkChecks {`n"+(Get-Content "Assets/Script/$file.cs" -Raw)+"`n}`n"
 }
 $validation=Get-Content Assets/Editor/WitchFlightPerkValidation.cs -Raw

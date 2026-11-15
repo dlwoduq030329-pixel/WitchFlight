@@ -11,8 +11,8 @@ public static class ControlSettings
 {
     private const string Prefix = "WitchFlight.Controls.v1.";
     private static readonly KeyCode[] defaults = {
-        KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Mouse1, KeyCode.LeftShift,
-        KeyCode.W, KeyCode.A, KeyCode.D, KeyCode.Mouse0, KeyCode.Mouse0, KeyCode.Q, KeyCode.T
+        KeyCode.Q, KeyCode.E, KeyCode.Mouse1, KeyCode.LeftShift,
+        KeyCode.W, KeyCode.A, KeyCode.D, KeyCode.Mouse0, KeyCode.Mouse0, KeyCode.None, KeyCode.T
     };
     private static KeyCode[] keys;
     private static float sensitivity;
@@ -34,23 +34,22 @@ public static class ControlSettings
             KeyCode key = (KeyCode)PlayerPrefs.GetInt(Prefix + (ControlAction)i, (int)defaults[i]);
             if (IsAssignable(key)) keys[i] = Normalize(key);
         }
+        // Keep enum/serialized row IDs stable. Casting stays on left click; the old quick-brake binding is retired.
         keys[(int)ControlAction.MagicUse] = keys[(int)ControlAction.LockOn] = KeyCode.Mouse0;
-        // Older saves may already use Q for another action. Give only the new action
-        // an unused default instead of discarding the player's entire control setup.
-        for (int i = (int)ControlAction.QuickBrake; i <= (int)ControlAction.Emote; i++)
+        keys[(int)ControlAction.QuickBrake] = KeyCode.None;
+        if (PlayerPrefs.GetInt(Prefix + "DirectCast", 0) == 0)
         {
-            if (PlayerPrefs.GetInt(Prefix + (ControlAction)i, -1) >= 0) continue;
-            bool duplicate = false;
-            for (int j = 0; j < i; j++) duplicate |= keys[j] == keys[i];
-            if (!duplicate) continue;
-            foreach (var candidate in defaults)
-            {
-                if (candidate == KeyCode.Mouse0 || Array.IndexOf(keys, candidate) >= 0) continue;
-                keys[i] = candidate; break;
-            }
+            // Migrate old 1/2 + mouse saves once, without resetting mouse sensitivity.
+            keys[(int)ControlAction.MagicSlot1] = KeyCode.Q;
+            keys[(int)ControlAction.MagicSlot2] = KeyCode.E;
+            for (int i = 2; i < keys.Length; i++)
+                if (keys[i] == KeyCode.Q || keys[i] == KeyCode.E) keys[i] = defaults[i];
         }
         // Corrupted/manual preference edits must not disable unrelated controls.
         if (!ValidBindings(keys)) keys = (KeyCode[])defaults.Clone();
+        for (int i = 0; i < keys.Length; i++) PlayerPrefs.SetInt(Prefix + (ControlAction)i, (int)keys[i]);
+        PlayerPrefs.SetInt(Prefix + "DirectCast", 1);
+        PlayerPrefs.Save();
     }
 
     public static KeyCode GetKey(ControlAction action) { EnsureLoaded(); return keys[(int)action]; }
@@ -58,7 +57,11 @@ public static class ControlSettings
     public static bool Down(ControlAction action) => Read(action, true);
     private static bool Read(ControlAction action, bool down)
     {
+        if (action == ControlAction.QuickBrake) return false;
+        if (action == ControlAction.LockOn || action == ControlAction.MagicUse)
+            return down ? Input.GetMouseButtonDown(0) : Input.GetMouseButton(0);
         KeyCode key = GetKey(action);
+        if (key == KeyCode.None) return false;
         bool pressed = down ? Input.GetKeyDown(key) : Input.GetKey(key);
         KeyCode other = key == KeyCode.LeftShift ? KeyCode.RightShift :
             key == KeyCode.LeftControl ? KeyCode.RightControl :
@@ -83,6 +86,7 @@ public static class ControlSettings
         for (int i = 0; i < keys.Length; i++)
             PlayerPrefs.SetInt(Prefix + (ControlAction)i, (int)keys[i]);
         PlayerPrefs.SetFloat(Prefix + "Sensitivity", sensitivity);
+        PlayerPrefs.SetInt(Prefix + "DirectCast", 1);
         PlayerPrefs.Save();
         Changed?.Invoke();
     }
@@ -102,18 +106,12 @@ public static class ControlSettings
         EnsureLoaded();
         KeyCode key = Normalize(requested);
         error = "";
-        if (action == ControlAction.LockOn || action == ControlAction.MagicUse || key == KeyCode.Mouse0)
-        { error = "좌클릭 조준·발사는 고정입니다"; return false; }
+        if (action == ControlAction.LockOn || action == ControlAction.MagicUse || action == ControlAction.QuickBrake || key == KeyCode.Mouse0)
+        { error = "좌클릭 시전은 고정입니다. 마법 선택 키를 설정하세요."; return false; }
         if (!IsAssignable(key)) { error = "예약된 키 · 다른 키 입력"; return false; }
         KeyCode old = keys[(int)action];
         var next = (KeyCode[])keys.Clone();
         next[(int)action] = key;
-        // Lock and cast are one binding: hold to aim, release to fire stays unchanged.
-        if (action == ControlAction.LockOn || action == ControlAction.MagicUse)
-        {
-            next[(int)ControlAction.LockOn] = key;
-            next[(int)ControlAction.MagicUse] = key;
-        }
         for (int i = 0; i < next.Length; i++)
             if (i != (int)action && next[i] == key && !CanShare(action, (ControlAction)i)) next[i] = old;
         if (!ValidBindings(next)) { error = "중복 키 · 다른 키 입력"; return false; }
@@ -132,7 +130,7 @@ public static class ControlSettings
     {
         for (int i = 0; i < bindings.Length; i++)
             for (int j = i + 1; j < bindings.Length; j++)
-                if (bindings[i] == bindings[j] && !CanShare((ControlAction)i, (ControlAction)j)) return false;
+                if (bindings[i] != KeyCode.None && bindings[i] == bindings[j] && !CanShare((ControlAction)i, (ControlAction)j)) return false;
         return true;
     }
 

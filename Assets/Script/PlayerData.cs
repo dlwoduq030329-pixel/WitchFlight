@@ -1,11 +1,11 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 using System.Collections.Generic;
 
 public enum HatType { None, Classic, Twisted, Elemental, Serenity, Cosmic }
 public enum BroomType { None = 0, Slow = 1, Standard = 2, Speed = 3, Robot = 4, Cleaner = 5 }
 // Explicit IDs preserve existing saved loadouts. Removed spells are replaced in-place.
-public enum MagicType { None = 0, Fire = 1, Ice = 2, Vision = 3, Thunder = 4, Healing = 5, Binding = 6, Dark = 7, Curse = 8, Mine = 9, Razier = 10, Flare = 11, Smoke = 12, Blade = 13, MagicStorm = 14, TimeStop = 15, MeowFestival = 16, BladeRain = 17 }
+public enum MagicType { None = 0, Fire = 1, Ice = 2, Vision = 3, Thunder = 4, Healing = 5, Binding = 6, Dark = 7, Curse = 8, Mine = 9, Razier = 10, Flare = 11, Smoke = 12, Blade = 13, MagicStorm = 14, TimeStop = 15, MeowFestival = 16, BladeRain = 17, BasicAttack = 18 }
 public enum Camp { A, B }
 
 public partial class PlayerData : NetworkBehaviour

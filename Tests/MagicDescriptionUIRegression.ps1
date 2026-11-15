@@ -1,10 +1,11 @@
-# Execute the production shared preview and check both authored UI bindings, without Unity.
+﻿# Execute the production shared preview and check both authored UI bindings, without Unity.
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent
 $fixture=Get-Content (Join-Path $repo 'Tests/MagicCustomizationRegression.ps1') -Raw
 $stubs=[regex]::Match($fixture,'(?s)\$stubs = @''\r?\n(.*?)\r?\n''@').Groups[1].Value
 $enums=[regex]::Match((Get-Content (Join-Path $repo 'Assets/Script/PlayerData.cs') -Raw),'public enum MagicType\s*\{[^}]+\}').Value
 $table=Get-Content (Join-Path $repo 'Assets/Script/MagicStatTable.cs') -Raw
+$table += "`n" + ((Get-Content (Join-Path $repo 'Assets/Script/BasicAttackSettings.cs') -Raw) -replace '(?m)^using [^;]+;\r?\n','')
 $view=Get-Content (Join-Path $repo 'Assets/Script/MagicDescriptionUI.cs') -Raw
 $perks=Get-Content (Join-Path $repo 'Assets/Script/PerkStatTable.cs') -Raw
 $rules=Get-Content (Join-Path $repo 'Assets/Script/PerkRules.cs') -Raw

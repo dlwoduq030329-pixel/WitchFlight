@@ -19,7 +19,7 @@ $enums=[regex]::Match((Get-Content Assets/Script/PlayerData.cs -Raw),'public enu
 $stubs=$stubs.Replace('public static class Mathf {','public static class Mathf { public static int Clamp(int v,int a,int b)=>Math.Clamp(v,a,b); public static int Max(int a,int b)=>Math.Max(a,b); public static int RoundToInt(float v)=>(int)Math.Round(v); public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t); public static float Min(params float[] v)=>System.Linq.Enumerable.Min(v);')
 $stubs=$stubs.Replace('public float sqrMagnitude=>x*x+y*y+z*z;', 'public float sqrMagnitude=>x*x+y*y+z*z; public float magnitude=>(float)Math.Sqrt(sqrMagnitude); public static Vector3 operator*(Vector3 a,float b)=>new(a.x*b,a.y*b,a.z*b);')
 $code=$stubs+"`nnamespace Fusion {public enum PlayerRef {None,A,B}}`nnamespace ThunderChecks { $enums }`n"
-foreach($file in 'MagicStatTable','PerkStatTable','PerkRules','PerkEffects','PerkInputGate') {
+foreach($file in 'BasicAttackSettings','MagicStatTable','PerkStatTable','PerkRules','PerkEffects','PerkInputGate') {
     $code+="`nnamespace ThunderChecks {`n"+(Get-Content "Assets/Script/$file.cs" -Raw)+"`n}`n"
 }
 $code+=@'
@@ -49,7 +49,9 @@ public class Player {
  public bool localAreaAimStarted; public Player areaSnapTarget; public float areaAimDistance;
  public MagicStatEntry SelectedMagicStats=MagicStatTable.DefaultEntry(MagicType.Thunder);
  public bool IsTargetableBy(Player p)=>Targetable&&p!=this;
- public bool CanAimAreaMagic()=>Eligible;
+ public bool CanAimAreaMagic(bool inputSample=false)=>Eligible;
+ public MagicStatEntry InputMagicStats => InputOverride ?? SelectedMagicStats;
+ public MagicStatEntry? InputOverride;
  public static bool IsFiniteDirection(Vector3 p)=>!float.IsNaN(p.x)&&!float.IsNaN(p.y)&&!float.IsNaN(p.z);
  public Vector3 TraceMagic(MagicStatEntry s,Vector3 o,Vector3 d,out Player victim){victim=null;return o+d*s.range;}
 '@
@@ -70,6 +72,11 @@ public static class Tests {
   Check(Near(baseStats.radius,20)&&Near(first.radius,24)&&Near(second.radius,24),"base / first / second radii 20 / 24 / 24");
   Check(Near(baseStats.damage,120)&&Near(baseStats.strikeDelay,1),"base damage 120 and strike delay one second");
   Check(Near(PerkEffects.AreaHit(second,10.7f).damage,156)&&Near(PerkEffects.AreaHit(second,10.9f).damage,120),"core bonus follows new radius, boundary 10.8");
+  var previewOwner=new Player();previewOwner.InputOverride=baseStats;
+  previewOwner.SelectedMagicStats=MagicStatTable.DefaultEntry(MagicType.Fire);
+  Check(previewOwner.SampleAreaAimInput(new Camera(),true,out _),"new thunder slot samples immediately while simulation still has fire selected");
+  previewOwner.InputOverride=MagicStatTable.DefaultEntry(MagicType.Fire);
+  Check(!previewOwner.TryGetAreaAimPoint(new Ray(default,Vector3.forward),out _),"switching away does not sample old thunder aim");
   var runner=new object(); var owner=new Player{Runner=runner};var camera=new Camera();
   var near=new Player{Runner=runner,LockAimPoint=new(2,0,20)};
   var centered=new Player{Runner=runner,LockAimPoint=new(1,0,100)};
@@ -113,3 +120,4 @@ $asset=Get-Content Assets/Resources/MagicStatTable.asset -Raw
 $thunder=[regex]::Match($asset,'(?ms)^  - magic: 4\r?\n.*?(?=^  - magic:|\z)').Value
 if($thunder-notmatch '(?m)^    radius: 20\r?$' -or $thunder-notmatch '(?m)^    damage: 120\r?$' -or $thunder-notmatch '(?m)^    strikeDelay: 1\r?$'){throw 'Serialized thunder stats differ from tested defaults'}
 'Serialized Thunder radius 20 / damage 120 / delay 1 verified. Camera and visibility use controlled doubles; real Unity/Fusion play testing is separate.'
+
