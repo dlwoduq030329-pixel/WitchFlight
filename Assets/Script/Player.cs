@@ -1456,6 +1456,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         float cost = magicStatTable != null ? magicStatTable.parryApCost : 16f;
         if (!TryConsumeAp(cost))
             return;
+        if (IsMatchBot && Object.HasStateAuthority)
+        {
+            ResolveBotParryOutcome(false);
+            botParryAwaitingOutcome = true;
+        }
         ParryTimer = TickTimer.CreateFromSeconds(Runner,
             magicStatTable != null ? magicStatTable.parryWindowSeconds : parryWindowSeconds);
         ParryCooldown = TickTimer.CreateFromSeconds(Runner,
@@ -2215,6 +2220,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void RegisterParry(Vector3 incomingDirection, PlayerRef attacker, NetworkId attackerId, Vector3? impactPoint = null)
     {
+        ResolveBotParryOutcome(true);
         PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleBlock(attacker);
         PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordMission(MissionObjective.ParrySuccess);
         // A confirmed block lets the next input restart parry immediately; missed attempts retain their cooldown.
