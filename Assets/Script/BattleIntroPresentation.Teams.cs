@@ -100,7 +100,7 @@ public sealed partial class BattleIntroPresentation
         if (opponentPortrait != null) opponentPortrait.texture = teamSnapshots[1].Texture;
         UpdatePortraitVisibility(phase);
         if (phase == BattleStartPhase.WaitingForPlayers && teamSnapshots[0].IsReady && teamSnapshots[1].IsReady)
-            teamPlayers[0].ReportBattleSceneReady();
+            ReportPreparedClient(teamPlayers[0]);
     }
 
     private void EnsureTeamIntroUI()

@@ -669,9 +669,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsDeathMatch && Object.InputAuthority == PlayerRef.None))
             return;
         EnforceMapFloor();
+        int castSequenceBeforeTick = CastSequence;
         try { SimulateMovementTick(); }
         finally
         {
+            UpdateSkillCompletion(castSequenceBeforeTick);
             EnforceMapFloor();
             if (RaceCourse.Instance != null && Object.HasStateAuthority)
                 RaceCourse.Instance.TickHost(this, RaceData);

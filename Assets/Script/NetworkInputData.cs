@@ -19,6 +19,15 @@ public struct MagicSelectionInput
         if (!fireHeld) waitForRelease = false;
         return fireHeld && !waitForRelease;
     }
+    public bool ReturnToBasic(int completedRevision, bool fireHeld)
+    {
+        // A late completion must never deselect a newer Q/E choice.
+        if (Slot == 0 || Revision != completedRevision) return false;
+        Slot = 0;
+        Revision++;
+        waitForRelease |= fireHeld;
+        return true;
+    }
 }
 
 // 버튼은 NetworkButtons로 전송해 Host가 각 입력의 눌림/해제를 한 번만 판정합니다.

@@ -119,6 +119,7 @@ public sealed partial class BattleIntroPresentation
         }
         if (teamProfileTable == null) teamProfileTable = ProfileImageTable.Default;
         bool ready = true;
+        int readyPortraits = 0;
         for (int i = 0; i < count; i++)
         {
             var data = teamRoster[i];
@@ -132,9 +133,11 @@ public sealed partial class BattleIntroPresentation
             if (!EnsureSnapshot(ref authoredSnapshots[i], teamPlayers[i], i, card.portrait)) { ready = false; continue; }
             card.portrait.texture = authoredSnapshots[i].Texture;
             ready &= authoredSnapshots[i].IsReady;
+            if (authoredSnapshots[i].IsReady) readyPortraits++;
         }
+        BattleLoadingUI.SetProgress(.7f + .2f * readyPortraits / count);
         UpdatePortraitVisibility(phase);
-        if (ready && phase == BattleStartPhase.WaitingForPlayers) teamPlayers[0].ReportBattleSceneReady();
+        if (ready && phase == BattleStartPhase.WaitingForPlayers) ReportPreparedClient(teamPlayers[0]);
     }
 
     private void UpdateAuthoredPortraitCameras(BattleStartPhase phase)

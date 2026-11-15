@@ -63,6 +63,7 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     private PortraitSnapshot localSnapshot;
     private PortraitSnapshot opponentSnapshot;
     private float nextPreparationTime;
+    private int snapshotBuildFrame = -1;
     private BattleStartPhase displayedPhase;
     private bool hasDisplayedPhase;
     private bool reportedSnapshotFailure;
@@ -218,6 +219,8 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         // Baking runs after animation. Discovery and reliable readiness retries are at most once per second.
         nextPreparationTime = Time.unscaledTime + 1f;
         if (battle.IsRace || !battle.UsesVersusPresentation) return;
+        // A client's ready RPC must include resource preparation, not just scene entry.
+        if (!battle.IsTraining && !BattleLoadingUI.AssetsReady) return;
         if (activeLayout != null) { PrepareAuthoredPresentation(phase); return; }
         if (IsTeamBattle) { PrepareTeamPresentation(phase); return; }
         if (!TryResolvePlayers(battle, out Player local, out Player opponent))
@@ -252,7 +255,15 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
             (solo || opponentSnapshot.IsReady) &&
             (introUserInfo == null || introUserInfo.HasUserInfoFor(local.ParticipantRef,
                  solo ? default : opponent.ParticipantRef, !solo)))
-            local.ReportBattleSceneReady();
+            ReportPreparedClient(local);
+    }
+
+    private static void ReportPreparedClient(Player player)
+    {
+        if (!BattleLoadingUI.AssetsReady) return;
+        BattleLoadingUI.SetStatus("모든 플레이어의 준비를 기다리는 중...");
+        BattleLoadingUI.SetProgress(.95f);
+        player.ReportBattleSceneReady();
     }
 
     private static bool TryResolvePlayers(BattleManager battle, out Player local, out Player opponent)
@@ -302,11 +313,20 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
     {
         if (snapshot != null && snapshot.Player == player && snapshot.Texture != null && snapshot.Texture.IsCreated())
             return true;
+        // Baking ten customized portraits in one frame stalls the loading screen.
+        // Continue next frame until every portrait has actually rendered.
+        if (snapshotBuildFrame == Time.frameCount)
+        {
+            nextPreparationTime = 0f;
+            return false;
+        }
+        snapshotBuildFrame = Time.frameCount;
         ReleaseSnapshot(ref snapshot);
         try
         {
             snapshot = new PortraitSnapshot { Player = player };
             BuildSnapshot(snapshot, slot, display);
+            nextPreparationTime = 0f;
             reportedSnapshotFailure = false;
             return true;
         }
@@ -571,6 +591,13 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         bool countdown = phase == BattleStartPhase.Countdown;
         if (countdown) EnsureCountdownText();
         bool waiting = phase == BattleStartPhase.WaitingForPlayers;
+        if (waiting && !training)
+            BattleLoadingUI.Show("전투 화면을 준비하는 중...");
+        else
+        {
+            if (intro) BattleLoadingUI.SetProgress(1f);
+            BattleLoadingUI.Hide();
+        }
         // Allow optional start buttons while waiting; lock flight input again for the countdown.
         if (phase != BattleStartPhase.Ended)
         {

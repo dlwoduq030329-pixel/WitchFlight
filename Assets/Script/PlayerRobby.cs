@@ -58,6 +58,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
     private RobbyPhysicsSimulation physicsSimulation;
     private bool physicsRegistered;
     private CapsuleCollider contactCapsule;
+    private Collider[] avatarColliders;
     private float predictedKickUntil;
     [SerializeField, Min(0f)] private float moveSpeed = 5f;
     [SerializeField, Min(0f)] private float runSpeed = 8f;
@@ -205,10 +206,31 @@ public sealed partial class PlayerRobby : NetworkBehaviour
             physicsSimulation.Register(this);
             physicsRegistered = true;
         }
+        IgnoreOtherRobbyAvatars();
         if (!ActivePlayers.Contains(this)) ActivePlayers.Add(this);
         if (Object.HasInputAuthority) LocalPlayer = this;
         StartAnimation();
         StartLobbyAppearance();
+    }
+
+    private void OnEnable()
+    {
+        // Unity clears ignored pairs on collider deactivation. Reapply when a spawned
+        // lobby avatar is re-enabled; pooled avatars are handled again in Spawned.
+        if (ActivePlayers.Contains(this)) IgnoreOtherRobbyAvatars();
+    }
+
+    private void IgnoreOtherRobbyAvatars()
+    {
+        avatarColliders ??= GetComponentsInChildren<Collider>(true);
+        foreach (PlayerRobby other in ActivePlayers)
+        {
+            if (other == null || other == this || other.Runner != Runner || other.avatarColliders == null) continue;
+            foreach (Collider own in avatarColliders)
+                foreach (Collider theirs in other.avatarColliders)
+                    if (own != null && theirs != null && !own.isTrigger && !theirs.isTrigger)
+                        Physics.IgnoreCollision(own, theirs, true);
+        }
     }
 
     // Called only after an authoritative ball contact actually applied a kick.
