@@ -26,7 +26,7 @@ namespace PixeLadder.EasyLiquidFill.Demo
 
             // Update the UI text labels, with null-checks for robustness.
             if (fillText) fillText.text = $"{liquid.fillAmount * 100f:F0}%";
-            if (inclinationText) inclinationText.text = $"{liquid.originalInclination:F0}°";
+            if (inclinationText) inclinationText.text = $"{liquid.originalInclination:F0}";
         }
 
         public void TriggerSwirl()
