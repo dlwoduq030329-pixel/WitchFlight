@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -92,6 +92,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     private readonly TMP_Text[] cooldownText = new TMP_Text[2];
     private readonly TMP_Text[] costText = new TMP_Text[2];
     private readonly GameObject[] selectedFx = new GameObject[2];
+    private readonly ParticleSystem[][] selectedParticles = new ParticleSystem[2][];
     private readonly int[] lastSeconds = { -1, -1 };
     private readonly RaycastHit[] hits = new RaycastHit[64];
     private readonly List<Shot> shots = new List<Shot>(128);
@@ -115,6 +116,10 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     private float nextProjectileTrace;
     private Canvas canvas;
     private CombatMagicVisual channel;
+    private MagicAreaVisual areaAimPreview;
+    private float areaAimDistance;
+    private bool areaAimStarted, areaAimManual;
+    private Vector3 pendingAreaCenter;
     private GameObject bladeView;
     private GameObject fallbackProjectile, festivalPrefab;
     private Material fallbackMaterial;
@@ -169,6 +174,8 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             foreach (var node in slider.GetComponentsInChildren<Transform>(true))
                 if (node.name == "FX_CircularFeather_B" || node.name == "FX" || node.name == "fx")
                 { selectedFx[i] = node.gameObject; break; }
+            if (selectedFx[i] != null)
+                selectedParticles[i] = selectedFx[i].GetComponentsInChildren<ParticleSystem>(true);
             slider.interactable = false; slider.minValue = 0; slider.maxValue = 1;
         }
         RefreshLoadout();
@@ -184,6 +191,9 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         DataConfig.Changed -= RefreshLoadout;
         ControlSettings.Changed -= RefreshKeys;
         Cancel();
+        if (areaAimPreview != null) Destroy(areaAimPreview.gameObject);
+        areaAimPreview = null;
+        SetPracticeVisible(false);
         for (int i = 0; i < shots.Count; i++) MagicVfxPool.Release(shots[i].view);
         shots.Clear(); bursts.Clear();
         foreach (var beam in instantBeams.Values) if (beam != null) beam.gameObject.SetActive(false);
@@ -212,20 +222,41 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     private void UpdateSelection()
     {
         if (owner != null) owner.SelectPracticeStaff(selected >= 0 ? slots[selected].magic : MagicType.BasicAttack);
+        RefreshSelectionFx();
+    }
+    private void RefreshSelectionFx()
+    {
         for (int i = 0; i < 2; i++) if (selectedFx[i] != null)
         {
-            selectedFx[i].SetActive(i == selected);
-            if (i == selected) foreach (var p in selectedFx[i].GetComponentsInChildren<ParticleSystem>(true)) p.Play();
+            bool show = visible && i == selected;
+            if (!show && selectedParticles[i] != null)
+                foreach (var p in selectedParticles[i])
+                    if (p != null) p.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+            selectedFx[i].SetActive(show);
+            if (show && selectedParticles[i] != null)
+                foreach (var p in selectedParticles[i])
+                    if (p != null && p.gameObject.activeInHierarchy && !p.isPlaying) p.Play(false);
         }
     }
     private Vector3 Origin => castRoot.position;
     private void SetPracticeVisible(bool value)
     {
         visible = value;
+        // Ordinary particle renderers cannot render in an Overlay Canvas.
+        // Use the existing lobby camera only in 3D mode; keep chat/UI visible
+        // in Overlay mode when Tab disables that camera. No extra camera or UI.
+        if (canvas != null)
+        {
+            var camera = value ? RobbyPlayerCamera.PracticeCamera : null;
+            canvas.worldCamera = camera;
+            canvas.renderMode = camera != null ? RenderMode.ScreenSpaceCamera : RenderMode.ScreenSpaceOverlay;
+            if (camera != null) canvas.planeDistance = Mathf.Max(1f, camera.nearClipPlane + .5f);
+        }
         // This Canvas also owns chat and interaction UI. Only hide our own HUD.
         foreach (var slider in skillSliders)
             if (slider != null) slider.gameObject.SetActive(value);
         if (aimReticle != null) aimReticle.gameObject.SetActive(value);
+        RefreshSelectionFx();
         if (!value) HideLock();
     }
     private void LateUpdate()
@@ -289,6 +320,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         bool castHeld = mouseHeld && !waitForCastRelease;
         bool castPressed = ControlSettings.Down(ControlAction.MagicUse) && !waitForCastRelease;
         var stats = selected >= 0 ? slots[selected] : BasicAttackSettings.Stats;
+        UpdateAreaPreview(stats, castHeld && !pendingRelease && selected >= 0 && Time.time >= readyAt[selected]);
         bool lockable = stats.requiresTarget && CanLock(stats);
         ShowLock(held && lockable, stats.lockChargeSeconds > 0 ? Mathf.Clamp01(charge / stats.lockChargeSeconds) : 1);
         if (bladeLeft > 0 && Time.time >= bladeUntil) ClearBlade();
@@ -358,7 +390,39 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         UpdateSelection();
         if (owner != null) owner.PlayPracticeEquip();
     }
-    private void Cancel(bool clearBlade = true) { pendingRelease = false; held = false; charge = 0; acquiredLock = false; StopChannel(); if (clearBlade) ClearBlade(); HideLock(); if (owner != null) owner.SetPracticeCasting(false); }
+    private void UpdateAreaPreview(MagicStatEntry stats, bool aiming)
+    {
+        if (!aiming || stats.effect != MagicEffectKind.DelayedArea)
+        {
+            if (areaAimPreview != null) areaAimPreview.gameObject.SetActive(false);
+            areaAimStarted = false;
+            return;
+        }
+        if (!areaAimStarted)
+        {
+            areaAimStarted = true;
+            areaAimManual = false;
+            areaAimDistance = Mathf.Clamp(stats.areaAimDistance, 1f, Mathf.Max(1f, stats.range));
+        }
+        float scroll = Input.mouseScrollDelta.y;
+        if (scroll != 0f)
+        {
+            if (!areaAimManual && CanLock(stats))
+                areaAimDistance = Vector3.Distance(RobbyPlayerCamera.PracticeCamera.transform.position, target.AimPoint);
+            areaAimManual = true;
+            areaAimDistance = Mathf.Clamp(areaAimDistance + scroll * Mathf.Max(.1f, stats.areaAimScrollSpeed), 1f, Mathf.Max(1f, stats.range));
+        }
+        if (areaAimPreview == null)
+            areaAimPreview = MagicAreaVisual.Create(stats.areaPreviewVfxPrefab, "Lobby thunder aim boundary");
+        Vector3 center = AimEnd(stats);
+        bool inside = target != null && target.gameObject.activeInHierarchy &&
+            (target.AimPoint - center).sqrMagnitude <= stats.radius * stats.radius;
+        areaAimPreview.gameObject.SetActive(true);
+        areaAimPreview.SetArea(center, stats.radius,
+            inside ? new Color(1f, .15f, .1f, .85f) : new Color(1f, 1f, 1f, .7f), 0f);
+        pendingAreaCenter = center;
+    }
+    private void Cancel(bool clearBlade = true) { if (areaAimPreview != null) areaAimPreview.gameObject.SetActive(false); pendingRelease = false; held = false; charge = 0; acquiredLock = false; StopChannel(); if (clearBlade) ClearBlade(); HideLock(); if (owner != null) owner.SetPracticeCasting(false); }
     private void ClearBlade() { bladeLeft = 0; MagicVfxPool.Release(bladeView); bladeView = null; }
     private void StopChannel() { if (channel != null) Destroy(channel.gameObject); channel = null; }
     private void BeginCooldown(MagicStatEntry stats) { if (selected >= 0) readyAt[selected] = Time.time + stats.cooldownSeconds; }
@@ -374,6 +438,15 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     }
     private Vector3 AimEnd(MagicStatEntry stats)
     {
+        if (stats.effect == MagicEffectKind.DelayedArea)
+        {
+            if (!areaAimManual && CanLock(stats)) return target.AimPoint;
+            Ray areaRay = AimRay(RobbyPlayerCamera.PracticeCamera);
+            Vector3 areaEnd = areaRay.GetPoint(Mathf.Clamp(areaAimDistance > 0 ? areaAimDistance : stats.areaAimDistance, 1f, Mathf.Max(1f, stats.range)));
+            if (Blocked(areaRay.origin, areaEnd, out Vector3 surface))
+                areaEnd = surface - areaRay.direction * .15f;
+            return areaEnd;
+        }
         if (stats.UsesAutoTarget && CanLock(stats)) return target.AimPoint;
         var c = RobbyPlayerCamera.PracticeCamera;
         Ray ray = AimRay(c);
@@ -450,7 +523,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
                 }
                 break;
             case MagicEffectKind.DelayedArea:
-                Vector3 center = AimEnd(stats);
+                Vector3 center = pendingAreaCenter;
                 owner.SendPracticeEvent(6, stats.magic, center, Vector3.zero);
                 var warning = MagicAreaVisual.Create(stats.areaWarningVfxPrefab, "Lobby thunder warning");
                 warning.SetArea(center, stats.radius, new Color(1, 0, 0, .3f), 0);

@@ -10,6 +10,9 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
     [SerializeField] private Transform characterSearchRoot;
     [Tooltip("Main의 커스터마이징 창. 이 창이 열려 있을 때만 미리보기 빗자루/지팡이를 표시합니다.")]
     [SerializeField] private GameObject customizationPanel;
+    [Tooltip("방 접속 후 사용하는 CustumUIForRobby. 이 창에서도 장착 기체와 지팡이를 표시합니다.")]
+    [SerializeField] private GameObject roomCustomizationPanel;
+    [SerializeField] private Slider roomBangsLength, roomBangsDirection, roomSideHairLength, roomAhogeLength;
     [SerializeField] private TMP_Text nicknameText;
     [Header("Lobby profile")]
     [Tooltip("메인 화면 좌상단 프로필 Image. 로그인 후 DataConfig.playerprofile 번호로 표시합니다.")]
@@ -67,6 +70,8 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
 
     public PlayerConfig CurrentConfig { get; private set; }
     private bool hidePreviewBroom;
+    private PlayerEquipment cursorEquipment;
+    private LobbyCursorLook cachedCursorLook;
 
     public void SetBroomPreviewHidden(bool hidden)
     {
@@ -82,6 +87,10 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         BindSlider(bangsLengthSlider, SetBangsLength);
         BindSlider(bangsDirectionSlider, SetBangsDirection);
         BindSlider(sideHairLengthSlider, SetSideHairLength);
+        BindSlider(roomBangsLength, SetBangsLength);
+        BindSlider(roomBangsDirection, SetBangsDirection);
+        BindSlider(roomSideHairLength, SetSideHairLength);
+        BindSlider(roomAhogeLength, SetRoomAhogeLength);
         DataConfig.Changed += RefreshCustomizationUI;
         RefreshCustomizationUI();
     }
@@ -116,15 +125,25 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         }
         if (equipment != null)
         {
-            equipment.SetFlightEquipmentVisible(customizationPanel != null && customizationPanel.activeInHierarchy);
-            var look = equipment.GetComponent<LobbyCursorLook>();
-            if (look == null) look = equipment.gameObject.AddComponent<LobbyCursorLook>();
-            look.FollowCursor = CanCustomize && (customizationPanel == null || !customizationPanel.activeInHierarchy);
+            bool customizing = (customizationPanel != null && customizationPanel.activeInHierarchy) ||
+                (roomCustomizationPanel != null && roomCustomizationPanel.activeInHierarchy);
+            equipment.SetFlightEquipmentVisible(customizing);
+            if (cursorEquipment != equipment)
+            {
+                cursorEquipment = equipment;
+                cachedCursorLook = equipment.GetComponent<LobbyCursorLook>();
+                if (cachedCursorLook == null) cachedCursorLook = equipment.gameObject.AddComponent<LobbyCursorLook>();
+            }
+            if (cachedCursorLook != null) cachedCursorLook.FollowCursor = CanCustomize && !customizing;
         }
     }
 
     private void OnDisable()
     {
+        if (roomBangsLength != null) roomBangsLength.onValueChanged.RemoveListener(SetBangsLength);
+        if (roomBangsDirection != null) roomBangsDirection.onValueChanged.RemoveListener(SetBangsDirection);
+        if (roomSideHairLength != null) roomSideHairLength.onValueChanged.RemoveListener(SetSideHairLength);
+        if (roomAhogeLength != null) roomAhogeLength.onValueChanged.RemoveListener(SetRoomAhogeLength);
         if (bangsLengthSlider != null) bangsLengthSlider.onValueChanged.RemoveListener(SetBangsLength);
         if (bangsDirectionSlider != null) bangsDirectionSlider.onValueChanged.RemoveListener(SetBangsDirection);
         if (sideHairLengthSlider != null) sideHairLengthSlider.onValueChanged.RemoveListener(SetSideHairLength);
@@ -133,8 +152,7 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         {
             equipment.UnbindFromDataConfig();
             equipment.SetFlightEquipmentVisible(false);
-            var look = equipment.GetComponent<LobbyCursorLook>();
-            if (look != null) look.FollowCursor = false;
+            if (cachedCursorLook != null) cachedCursorLook.FollowCursor = false;
         }
     }
 
@@ -250,7 +268,15 @@ public sealed partial class LobbyPlayerInitializer : MonoBehaviour
         RefreshSlider(bangsLengthSlider, bangsLengthText, DataConfig.bangsLength, ready);
         RefreshSlider(bangsDirectionSlider, bangsDirectionText, DataConfig.bangsDirection, ready);
         RefreshSlider(sideHairLengthSlider, sideHairLengthText, DataConfig.sideHairLength, ready);
+        RefreshSlider(roomBangsLength, null, DataConfig.bangsLength, ready);
+        RefreshSlider(roomBangsDirection, null, DataConfig.bangsDirection, ready);
+        RefreshSlider(roomSideHairLength, null, DataConfig.sideHairLength, ready);
+        RefreshSlider(roomAhogeLength, null, DataConfig.ahogeLength, ready);
         RefreshColorSelections();
+    }
+    private void SetRoomAhogeLength(float value)
+    {
+        if (CanCustomize) DataConfig.ahogeLength = UnitValue(value);
     }
 
     private static void RefreshSlider(Slider slider, TMP_Text text, float value, bool ready)

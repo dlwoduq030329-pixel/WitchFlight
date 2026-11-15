@@ -195,8 +195,8 @@ public sealed partial class linkuserinfo : MonoBehaviour
         // Do not let hiding a panel disable its own controller (or the network manager).
         if (waitingRoomPanel != null && !transform.IsChildOf(waitingRoomPanel.transform) &&
             (manager == null || !manager.transform.IsChildOf(waitingRoomPanel.transform)) &&
-            waitingRoomPanel.activeSelf != waiting)
-            waitingRoomPanel.SetActive(waiting);
+            waitingRoomPanel.activeSelf != (waiting && !LobbyRoomCustomization.IsOpen))
+            waitingRoomPanel.SetActive(waiting && !LobbyRoomCustomization.IsOpen);
         if (waitingRoomStartButton != null)
         {
             waitingRoomStartButton.gameObject.SetActive(waiting && manager.IsRoomHost);

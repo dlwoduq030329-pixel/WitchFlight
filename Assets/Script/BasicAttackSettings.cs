@@ -18,8 +18,6 @@ public sealed class BasicAttackSettings : ScriptableObject
     [Min(.01f)] public float hitRadius = .12f;
     public Sprite icon;
     public GameObject projectileVfxPrefab, impactVfxPrefab, castVfxPrefab;
-    [Tooltip("기본공격 뒤를 따라오는 작은 보조 투사체 VFX. 비워두면 MagicStatTable의 공통 보조 투사체를 사용합니다. 피해 판정은 없습니다.")]
-    public GameObject secondaryProjectileVfxPrefab;
 
     public static MagicStatEntry Stats
     {
@@ -37,7 +35,6 @@ public sealed class BasicAttackSettings : ScriptableObject
                 movementMultiplier = 1, vfxLifetime = 1.5f,
                 icon = s != null ? s.icon : null,
                 projectileVfxPrefab = s != null ? s.projectileVfxPrefab : null,
-                secondaryProjectileVfxPrefab = s != null ? s.secondaryProjectileVfxPrefab : null,
                 impactVfxPrefab = s != null ? s.impactVfxPrefab : null,
                 castVfxPrefab = s != null ? s.castVfxPrefab : null
             };

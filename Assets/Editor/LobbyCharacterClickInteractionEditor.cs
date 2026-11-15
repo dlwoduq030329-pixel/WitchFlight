@@ -7,7 +7,7 @@ using UnityEngine;
 public sealed class LobbyCharacterClickRegionDrawer : PropertyDrawer
 {
     private const float Gap = 3f;
-    public override float GetPropertyHeight(SerializedProperty property, GUIContent label) => (EditorGUIUtility.singleLineHeight + Gap) * 10;
+    public override float GetPropertyHeight(SerializedProperty property, GUIContent label) => (EditorGUIUtility.singleLineHeight + Gap) * 12;
 
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
@@ -20,6 +20,17 @@ public sealed class LobbyCharacterClickRegionDrawer : PropertyDrawer
             EditorGUI.PropertyField(row, property.FindPropertyRelative(name));
             row.y += row.height + Gap;
         }
+        EditorGUI.PropertyField(row, property.FindPropertyRelative("animationFbx"), new GUIContent("Animation FBX"));
+        row.y += row.height + Gap;
+        using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode || property.FindPropertyRelative("animationFbx").objectReferenceValue == null))
+            if (GUI.Button(row, "FBX 가져오기 → 로비 애니메이션 등록"))
+            {
+                var target = property.serializedObject.targetObject;
+                string path = property.propertyPath;
+                property.serializedObject.ApplyModifiedProperties();
+                EditorApplication.delayCall += () => LobbyClickFbxImporter.ImportAnimation(target, path);
+            }
+        row.y += row.height + Gap;
         var animator = property.serializedObject.FindProperty("character")?.objectReferenceValue as Animator;
         RuntimeAnimatorController runtime = animator != null ? animator.runtimeAnimatorController : null;
         while (runtime is AnimatorOverrideController overrides) runtime = overrides.runtimeAnimatorController;

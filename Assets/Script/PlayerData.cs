@@ -11,6 +11,8 @@ public enum Camp { A, B }
 public partial class PlayerData : NetworkBehaviour
 {
     public static PlayerData Local { get; private set; }
+    public static event System.Action LobbyRosterChanged;
+    private void NotifyLobbyRosterChanged() => LobbyRosterChanged?.Invoke();
     [Networked] public int MagicChangeRound { get; private set; }
     [Networked] public NetworkBool RoundSwapReady { get; private set; }
     [Networked] public MagicType MagicChangeBase1 { get; private set; }
@@ -95,7 +97,7 @@ public partial class PlayerData : NetworkBehaviour
     [Networked] public MagicType magic2 { get; set; }
     [Networked] public bool ready { get; set; }
     [Networked] public Camp camp { get; set; }
-    [Networked] public int teamIndex { get; set; }
+    [Networked, OnChangedRender(nameof(NotifyLobbyRosterChanged))] public int teamIndex { get; set; }
     [Networked] public int hairStylePreset { get; private set; }
     [Networked] public float bangsLength { get; private set; }
     [Networked] public float bangsDirection { get; private set; }
@@ -142,6 +144,7 @@ public partial class PlayerData : NetworkBehaviour
     public override void Spawned()
     {
         perkPlayers.Add(this);
+        NotifyLobbyRosterChanged();
         NotifyDeathMatchRankingChanged();
         if (Object.HasStateAuthority)
             IsRoomOwner = Runner.IsServer && ParticipantRef == Runner.LocalPlayer;
@@ -156,7 +159,9 @@ public partial class PlayerData : NetworkBehaviour
             // Only the local owner's loaded DataConfig supplies this player's name.
             RPC_SetLoadout(DataConfig.GetPlayerConfig(),
                 (MagicType)DataConfig.magic1Index, (MagicType)DataConfig.magic2Index,
-                DataConfig.playerprofile, NormalizePlayerName(DataConfig.playerName), catBody, catEyes);
+                DataConfig.playerprofile, NormalizePlayerName(DataConfig.playerName), catBody, catEyes,
+                DataConfig.GetEmote(0), DataConfig.GetEmote(1), DataConfig.GetEmote(2), DataConfig.GetEmote(3));
+            StartLobbyLoadoutSync();
         }
 
         base.Spawned();
@@ -171,7 +176,8 @@ public partial class PlayerData : NetworkBehaviour
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     private void RPC_SetLoadout(PlayerConfig selectedConfig,
-        MagicType selectedMagic1, MagicType selectedMagic2, int selectedProfile, string selectedName, int catBody, int catEyes)
+        MagicType selectedMagic1, MagicType selectedMagic2, int selectedProfile, string selectedName, int catBody, int catEyes,
+        int emoteUp, int emoteRight, int emoteDown, int emoteLeft)
     {
         // Initial account snapshot only. Mid-match changes use the validated round RPC below.
         if (IsLoadoutInitialized) return;
@@ -196,6 +202,10 @@ public partial class PlayerData : NetworkBehaviour
         CatBodyIndex = Mathf.Clamp(catBody, 1, 7);
         CatEyeIndex = Mathf.Clamp(catEyes, 1, 3);
         playerName = NormalizePlayerName(selectedName);
+        EmoteUpId = NormalizeLobbyEmote(emoteUp, 1);
+        EmoteRightId = NormalizeLobbyEmote(emoteRight, 2);
+        EmoteDownId = NormalizeLobbyEmote(emoteDown, 3);
+        EmoteLeftId = NormalizeLobbyEmote(emoteLeft, 4);
         IsLoadoutInitialized = true;
         NetworkGameManager.Instance?.NotifyPlayerDataInitialized(this);
     }
@@ -320,12 +330,14 @@ public partial class PlayerData : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        StopLobbyLoadoutSync();
         if (hasState && Object != null && Object.HasInputAuthority) TitleProgression.Observe(this, true);
         perkPlayers.Remove(this);
+        NotifyLobbyRosterChanged();
         NotifyDeathMatchRankingChanged();
         if (Local == this) { MissionProgression.Observe(this); MissionProgression.Flush(); MainRoomChatUI.LeftRoom(runner); Local = null; }
         NetworkGameManager.Instance?.UnregisterPlayerData(this);
     }
 
-    private void OnDestroy() { if (perkPlayers.Remove(this)) NotifyDeathMatchRankingChanged(); if (Local == this) { MainRoomChatUI.LeftRoom(Runner); Local = null; } }
+    private void OnDestroy() { StopLobbyLoadoutSync(); if (perkPlayers.Remove(this)) { NotifyDeathMatchRankingChanged(); NotifyLobbyRosterChanged(); } if (Local == this) { MainRoomChatUI.LeftRoom(Runner); Local = null; } }
 }

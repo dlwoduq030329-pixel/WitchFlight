@@ -8,6 +8,7 @@ using UnityEngine.UI;
 public sealed partial class linkuserinfo
 {
     [SerializeField] private GameObject[] roomBackdropPanels;
+    [SerializeField] private MagicCustomizationUI roomEquipmentIcons;
     private readonly Dictionary<GameObject, bool> roomBackdropStates = new();
 
     private void UpdateRoomBackdrops(bool waiting)
@@ -36,6 +37,7 @@ public sealed partial class linkuserinfo
         public GameObject occupied, empty, crown;
         public TMP_Text nickname;
         public Image profile;
+        public Image magic1, magic2, broom, hat;
         public Button button;
         public UnityAction click;
         public PlayerData player;
@@ -88,6 +90,7 @@ public sealed partial class linkuserinfo
                     button = root.GetComponent<Button>()
                 };
                 card.click = () => SelectCardTeam(card);
+                BindCardEquipment(card);
                 if (card.button != null) card.button.onClick.AddListener(card.click);
                 teamCards.Add(card);
             }
@@ -144,6 +147,10 @@ public sealed partial class linkuserinfo
             card.root.gameObject.SetActive(visible);
             SetSlotName(card.nickname, occupied ? card.player.playerName.ToString() : "");
             ApplyProfile(card.profile, occupied ? card.player : null);
+            SetIcon(card.magic1, occupied ? GetMagicIcon(card.player.magic1) : null);
+            SetIcon(card.magic2, occupied ? GetMagicIcon(card.player.magic2) : null);
+            SetIcon(card.broom, occupied && roomEquipmentIcons != null ? roomEquipmentIcons.GetBroomIcon(card.player.broom) : null);
+            SetIcon(card.hat, occupied && roomEquipmentIcons != null ? roomEquipmentIcons.GetHatIcon(card.player.hat) : null);
             PlayerTitleLabel.Bind(card.root, occupied ? card.player : null);
             if (card.crown != null) card.crown.SetActive(occupied && card.player.IsRoomOwner);
             if (card.empty != null) card.empty.SetActive(!occupied);
@@ -189,6 +196,7 @@ public sealed partial class linkuserinfo
             card.nickname = occupied != null ? FindCardChild(occupied, "Nickname")?.GetComponent<TMP_Text>() : null;
             card.profile = occupied != null ? FindCardChild(occupied, "Profile")?.GetComponent<Image>() : null;
             card.button = root.GetComponent<Button>();
+            BindCardEquipment(card);
             card.click = () => SelectCardTeam(card);
             if (card.button != null) { card.button.onClick = new Button.ButtonClickedEvent(); card.button.onClick.AddListener(card.click); }
             slots.Add(card); teamCards.Add(card); grew = true;
@@ -199,5 +207,15 @@ public sealed partial class linkuserinfo
             for (int i = 0; i < capacity; i++) rows.Add(slots[i].root as RectTransform);
             ParticipantUiSlots.FitVertical(rows, group as RectTransform);
         }
+    }
+
+    private static void BindCardEquipment(TeamCard card)
+    {
+        var info = card.occupied != null ? card.occupied.transform.Find("Information") : null;
+        if (info == null) return;
+        card.magic1 = info.Find("Magic1")?.GetComponent<Image>();
+        card.magic2 = info.Find("Magic2")?.GetComponent<Image>();
+        card.broom = info.Find("Broom")?.GetComponent<Image>();
+        card.hat = info.Find("Hat")?.GetComponent<Image>();
     }
 }

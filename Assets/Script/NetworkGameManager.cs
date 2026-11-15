@@ -186,6 +186,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         else
         {
             if (!Input.GetKeyDown(KeyCode.Tab) || !Application.isFocused || MainRoomChatUI.BlocksLobbyInput) return;
+            if (LobbyRoomCustomization.IsOpen) { LobbyRoomCustomization.BackToRoom(); return; }
             var selected = UnityEngine.EventSystems.EventSystem.current != null
                 ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
             if (selected != null)
@@ -545,6 +546,8 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             // A failed/shut-down Runner cannot be reused. Its disposable child keeps
             // shutdown from destroying this persistent manager and the user's UI.
+            bool codeRoom = request == MatchRequest.CreateRoom || request == MatchRequest.JoinRoom || request == MatchRequest.LegacyCodeMatch;
+            if (codeRoom) await PrepareRobbyAssets(cancellation.Token);
             runnerObject = new GameObject("WitchFlight Network Session");
             runnerObject.transform.SetParent(transform, false);
             sessionRunner = runnerObject.AddComponent<NetworkRunner>();
@@ -612,6 +615,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             }
             else if (sessionRunner != null && sessionRunner.IsRunning && ReferenceEquals(_runner, sessionRunner))
             {
+                if (codeRoom) await WaitForRobbyAvatar(sessionRunner, cancellation.Token);
                 connected = true;
                 sessionRole = sessionRunner.IsServer ? "Host" : "Client";
                 Debug.Log($"[MatchConnection] Connected request={sessionRequestDescription}, role={sessionRole}", this);

@@ -14,6 +14,7 @@ public partial class PlayerData : IInputAuthorityGained
     public void InputAuthorityGained()
     {
         if (Object != null && Object.HasInputAuthority) Local = this;
+        NotifyLobbyRosterChanged();
         NotifyDeathMatchRankingChanged();
     }
     public void RestoreDeathMatchOwner(bool owner)

@@ -16,6 +16,11 @@ public sealed class LobbyCharacterClickInteraction : MonoBehaviour
         [Tooltip("비워두면 위의 Humanoid Bone을 사용합니다.")] public Transform anchor;
         public Vector3 localCenter;
         [Min(.001f)] public float radius = .12f;
+#if UNITY_EDITOR
+        // Import sources are editor-only; builds need the retargeted clips, not the Mixamo model meshes.
+        [Tooltip("이 부위에서 재생할 Mixamo 애니메이션 FBX. Inspector의 가져오기 버튼으로 Humanoid 설정 후 로비 전용 상태에 등록합니다.")]
+        public GameObject animationFbx;
+#endif
         [Tooltip("Animator의 전체 상태 경로. Inspector의 목록에서 선택하세요.")] public string state;
         public int layer;
         [Min(.1f)] public float seconds = 2f;
@@ -23,6 +28,13 @@ public sealed class LobbyCharacterClickInteraction : MonoBehaviour
     }
 
     [SerializeField] private Animator character;
+#if UNITY_EDITOR
+    [Tooltip("Avatar를 가져올 Mixamo 원본 모델 FBX. 애니메이션 FBX와 같은 골격이어야 합니다.")]
+    [SerializeField] private GameObject originalFbx;
+    [Tooltip("원본 FBX에서 읽은 Humanoid Avatar. 애니메이션 임포트용이며 마녀 Animator의 Avatar는 교체하지 않습니다.")]
+    [SerializeField] private Avatar sourceAvatar;
+    [SerializeField, HideInInspector] private RuntimeAnimatorController interactionController;
+#endif
     [SerializeField] private Camera previewCamera;
     [Tooltip("캐릭터 RenderTexture를 표시하는 RawImage. 비워두면 이 UI 아래에서 클릭 시 찾습니다.")]
     [SerializeField] private RawImage previewImage;

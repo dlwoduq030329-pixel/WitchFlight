@@ -10,10 +10,12 @@ public sealed partial class LobbyPlayerInitializer
 
     private void RefreshColorSelections()
     {
-        if (customizationPanel == null) return;
-        if (colorSelectionRoot != customizationPanel.transform)
+        var panel = roomCustomizationPanel != null && roomCustomizationPanel.activeInHierarchy
+            ? roomCustomizationPanel : customizationPanel;
+        if (panel == null) return;
+        if (colorSelectionRoot != panel.transform)
         {
-            colorSelectionRoot = customizationPanel.transform;
+            colorSelectionRoot = panel.transform;
             hairSelections = FindColorSelections("HairColors");
             clothSelections = FindColorSelections("CostumColor");
             eyeSelections = FindColorSelections("EyeColor");

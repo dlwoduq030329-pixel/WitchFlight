@@ -311,7 +311,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         }
         if (formation == null)
             formation = new ProjectileFormationVisual(this, content.transform, owner, stats, table,
-                stats.magic != MagicType.Ice || !table.iceImpactFollowUpEnabled);
+                stats.magic != MagicType.BasicAttack && (stats.magic != MagicType.Ice || !table.iceImpactFollowUpEnabled));
 
         Player destination = hasSource ? null : target;
         MagicProjectile destinationSummon = hasSource ? null : summonTarget;
