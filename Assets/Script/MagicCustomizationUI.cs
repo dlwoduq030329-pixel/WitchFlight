@@ -151,6 +151,18 @@ public sealed partial class MagicCustomizationUI : MonoBehaviour
     [SerializeField] private UnityEvent<string> onEquipFailed = new UnityEvent<string>();
 
     public int SelectedSlot { get; private set; } = 1;
+    public Sprite GetHatIcon(HatType hat)
+    {
+        if (hatChoices != null) foreach (var choice in hatChoices)
+            if (choice != null && choice.hat == hat) return choice.icon;
+        return null;
+    }
+    public Sprite GetBroomIcon(BroomType broom)
+    {
+        if (broomChoices != null) foreach (var choice in broomChoices)
+            if (choice != null && choice.broom == broom) return choice.icon;
+        return null;
+    }
     public MagicType SelectedMagic { get; private set; } = MagicType.None;
     public HatType SelectedHat { get; private set; } = HatType.None;
     public BroomType SelectedBroom { get; private set; } = BroomType.None;
@@ -162,11 +174,16 @@ public sealed partial class MagicCustomizationUI : MonoBehaviour
     private bool isEquipping;
     private bool refreshControlsAfterClick;
     private bool selectionDetailsOpen;
+    [SerializeField, Tooltip("대기방 전용 커스텀 화면에서만 켜세요. 전투 시작 후에는 변경할 수 없습니다.")]
+    private bool allowCodeRoomEditing;
 
     private bool ProfileReady => DatabaseManager.Instance != null &&
         DatabaseManager.Instance.IsDataConfigReady && DatabaseManager.Instance.HasLoadedProfile;
     private bool CanEdit => isActiveAndEnabled && ProfileReady &&
-        (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsMatching);
+        (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsMatching ||
+         (allowCodeRoomEditing && NetworkGameManager.Instance.IsWaitingInCodeRoom &&
+          PlayerData.Local != null && PlayerData.Local.Object != null && PlayerData.Local.Object.IsValid &&
+          PlayerData.Local.Object.HasInputAuthority));
 
     private void OnEnable()
     {

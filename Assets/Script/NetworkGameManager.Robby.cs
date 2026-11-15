@@ -10,6 +10,58 @@ public partial class NetworkGameManager
     [SerializeField] private NetworkPrefabRef robbyPlayerPrefab;
     [SerializeField] private Transform robbySpawnPoint;
     private readonly Dictionary<PlayerRef, NetworkObject> robbyPlayers = new Dictionary<PlayerRef, NetworkObject>();
+    private readonly List<UnityEngine.Object> retainedRobbyAssets = new();
+    private bool robbyResourcesReady;
+
+    private async System.Threading.Tasks.Task PrepareRobbyAssets(System.Threading.CancellationToken cancellation)
+    {
+        // Allow the existing loading overlay to render before asset deserialization.
+        await Awaitable.NextFrameAsync(cancellation);
+        await Awaitable.NextFrameAsync(cancellation);
+        if (!robbyResourcesReady)
+        {
+            retainedRobbyAssets.Clear();
+            string[] resources = { "MagicStatTable", "BasicAttackSettings", "EquipmentStatTable",
+                "BattleAudioTable", "EmoteTable", "ProfileImageTable", "EyeTexturePresetTable", "MeowFestivalVisual" };
+            foreach (string path in resources)
+            {
+                var request = Resources.LoadAsync<UnityEngine.Object>(path);
+                while (!request.isDone) await Awaitable.NextFrameAsync(cancellation);
+                cancellation.ThrowIfCancellationRequested();
+                if (request.asset == null) throw new System.InvalidOperationException("Missing lobby resource: " + path);
+                retainedRobbyAssets.Add(request.asset);
+            }
+            robbyResourcesReady = true;
+        }
+        // Load the same registered prefab Fusion will spawn, including its referenced
+        // meshes/materials/animations. Do not instantiate a second network avatar.
+        var table = NetworkProjectConfig.Global.PrefabTable;
+        var id = table.GetId((NetworkObjectGuid)robbyPlayerPrefab);
+        float deadline = Time.realtimeSinceStartup + 60f;
+        while (table.Load(id, isSynchronous: false) == null)
+        {
+            if (Time.realtimeSinceStartup >= deadline)
+                throw new System.TimeoutException("Lobby prefab loading timed out.");
+            await Awaitable.NextFrameAsync(cancellation);
+        }
+        cancellation.ThrowIfCancellationRequested();
+    }
+
+    private async System.Threading.Tasks.Task WaitForRobbyAvatar(NetworkRunner runner, System.Threading.CancellationToken cancellation)
+    {
+        float deadline = Time.realtimeSinceStartup + 30f;
+        while (PlayerRobby.LocalPlayer == null || PlayerRobby.LocalPlayer.Runner != runner ||
+            PlayerRobby.LocalPlayer.Object == null || !PlayerRobby.LocalPlayer.Object.IsValid)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            if (runner == null || !runner.IsRunning || Time.realtimeSinceStartup >= deadline)
+                throw new System.InvalidOperationException("Lobby avatar initialization did not complete.");
+            await Awaitable.NextFrameAsync(cancellation);
+        }
+        // Give Spawned/Start, appearance and animation graph initialization their frames.
+        await Awaitable.NextFrameAsync(cancellation);
+        await Awaitable.NextFrameAsync(cancellation);
+    }
 
     private bool CanSpawnRobbyPlayer(NetworkRunner runner)
     {
