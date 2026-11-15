@@ -8,6 +8,16 @@ using UnityEngine.UI;
 public sealed class BattleKillFeed : MonoBehaviour
 {
     public static BattleKillFeed Instance { get; private set; }
+    [Header("Local kill notice (authored KeelFeedMine)")]
+    [SerializeField] private GameObject minePanel;
+    [SerializeField] private TMP_Text mineVictimText;
+    [SerializeField, Min(0f)] private float mineHoldSeconds = 2f;
+    [SerializeField, Min(0f)] private float mineFadeSeconds = .4f;
+    [SerializeField, Min(.01f)] private float minePopSeconds = .12f;
+    private CanvasGroup mineGroup;
+    private Vector3 mineScale;
+    private float mineStarted;
+    private bool mineVisible;
     [Header("Kill card (empty = generated UI)")]
     [SerializeField] private GameObject killPanel;
     [SerializeField] private TMP_Text killerNameText;
@@ -49,6 +59,14 @@ public sealed class BattleKillFeed : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        if (minePanel != null)
+        {
+            mineScale = minePanel.transform.localScale;
+            mineGroup = minePanel.GetComponent<CanvasGroup>();
+            if (mineGroup == null) mineGroup = minePanel.AddComponent<CanvasGroup>();
+            mineGroup.blocksRaycasts = mineGroup.interactable = false;
+            minePanel.SetActive(false);
+        }
         if (uiFont == null) uiFont = GetComponent<BattleHud>()?.FeedbackFont;
         if (killPanel != null && transform.IsChildOf(killPanel.transform))
         {
@@ -59,9 +77,20 @@ public sealed class BattleKillFeed : MonoBehaviour
     }
 
     // Called by the host-authenticated BattleFlag RPC. Never derives a kill from local damage.
-    public void ShowKill(string killer, int killerProfile, string victim, int victimProfile, int killerTeam, int victimTeam)
+    public void ShowKill(string killer, int killerProfile, string victim, int victimProfile, int killerTeam, int victimTeam, Fusion.PlayerRef killerPlayer = default)
     {
         if (!isActiveAndEnabled) return;
+        var owner = PlayerData.Local;
+        if (minePanel != null && owner != null && owner.Object != null && owner.Object.IsValid &&
+            killerPlayer != Fusion.PlayerRef.None && owner.Object.InputAuthority == killerPlayer)
+        {
+            SetName(mineVictimText, victim);
+            mineStarted = Time.unscaledTime;
+            mineVisible = true;
+            mineGroup.alpha = 1f;
+            minePanel.transform.localScale = mineScale * .8f;
+            minePanel.SetActive(true);
+        }
         EnsurePanel();
         while (notices.Count >= Mathf.Max(1, maxVisibleNotices)) RemoveNotice(0);
         // The assigned panel stays inactive as the template; each kill owns independent text and timing.
@@ -88,6 +117,16 @@ public sealed class BattleKillFeed : MonoBehaviour
 
     private void Update()
     {
+        if (mineVisible && minePanel != null)
+        {
+            float elapsed = Time.unscaledTime - mineStarted;
+            float pop = Mathf.Max(.01f, minePopSeconds);
+            float fadeStart = pop + Mathf.Max(0f, mineHoldSeconds);
+            minePanel.transform.localScale = mineScale * Mathf.Lerp(.8f, 1f, Mathf.Clamp01(elapsed / pop));
+            mineGroup.alpha = elapsed < fadeStart ? 1f : mineFadeSeconds > 0f ?
+                1f - Mathf.Clamp01((elapsed - fadeStart) / mineFadeSeconds) : 0f;
+            if (elapsed >= fadeStart + Mathf.Max(0f, mineFadeSeconds)) HideMine();
+        }
         for (int i = notices.Count - 1; i >= 0; i--)
         {
             NoticeView notice = notices[i];
@@ -259,7 +298,15 @@ public sealed class BattleKillFeed : MonoBehaviour
         killPanel.SetActive(false); killPanel.transform.localScale = authoredScale;
         if (group != null) group.alpha = authoredAlpha;
     }
-    private void OnDisable() { while (notices.Count > 0) RemoveNotice(notices.Count - 1); RestorePanel(); }
+    private void HideMine()
+    {
+        mineVisible = false;
+        if (minePanel == null) return;
+        minePanel.SetActive(false);
+        minePanel.transform.localScale = mineScale;
+        if (mineGroup != null) mineGroup.alpha = 1f;
+    }
+    private void OnDisable() { while (notices.Count > 0) RemoveNotice(notices.Count - 1); RestorePanel(); HideMine(); }
     private void OnDestroy()
     {
         if (Instance == this) Instance = null;

@@ -213,6 +213,9 @@ public sealed partial class BattleHud : MonoBehaviour
     [Tooltip("지정하면 Hp Text는 현재 값만, 이 항목은 /최대 값을 표시합니다.")]
     [SerializeField] private TMP_Text maxHpText;
     [SerializeField] private Slider apSlider;
+    [Header("Authored liquid mana bars")]
+    [SerializeField] private PixeLadder.EasyLiquidFill.LiquidAnimationController manaLiquid;
+    [SerializeField] private PixeLadder.EasyLiquidFill.LiquidAnimationController manaLiquidLate;
     public RectTransform ManaBarRect => apSlider != null ? apSlider.transform as RectTransform : apFill != null ? apFill.rectTransform : null;
     [SerializeField] private Image apFill;
     [SerializeField] private TMP_Text apText;
@@ -527,12 +530,13 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void BindManaTrail(bool valid, float fraction)
     {
-        if (valid) EnsureManaTrail();
-        if (apTrailSlider == null || apTrailSlider == apSlider) return;
+        if (valid && manaLiquidLate == null) EnsureManaTrail();
+        if (manaLiquidLate == null && (apTrailSlider == null || apTrailSlider == apSlider)) return;
         if (!valid || !owner.IsAlive)
         {
             manaTrailInitialized = false;
             SetBar(apTrailSlider, null, fraction);
+            if (manaLiquidLate != null) manaLiquidLate.fillAmount = fraction;
             return;
         }
         if (!manaTrailInitialized || !Mathf.Approximately(manaTrailMaxAp, owner.MaxAp))
@@ -541,13 +545,14 @@ public sealed partial class BattleHud : MonoBehaviour
             manaTrailMaxAp = owner.MaxAp;
             manaTrailFraction = fraction;
             manaTrailCatchingUp = false;
-            if (apTrailSlider.fillRect != null && apTrailSlider.fillRect.TryGetComponent(out Image fill))
+            if (apTrailSlider != null && apTrailSlider.fillRect != null && apTrailSlider.fillRect.TryGetComponent(out Image fill))
                 fill.color = apTrailColor;
         }
         manaTrailFraction = AdvanceManaTrail(manaTrailFraction, fraction, Time.unscaledTime,
             Time.unscaledDeltaTime, apTrailDelay, apTrailCatchupSeconds,
             ref manaTrailCatchingUp, ref manaTrailHoldUntil, ref manaTrailSpeed);
         SetBar(apTrailSlider, null, manaTrailFraction);
+        if (manaLiquidLate != null) manaLiquidLate.fillAmount = manaTrailFraction;
     }
 
     private static float AdvanceManaTrail(float trail, float current, float now, float deltaTime,
@@ -734,6 +739,7 @@ public sealed partial class BattleHud : MonoBehaviour
         }
         float manaFraction = valid ? Mathf.Clamp01(owner.NowAp / Mathf.Max(1f, owner.MaxAp)) : 0f;
         SetBar(apSlider, apFill, manaFraction);
+        if (manaLiquid != null) manaLiquid.fillAmount = manaFraction;
         BindManaTrail(valid, manaFraction);
         SetNumericText(apText, valid ? "{0:0} / {1:0}" : "", valid ? owner.NowAp : 0f, valid ? owner.MaxAp : 0f);
         if (manaPercentText != null)
@@ -866,6 +872,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void BindAim(bool show)
     {
+        BindSelectedCrosshair(show);
         Visible(reticle, show && desiredAimMarker == null);
         Vector3 lockPoint = default;
         bool locked = show && owner.SelectedMagicStats.UsesLockIndicator && owner.TryGetDisplayedLockPoint(out lockPoint);
@@ -900,6 +907,20 @@ public sealed partial class BattleHud : MonoBehaviour
             lockText.enabled = false;
         }
         UpdateThreatWarning(show);
+    }
+
+    [Header("Selected attack crosshair (scene-authored)")]
+    [SerializeField] private GameObject lockOnAimRoot;
+    [SerializeField] private GameObject instantAimRoot;
+    [SerializeField] private GameObject idleAttackAimRoot;
+
+    private void BindSelectedCrosshair(bool show)
+    {
+        bool basic = show && owner.LocalMagicInputSlot == 0;
+        bool lockOn = show && !basic && owner.InputMagicStats.UsesLockIndicator;
+        Visible(idleAttackAimRoot, basic);
+        Visible(lockOnAimRoot, lockOn);
+        Visible(instantAimRoot, show && !basic && !lockOn);
     }
 
 
