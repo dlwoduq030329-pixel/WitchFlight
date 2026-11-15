@@ -209,7 +209,13 @@ public sealed partial class linkuserinfo
         }
     }
 
-    private static void BindCardEquipment(TeamCard card)
+    private RectTransform equipmentInfoPanel;
+    private Image equipmentInfoImage;
+    private TMP_Text equipmentInfoName, equipmentInfoText;
+    private EquipmentStatTable equipmentInfoTable;
+    private LobbyEquipmentHover activeEquipmentHover;
+
+    private void BindCardEquipment(TeamCard card)
     {
         var info = card.occupied != null ? card.occupied.transform.Find("Information") : null;
         if (info == null) return;
@@ -217,5 +223,77 @@ public sealed partial class linkuserinfo
         card.magic2 = info.Find("Magic2")?.GetComponent<Image>();
         card.broom = info.Find("Broom")?.GetComponent<Image>();
         card.hat = info.Find("Hat")?.GetComponent<Image>();
+        if (equipmentInfoPanel == null)
+        {
+            equipmentInfoPanel = waitingRoomPanel.transform.Find("Information") as RectTransform;
+            if (equipmentInfoPanel == null) return;
+            equipmentInfoImage = equipmentInfoPanel.Find("TargetImage")?.GetComponent<Image>();
+            equipmentInfoName = equipmentInfoPanel.Find("TargetName")?.GetComponent<TMP_Text>();
+            equipmentInfoText = equipmentInfoPanel.Find("TargetInfo")?.GetComponent<TMP_Text>();
+            foreach (var graphic in equipmentInfoPanel.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
+            equipmentInfoPanel.gameObject.SetActive(false);
+            equipmentInfoTable = Resources.Load<EquipmentStatTable>("EquipmentStatTable");
+        }
+        BindEquipmentHover(card, card.magic1, 0);
+        BindEquipmentHover(card, card.magic2, 1);
+        BindEquipmentHover(card, card.broom, 2);
+        BindEquipmentHover(card, card.hat, 3);
+    }
+
+    private void BindEquipmentHover(TeamCard card, Image icon, int kind)
+    {
+        if (icon == null) return;
+        icon.raycastTarget = true;
+        var hover = icon.GetComponent<LobbyEquipmentHover>();
+        if (hover == null) hover = icon.gameObject.AddComponent<LobbyEquipmentHover>();
+        hover.panel = equipmentInfoPanel;
+        hover.enter = () => ShowEquipmentInfo(card, icon, kind, hover);
+        hover.leave = () => {
+            if (activeEquipmentHover != hover) return;
+            activeEquipmentHover = null;
+            if (equipmentInfoPanel != null) equipmentInfoPanel.gameObject.SetActive(false);
+        };
+    }
+
+    private void ShowEquipmentInfo(TeamCard card, Image icon, int kind, LobbyEquipmentHover hover)
+    {
+        var player = card.player;
+        if (player == null || player.Object == null || !player.Object.IsValid || equipmentInfoPanel == null) return;
+        string title, detail;
+        if (kind == 2)
+        {
+            if (equipmentInfoTable == null) return;
+            var stats = equipmentInfoTable.GetBroomStats(player.broom);
+            title = stats.displayName;
+            detail = $"체력 {stats.maxHp:0.##}\n대쉬 {stats.maxDashCharges}개\n속도 {stats.displaySpeedLabel}";
+        }
+        else if (kind == 3)
+        {
+            if (equipmentInfoTable == null) return;
+            var stats = equipmentInfoTable.GetHatStats(player.hat);
+            title = stats.displayName;
+            detail = $"최대 MP {stats.maxAp:0.##}\nMP 회복 초당 {stats.apRecoveryPerSecond:0.##}";
+        }
+        else
+        {
+            var stats = MagicStatTable.Default.GetStats(kind == 0 ? player.magic1 : player.magic2);
+            title = stats.displayName;
+            bool support = stats.effect == MagicEffectKind.Healing || stats.effect == MagicEffectKind.MeowFestival ||
+                stats.effect == MagicEffectKind.Binding || stats.effect == MagicEffectKind.TimeField;
+            string category = support ? "지원" : stats.UsesAutoTarget ? "록온" : "조준";
+            string result = stats.effect == MagicEffectKind.Healing ? $"회복 {stats.healing:0.##}" :
+                stats.effect == MagicEffectKind.MeowFestival ? $"회복 초당 {stats.festivalHealPerSecond:0.##}" :
+                stats.effect == MagicEffectKind.GuidedChannel || stats.effect == MagicEffectKind.BeamChannel ? $"피해량 초당 {stats.damagePerSecond:0.##}" :
+                stats.effect == MagicEffectKind.PursuitSummon ? $"소환수 피해량 {stats.damage:0.##}" :
+                stats.effect == MagicEffectKind.BladeRain ? "피해량 소모 MP ÷ 2" :
+                support ? "" : $"피해량 {stats.damage:0.##}";
+            detail = $"{category} | MP {stats.apCost:0.##}" + (result.Length > 0 ? "\n" + result : "");
+        }
+        activeEquipmentHover = hover;
+        if (equipmentInfoImage != null) equipmentInfoImage.sprite = icon.sprite;
+        if (equipmentInfoName != null) equipmentInfoName.text = title;
+        if (equipmentInfoText != null) equipmentInfoText.text = detail;
+        equipmentInfoPanel.gameObject.SetActive(true);
+        equipmentInfoPanel.SetAsLastSibling();
     }
 }
