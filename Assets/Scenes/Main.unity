@@ -352464,6 +352464,7 @@ GameObject:
   - component: {fileID: 9002366396082964655}
   - component: {fileID: 1268493035329028645}
   - component: {fileID: 907110800000000001}
+  - component: {fileID: 907111600000000001}
   m_Layer: 5
   m_Name: RobbyUI
   m_TagString: Untagged
@@ -449070,3 +449071,56 @@ SceneRoots:
   - {fileID: 1068988625}
   - {fileID: 2521649570482340426}
   - {fileID: 5573198205804703758}
+--- !u!114 &907111600000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7066444193616187058}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d15755d4fa76ce64791e4433651340b1, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  character: {fileID: 2025531517990625811}
+  previewCamera: {fileID: 1726605330747277719}
+  previewImage: {fileID: 408459141610801734}
+  customizationPanel: {fileID: 3814369804864230562}
+  regions:
+  - label: 머리
+    bone: 10
+    anchor: {fileID: 0}
+    localCenter: {x: 0, y: 0, z: 0}
+    radius: 0.14
+    state:
+    layer: 0
+    seconds: 2
+    blendSeconds: 0.15
+  - label: 몸통
+    bone: 8
+    anchor: {fileID: 0}
+    localCenter: {x: 0, y: 0, z: 0}
+    radius: 0.18
+    state:
+    layer: 0
+    seconds: 2
+    blendSeconds: 0.15
+  - label: 왼손
+    bone: 17
+    anchor: {fileID: 0}
+    localCenter: {x: 0, y: 0, z: 0}
+    radius: 0.09
+    state:
+    layer: 0
+    seconds: 2
+    blendSeconds: 0.15
+  - label: 오른손
+    bone: 18
+    anchor: {fileID: 0}
+    localCenter: {x: 0, y: 0, z: 0}
+    radius: 0.09
+    state:
+    layer: 0
+    seconds: 2
+    blendSeconds: 0.15

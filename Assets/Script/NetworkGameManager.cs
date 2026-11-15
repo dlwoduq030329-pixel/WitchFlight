@@ -62,7 +62,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private int mainSceneIndex = 0;
     [SerializeField] private int battleSceneIndex = 1;
     [Header("Main code-room Tab toggle")]
-    [Tooltip("Main씬의 IntroAndRobby/Robby. 방 생성·입장 성공 후 Tab으로 표시/숨김합니다.")]
+    [Tooltip("Main씬의 IntroAndRobby/Robby. 방 입장 시 숨겨 3D 화면으로 시작하고 Tab으로 표시/숨김합니다.")]
     [SerializeField] private GameObject codeRoomRobby;
     private bool robbyTabChanged, robbyBeforeTab;
     private int robbyLookupScene = -1;
@@ -120,6 +120,10 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private void Update()
     {
         UpdateCodeRoomRobbyToggle();
+        // The 3D lobby shortcut uses exactly the same host/readiness checks as the
+        // authored start button. Camera controls exclude UI, chat and lost focus.
+        if (Input.GetKeyDown(KeyCode.Space) && IsWaitingInCodeRoom && RobbyPlayerCamera.CanUsePractice)
+            StartRoomGame();
         // Re-check after startup/scene loading completes as those callbacks can precede
         // loadout initialization. Random matchmaking and solo training auto-start.
         if ((IsRandomMatch || IsTraining || IsDeathMatch) && IsRoomHost) CheckPlayerCount();
@@ -172,20 +176,30 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             robbyTabChanged = false;
             return;
         }
-        if (!Input.GetKeyDown(KeyCode.Tab) || !Application.isFocused || MainRoomChatUI.BlocksLobbyInput) return;
+        bool enteringRoomView = !robbyTabChanged;
+        if (enteringRoomView)
+        {
+            // Wait for our actual avatar before hiding the room UI. This also covers
+            // late spawn delivery on joining clients without a repeated scene search.
+            if (PlayerRobby.LocalPlayer == null) return;
+        }
+        else
+        {
+            if (!Input.GetKeyDown(KeyCode.Tab) || !Application.isFocused || MainRoomChatUI.BlocksLobbyInput) return;
+            var selected = UnityEngine.EventSystems.EventSystem.current != null
+                ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
+            if (selected != null)
+            {
+                var textInput = selected.GetComponentInParent<TMP_InputField>();
+                if (textInput != null && textInput.isFocused) return;
+                var legacyInput = selected.GetComponentInParent<UnityEngine.UI.InputField>();
+                if (legacyInput != null && legacyInput.isFocused) return;
+            }
+        }
         Scene main = SceneManager.GetSceneByPath("Assets/Scenes/Main.unity");
         if (!main.IsValid() || !main.isLoaded) return;
-        var selected = UnityEngine.EventSystems.EventSystem.current != null
-            ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
-        if (selected != null)
-        {
-            var textInput = selected.GetComponentInParent<TMP_InputField>();
-            if (textInput != null && textInput.isFocused) return;
-            var legacyInput = selected.GetComponentInParent<UnityEngine.UI.InputField>();
-            if (legacyInput != null && legacyInput.isFocused) return;
-        }
         // The manager survives scene changes. Rebind at most once per loaded scene,
-        // only on a Tab press, including inactive Robby objects.
+        // only on room entry or a Tab press, including inactive Robby objects.
         if (codeRoomRobby == null && robbyLookupScene != main.handle)
         {
             robbyLookupScene = main.handle;
@@ -201,9 +215,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             }
         }
         if (codeRoomRobby == null || codeRoomRobby.scene != main) return;
-        if (!robbyTabChanged) robbyBeforeTab = codeRoomRobby.activeSelf;
+        if (enteringRoomView) robbyBeforeTab = codeRoomRobby.activeSelf;
         robbyTabChanged = true;
-        codeRoomRobby.SetActive(!codeRoomRobby.activeSelf);
+        codeRoomRobby.SetActive(enteringRoomView ? false : !codeRoomRobby.activeSelf);
     }
 
     private void LatchButton(PlayerInputButton button, bool pressed)
@@ -754,6 +768,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     private void CleanupSession(NetworkRunner sessionRunner)
     {
         if (!ReferenceEquals(_runner, sessionRunner)) return;
+        BattleLoadingUI.Hide();
         if (battleInitializationRoutine != null) StopCoroutine(battleInitializationRoutine);
         battleInitializationRoutine = null;
         IsBattleSceneLoaded = false;
@@ -1036,8 +1051,23 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (!_runner.IsServer)
             return;
 
-        DespawnAllRobbyPlayers(_runner);
-        _runner.LoadScene(
+        StartCoroutine(LoadPreparedBattleScene(_runner));
+    }
+
+    private bool UsesBattleLoading => !IsTraining && !IsDeathMatch && !IsRaidMode && !IsRaceMode;
+
+    private IEnumerator LoadPreparedBattleScene(NetworkRunner runner)
+    {
+        if (UsesBattleLoading)
+        {
+            BattleLoadingUI.Show();
+            // Render the loading overlay before scene activation and character spawning.
+            yield return null;
+            yield return null;
+        }
+        if (runner != _runner || !runner.IsRunning || cancelRequested) yield break;
+        DespawnAllRobbyPlayers(runner);
+        runner.LoadScene(
             SceneRef.FromIndex(
                 MatchSceneIndex
             )
@@ -1058,11 +1088,13 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         IsBattleSceneLoaded = sceneIndex == MatchSceneIndex;
         if (sceneIndex != MatchSceneIndex)
         {
+            BattleLoadingUI.Hide();
             SpawnRobbyPlayersAfterSceneLoad(runner);
             return;
         }
         
         isGameStarting = true;
+        if (UsesBattleLoading) BattleLoadingUI.Show();
         SetMatchStatus(IsTraining ? "훈련장" : "매칭 완료");
 
         if (!runner.IsServer || IsMigratingDeathMatch)
@@ -1095,8 +1127,15 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner)
     {
         // PlayerData의 Spawned 및 Loadout RPC가 반영될 때까지 BattleManager 초기화를 미룬다.
-        while (!AreBattlePlayerDatasReady())
+        while (!AreBattlePlayerDatasReady() || (UsesBattleLoading && !BattleLoadingUI.AssetsReady))
+        {
+            if (runner != _runner || runner == null || !runner.IsRunning || battleManager == null)
+            {
+                battleInitializationRoutine = null;
+                yield break;
+            }
             yield return null;
+        }
 
         battleManager.InitializeBattle(
             runner,
@@ -1240,6 +1279,11 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         latchedButtons = default;
         bool magicWasHeld = magicInputWasHeld;
+        Player completedCaster = Player.LocalPlayer;
+        if (completedCaster != null && completedCaster.Object != null && completedCaster.Object.IsValid &&
+            completedCaster.HasCompletedSkillSelection && magicSelectionInput.ReturnToBasic(
+                completedCaster.CompletedSkillSelectionRevision, data.buttons.IsSet(PlayerInputButton.Lock)))
+            magicWasHeld = false;
         bool castHeld = magicSelectionInput.SampleCast(data.buttons.IsSet(PlayerInputButton.Lock));
         magicInputWasHeld = castHeld;
         data.usesToggleSelection = true;
@@ -1421,6 +1465,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (initialSceneLoaded)
         {
             isGameStarting = true;
+            if (UsesBattleLoading) BattleLoadingUI.Show();
             SetMatchStatus("매칭 완료! Battle 씬으로 이동 중...");
         }
         IsBattleSceneLoaded = false;

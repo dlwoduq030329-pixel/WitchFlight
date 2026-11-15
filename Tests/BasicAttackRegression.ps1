@@ -29,10 +29,11 @@ namespace UnityEngine {
 }
 namespace Fusion {
  public class NetworkedAttribute:Attribute{}
+ public struct NetworkBool {bool value;public static implicit operator bool(NetworkBool b)=>b.value;public static implicit operator NetworkBool(bool b)=>new(){value=b};}
  public struct NetworkId {public int value;public static bool operator==(NetworkId a,NetworkId b)=>a.value==b.value;public static bool operator!=(NetworkId a,NetworkId b)=>a.value!=b.value;public override bool Equals(object o)=>o is NetworkId n&&this==n;public override int GetHashCode()=>value;}
  public struct TickTimer {public bool active;public static TickTimer None=>default;public static TickTimer CreateFromSeconds(TestRunner r,float s)=>new(){active=true};}
 }
-public enum MagicType {BasicAttack}
+public enum MagicType {None,BasicAttack,Fire}
 public struct MagicStatEntry {public float damage,range;}
 public class BasicAttackSettings {
  public static BasicAttackSettings Default=new();public int capacity=3;public float rechargeSeconds=4,shotInterval=.2f,aimAssistAngle=12,similarAimAngle=2;
@@ -51,6 +52,10 @@ public class MagicProjectile {
  public void Initialize(Player owner,Player t,MagicStatEntry s,Vector3 dir,int tick){target=t;damage=s.damage;}
 }
 public partial class Player {
+ public bool IsMatchBot,IsChanneling,RainCharging,RainFiring,IsMagicStormActive;
+ public MagicType pendingMagic;public int CurrentMagicSlot;
+ public void Selection(int slot,int revision){CurrentMagicSlot=slot;lastMagicSelectionRevision=revision;}
+ public void FinishTick(int before){UpdateSkillCompletion(before);}
  public static List<Player> ActiveCombatants=new();public NetObject Object=new();public TestRunner Runner;
  public bool IsAlive=true,IsHitStunned,IsReturningToMap,Hostile=true;public int BladeCharges,ParticipantRef,CastSequence,castInputTick;
  public float NowHp=100;public MagicType LastCastMagic;public Vector3 LockAimPoint,MagicCastPosition,castAimDirection=Vector3.forward;
@@ -70,6 +75,24 @@ public static class Checks {
  static int count;static void Check(bool b,string why){if(!b)throw new Exception(why);count++;}
  static Player Enemy(Player p,int id,float angle,float depth,float hp=100){var e=new Player{Runner=p.Runner,NowHp=hp,LockAimPoint=new((float)Math.Tan(angle*Mathf.Deg2Rad)*depth,0,depth)};e.Object.Id=new(){value=id};Player.ActiveCombatants.Add(e);return e;}
  public static int Run(){
+  var completion=new Player{Runner=new()};completion.Selection(1,10);completion.LastCastMagic=MagicType.Fire;
+  completion.CastSequence=1;completion.pendingMagic=MagicType.Fire;completion.FinishTick(0);
+  Check(!completion.HasCompletedSkillSelection,"do not interrupt delayed cast/wand raise");
+  completion.pendingMagic=MagicType.None;completion.IsChanneling=true;completion.FinishTick(1);
+  Check(!completion.HasCompletedSkillSelection,"channel runs until released");
+  completion.IsChanneling=false;completion.RainFiring=true;completion.FinishTick(1);
+  Check(!completion.HasCompletedSkillSelection,"rain volley must finish");
+  completion.RainFiring=false;completion.IsMagicStormActive=true;completion.FinishTick(1);
+  Check(!completion.HasCompletedSkillSelection,"storm must finish");
+  completion.IsMagicStormActive=false;completion.BladeCharges=3;completion.FinishTick(1);
+  Check(completion.HasCompletedSkillSelection&&completion.CompletedSkillSelectionRevision==10&&completion.BladeCharges==3,"successful completion acknowledges exact selection without consuming blades");
+  completion.Reset();completion.Selection(1,11);completion.CastSequence=2;completion.pendingMagic=MagicType.Fire;completion.FinishTick(1);
+  completion.Selection(2,12);completion.pendingMagic=MagicType.None;completion.FinishTick(2);
+  Check(!completion.HasCompletedSkillSelection,"switching to a newer skill cancels obsolete auto return");
+  completion.LastCastMagic=MagicType.BasicAttack;completion.CastSequence=3;completion.FinishTick(2);
+  Check(!completion.HasCompletedSkillSelection,"basic attack does not trigger skill auto return");
+  completion.IsMatchBot=true;completion.LastCastMagic=MagicType.Fire;completion.CastSequence=4;completion.FinishTick(3);
+  Check(!completion.HasCompletedSkillSelection,"bot selection unchanged");
   Player.ActiveCombatants.Clear();var p=new Player{Runner=new()};p.Object.Id=new(){value=99};p.Reset();
   Check(p.BasicAttackCharges==3,"starts with three charges");
   p.Fire();Check(p.BasicAttackCharges==3&&p.CastSequence==0&&p.Runner.lastShot==null,"no target cannot spawn, consume charges or present a cast");

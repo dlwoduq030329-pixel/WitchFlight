@@ -70,6 +70,13 @@ public static class Checks {
  static MagicStatEntry Spell(MagicType m)=>new(){magic=m,requiresTarget=m==MagicType.Fire,IsChanneled=m==MagicType.Beam,TargetsAllies=m==MagicType.Heal,effect=m==MagicType.Thunder?MagicEffectKind.DelayedArea:MagicEffectKind.None};
  static Player Make(MagicType a,MagicType b)=>new(){First=Spell(a),Second=Spell(b)};
  public static int Run(){
+  var selection=new MagicSelectionInput();selection.Toggle(1,false);int usedRevision=selection.Revision;
+  Check(selection.ReturnToBasic(usedRevision,true)&&selection.Slot==0,"completed skill returns to basic mode");
+  Check(!selection.SampleCast(true),"held cast cannot leak into an automatic basic attack");
+  selection.SampleCast(false);Check(selection.SampleCast(true),"fresh click after completion attacks normally");
+  selection.Toggle(2,false);int newerRevision=selection.Revision;
+  Check(!selection.ReturnToBasic(usedRevision,false)&&selection.Slot==2,"late completion preserves newer E selection");
+  Check(selection.ReturnToBasic(newerRevision,false)&&!selection.ReturnToBasic(newerRevision,false),"duplicate completion is idempotent");
   var p=Make(MagicType.Instant,MagicType.Fire);
   p.Input(false,1);Check(p.CurrentMagicSlot==1&&p.CastSequence==0,"Q selects without firing");
   p.Input(true);Check(p.CastSequence==1&&p.LastCastSlot==1,"LMB casts selected instant spell");

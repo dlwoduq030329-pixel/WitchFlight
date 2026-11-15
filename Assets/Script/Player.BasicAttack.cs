@@ -8,6 +8,10 @@ public partial class Player
     [Networked] private float BasicAttackRechargeElapsed { get; set; }
     [Networked] private TickTimer BasicAttackShotCooldown { get; set; }
     [Networked] private int lastMagicSelectionRevision { get; set; }
+    [Networked] public int CompletedSkillSelectionRevision { get; private set; }
+    [Networked] public NetworkBool HasCompletedSkillSelection { get; private set; }
+    private bool awaitSkillCompletion;
+    private int completingSkillRevision, completingSkillSlot;
     [Networked] private NetworkId previousBasicAttackTarget { get; set; }
     private readonly List<Player> basicAttackCandidates = new List<Player>(20);
     public int BasicAttackCapacity => Mathf.Max(1, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.capacity : 3);
@@ -17,10 +21,32 @@ public partial class Player
 
     private void ResetBasicAttack()
     {
+        awaitSkillCompletion = false;
+        HasCompletedSkillSelection = false;
         previousBasicAttackTarget = default;
         BasicAttackCharges = BasicAttackCapacity;
         BasicAttackRechargeElapsed = 0;
         BasicAttackShotCooldown = TickTimer.None;
+    }
+
+    private void UpdateSkillCompletion(int previousCastSequence)
+    {
+        if (!Object.HasStateAuthority || IsMatchBot) return;
+        if (CastSequence != previousCastSequence && LastCastMagic != MagicType.BasicAttack && CurrentMagicSlot >= 1 && CurrentMagicSlot <= 2)
+        {
+            awaitSkillCompletion = true;
+            completingSkillRevision = lastMagicSelectionRevision;
+            completingSkillSlot = CurrentMagicSlot;
+        }
+        if (!awaitSkillCompletion) return;
+        if (!IsAlive || completingSkillRevision != lastMagicSelectionRevision || completingSkillSlot != CurrentMagicSlot)
+        { awaitSkillCompletion = false; return; }
+        // Do not cancel wand raising, channels or remaining volley shots. Blade charges
+        // deliberately survive selection of slot zero and still replace basic attacks.
+        if (pendingMagic != MagicType.None || IsChanneling || RainCharging || RainFiring || IsMagicStormActive) return;
+        CompletedSkillSelectionRevision = completingSkillRevision;
+        HasCompletedSkillSelection = true;
+        awaitSkillCompletion = false;
     }
 
     // Sequential recharge continues while using a spell or the independent blade charges.

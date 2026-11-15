@@ -150,6 +150,11 @@ public static class BotDisconnectChecks {
    if(phase==BattleStartPhase.Intermission)Check(replacement.RoundSwapReady&&replacement.MagicChangeRound==2,"intermission replacement is ready");
    n.OnPlayerLeft(n._runner,2);Check(n._runner.Spawns==1&&!b.IsBattleEnded,"duplicate leave must not add bots/end match");
   }
+  var preparing=Setup(5);var preparationFlag=BattleManager.Instance.battleFlag;
+  preparationFlag.readyPlayers.Remove(2);
+  Check(!preparationFlag.AreAllPlayersReady(),"one slow human client blocks VS even with all ten actors spawned");
+  preparationFlag.readyPlayers.Add(2);
+  Check(preparationFlag.AreAllPlayersReady(),"all human clients prepared allows VS with eight bots");
   var same=Setup(5,1);Leave(same,2);Check(same.playerDatas.Values.Count(d=>d.teamIndex==1)==5,"same-team guests replaced on their own team");
   var unknown=Setup();unknown.IsBotMatch=false;unknown.OnPlayerLeft(unknown._runner,99);Check(!BattleManager.Instance.IsBattleEnded,"unknown/rejected connection cannot forfeit");
   var normal=Setup();normal.IsBotMatch=false;Leave(normal,2);Check(BattleManager.Instance.IsBattleEnded&&normal._runner.Spawns==0,"ordinary match policy unchanged");
