@@ -68,7 +68,7 @@ public sealed class BasicAttackHud : MonoBehaviour
         }
         if (count != lastCount || capacity != lastCapacity)
         {
-            if (chargeText != null) chargeText.text = count + "/" + capacity;
+            if (chargeText != null) chargeText.SetText("{0}", count);
             lastCount = count; lastCapacity = capacity;
         }
         previousPlayer = valid ? player : null;
