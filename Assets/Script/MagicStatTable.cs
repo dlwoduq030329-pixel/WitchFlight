@@ -133,7 +133,7 @@ public struct MagicStatEntry
     [Range(0f, 1f)] public float woundHealingMultiplier;
 
     [Header("Thunder: hold to aim, release to confirm (world-space sphere)")]
-    [Tooltip("범위 확정 시 번쩍인 뒤 폭발/피해까지의 시간. 기본 1.5초. Cast Seconds와 별개이며 위치는 고정됩니다.")]
+    [Tooltip("범위 확정 시 번쩍인 뒤 폭발/피해까지의 시간. 기본 1초. Cast Seconds와 별개이며 위치는 고정됩니다.")]
     [Min(0.1f)] public float strikeDelay;
     [Tooltip("아무것도 조준하지 않을 때 공중 지정 거리. 누르는 동안 휠로 거리를 조절합니다.")]
     [Min(1f)] public float areaAimDistance;
@@ -366,12 +366,12 @@ public sealed class MagicStatTable : ScriptableObject
                 e.range = 150f; e.cooldownSeconds = 2f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
                 e.description = "긴 사거리의 즉발 광선을 발사합니다. 연속 명중으로 적을 압박합니다."; break;
             case MagicType.Thunder:
-                e.effect = MagicEffectKind.DelayedArea; e.damage = 100; e.apCost = 65;
-                e.range = 300f; e.cooldownSeconds = 7; e.radius = 12;
-                e.strikeDelay = 1.5f; e.areaAimDistance = 50; e.areaAimScrollSpeed = 10;
+                e.effect = MagicEffectKind.DelayedArea; e.damage = 120; e.apCost = 65;
+                e.range = 300f; e.cooldownSeconds = 7; e.radius = 20;
+                e.strikeDelay = 1f; e.areaAimDistance = 50; e.areaAimScrollSpeed = 10;
                 e.thunderVfxReferenceRadius = 1f; e.thunderBurstExpandSeconds = .12f; e.thunderBurstStartScale = .08f;
                 e.projectileRadius = 0; e.hitscanRadius = 0.3f;
-                e.description = "누르는 동안 공중의 범위를 조준하고 휠로 거리를 조절합니다. 놓으면 확정된 위치에 잠시 뒤 낙뢰가 떨어집니다."; break;
+                e.description = "시전 시 조준점에 가장 가까운 적 위치를 조준합니다. 휠로 수동 거리를 조절할 수 있으며, 놓으면 확정된 위치에 잠시 뒤 낙뢰가 떨어집니다."; break;
             case MagicType.Mine:
                 e.effect = MagicEffectKind.PursuitSummon; e.damage = 18; e.apCost = 40;
                 e.cooldownSeconds = 7.5f; e.projectileSpeed = 40.5f; e.projectileTurnSpeed = 176; e.placementDistance = 2;

@@ -1,0 +1,320 @@
+// Generated only into an external Unity project by HomingManeuverDiagnostics.ps1.
+// Native Unity rotation + CharacterController + Physics queries; no Fusion transport,
+// scenery, perks, hit/slow effects, human mouse sampling, visual rig, or extra body colliders.
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Globalization;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+
+namespace HomingDiagnostics {
+public enum MagicType { None=0,Fire=1,Ice=2,Vision=3,Thunder=4,Healing=5,Binding=6,Dark=7,Curse=8,Mine=9,Razier=10,Flare=11,Smoke=12,Blade=13,MagicStorm=14,TimeStop=15,MeowFestival=16,BladeRain=17 }
+public enum MagicEffectKind { DirectDamage=0,SlowDamage=1,AreaDamage=2,Healing=3,Binding=4,LifeSteal=5,GuidedChannel=6,Mine=7,BeamChannel=8,Flare=9,Smoke=10,DelayedArea=11,PursuitSummon=12,BladeVolley=13,MagicStorm=14,TimeField=15,MeowFestival=16,BladeRain=17 }
+public sealed class PerkDefinition { public float amount,secondaryAmount; }
+public struct MagicStatEntry {
+    public MagicType magic; public MagicEffectKind effect; public bool requiresTarget,requiresFullLock,focusedBlade;
+    public float range, placementDistance, projectileSpeed, projectileTurnSpeed, projectileLifetime, projectileRadius;
+    public float castSeconds,apCost,damage,hitscanRadius,radius,strikeDelay,autoAimHalfAngle,channelTickSeconds,damagePerSecond;
+    public float summonAttackRange,summonFollowDistance,summonMoveSpeed,summonAttackInterval,lockChargeSeconds,activationDelay,effectDuration;
+    public float stormDuration,stormLaunchAngle,stormSpreadAngle,rainBladeInterval,rainManaPerCircle;
+    public int stormShotCount,bladeCharges;
+    public float rainFocusSpeed,rainFocusMinRadius,rainFocusMaxRadius,focusedBladeCharge;
+    public PerkDefinition perkSecond;
+    public GameObject projectileVfxPrefab,rainFocusProjectilePrefab;
+}
+public class MagicStatTable {
+    public bool homingExhaustion, useIndividualHomingTurnSpeeds;
+    public float homingTravelDistanceMultiplier, homingLifetimeMultiplier, homingLeadSeconds,
+        homingSpeedLossPerSecond, homingSpeedLossPerDegree, homingFallThreshold, homingTurnSpeed,
+        homingTurnReferenceSpeed, homingTurnSpeedExponent, homingMaxTurnLossPerSecond;
+__TURN_SETTINGS__
+}
+public static class Flight {
+__FLIGHT__
+}
+public static class BattleFlag {
+__SEGMENT__
+}
+public sealed class RunnerStub { public float DeltaTime; public int Tick; }
+// Network timers/input are adapters. Both ceil/nearest-tick choices can differ by <= one tick;
+// the diagnostic reports sensitivity across 30/60/64/120 Hz and both actor update orders.
+public struct TickTimer {
+    int end; public static TickTimer None => default;
+    public bool IsRunning => end != 0;
+    public static TickTimer CreateFromSeconds(RunnerStub r,float seconds) => new TickTimer { end=r.Tick+Mathf.CeilToInt(seconds/r.DeltaTime) };
+    public bool Expired(RunnerStub r) => IsRunning && r.Tick>=end;
+    public float? RemainingTime(RunnerStub r) => IsRunning ? Mathf.Max(0,end-r.Tick)*r.DeltaTime : (float?)null;
+}
+public enum PlayerInputButton { Decelerate, Boost, TurnLeft, TurnRight }
+public struct NetworkButtons {
+    public int bits;
+    public bool IsSet(PlayerInputButton b) => (bits & (1<<(int)b))!=0;
+    public bool WasPressed(NetworkButtons previous,PlayerInputButton b) => IsSet(b)&&!previous.IsSet(b);
+}
+public struct NetworkInputData {
+    public int portalExitSequence; public bool steerToAim; public Vector3 aimDirection,aimUp; public Vector2 look;
+}
+public sealed class FlightCombatTable { public static FlightCombatTable Default=new FlightCombatTable(); public float dashWindupSeconds; }
+public sealed class Motion : MonoBehaviour {
+    public RunnerStub Runner=new RunnerStub(); public CharacterController controller;
+    public bool automaticCruise=true, IsMatchBot=false, IsTestBot=false;
+    public bool IsBound=false, IsHitStunned=false, IsAlive=true, IsReturningToMap=false, CobraActive=false, IsFlareActive=false;
+    public float TimeFieldSpeed=1, FestivalMovementMultiplier=1;
+    public float glideStopSeconds, burstBoostSeconds, burstAccelerationMultiplier, flightMaxSpeed,
+        boostMultiplier, brakeSpeed, stageTransitionSpeed, turnSpeed, turnAccel, returnSpeed;
+    public float Speed, GlideElapsed, GlideStartSpeed, DashWindupDuration, currentAimTurnSpeed,
+        currentPitch,currentYaw,currentTurnSpeed, mousePitchSensitivity=2.5f,maxPitch=60;
+    public int SpeedStage=2, PortalExitSequence=0, Charges;
+    public bool IsBoosting,boostNeedsRelease;
+    TickTimer BurstBoostTimer,DashWindupTimer;
+    NetworkButtons previousButtons;
+    public bool UsesAutomaticCruise => automaticCruise && !IsMatchBot && !IsTestBot;
+    public bool IsGliding => UsesAutomaticCruise && GlideElapsed>0;
+    public float SteeringTurnRate => Mathf.Max(0,turnSpeed*GetTurnMultiplier());
+    float GetMovementMultiplier()=>1; float GetFlagSpeedMultiplier()=>1; float GetItemSpeedMultiplier()=>1; float GetTurnMultiplier()=>1;
+    bool TimerIsActive(TickTimer t)=>t.IsRunning&&!t.Expired(Runner);
+    bool TryConsumeDashCharge(){if(Charges<=0)return false;Charges--;return true;}
+    void StartDashGuard(){} // No perks: movement-only dodge, not invulnerability.
+    public void Step(bool brake,bool boost,Quaternion desired) {
+        var buttons=new NetworkButtons{bits=(brake?1:0)|(boost?2:0)};
+        ProcessCruiseInput(buttons,true);
+        PlayerTurn(new NetworkInputData{steerToAim=true,aimDirection=desired*Vector3.forward,aimUp=desired*Vector3.up},buttons);
+        UpdateSpeed();
+        controller.Move(transform.forward*Speed*Runner.DeltaTime);
+        // Edit-mode CharacterController.Move updates the Transform/bounds but its query
+        // shape can remain stale. Re-register only in this isolated no-scenery harness.
+        // This is NOT added to Player or the real game. Native query self-checks guard it.
+        if(!Application.isPlaying){controller.enabled=false;controller.enabled=true;}
+        previousButtons=buttons;Runner.Tick++;
+    }
+__MOTION__
+}
+public sealed class Craft {
+    public int id,charges; public float maxSpeed,turnSpeed,turnAcceleration,turnReturnSpeed,speedStageTransitionSpeed,brakeSpeed,boostMultiplier;
+}
+public sealed class Case {
+    public int broom,hz,heading; public bool targetFirst;
+    public float rangeFraction,trigger,aimRampSeconds,reactionSeconds;
+    public float startDistance;
+    public string spellTag="Fire",aimPolicy="direct";public int seed;
+    public string maneuver,speedMode;
+    public string Key => $"{spellTag},{aimPolicy},{seed},{broom},{hz},{(targetFirst?"target-first":"shot-first")},{rangeFraction:F2},{heading},{trigger:F0},{maneuver},{speedMode}";
+}
+public sealed class Result {
+    public Case test; public bool hit; public string reason; public float time,speed,fraction,triggerTime=-1,minDistance=float.MaxValue;
+    public int chargesUsed;
+    public string Csv => $"{test.Key},{(hit?"HIT":"EVADED")},{reason},{time:F4},{speed:F3},{fraction:F4},{triggerTime:F4},{minDistance:F4},{chargesUsed}";
+}
+public static partial class Entry {
+    static MagicStatTable table; static MagicStatEntry fire; static string prefab;
+    static Dictionary<MagicType,MagicStatEntry> entries=new Dictionary<MagicType,MagicStatEntry>();
+    static Dictionary<int,Craft> crafts=new Dictionary<int,Craft>();
+    static float scale,height,radius,centerY,aimHeight,glide,burst,burstAcceleration,skin,stepOffset,minMove,attackRaise,maxLock;
+    static readonly Collider[] overlaps=new Collider[32]; static readonly RaycastHit[] hits=new RaycastHit[32];
+    public static float N(string s,string key) {
+        var m=Regex.Match(s,@"(?m)^\s+"+Regex.Escape(key)+@": ([\d.eE+-]+)\s*$");
+        if(!m.Success)throw new Exception("Missing field "+key);
+        return float.Parse(m.Groups[1].Value,CultureInfo.InvariantCulture);
+    }
+    static void Load() {
+        string stats=File.ReadAllText("Inputs/MagicStatTable.asset");table=new MagicStatTable();
+        foreach(var f in typeof(MagicStatTable).GetFields())f.SetValue(table,f.FieldType==typeof(bool)?(object)(N(stats,f.Name)!=0):N(stats,f.Name));
+        foreach(Match block in Regex.Matches(stats,@"(?ms)^  - magic: (\d+)\r?\n.*?(?=^  - magic:|\z)")) {
+            object boxed=new MagicStatEntry{magic=(MagicType)int.Parse(block.Groups[1].Value),effect=(MagicEffectKind)(int)N(block.Value,"effect")};
+            foreach(var field in typeof(MagicStatEntry).GetFields()) {
+                if(field.FieldType!=typeof(float)&&field.FieldType!=typeof(int)&&field.FieldType!=typeof(bool))continue;
+                if(!Regex.IsMatch(block.Value,@"(?m)^\s+"+field.Name+@": [\d.eE+-]+\s*$"))continue;
+                float value=N(block.Value,field.Name);
+                field.SetValue(boxed,field.FieldType==typeof(bool)?(object)(value!=0):field.FieldType==typeof(int)?(object)(int)value:value);
+            }
+            var entry=(MagicStatEntry)boxed;entries.Add(entry.magic,table.ApplyHomingTurnSettings(entry));
+        }
+        if(entries.Count!=17)throw new Exception("Expected all 17 authored spells, found "+entries.Count);
+        fire=entries[MagicType.Fire];
+        var equipment=File.ReadAllText("Inputs/EquipmentStatTable.asset");
+        foreach(var b in Regex.Split(equipment.Split(new[]{"  brooms:"},StringSplitOptions.None)[1],@"(?m)^  - displayName:")) {
+            if(!Regex.IsMatch(b,@"(?m)^    broom:"))continue;
+            var c=new Craft{id=(int)N(b,"broom"),charges=(int)N(b,"maxDashCharges")};
+            foreach(var f in typeof(Craft).GetFields().Where(x=>x.FieldType==typeof(float)))f.SetValue(c,N(b,f.Name));
+            crafts.Add(c.id,c);
+        }
+        prefab=File.ReadAllText("Inputs/ChPrefab.prefab");
+        var cc=Regex.Match(prefab,@"(?ms)^CharacterController:\r?\n.*?(?=^---|\z)").Value;
+        height=N(cc,"m_Height");radius=N(cc,"m_Radius");skin=N(cc,"m_SkinWidth");stepOffset=N(cc,"m_StepOffset");minMove=N(cc,"m_MinMoveDistance");
+        centerY=float.Parse(Regex.Match(cc,@"m_Center: \{x: 0, y: ([\d.eE+-]+), z: 0\}").Groups[1].Value,CultureInfo.InvariantCulture);
+        scale=N(prefab,"worldCharacterScale");aimHeight=N(prefab,"lockAimHeight");glide=N(prefab,"glideStopSeconds");burst=N(prefab,"burstBoostSeconds");burstAcceleration=N(prefab,"burstAccelerationMultiplier");
+        attackRaise=N(prefab,"attackRaiseSeconds");maxLock=N(prefab,"maxLockDistance");
+        FlightCombatTable.Default.dashWindupSeconds=N(File.ReadAllText("Inputs/FlightCombatTable.asset"),"dashWindupSeconds");
+    }
+    static Quaternion Desired(Case c,float elapsed,Quaternion initial) {
+        switch(c.maneuver) {
+            case "yaw90":return initial*Quaternion.Euler(0,90,0);
+            case "yaw180":return initial*Quaternion.Euler(0,180,0);
+            case "up60":return initial*Quaternion.Euler(-60,0,0);
+            case "down60":return initial*Quaternion.Euler(60,0,0);
+            case "up90":return initial*Quaternion.Euler(-90,0,0);
+            case "down90":return initial*Quaternion.Euler(90,0,0);
+            case "diagonalUp":return initial*Quaternion.Euler(-60,90,0);
+            case "diagonalDown":return initial*Quaternion.Euler(60,90,0);
+            case "upThenDown":return initial*Quaternion.Euler(elapsed<.6f?-60:60,0,0);
+            default:return initial;
+        }
+    }
+    static void Controls(Case c,float elapsed,out bool brake,out bool boost) {
+        brake=false;boost=false;if(elapsed<0)return;
+        switch(c.speedMode) {
+            case "boost":boost=elapsed<.03f;break;
+            case "brakeHold":brake=true;break;
+            case "brake03":brake=elapsed<.3f;break;
+            case "brake06Boost":brake=elapsed<.6f;boost=elapsed>=.6f&&elapsed<.65f;break;
+            case "boostThenBrake":boost=elapsed<.03f;brake=elapsed>=.5f&&elapsed<.8f;break;
+        }
+    }
+    static Vector3 Center(Motion m)=>m.transform.TransformPoint(Vector3.up*centerY);
+    static Vector3 Aim(Motion m)=>m.transform.TransformPoint(Vector3.up*aimHeight);
+    static Vector3 Axis(Motion m)=>m.transform.up*Mathf.Max(0,height*scale*.5f-radius*scale);
+    static bool NativeHit(Vector3 p,Vector3 direction,float distance,float shotRadius,Collider target) {
+        int count=Physics.OverlapSphereNonAlloc(p,shotRadius,overlaps,~0,QueryTriggerInteraction.Ignore);
+        for(int i=0;i<count;i++)if(overlaps[i]==target)return true;
+        count=Physics.SphereCastNonAlloc(p,shotRadius,direction,hits,distance,~0,QueryTriggerInteraction.Ignore);
+        for(int i=0;i<count;i++)if(hits[i].collider==target)return true;
+        return false;
+    }
+    static void ValidateNativeQueries() {
+        var m=NewMotion(new Case{broom=2,hz=64},95);
+        try {
+            Vector3 before=Center(m);
+            for(int tick=0;tick<64;tick++){m.Step(false,false,Quaternion.identity);Physics.SyncTransforms();}
+            Vector3 after=Center(m);
+            if(Mathf.Abs((after-before).magnitude-26)>.001f)throw new Exception("CharacterController displacement mismatch");
+            if(!NativeHit(after-Vector3.forward*5,Vector3.forward,6,.1f,m.controller))throw new Exception("Native query missed moved controller");
+            if(NativeHit(before-Vector3.forward*5,Vector3.forward,6,.1f,m.controller))throw new Exception("Native query used stale controller pose");
+            m.transform.rotation=Quaternion.Euler(60,90,0);m.Step(false,false,m.transform.rotation);Physics.SyncTransforms();
+            if(!NativeHit(Center(m)-Vector3.forward*5,Vector3.forward,6,.1f,m.controller))throw new Exception("Native query missed rotated controller");
+        } finally {UnityEngine.Object.DestroyImmediate(m.gameObject);}
+    }
+    static Motion NewMotion(Case c,float initialDistance) {
+        Craft b=crafts[c.broom];var obj=new GameObject("diagnostic target");
+        var m=obj.AddComponent<Motion>();obj.transform.localScale=Vector3.one*scale;
+        var initial=Quaternion.Euler(0,c.heading,0);obj.transform.SetPositionAndRotation(new Vector3(0,100,initialDistance),initial);
+        m.controller=obj.AddComponent<CharacterController>();m.controller.height=height;m.controller.radius=radius;m.controller.center=Vector3.up*centerY;m.controller.skinWidth=skin;m.controller.stepOffset=stepOffset;m.controller.minMoveDistance=minMove;
+        m.flightMaxSpeed=b.maxSpeed;m.Speed=b.maxSpeed*2/3;m.turnSpeed=b.turnSpeed;m.turnAccel=b.turnAcceleration;m.returnSpeed=b.turnReturnSpeed;
+        m.boostMultiplier=b.boostMultiplier;m.brakeSpeed=b.brakeSpeed;m.stageTransitionSpeed=b.speedStageTransitionSpeed;
+        m.glideStopSeconds=glide;m.burstBoostSeconds=burst;m.burstAccelerationMultiplier=burstAcceleration;m.Charges=b.charges;m.Runner.DeltaTime=1f/c.hz;
+        Physics.SyncTransforms();return m;
+    }
+    static Result Sim(Case c,bool trace=false) {
+        float initialDistance=c.startDistance>0?c.startDistance:fire.range*c.rangeFraction;
+        var m=NewMotion(c,initialDistance);var obj=m.gameObject;Craft b=crafts[c.broom];
+        var initial=Quaternion.Euler(0,c.heading,0);float dt=m.Runner.DeltaTime;
+        bool exhaustion=fire.requiresTarget&&Flight.UsesFlightExhaustion(fire.magic,table);
+        Vector3 p=Aim(m)-Vector3.forward*initialDistance;
+        Vector3 aim=Aim(m)-p;
+        Vector3 dir=(exhaustion?Flight.HomingAimDelta(aim,m.transform.forward*m.Speed,fire.projectileSpeed,table.homingLeadSeconds):c.aimPolicy=="lead"&&!fire.requiresTarget?Flight.HomingAimDelta(aim,m.transform.forward*m.Speed,fire.projectileSpeed,60):aim).normalized;
+        Vector3 stormAim=dir;
+        if(fire.magic==MagicType.MagicStorm) {
+            UnityEngine.Random.InitState(c.seed);
+            var launch=UnityEngine.Random.insideUnitCircle*Mathf.Tan(fire.stormLaunchAngle*Mathf.Deg2Rad);
+            var spread=UnityEngine.Random.insideUnitCircle*Mathf.Tan(fire.stormSpreadAngle*Mathf.Deg2Rad);
+            var rotation=Quaternion.LookRotation(dir);
+            stormAim=(rotation*new Vector3(spread.x,spread.y,1)).normalized;
+            dir=(rotation*new Vector3(launch.x,launch.y,1)).normalized;
+        }
+        Vector3 previousP=p,previousCenter=Center(m);bool sample=false;
+        float fraction=1,travelled=0,limit=Flight.FlightDistance(fire,table),life=Flight.FlightLifetime(fire,table);
+        var result=new Result{test=c};var lines=trace?new StringBuilder("t,shotX,shotY,shotZ,targetX,targetY,targetZ,targetSpeed,shotSpeed,turnCap,separation,charges\n"):null;
+        Quaternion aimRotation=initial,aimFrom=initial,lastGoal=initial;float aimTransition=0;
+        try {
+            for(int tick=0;tick*dt<life;tick++) {
+                float time=tick*dt;result.time=time;
+                if(result.triggerTime<0 && c.trigger>0 && (Aim(m)-p).magnitude<=c.trigger)result.triggerTime=time;
+                float elapsed=result.triggerTime<0?-1:time-result.triggerTime-c.reactionSeconds;
+                Controls(c,elapsed,out bool brake,out bool boost);
+                var desired=elapsed<0?initial:Desired(c,elapsed,initial);
+                if(c.aimRampSeconds>0) {
+                    if(Quaternion.Angle(lastGoal,desired)>.01f){aimFrom=aimRotation;aimTransition=time;lastGoal=desired;}
+                    aimRotation=Quaternion.Slerp(aimFrom,desired,Mathf.Clamp01((time-aimTransition)/c.aimRampSeconds));
+                    desired=aimRotation;
+                }
+                if(c.targetFirst){m.Step(brake,boost,desired);Physics.SyncTransforms();}
+                float sep=(Aim(m)-p).magnitude;result.minDistance=Mathf.Min(result.minDistance,sep);
+                if(lines!=null)lines.AppendLine(FormattableString.Invariant($"{time:F4},{p.x:F4},{p.y:F4},{p.z:F4},{m.transform.position.x:F4},{m.transform.position.y:F4},{m.transform.position.z:F4},{m.Speed:F4},{fire.projectileSpeed*fraction:F4},{Flight.FlightTurnSpeed(fire.projectileTurnSpeed,fire.projectileSpeed*fraction,table):F4},{sep:F4},{m.Charges}"));
+                // Same continuous capsule crossing guard as MagicProjectile, with no portals/walls.
+                var center=Center(m);float maxMove=Mathf.Max(4,m.Speed*dt*2+radius*scale);
+                bool crossing=exhaustion&&sample&&(center-previousCenter).sqrMagnitude<=maxMove*maxMove&&Flight.TrySweptTargetContact(previousP,p,previousCenter,center,Axis(m),radius*scale+Mathf.Max(.02f,fire.projectileRadius),out _);
+                previousCenter=center;previousP=p;sample=true;
+                if(crossing){result.hit=true;result.reason="swept-crossing";break;}
+                var before=dir;
+                if(fire.magic==MagicType.MagicStorm)dir=Vector3.RotateTowards(dir,stormAim,fire.projectileTurnSpeed*Mathf.Deg2Rad*dt,0).normalized;
+                if(fire.requiresTarget)dir=Flight.ResolveHomingDirection(true,dir,exhaustion?Flight.HomingAimDelta(Aim(m)-p,m.transform.forward*m.Speed,fire.projectileSpeed*fraction,table.homingLeadSeconds):Aim(m)-p,exhaustion?Flight.FlightTurnSpeed(fire.projectileTurnSpeed,fire.projectileSpeed*fraction,table):fire.projectileTurnSpeed,dt);
+                if(exhaustion)fraction=Flight.DrainFlightSpeed(fraction,before,dir,dt,table);
+                if(exhaustion&&fraction<=table.homingFallThreshold){result.reason="speed-exhaustion";break;}
+                float step=Mathf.Min(fire.projectileSpeed*fraction*dt,Mathf.Max(0,limit-travelled));
+                if(NativeHit(p,dir,step,Mathf.Max(.02f,fire.projectileRadius),m.controller)){result.hit=true;result.reason="unity-physics";break;}
+                p+=dir*step;travelled+=step;
+                if(travelled>=limit-.001f){result.reason="distance-exhaustion";break;}
+                if(!c.targetFirst){m.Step(brake,boost,desired);Physics.SyncTransforms();}
+            }
+            if(result.reason==null)result.reason="lifetime";
+            result.speed=m.Speed;result.fraction=fraction;result.chargesUsed=b.charges-m.Charges;
+            if(trace)File.WriteAllText("trace-"+c.Key.Replace(',','_')+".csv",lines.ToString());
+            return result;
+        } finally { UnityEngine.Object.DestroyImmediate(obj); }
+    }
+    static string Header="spell,aimPolicy,seed,broom,hz,order,rangeFraction,heading,trigger,maneuver,speedMode,result,reason,time,targetSpeed,shotFraction,triggerTime,minAimDistance,chargesUsed";
+    public static void Run() {
+        try {
+            CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;
+            Directory.SetCurrentDirectory(Path.GetDirectoryName(Application.dataPath));
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+            Load();ValidateNativeQueries();var results=new List<Result>();
+            // 64 Hz matches the serialized client tick rate. Other rates validate selected witnesses below.
+            foreach(int broom in crafts.Keys)foreach(bool order in new[]{false,true})
+            foreach(float range in new[]{.5f,.95f})foreach(int heading in new[]{0,90,180})
+            foreach(float trigger in new[]{0,5,10,15,25,40,60,80,100})
+            foreach(string maneuver in new[]{"straight","yaw90","yaw180","up60","down60","up90","down90","diagonalUp","diagonalDown","upThenDown"})
+            foreach(string mode in new[]{"cruise","boost","brakeHold","brake03","brake06Boost","boostThenBrake"}) {
+                if(trigger>fire.range*range)continue;
+                if(trigger==0&&(maneuver!="straight"||mode!="cruise"))continue;
+                var c=new Case{broom=broom,hz=64,targetFirst=order,rangeFraction=range,heading=heading,trigger=trigger,maneuver=maneuver,speedMode=mode};
+                results.Add(Sim(c));
+            }
+            File.WriteAllLines("results.csv",new[]{Header}.Concat(results.Select(r=>r.Csv)));
+            var witnesses=new List<Result>();
+            // Retest each far-range, rear-chase basic-craft case at all three additional rates.
+            foreach(var r in results.Where(r=>r.test.broom==2&&r.test.rangeFraction==.95f&&r.test.heading==0))
+            foreach(int hz in new[]{30,60,120}) {
+                var c=r.test;
+                witnesses.Add(Sim(new Case{broom=c.broom,hz=hz,targetFirst=c.targetFirst,rangeFraction=c.rangeFraction,heading=c.heading,trigger=c.trigger,maneuver=c.maneuver,speedMode=c.speedMode}));
+            }
+            File.WriteAllLines("cross-rate.csv",new[]{Header}.Concat(witnesses.Select(r=>r.Csv)));
+            // Check representative successful patterns with finite camera swipes and reaction delay,
+            // rather than assuming an instantaneous 90/180-degree mouse target change.
+            var inputChecks=new List<string>{"aimRampSeconds,reactionSeconds,"+Header};
+            foreach(int hz in new[]{30,60,64,120})foreach(bool order in new[]{false,true})
+            foreach(float ramp in new[]{.15f,.3f})foreach(float reaction in new[]{0f,.1f,.2f})
+            foreach(string mode in new[]{"boost","brake06Boost","cruise"}) {
+                var c=new Case{broom=2,hz=hz,targetFirst=order,rangeFraction=.95f,heading=0,
+                    trigger=mode=="boost"?25:60,maneuver=mode=="cruise"?"upThenDown":"yaw90",
+                    speedMode=mode,aimRampSeconds=ramp,reactionSeconds=reaction};
+                inputChecks.Add($"{ramp:F2},{reaction:F2},"+Sim(c).Csv);
+            }
+            File.WriteAllLines("finite-input.csv",inputChecks);
+            var summary=new StringBuilder();summary.AppendLine("Unity "+Application.unityVersion+"; Fire only; native CharacterController/SphereCast/rotation + extracted production movement/homing math.");
+            summary.AppendLine("No game assets or gameplay code modified. Synthetic inputs; no Fusion transport/map/visual rig/extra colliders. Timers adapted to ticks.");
+            summary.AppendLine($"Primary cases: {results.Count}; cross-rate cases: {witnesses.Count}; initial Fire speed {fire.projectileSpeed}, effective turn {Flight.FlightTurnSpeed(fire.projectileTurnSpeed,fire.projectileSpeed,table)}, capsule radius {radius*scale}, height {height*scale}.");
+            foreach(var group in results.Where(r=>r.test.rangeFraction==.95f&&r.test.heading==0&&r.test.trigger>0).GroupBy(r=>new{r.test.broom,r.test.speedMode}))
+                summary.AppendLine($"broom {group.Key.broom} {group.Key.speedMode}: {group.Count(r=>!r.hit)}/{group.Count()} evasions (pattern samples, NOT win probability)");
+            File.WriteAllText("summary.txt",summary.ToString());
+            // Retain representative trajectory evidence for basic craft.
+            foreach(var group in results.Where(r=>!r.hit&&r.test.broom==2&&r.test.rangeFraction==.95f&&r.test.heading==0).GroupBy(r=>r.test.speedMode))Sim(group.First().test,true);
+            Debug.Log(summary.ToString());EditorApplication.Exit(0);
+        } catch(Exception e){Debug.LogException(e);File.WriteAllText("diagnostic-error.txt",e.ToString());EditorApplication.Exit(1);}
+    }
+}
+}

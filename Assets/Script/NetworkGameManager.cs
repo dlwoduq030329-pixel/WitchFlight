@@ -1282,7 +1282,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 data.magicAimDirection = local.GetDotAimDirection(BattleHud.GetMagicAimRay(inputCamera));
             // Include the release tick: that is when the area position becomes fixed.
             if (inputCamera != null)
-                data.hasAreaAimPoint = local.TryGetAreaAimPoint(BattleHud.GetMagicAimRay(inputCamera), out data.areaAimPoint);
+                data.hasAreaAimPoint = local.SampleAreaAimInput(inputCamera, data.buttons.IsSet(PlayerInputButton.Lock), out data.areaAimPoint);
         }
 
         input.Set(data);

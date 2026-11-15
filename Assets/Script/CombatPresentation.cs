@@ -357,7 +357,7 @@ public sealed class CombatPresentation : MonoBehaviour
         return owner != null && owner.Object != null && owner.Object.IsValid && owner.IsAlive &&
             local != null && local.Object != null && local.Object.IsValid && local.IsAlive &&
             owner != local && !owner.Object.HasInputAuthority && owner.Runner == local.Runner &&
-            owner.TeamIndex > 0 && local.TeamIndex > 0 &&
+            ((owner.TeamIndex > 0 && local.TeamIndex > 0) || enemyLockOn.IsLocallyDesignated(owner)) &&
             !owner.IsHiddenBySmokeFor(local);
     }
 
@@ -366,8 +366,10 @@ public sealed class CombatPresentation : MonoBehaviour
         if (enemyOutline == null) return;
         bool visible = CanShowEnemyOutline();
         if (visible)
-            enemyOutline.OutlineColor = owner.TeamIndex == Player.LocalPlayer.TeamIndex
-                ? new Color(.1f, .4f, 1f, 1f) : new Color(1f, .08f, .12f, 1f);
+            enemyOutline.OutlineColor = enemyLockOn.IsLocallyDesignated(owner)
+                ? new Color(0f, 1f, 0f, 1f)
+                : owner.TeamIndex == Player.LocalPlayer.TeamIndex
+                    ? new Color(.1f, .4f, 1f, 1f) : new Color(1f, .08f, .12f, 1f);
         // QuickOutline changes materials on enable/disable; do that only on actual state changes.
         if (enemyOutline.enabled != visible) enemyOutline.enabled = visible;
     }

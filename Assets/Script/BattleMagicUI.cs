@@ -51,6 +51,7 @@ public sealed class BattleMagicUI : MonoBehaviour
     private MagicType displayedMagic1, displayedMagic2;
     private readonly float[] previousRemaining = { -1f, -1f, -1f };
     private readonly int[] displayedCooldownSeconds = { -1, -1, -1 };
+    private readonly System.Collections.Generic.List<ParticleSystem> selectedFxParticles = new();
 
     private bool CanBind(Player player)
     {
@@ -192,15 +193,18 @@ public sealed class BattleMagicUI : MonoBehaviour
             fx.SetActive(true);
             // Authored feather particles have Play On Awake disabled.
             // Restart only when selected, never once per HUD update.
-            foreach (ParticleSystem particles in fx.GetComponentsInChildren<ParticleSystem>(true))
+            fx.GetComponentsInChildren(true, selectedFxParticles);
+            foreach (ParticleSystem particles in selectedFxParticles)
                 if (particles.gameObject.activeInHierarchy) particles.Play(false);
         }
         else
         {
-            foreach (ParticleSystem particles in fx.GetComponentsInChildren<ParticleSystem>(true))
+            fx.GetComponentsInChildren(true, selectedFxParticles);
+            foreach (ParticleSystem particles in selectedFxParticles)
                 particles.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
             fx.SetActive(false);
         }
+        selectedFxParticles.Clear();
     }
 
     private void UpdateCooldown(Slider slider, TextMeshProUGUI cooldownText, int slot)

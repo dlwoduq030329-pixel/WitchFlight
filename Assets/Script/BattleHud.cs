@@ -754,8 +754,18 @@ public sealed partial class BattleHud : MonoBehaviour
             SetNumericText(speedStageText, !valid ? "" : stage > 0 ? "+{0}" : "{0}", stage);
         }
         SetNumericText(speedText, valid ? "{0:0.0} m/s" : "", valid ? owner.CurrentSpeed : 0f);
+        BindSelectedMagicText(valid);
+        SetNumericText(magicCostText, valid ? "{0:0}" : "", valid ? owner.SelectedMagicApCost : 0f);
+    }
+
+    private void BindSelectedMagicText(bool valid)
+    {
         if (selectedMagicText != null)
         {
+            // This label also uses TMP's charge formatter and plain magic names. A cached
+            // blade count must not suppress restoring that count after either display.
+            if ((!valid || owner.IsRainCharging || owner.CurrentMagicSlot == 3 || owner.BladeCharges <= 0) &&
+                numericDisplays.TryGetValue(selectedMagicText, out NumericDisplay display)) display.length = -1;
             if (valid && owner.IsRainCharging)
             {
                 if (owner.RainFocused)
@@ -766,7 +776,6 @@ public sealed partial class BattleHud : MonoBehaviour
                 SetNumericText(selectedMagicText, "칼날 마법 · {0}회", owner.BladeCharges);
             else SetText(selectedMagicText, valid ? owner.CurrentMagicSlot == 3 ? "Parry" : MagicName(owner.GetSelectedMagic()) : "");
         }
-        SetNumericText(magicCostText, valid ? "{0:0}" : "", valid ? owner.SelectedMagicApCost : 0f);
     }
 
     private void BindSpeedStageImages(int stage)

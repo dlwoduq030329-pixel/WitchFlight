@@ -19,7 +19,8 @@ namespace UnityEngine {
   public static float Clamp(float v,float a,float b)=>Math.Clamp(v,a,b);public static int Clamp(int v,int a,int b)=>Math.Clamp(v,a,b);
   public static float Clamp01(float v)=>Math.Clamp(v,0,1);public static float Lerp(float a,float b,float t)=>a+(b-a)*Clamp01(t);
   public static float SmoothStep(float a,float b,float t){t=Clamp01(t);return a+(b-a)*t*t*(3-2*t);}
-  public static float Cos(float a)=>(float)Math.Cos(a);public static float Sin(float a)=>(float)Math.Sin(a);
+  public static int TrigCalls;
+  public static float Cos(float a){TrigCalls++;return (float)Math.Cos(a);}public static float Sin(float a){TrigCalls++;return (float)Math.Sin(a);}
  }
  public struct Vector3 {
   public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
@@ -67,6 +68,7 @@ namespace FormationChecks {
   public Transform transform=new GameObject().transform;public int Sweeps;public bool Block;
   public Vector3 ClampSatelliteMotion(Vector3 from,Vector3 to,out bool hit){Sweeps++;hit=Block;return hit?from:to;}
  }
+ public static class MagicVfxPool {public static void Release(GameObject root)=>Object.Destroy(root);}
  public static class CombatPresentation {
   public static int Authored;
   public static Color MagicColor(int magic)=>new(1,.2f,.1f,1);
@@ -113,6 +115,13 @@ public static class Tests {
   Time.time=.09f;visual.Update(new(0,.8f,10),f,100);
   Check(Near(satellites[0].position.z,-1.15f),"backward phase is anchored in world space, not dragged forward by fast core");
   Time.time=.8f;visual.Update(new(0,.8f,40),f,100);Check(Near(satellites[0].position.z,43),"small satellites overtake core after the turn");
+  int trigCalls=Mathf.TrigCalls;
+  for(int i=0;i<300;i++)visual.Update(new(0,.8f,40),f,100);
+  Check(Mathf.TrigCalls==trigCalls,"steady formation updates do not recalculate fixed ring trigonometry");
+  table.projectileSatelliteSpread=2;table.projectileSatelliteLeadDistance=5;
+  visual.Update(new(0,.8f,40),f,100);
+  Check(Near(satellites[0].position.x,2)&&Near(satellites[0].position.z,45),"live spread and lead settings still apply immediately");
+  table.projectileSatelliteSpread=1;table.projectileSatelliteLeadDistance=3;
   visual.Update(new(0,.8f,40),f,10.5f);Check(Near(satellites[0].position.z,41.5f)&&Near(satellites[0].localScale.x,.0525f),"approaching target brings satellites inward and shrinks them");
   visual.Update(new(0,.8f,40),f,3);Check(!root.activeSelf,"completed merge hides all small satellites");
   visual.Update(new(0,.8f,40),f,100);Check(!root.activeSelf,"merged satellites do not reappear when target retreats");

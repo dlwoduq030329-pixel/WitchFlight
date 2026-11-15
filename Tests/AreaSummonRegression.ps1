@@ -6,7 +6,7 @@ $area=Get-Content Assets/Script/Player.AreaMagic.cs -Raw
 $construct=Get-Content Assets/Script/MagicProjectile.Constructs.cs -Raw
 $summonCombat=Get-Content Assets/Script/MagicProjectile.SummonCombat.cs -Raw
 function Method([string]$source,[string]$name) {
- $m=[regex]::Match($source,'(?ms)^    (?:public|private) (?:static )?[\w<>]+ '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}')
+ $m=[regex]::Match($source,'(?ms)^    (?:public|private) (?:(?:static|virtual) )?[\w<>]+ '+$name+'\([^{}]*?\)\r?\n    \{.*?^    \}')
  if(!$m.Success){throw "Missing production method $name"}
  $m.Value -replace '^    private ','    public '
 }
@@ -86,7 +86,7 @@ public class Player {
  public void ReceiveMagicHit(MagicStatEntry s,int shooter,NetworkId id,Vector3 incomingDirection=default,Vector3? impactPoint=null){Hits++;}
 '@
 $code+=(Method $area 'ProcessAreaAim')+(Method $area 'CanCreateSpecialMagic')
-$code+='} public class AreaPointProbe { public Vector3 MagicCastPosition; public bool Wall; public Vector3 TraceMagic(MagicStatEntry s,Vector3 origin,Vector3 direction,out Player victim){victim=null;return origin+direction*(Wall?1:s.range);}'
+$code+='} public class AreaPointProbe { public Vector3 MagicCastPosition; public bool Wall {get=>!MagicProjectile.SummonSight;set=>MagicProjectile.SummonSight=!value;}'
 $code+=(Method $area 'ValidateAreaPoint')+(Method $area 'IsFiniteAreaPoint')
 $code+=@'
 }
@@ -138,6 +138,7 @@ public static class Tests {
   Check(!aim.ValidateAreaPoint(new(float.NaN,0,0),new(),out _)&&!aim.ValidateAreaPoint(new(float.PositiveInfinity,0,0),new(),out _),"nonfinite coordinates rejected");
   Check(!aim.ValidateAreaPoint(new(300,50,400),new(){range=100},out _),"out of range coordinates rejected");
   aim.Wall=true;Check(!aim.ValidateAreaPoint(new(300,50,240),new(){range=100},out _),"point behind caster-side wall rejected");
+  aim.Wall=false;
   var r=new NetworkRunner();var owner=Pilot(r,1);owner.SelectedMagicStats=new(){effect=MagicEffectKind.DelayedArea};
   var input=new NetworkInputData{hasAreaAimPoint=true,areaAimPoint=new(0,0,40)};
   owner.ProcessAreaAim(input,true,true,false);Check(owner.areaAimArmed&&owner.Casts==0&&owner.Mana==100,"press only aims, no resources spent");

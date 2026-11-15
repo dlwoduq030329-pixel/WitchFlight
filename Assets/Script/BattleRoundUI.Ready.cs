@@ -19,6 +19,8 @@ public sealed partial class BattleRoundUI
     [SerializeField] private ProfileImageTable profileTable;
     private bool readyRequestPending, requestedReady, profilesBound;
     private float readyRequestedAt;
+    private Button readyLabelOwner;
+    private TMP_Text readyButtonLabel;
     private readonly List<PlayerData> readyRoster = new();
     private readonly List<PlayerData> readyRosterScratch = new();
     private readonly Dictionary<Button, bool> lockedSwapButtons = new();
@@ -62,9 +64,13 @@ public sealed partial class BattleRoundUI
             var colors = resetMagicButton.colors;
             colors.normalColor = colors.highlightedColor = colors.selectedColor = colors.pressedColor = colors.disabledColor = Color.white;
             colors.colorMultiplier = 1; resetMagicButton.colors = colors;
-            var label = resetMagicButton.GetComponentInChildren<TMP_Text>(true);
-            Text(label, ready ? "준비 완료 취소" : "준비 완료");
-            if (label != null) label.color = ready ? ReadyDark : ReadyCyan;
+            if (readyLabelOwner != resetMagicButton)
+            {
+                readyLabelOwner = resetMagicButton;
+                readyButtonLabel = resetMagicButton.GetComponentInChildren<TMP_Text>(true);
+            }
+            Text(readyButtonLabel, ready ? "준비 완료 취소" : "준비 완료");
+            if (readyButtonLabel != null) readyButtonLabel.color = ready ? ReadyDark : ReadyCyan;
         }
         RefreshReadyProfileSlots(battle.RoundNumber);
     }

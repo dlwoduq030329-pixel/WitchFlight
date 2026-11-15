@@ -16,40 +16,77 @@ public class enemyLockOn : MonoBehaviour
     private float nextRefreshTime;
     private readonly RaycastHit[] obstructionHits = new RaycastHit[32];
     private Player designatedTarget;
+    private static enemyLockOn localDesignator;
     private GameObject directionCanvas;
     private RectTransform directionArrow;
     public Player DesignatedTarget => designatedTarget;
 
+    // Viewer-local presentation only. No replicated target/appearance state.
+    public static bool IsLocallyDesignated(Player candidate)
+    {
+        enemyLockOn selector = localDesignator;
+        if (selector == null || !selector.isActiveAndEnabled || selector.owner == null ||
+            selector.owner != Player.LocalPlayer || selector.owner.Object == null ||
+            !selector.owner.Object.IsValid || !selector.owner.Object.HasInputAuthority || !selector.owner.IsAlive)
+            return false;
+        return candidate != null && selector.designatedTarget == candidate && candidate.Object != null &&
+            candidate.Object.IsValid && candidate.Runner == selector.owner.Runner && candidate.IsTargetableBy(selector.owner);
+    }
+
+    private void SetDesignatedTarget(Player target)
+    {
+        if (designatedTarget == target) return;
+        designatedTarget = target;
+        if (target != null && owner == Player.LocalPlayer) localDesignator = this;
+        else if (localDesignator == this) localDesignator = null;
+        // A wheel-click during charging must also re-evaluate the lock selection.
+        // Friendly healing/support keeps its own target selection.
+        if (owner != null && owner.Object != null && owner.Object.IsValid && !owner.SelectedMagicStats.TargetsAllies)
+        {
+            currentTarget = null;
+            nextRefreshTime = 0f;
+        }
+        SetArrowVisible(false);
+    }
+
+    private Player FindNextDesignatedTarget()
+    {
+        Ray aimRay = BattleHud.GetMagicAimRay(targetCamera);
+        Vector2 aim = targetCamera.WorldToScreenPoint(aimRay.GetPoint(1f));
+        Player best = null;
+        float bestScore = float.PositiveInfinity;
+        foreach (Player candidate in Player.ActiveCombatants)
+        {
+            if (candidate == null || candidate == designatedTarget || candidate.Object == null || !candidate.Object.IsValid ||
+                candidate.Runner != owner.Runner || !candidate.IsTargetableBy(owner)) continue;
+            Vector3 viewport = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
+            if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f) continue;
+            Vector2 screen = targetCamera.WorldToScreenPoint(candidate.LockAimPoint);
+            float score = (screen - aim).sqrMagnitude;
+            if (score >= bestScore || !HasLineOfSight(aimRay.origin, candidate)) continue;
+            bestScore = score;
+            best = candidate;
+        }
+        return best;
+    }
+
     private void Update()
     {
         bool active = owner != null && owner.Object != null && owner.Object.IsValid &&
-            owner.Object.HasInputAuthority && owner.IsAlive && BattleManager.Instance != null &&
+            owner.Object.HasInputAuthority && owner == Player.LocalPlayer && owner.IsAlive && BattleManager.Instance != null &&
             BattleManager.Instance.IsGameplayActive;
         if (!active)
         {
-            designatedTarget = null;
+            SetDesignatedTarget(null);
             SetArrowVisible(false);
             return;
         }
         if (designatedTarget != null && (designatedTarget.Object == null || !designatedTarget.Object.IsValid ||
-            designatedTarget.Runner != owner.Runner || !designatedTarget.IsTargetableBy(owner))) designatedTarget = null;
-        if (Input.GetMouseButtonDown(2) && !CombatPresentation.MenuOpen &&
+            designatedTarget.Runner != owner.Runner || !designatedTarget.IsTargetableBy(owner))) SetDesignatedTarget(null);
+        if (Input.GetMouseButtonDown(2) && Cursor.lockState == CursorLockMode.Locked && !CombatPresentation.MenuOpen &&
             !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput && TryGetAlignedAim(out _))
         {
-            designatedTarget = null;
-            Vector3 aim = targetCamera.WorldToScreenPoint(targetCameraFollow.GetDisplayedAimPoint());
-            float best = float.PositiveInfinity;
-            foreach (Player candidate in Player.ActiveCombatants)
-            {
-                if (candidate == null || candidate.Object == null || !candidate.Object.IsValid ||
-                    candidate.Runner != owner.Runner || !candidate.IsTargetableBy(owner)) continue;
-                Vector3 viewport = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
-                if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f ||
-                    !HasLineOfSight(targetCamera.transform.position, candidate)) continue;
-                Vector3 screen = targetCamera.WorldToScreenPoint(candidate.LockAimPoint);
-                float score = ((Vector2)(screen - aim)).sqrMagnitude;
-                if (score < best) { best = score; designatedTarget = candidate; }
-            }
+            SetDesignatedTarget(FindNextDesignatedTarget());
         }
     }
 
@@ -90,8 +127,8 @@ public class enemyLockOn : MonoBehaviour
     {
         if (directionCanvas != null && directionCanvas.activeSelf != visible) directionCanvas.SetActive(visible);
     }
-    private void OnDisable() { designatedTarget = null; SetArrowVisible(false); }
-    private void OnDestroy() { if (directionCanvas != null) Destroy(directionCanvas); }
+    private void OnDisable() { SetDesignatedTarget(null); if (localDesignator == this) localDesignator = null; SetArrowVisible(false); }
+    private void OnDestroy() { if (localDesignator == this) localDesignator = null; if (directionCanvas != null) Destroy(directionCanvas); }
     public Player CurrentTarget => currentTarget != null ? currentTarget.GetComponent<Player>() : null;
     // Read-only camera presentation state; includes summon targets and requires no new search.
     public bool HasSelectedTarget => wasHeld && currentTarget != null && currentTarget.IsValid &&
@@ -158,7 +195,8 @@ public class enemyLockOn : MonoBehaviour
     private NetworkObject FindClosestVisibleEnemy(bool excludeRainTargets = false)
     {
         if (!owner.SelectedMagicStats.TargetsAllies && designatedTarget != null &&
-            designatedTarget.Object != null && IsVisible(designatedTarget.Object) &&
+            designatedTarget.Object != null && designatedTarget.Object.IsValid && designatedTarget.Runner == owner.Runner &&
+            designatedTarget.IsTargetableBy(owner) && IsVisible(designatedTarget.Object) &&
             (!excludeRainTargets || !owner.HasRainTarget(designatedTarget.Object.Id)))
             return designatedTarget.Object;
         NetworkObject best = null;
