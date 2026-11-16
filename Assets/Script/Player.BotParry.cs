@@ -11,10 +11,25 @@ public partial class Player
     private NetworkId botParryThreatId;
     private bool botParryPending, botParryLate;
     private int botParryRound = -1, botParryPortal = -1, botParryDeath = -1;
+    private bool botParryAwaitingOutcome;
+    private float botParryProbabilityOffset;
+
+    private void ResolveBotParryOutcome(bool success)
+    {
+        if (!IsMatchBot || !Object.HasStateAuthority || !botParryAwaitingOutcome) return;
+        botParryAwaitingOutcome = false;
+        var settings = MatchBotSettings.Default;
+        float baseline = Mathf.Clamp01(settings.parryGoodTimingChance);
+        botParryProbabilityOffset = Mathf.Clamp(botParryProbabilityOffset +
+            (baseline - (success ? 1f : 0f)) * settings.parryOutcomeCorrection, -baseline, 1f - baseline);
+    }
 
     private void UpdateBotParry(ref NetworkInputData input)
     {
         var settings = MatchBotSettings.Default;
+        // Count an actual started parry once, even if it blocks several projectiles.
+        if (botParryAwaitingOutcome && (!IsParrying || botParryDeath != DeathSequence))
+            ResolveBotParryOutcome(false);
         int round = BattleManager.Instance != null ? BattleManager.Instance.RoundNumber : 0;
         if (!settings.useParry || botParryRound != round || botParryPortal != PortalExitSequence || botParryDeath != DeathSequence)
         {
@@ -52,7 +67,7 @@ public partial class Player
         float reaction = Mathf.Max(Runner.DeltaTime,settings.parryReactionSeconds);
         float minError = Mathf.Max(Runner.DeltaTime*2,settings.parryMistakeSeconds.x);
         float error = Random.Range(minError,Mathf.Max(minError,settings.parryMistakeSeconds.y));
-        bool good = Random.value < settings.parryGoodTimingChance;
+        bool good = Random.value < Mathf.Clamp01(settings.parryGoodTimingChance + botParryProbabilityOffset);
         bool early = !good && Random.value < settings.parryEarlyShareOfMistakes;
         float lead = good ? ParryWindowSeconds*Random.Range(.35f,.65f) : early ? ParryWindowSeconds+error : -error;
         // Already too close to press early: make this a late mistake instead of silently succeeding.

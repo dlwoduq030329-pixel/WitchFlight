@@ -1,16 +1,11 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Authored beneath BattleUI's moving forward-aim marker. No runtime UI creation
-// or scene search: its parent supplies the position and normal HUD visibility.
+// Uses authored segment positions and sizes. Capacity only changes visibility.
 [DisallowMultipleComponent]
 public sealed class DashChargeHud : MonoBehaviour
 {
     [SerializeField] private Slider[] segments = new Slider[6];
-    [SerializeField] private RectTransform leftLine;
-    [SerializeField] private RectTransform rightLine;
-    [SerializeField, Min(1f)] private float segmentSpacing = 54f;
-    [SerializeField, Min(0f)] private float lineOffset = 40f;
     [SerializeField] private CanvasGroup visibility;
     [Tooltip("충전 표시만 부드럽게 따라가는 시간. 소모는 즉시 반영합니다.")]
     [SerializeField, Min(.001f)] private float fillSmoothingSeconds = .04f;
@@ -80,61 +75,14 @@ public sealed class DashChargeHud : MonoBehaviour
 
     private void UpdateCapacity(int capacity)
     {
-        CopyFirstSegmentLayout();
         for (int i = 0; i < segments.Length; i++)
         {
             if (segments[i] == null) continue;
-            segments[i].gameObject.SetActive(i < capacity);
-            var rect = (RectTransform)segments[i].transform;
-            rect.anchoredPosition = new Vector2((i - (capacity - 1) * .5f) * segmentSpacing, rect.anchoredPosition.y);
+            bool active = i < capacity;
+            if (segments[i].gameObject.activeSelf != active)
+                segments[i].gameObject.SetActive(active);
         }
-        float edge = (capacity - 1) * .5f * segmentSpacing + lineOffset;
-        if (leftLine != null) leftLine.anchoredPosition = new Vector2(-edge, leftLine.anchoredPosition.y);
-        if (rightLine != null) rightLine.anchoredPosition = new Vector2(edge, rightLine.anchoredPosition.y);
         previousCapacity = capacity;
-    }
-
-    // Copy the authored template only when the HUD/capacity changes, never during fill updates.
-    // Keep all six scene objects and their independent Slider values/references.
-    [ContextMenu("첫 번째 대쉬 바 크기를 나머지에 적용")]
-    private void CopyFirstSegmentLayout()
-    {
-        if (segments == null || segments.Length == 0 || segments[0] == null) return;
-        var template = (RectTransform)segments[0].transform;
-        for (int i = 1; i < segments.Length; i++)
-        {
-            Slider segment = segments[i];
-            if (segment == null) continue;
-#if UNITY_EDITOR
-            if (!Application.isPlaying)
-                UnityEditor.Undo.RecordObjects(segment.GetComponentsInChildren<RectTransform>(true), "Copy dash bar layout");
-#endif
-            CopyRectLayout(template, (RectTransform)segment.transform, segment.fillRect, true);
-        }
-    }
-
-    private static void CopyRectLayout(RectTransform source, RectTransform target, RectTransform fill, bool root)
-    {
-        // Slider owns the fill anchors; copying those would overwrite its current charge fraction.
-        if (target != fill)
-        {
-            target.anchorMin = source.anchorMin;
-            target.anchorMax = source.anchorMax;
-        }
-        target.pivot = source.pivot;
-        target.sizeDelta = source.sizeDelta;
-        target.localScale = source.localScale;
-        target.localRotation = source.localRotation;
-        Vector3 position = source.anchoredPosition3D;
-        if (root) position.x = target.anchoredPosition3D.x;
-        target.anchoredPosition3D = position;
-        for (int i = 0; i < Mathf.Min(source.childCount, target.childCount); i++)
-        {
-            var sourceChild = source.GetChild(i) as RectTransform;
-            var targetChild = target.GetChild(i) as RectTransform;
-            if (sourceChild != null && targetChild != null && sourceChild.name == targetChild.name)
-                CopyRectLayout(sourceChild, targetChild, fill, false);
-        }
     }
 
     private void LateUpdate()
