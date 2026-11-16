@@ -89,7 +89,9 @@ public sealed class MatchBotSettings : ScriptableObject
     [Range(0f, 1f)] public float pressuredDoubleSupportChance = .4f;
     [Header("패링 반응 / 입력 타이밍 (호스트에서 1회 추첨)")]
     public bool useParry = true;
-    [Range(0f,1f)] public float parryGoodTimingChance = .55f;
+    [Range(0f,1f)] public float parryGoodTimingChance = .5f;
+    [Tooltip("실제 패링 결과에 따른 확률 보정 강도. 0이면 독립 시행, 0.2이면 성공/실패마다 기본 확률 50% 기준 10%p 보정합니다.")]
+    [Range(0f,1f)] public float parryOutcomeCorrection = .2f;
     [Range(0f,1f)] public float parryEarlyShareOfMistakes = .5f;
     [Min(.01f)] public float parryReactionSeconds = .12f;
     [Min(.1f)] public float parryLookAheadSeconds = 1.5f;
