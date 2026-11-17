@@ -7,6 +7,8 @@ public sealed class PlayerBladeSwing
     [SerializeField, Min(.2f)] private float duration = .65f;
     [SerializeField, Range(0f, 90f)] private float armSweep = 65f;
     [SerializeField, Range(0f, 35f)] private float torsoTwist = 20f;
+    [SerializeField, Range(0f, 140f), Tooltip("곧게 편 시작 자세 기준, 팔꿈치를 굽히기 시작하는 베기 각도입니다.")]
+    private float elbowBendStartAngle = 130f;
     private Animator cachedAnimator;
     private readonly Transform[] bones = new Transform[4];
     private readonly Quaternion[] baseRotations = new Quaternion[4];
@@ -32,7 +34,7 @@ public sealed class PlayerBladeSwing
         initialized = false;
     }
 
-    public void Apply(Transform body, Animator animator, int currentSequence, int swingStep, bool active, float deltaTime, Transform weaponAnchor)
+    public void Apply(Transform body, Animator animator, int currentSequence, int swingStep, bool active, float deltaTime, Transform weaponAnchor, bool charging = false)
     {
         RestorePose();
         if (!initialized)
@@ -47,7 +49,7 @@ public sealed class PlayerBladeSwing
             elapsed = 0f;
         }
         if (!active) { elapsed = 10f; return; }
-        if (elapsed >= duration) return;
+        if (elapsed >= duration && !charging) return;
         if (animator != cachedAnimator)
         {
             cachedAnimator = animator;
@@ -70,7 +72,7 @@ public sealed class PlayerBladeSwing
                 }
             }
         }
-        float t = Mathf.Clamp01(elapsed / Mathf.Max(.2f, duration));
+        float t = charging ? .1f : Mathf.Clamp01(elapsed / Mathf.Max(.2f, duration));
         elapsed += Mathf.Max(0f, deltaTime);
         float side = step % 2 == 0 ? -1f : 1f;
         // Short draw-back, fast cross-body sweep, then a long weighted recovery.
@@ -90,12 +92,25 @@ public sealed class PlayerBladeSwing
         {
             float reachWeight = t < .1f ? Mathf.SmoothStep(0,1,t/.1f) :
                 1f - Mathf.SmoothStep(0,1,Mathf.InverseLerp(.48f,1f,t));
-            float yaw = Mathf.Lerp(75f, -85f, CutProgress(t)) * -side;
-            Vector3 desired = body.rotation * (Quaternion.Euler(0,yaw,0) * new Vector3(0,.18f,1));
-            Vector3 current = bones[3].position - bones[1].position;
+            float sweptAngle = 140f * CutProgress(t);
+            float yaw = 70f - sweptAngle;
+            float shoulderYaw = 70f - Mathf.Min(sweptAngle, elbowBendStartAngle);
+            Vector3 forward = Vector3.ProjectOnPlane(body.forward, Vector3.up).normalized;
+            if (forward.sqrMagnitude < .001f) forward = Vector3.forward;
+            Vector3 desired = Quaternion.AngleAxis(yaw, Vector3.up) * forward;
+            Vector3 shoulderDirection = Quaternion.AngleAxis(shoulderYaw, Vector3.up) * forward;
+            Vector3 current = (bones[2] != null ? bones[2].position : bones[3].position) - bones[1].position;
             if (current.sqrMagnitude > .001f)
                 bones[1].rotation = Quaternion.Slerp(Quaternion.identity,
-                    Quaternion.FromToRotation(current,desired),reachWeight) * bones[1].rotation;
+                    Quaternion.FromToRotation(current,shoulderDirection),reachWeight) * bones[1].rotation;
+            // The upper arm stops at the threshold; the forearm continues left, bending the elbow.
+            if (bones[2] != null)
+            {
+                Vector3 forearm = bones[3].position - bones[2].position;
+                if (forearm.sqrMagnitude > .001f)
+                    bones[2].rotation = Quaternion.Slerp(Quaternion.identity,
+                        Quaternion.FromToRotation(forearm, desired), reachWeight) * bones[2].rotation;
+            }
         }
         if (TryGetArmDirection(out Vector3 armDirection) && weaponAnchor != null && weaponAnchor.IsChildOf(bones[3]))
         {

@@ -2900,7 +2900,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         bladeSwing.Apply(transform, animator, Object != null && Object.IsValid ? BladeSwingSequence : 0,
             Object != null && Object.IsValid ? BladeSwingStep : 0,
-            canLook && !IsParrying && CurrentMagicSlot != 3 && LastCastMagic == MagicType.Blade && (CurrentMagicSlot == 0 || GetSelectedMagic() == MagicType.Blade), Time.deltaTime * TimeFieldSpeed, MagicCastAnchor);
+            canLook && !IsParrying && CurrentMagicSlot != 3 && (BladeCharging || LastCastMagic == MagicType.Blade) && (CurrentMagicSlot == 0 || GetSelectedMagic() == MagicType.Blade), Time.deltaTime * TimeFieldSpeed, MagicCastAnchor, BladeCharging);
         headLook.Apply(transform, animator, angles, canLook, Time.deltaTime);
         presentation?.UpdateBladeWeaponVfx();
         RenderBladeChargePreview();
