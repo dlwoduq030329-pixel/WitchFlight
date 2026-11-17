@@ -181,7 +181,7 @@ public partial class Player
             created = true;
             if (!area) MagicProjectile.TrimSummons(this, Mathf.Clamp(Mathf.Max(count, s.summonMaxCount), 1, 16), spawned);
         }
-        if (created) RPC_PresentCast(s.magic, MagicCastPosition, MagicCastPosition, 0f);
+        if (created) PresentCast(s.magic, MagicCastPosition, MagicCastPosition);
     }
 
     private void UpdateAreaAimPreview()

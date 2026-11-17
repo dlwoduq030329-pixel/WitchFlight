@@ -178,7 +178,7 @@ $input = Get-Content Assets/Script/NetworkInputData.cs -Raw
 $hud = Get-Content Assets/Script/BattleHud.cs -Raw
 foreach ($expected in 'castAimDirection = data.magicAimDirection;', 'pendingAimDirection = castAimDirection;',
     'castAimDirection = pendingAimDirection;', 'direction = ResolveDotCastDirection(stats, castAimDirection, direction);',
-    'RPC_PresentCast(stats.magic, origin, end, 0f);') {
+    'PresentCast(stats.magic, origin, end);') {
     if (!$player.Contains($expected)) { throw "Missing authoritative Dot integration: $expected" }
 }
 if (!$input.Contains('public Vector3 magicAimDirection;') -or

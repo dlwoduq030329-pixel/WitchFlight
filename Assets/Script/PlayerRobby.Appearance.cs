@@ -9,6 +9,7 @@ public sealed partial class PlayerRobby
     [Networked, OnChangedRender(nameof(ApplyLobbyAppearance))] private NetworkBool LobbyAppearanceReady { get; set; }
     private PlayerConfig lastSentAppearance;
     private bool sentAppearance;
+    private bool appearanceDirty;
 
     private void StartLobbyAppearance()
     {
@@ -16,11 +17,20 @@ public sealed partial class PlayerRobby
         if (lobbyAppearance != null) lobbyAppearance.UnbindFromDataConfig();
         if (Object.HasInputAuthority)
         {
-            DataConfig.Changed += SendLobbyAppearance;
+            DataConfig.Changed += QueueLobbyAppearance;
             sentAppearance = false;
             SendLobbyAppearance();
         }
         ApplyLobbyAppearance();
+    }
+
+    private void QueueLobbyAppearance() => appearanceDirty = true;
+
+    private void FlushLobbyAppearance()
+    {
+        if (!appearanceDirty) return;
+        appearanceDirty = false;
+        SendLobbyAppearance();
     }
 
     private void SendLobbyAppearance()
@@ -51,5 +61,9 @@ public sealed partial class PlayerRobby
                 if (lobbyHats[i] != null) lobbyHats[i].SetActive(i == LobbyAppearanceConfig.hatIndex);
     }
 
-    private void StopLobbyAppearance() => DataConfig.Changed -= SendLobbyAppearance;
+    private void StopLobbyAppearance()
+    {
+        DataConfig.Changed -= QueueLobbyAppearance;
+        FlushLobbyAppearance();
+    }
 }

@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -104,7 +104,7 @@ public partial class Player
         Runner.Spawn(magicProjectilePrefab, origin, Quaternion.LookRotation(aim), ParticipantRef,
             onBeforeSpawned: (_, obj) => obj.GetComponent<MagicProjectile>().Initialize(this, null, shotStats, aim));
         MagicCooldowns.Set((int)MagicType.BladeRain, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, rainStats.cooldownSeconds)));
-        RPC_PresentCast(MagicType.BladeRain, origin, origin + aim, 0);
+        PresentCast(MagicType.BladeRain, origin, origin + aim);
         CancelBladeRain();
         rainNeedsRelease = true;
     }
@@ -140,7 +140,7 @@ public partial class Player
         rainStats.perkCast=CastSequence; rainStats.perkAttacker=ParticipantRef;
         rainStats.titleCastId=PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleCast(MagicType.BladeRain,false)??0;
         rainNextWave=TickTimer.CreateFromSeconds(Runner,.12f);
-        RPC_PresentCast(MagicType.BladeRain,MagicCastPosition,MagicCastPosition,0);
+        PresentCast(MagicType.BladeRain,MagicCastPosition,MagicCastPosition);
         TickBladeRainVolley();
     }
     private void TickBladeRainVolley()

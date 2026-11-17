@@ -253,7 +253,7 @@ public partial class BattleManager : MonoBehaviour
 
     protected virtual void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
     {
-        RespawnWorkTimer.WatchFrames();
+        RespawnWorkTimer.Mark(isRespawn ? "BattlePlayer.RespawnRequested" : "BattlePlayer.InitialSpawn", this);
         using var workTimer = new RespawnWorkTimer("BattlePlayer.Spawn", this);
         using var spawnProfile = SpawnProfile.Auto();
         if (IsDeathMatch)
