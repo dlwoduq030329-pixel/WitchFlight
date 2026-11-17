@@ -56,6 +56,20 @@ MonoBehaviour:
   parryIcon: {fileID: 0}
   fallback:
     magic: 0
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 1
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: None
     description: 
     icon: {fileID: 0}
@@ -83,6 +97,9 @@ MonoBehaviour:
     projectileLifetime: 0
     projectileRadius: 0
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 0
     damage: 0
     hitStunSeconds: 0
@@ -116,6 +133,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.01
     timeAllySpeed: 0
@@ -175,6 +193,20 @@ MonoBehaviour:
     flareVfxBrightness: 0
   magics:
   - magic: 1
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uD654\uC5FC \uB9C8\uBC95"
     description: "\uAC70\uB300\uD55C \uBD88\uAF43\uC744 \uBC1C\uC0AC\uD558\uC5EC
       \uC801\uC744 \uBD88\uD0DC\uC6C1\uB2C8\uB2E4. \n\uAE34 \uC870\uC900\uC2DC\uAC04\uC774
@@ -204,6 +236,9 @@ MonoBehaviour:
     projectileLifetime: 5
     projectileRadius: 0.12
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 130
     damage: 60
     hitStunSeconds: 0
@@ -237,6 +272,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -295,6 +331,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 2
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uC5BC\uC74C \uB9C8\uBC95"
     description: "\uB0C9\uAE30\uC758 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.
       \n\uC870\uC900 \uC2DC\uAC04\uC774 \uBE60\uB974\uBA70, \uC801\uC744 \uB290\uB824\uC9C0\uAC8C
@@ -324,6 +374,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0.12
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 90
     damage: 45
     hitStunSeconds: 0
@@ -357,6 +410,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -415,6 +469,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 3
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uBE44\uC804 \uB9C8\uBC95"
     description: "\uBE60\uB978 \uB9C8\uB825 \uB369\uC5B4\uB9AC\uB97C \uC3E9\uB2C8\uB2E4.
       \n\uC870\uC900 \uC2DC\uAC04\uC774 \uD544\uC694\uD558\uC9C0\uC54A\uC73C\uBA70
@@ -444,6 +512,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0
     hitscanRadius: 1.5
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 150
     damage: 25
     hitStunSeconds: 0
@@ -477,6 +548,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -535,6 +607,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 4
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uCC9C\uB465 \uB9C8\uBC95"
     description: "\uC2DC\uC804 \uC2DC \uC870\uC900\uC810\uC5D0 \uAC00\uC7A5 \uAC00\uAE4C\uC6B4
       \uC801 \uC704\uCE58\uB97C \uC870\uC900\uD569\uB2C8\uB2E4. \uD720\uB85C \uC218\uB3D9
@@ -565,6 +651,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0
     hitscanRadius: 0.3
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 300
     damage: 120
     hitStunSeconds: 0
@@ -598,6 +687,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -656,6 +746,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 5
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uD68C\uBCF5 \uB9C8\uBC95"
     description: "\uCCB4\uB825 40\uC744 \uC989\uC2DC \uD68C\uBCF5\uD569\uB2C8\uB2E4.
       \n\uC7AC\uC0AC\uC6A9 \uB300\uAE30 \uC2DC\uAC04\uC774 \uAE41\uB2C8\uB2E4."
@@ -684,6 +788,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0.12
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 200
     damage: 0
     hitStunSeconds: 0
@@ -717,6 +824,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -775,6 +883,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 7
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uC554\uD751 \uB9C8\uBC95"
     description: "\uCCB4\uB825 30\uC744 \uC18C\uBAA8\uD558\uB294 \uC989\uBC1C \uACF5\uACA9.
       \n\uC801\uC5D0\uAC8C \uD53C\uD574\uB97C \uC785\uD788\uBA74 \uCCB4\uB825 40\uC744
@@ -804,6 +926,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0
     hitscanRadius: 1.75
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 130
     damage: 100
     hitStunSeconds: 0
@@ -837,6 +962,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -895,6 +1021,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 6
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uC18D\uBC15 \uB9C8\uBC95"
     description: "\uB85D\uC628 \uD6C4 \uC720\uB3C4 \uB9C8\uBC95\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4.\n
       \uD53C\uD574 \uC5C6\uC774 3\uCD08 \uB3D9\uC548 \uC801\uC758 \uC774\uB3D9\uC744
@@ -924,6 +1064,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0.12
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 142.5
     damage: 0
     hitStunSeconds: 0
@@ -957,6 +1100,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.01
     timeAllySpeed: 0
@@ -1015,10 +1159,24 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 8
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
     weaknessExplosionDelay: 1
     weaknessExplosionDamage: 30
-    displayName: "\uc1e0\uc57d"
-    description: "\ub85d\uc628 \uc801\uc911 \uc2dc \ud53c\ud574 30, 4\ucd08\uac04 \uce58\uc720 \uac10\uc18c 50%. 1\ucd08 \ub4a4 \ubc18\uacbd 10\uc5d0 \ud53c\ud574 30\uacfc \uce58\uc720 \uac10\uc18c\ub97c \uc801\uc6a9\ud569\ub2c8\ub2e4."
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
+    displayName: "\uC1E0\uC57D"
+    description: "\uB85D\uC628 \uC801\uC911 \uC2DC \uD53C\uD574 30, 4\uCD08\uAC04
+      \uCE58\uC720 \uAC10\uC18C 50%. 1\uCD08 \uB4A4 \uBC18\uACBD 10\uC5D0 \uD53C\uD574
+      30\uACFC \uCE58\uC720 \uAC10\uC18C\uB97C \uC801\uC6A9\uD569\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 4d794e788156b404c8d6ae2f9c7bc036, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1029,12 +1187,13 @@ MonoBehaviour:
     displayRange: 0.2
     displayManaCost: 0.2
     displayDamageLabel: "\uB192\uC74C"
-    displayAimTimeLabel: "\ub85d\uc628"
+    displayAimTimeLabel: "\uB85D\uC628"
     displayRangeLabel: "\uB0AE\uC74C"
     displayManaCostLabel: "\uB0AE\uC74C"
-    displayCategory: "\uc9c0\uc6d0"
-    displayCastType: "\ub85d\uc628"
-    displayFeatures: "\uce58\uc720 \uac10\uc18c 50% / 1\ucd08 \ub4a4 \uad11\uc5ed \ud3ed\ubc1c"
+    displayCategory: "\uC9C0\uC6D0"
+    displayCastType: "\uB85D\uC628"
+    displayFeatures: "\uCE58\uC720 \uAC10\uC18C 50% / 1\uCD08 \uB4A4 \uAD11\uC5ED
+      \uD3ED\uBC1C"
     apCost: 40
     cooldownSeconds: 6
     lockChargeSeconds: 0.8
@@ -1044,6 +1203,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0.12
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 50
     damage: 30
     hitStunSeconds: 0
@@ -1077,6 +1239,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.01
     timeAllySpeed: 0
@@ -1135,6 +1298,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 9
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uC18C\uD658 \uB9C8\uBC95"
     description: "\uC801\uC744 \uCD94\uC801\uD558\uBA70 \uB85D\uC628 \uC720\uB3C4\uD0C4\uC744
       \uBC1C\uC0AC\uD558\uB294 \uC0AC\uC5ED\uB9C8\uB97C \uC18C\uD658\uD569\uB2C8\uB2E4.
@@ -1165,6 +1342,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0.2
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 100
     damage: 20
     hitStunSeconds: 0
@@ -1198,6 +1378,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.01
     timeAllySpeed: 0
@@ -1256,8 +1437,24 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 10
-    displayName: "\uce58\uc720 \uad11\uc120"
-    description: "\uc870\uc900 \ubc29\ud5a5\uc73c\ub85c \ub2e8\ubc1c \uad11\uc120\uc744 \ubc1c\uc0ac\ud569\ub2c8\ub2e4. \uc801\uc5d0\uac8c \ud53c\ud574 35, \uc544\uad70\uc5d0\uac8c \ud68c\ubcf5 20\uc744 \uc90d\ub2c8\ub2e4."
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
+    displayName: "\uCE58\uC720 \uAD11\uC120"
+    description: "\uC870\uC900 \uBC29\uD5A5\uC73C\uB85C \uB2E8\uBC1C \uAD11\uC120\uC744
+      \uBC1C\uC0AC\uD569\uB2C8\uB2E4. \uC801\uC5D0\uAC8C \uD53C\uD574 35, \uC544\uAD70\uC5D0\uAC8C
+      \uD68C\uBCF5 20\uC744 \uC90D\uB2C8\uB2E4."
     icon: {fileID: 21300000, guid: 82d5cbd78bedbed4b882e96a4030dff0, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1284,6 +1481,8 @@ MonoBehaviour:
     projectileRadius: 0
     hitscanRadius: 0.9
     allyHitscanRadius: 2.4
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 100
     damage: 35
     hitStunSeconds: 0
@@ -1317,6 +1516,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -1375,6 +1575,20 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 11
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uD50C\uB808\uC5B4"
     description: "0.5\uCD08\uB9C8\uB2E4 \uD6C4\uBC29 \uC138 \uAC08\uB798\uB85C \uD50C\uB808\uC5B4\uB97C
       \uBC29\uCD9C\uD569\uB2C8\uB2E4. \uAC1C\uBCC4 \uD50C\uB808\uC5B4\uAC00 \uB098\uB97C
@@ -1406,6 +1620,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 0
     damage: 0
     hitStunSeconds: 0
@@ -1439,6 +1656,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -1497,6 +1715,20 @@ MonoBehaviour:
     flareVfxScale: 1.8
     flareVfxBrightness: 2
   - magic: 12
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uC5F0\uB9C9"
     description: "\uD604\uC7AC \uC704\uCE58\uC5D0 \uC5F0\uB9C9\uC744 \uB0A8\uAE41\uB2C8\uB2E4.
       \uB0B4\uBD80\uC758 \uC801\uC740 \uB85D\uC628 \uAC70\uB9AC\uAC00 30% \uAC10\uC18C\uD569\uB2C8\uB2E4.
@@ -1527,6 +1759,9 @@ MonoBehaviour:
     projectileLifetime: 4
     projectileRadius: 0
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 0
     damage: 0
     hitStunSeconds: 0
@@ -1560,6 +1795,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -1618,16 +1854,25 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 13
+    bladeSlashTexture: {fileID: 0}
     bladeMinDamage: 20
-    bladeMaxDamage: 60
+    bladeMaxDamage: 90
     bladeMinRange: 8
     bladeMaxRange: 20
-    bladeSlashAngle: 140
+    bladeSlashAngle: 130
     bladeSlashHalfHeight: 3
     bladeChargeManaPerSecond: 20
     bladeChargeMaxMana: 40
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uCE7C\uB0A0 \uB9C8\uBC95"
-    description: "\ub204\ub974\ub294 \ub3d9\uc548 \ub9c8\ub098\ub97c \uc18c\ubaa8\ud574 \ucda9\uc804\ud558\uace0 \ub5bc\uba74 \uc804\ubc29\uc744 \ud55c \ubc88 \ubcb1\ub2c8\ub2e4. \ucda9\uc804\ub7c9\uc5d0 \ube44\ub840\ud574 \ud53c\ud574\uc640 \ubc94\uc704\uac00 \uc99d\uac00\ud569\ub2c8\ub2e4."
+    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uB9C8\uB098\uB97C \uC18C\uBAA8\uD574
+      \uCDA9\uC804\uD558\uACE0 \uB5BC\uBA74 \uC804\uBC29\uC744 \uD55C \uBC88 \uBCB1\uB2C8\uB2E4.
+      \uCDA9\uC804\uB7C9\uC5D0 \uBE44\uB840\uD574 \uD53C\uD574\uC640 \uBC94\uC704\uAC00
+      \uC99D\uAC00\uD569\uB2C8\uB2E4."
     icon: {fileID: 342325613, guid: 739b11d6b80584d48994af14791fc924, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1638,12 +1883,13 @@ MonoBehaviour:
     displayRange: 0.679
     displayManaCost: 0.7
     displayDamageLabel: "\uB0AE\uC74C"
-    displayAimTimeLabel: "\ucc28\uc9d5"
+    displayAimTimeLabel: "\uCC28\uC9D5"
     displayRangeLabel: "\uAE38\uB2E4"
     displayManaCostLabel: "\uB192\uC74C"
     displayCategory: 
-    displayCastType: "\ucc28\uc9d5 \ubca0\uae30"
-    displayFeatures: "\ub204\ub974\uae30: \ucc28\uc9d5 / \ub5bc\uae30: \uc804\ubc29 \ubca0\uae30"
+    displayCastType: "\uCC28\uC9D5 \uBCA0\uAE30"
+    displayFeatures: "\uB204\uB974\uAE30: \uCC28\uC9D5 / \uB5BC\uAE30: \uC804\uBC29
+      \uBCA0\uAE30"
     apCost: 0
     cooldownSeconds: 8
     lockChargeSeconds: 0
@@ -1653,6 +1899,9 @@ MonoBehaviour:
     projectileLifetime: 1.2
     projectileRadius: 3
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 20
     damage: 20
     hitStunSeconds: 0
@@ -1686,6 +1935,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0
     timeAllySpeed: 0
@@ -1744,6 +1994,17 @@ MonoBehaviour:
     flareVfxScale: 1
     flareVfxBrightness: 2
   - magic: 14
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
     stormSlowPerHit: 0.05
     stormSlowMaximum: 0.9
     stormSlowSeconds: 2
@@ -1774,6 +2035,9 @@ MonoBehaviour:
     projectileLifetime: 1.8
     projectileRadius: 0.75
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 120
     damage: 10
     hitStunSeconds: 0
@@ -1807,6 +2071,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.01
     timeAllySpeed: 0
@@ -1865,6 +2130,20 @@ MonoBehaviour:
     flareVfxScale: 1.8
     flareVfxBrightness: 2
   - magic: 15
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uC2DC\uAC04 \uB9C8\uBC95"
     description: "\uC2DC\uAC04 \uC601\uC5ED\uC744 \uD3BC\uCE69\uB2C8\uB2E4. \uC801\uC740
       30% \uB290\uB824\uC9C0\uACE0 \uC544\uAD70\uC740 30% \uBE68\uB77C\uC9D1\uB2C8\uB2E4.
@@ -1894,6 +2173,9 @@ MonoBehaviour:
     projectileLifetime: 1.8
     projectileRadius: 0
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 50
     damage: 0
     hitStunSeconds: 0
@@ -1927,6 +2209,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 100000, guid: 66f12a64bdb6455a86cc1fbe7ae10d75, type: 3}
     timeEnemySpeed: 0.7
     timeAllySpeed: 1.3
@@ -1985,8 +2268,25 @@ MonoBehaviour:
     flareVfxScale: 1.8
     flareVfxBrightness: 2
   - magic: 16
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uBA00\uC624\uB140 \uB300\uCD95\uC81C"
-    description: "\ubcf8\uc778 \ub610\ub294 \uc544\uad70\uc744 \ub530\ub77c\uac00\ub294 \ubc18\uc9c0\ub984 20\uc758 \ud68c\ubcf5 \uc601\uc5ed\uc744 4\ucd08\uac04 \uc0dd\uc131\ud569\ub2c8\ub2e4. \ub0b4\ubd80 \uc544\uad70\uc740 \ucd08\ub2f9 HP 5 \ud68c\ubcf5, \ub300\uc0c1\uc740 \uc774\ub3d9\uc18d\ub3c4 20% \uc99d\uac00."
+    description: "\uBCF8\uC778 \uB610\uB294 \uC544\uAD70\uC744 \uB530\uB77C\uAC00\uB294
+      \uBC18\uC9C0\uB984 20\uC758 \uD68C\uBCF5 \uC601\uC5ED\uC744 4\uCD08\uAC04 \uC0DD\uC131\uD569\uB2C8\uB2E4.
+      \uB0B4\uBD80 \uC544\uAD70\uC740 \uCD08\uB2F9 HP 5 \uD68C\uBCF5, \uB300\uC0C1\uC740
+      \uC774\uB3D9\uC18D\uB3C4 20% \uC99D\uAC00."
     icon: {fileID: 632450003, guid: 436518df393d6dc428c7f40354562843, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -2012,6 +2312,9 @@ MonoBehaviour:
     projectileLifetime: 1.8
     projectileRadius: 0
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0.65
     range: 50
     damage: 0
     hitStunSeconds: 0
@@ -2046,8 +2349,6 @@ MonoBehaviour:
     festivalRecoveryMultiplier: 1
     festivalHealPerSecond: 5
     festivalTargetSpeedBonus: 0.2
-    festivalSong: {fileID: 0}
-    festivalSongVolume: 0.65
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.7
     timeAllySpeed: 1.3
@@ -2106,6 +2407,20 @@ MonoBehaviour:
     flareVfxScale: 1.8
     flareVfxBrightness: 2
   - magic: 17
+    bladeSlashTexture: {fileID: 0}
+    bladeMinDamage: 0
+    bladeMaxDamage: 0
+    bladeMinRange: 0
+    bladeMaxRange: 0
+    bladeSlashAngle: 0
+    bladeSlashHalfHeight: 0
+    bladeChargeManaPerSecond: 0
+    bladeChargeMaxMana: 0
+    weaknessExplosionDelay: 0
+    weaknessExplosionDamage: 0
+    stormSlowPerHit: 0
+    stormSlowMaximum: 0
+    stormSlowSeconds: 0
     displayName: "\uCE7C\uB0A0\uBE44"
     description: "\uB9C8\uB098\uB97C \uC18C\uBAA8\uD574 \uACF5\uACA9\uC744 \uCDA9\uC804\uD569\uB2C8\uB2E4.\n\uC624\uB798
       \uCDA9\uC804\uD560\uC218\uB85D \uC704\uB825\uC774 \uAC15\uD574\uC9D1\uB2C8\uB2E4."
@@ -2134,6 +2449,9 @@ MonoBehaviour:
     projectileLifetime: 3
     projectileRadius: 0.25
     hitscanRadius: 0
+    allyHitscanRadius: 0
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0
     range: 150
     damage: 0
     hitStunSeconds: 0
@@ -2167,6 +2485,7 @@ MonoBehaviour:
     rainFocusProjectilePrefab: {fileID: 0}
     festivalRecoveryMultiplier: 0
     festivalHealPerSecond: 0
+    festivalTargetSpeedBonus: 0
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.01
     timeAllySpeed: 0

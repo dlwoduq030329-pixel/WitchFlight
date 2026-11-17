@@ -48,7 +48,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
         Equipment.brooms = (BroomStatEntry[])sourceEquipment.brooms.Clone();
         Equipment.hats = (HatStatEntry[])sourceEquipment.hats.Clone();
         selectableMagics = Array.ConvertAll(Array.FindAll(Magic.magics,
-            x => x.magic != MagicType.Vision && x.magic != MagicType.None), x => x.magic);
+            x => x.magic != MagicType.None), x => x.magic);
         magicNames = Array.ConvertAll(selectableMagics, x => Magic.GetStats(x).displayName);
         broomNames = Array.ConvertAll(Equipment.brooms, x => x.displayName);
         hatNames = Array.ConvertAll(Equipment.hats, x => x.displayName);

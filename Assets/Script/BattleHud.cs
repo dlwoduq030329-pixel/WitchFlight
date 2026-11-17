@@ -8,6 +8,15 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed partial class BattleHud : MonoBehaviour
 {
+    private static void UpdatePossessionSlider(Slider slider, float share)
+    {
+        if (slider == null) return;
+        slider.interactable = false;
+        slider.wholeNumbers = false;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.SetValueWithoutNotify(Mathf.Clamp01(share));
+    }
     [Header("ManaBooster zone screen border (scene-authored)")]
     [SerializeField] private GameObject manaBoosterScreenOverlay;
     private ManaBoosterScreenBorder manaBoosterScreenBorder;
@@ -263,6 +272,8 @@ public sealed partial class BattleHud : MonoBehaviour
     [Tooltip("상대 진영의 라운드 승리 횟수만 표시합니다. VS 문구는 별도 UI로 두세요.")]
     [SerializeField] private TextMeshProUGUI enemyRoundWinsText;
     [SerializeField] private TMP_Text matchTimeText;
+    [SerializeField] private Slider allyTimeSlider;
+    [SerializeField] private Slider enemyTimeSlider;
     [SerializeField] private TMP_Text flagText;
     [Header("Flag position (hidden for carrier / in smoke)")]
     [Tooltip("상대가 소지하거나 떨어진 깃발을 따라가는 UI. 본인이 소지하면 숨깁니다. 비우면 기본 표식을 생성합니다. 이 컨트롤러와 별도 자식 UI를 넣으세요.")]
@@ -650,6 +661,11 @@ public sealed partial class BattleHud : MonoBehaviour
         if (matchTimeText != null)
             SetText(matchTimeText, battle.ModeLabel != null ? battle.ModeLabel : battle.IsRace ? FormatMatchTime(RaceCourse.Instance.ElapsedSeconds) : battle.IsTraining ? "훈련장" : battle.IsOvertime ? "연장전" : FormatMatchTime(battle.RemainingSeconds));
         BattleFlag flag = BattleFlag.Instance;
+        bool possessionValid = flag != null && flag.Object != null && flag.Object.IsValid &&
+            !battle.IsTraining && !battle.IsRace && !battle.IsDeathMatch;
+        int localTeam = PlayerData.Local != null ? PlayerData.Local.teamIndex : valid ? owner.TeamIndex : 0;
+        UpdatePossessionSlider(allyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam) : 0f);
+        UpdatePossessionSlider(enemyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam == 1 ? 2 : localTeam == 2 ? 1 : 0) : 0f);
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null)
         {

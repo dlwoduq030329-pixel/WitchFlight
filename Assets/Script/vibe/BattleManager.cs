@@ -52,7 +52,7 @@ public partial class BattleManager : MonoBehaviour
     [SerializeField, Range(1, 2)] private int maxMagicChangesPerRound = 2;
 
     [Header("Flag Match / Respawn")]
-    [Tooltip("한 라운드 시간(초). 종료 시 마지막 깃발 소유자가 승리합니다. 2승 시 경기 종료.")]
+    [Tooltip("한 라운드 시간(초). 깃발 누적 보유 시간이 긴 팀이 승리합니다. 동률은 연장전, 2승 시 경기 종료.")]
     [SerializeField, Min(1f)] private float matchDurationSeconds = 160f;
     [SerializeField, Min(0f)] private float deathDespawnDelay = 2f;
     [Tooltip("Time measured from death, not from disappearance.")]
