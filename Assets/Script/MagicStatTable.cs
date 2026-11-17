@@ -22,18 +22,9 @@ public struct MagicStatEntry
     [NonSerialized] public PerkDefinition perkFirst, perkSecond;
     [NonSerialized] public Fusion.PlayerRef perkAttacker;
     public MagicType magic;
-    [Header("칼날 차징 베기")]
-    [Tooltip("궤적 PNG. 가로: 잔상 꼬리→칼날 선두, 세로 아래: 바깥 날 / 위: 안쪽. 흰색+알파 권장. 비우면 기존 형태.")]
-    public Texture2D bladeSlashTexture;
-    [Min(0f)] public float bladeMinDamage;
-    [Min(0f)] public float bladeMaxDamage;
-    [Min(.1f)] public float bladeMinRange;
-    [Min(.1f)] public float bladeMaxRange;
-    [Range(1f, 180f)] public float bladeSlashAngle;
-    [Min(.1f)] public float bladeSlashHalfHeight;
-    [Min(.01f)] public float bladeChargeManaPerSecond;
-    [Min(.01f)] public float bladeChargeMaxMana;
     [Header("쇠약")]
+    [Tooltip("쇠약 적중 후 폭발하기 전까지 대상 몸에 붙는 이펙트입니다.")]
+    public GameObject weaknessAttachedVfxPrefab;
     [Min(0f)] public float weaknessExplosionDelay;
     [Min(0f)] public float weaknessExplosionDamage;
     [Header("Magic Storm stacking slow")]
@@ -481,15 +472,13 @@ public sealed class MagicStatTable : ScriptableObject
                 break;
             case MagicType.Blade:
                 e.displayName = "칼날 마법";
-                e.description = "누르는 동안 마나를 소모하며 충전합니다. 떼면 전방을 한 번 베며, 충전량에 비례해 피해와 범위가 증가합니다.";
+                e.description = "시전 후 10초 안에 좌클릭을 3회 눌러 보라색 검기를 발사합니다. 무기 교체 시 해제됩니다. 적중한 적은 8초간 상처 상태가 되어 받는 회복량이 50% 감소합니다.";
                 e.effect = MagicEffectKind.BladeVolley;
-                e.damage = e.bladeMinDamage = 20; e.bladeMaxDamage = 60;
-                e.bladeMinRange = 8; e.range = e.bladeMaxRange = 20;
-                e.bladeSlashAngle = 140; e.bladeSlashHalfHeight = 3;
-                e.bladeChargeManaPerSecond = 20; e.bladeChargeMaxMana = 40;
-                e.apCost = 0; e.cooldownSeconds = 8;
-                e.effectDuration = 8; e.woundHealingMultiplier = .5f;
-                e.projectileSpeed = 0; e.bladeCharges = 0;
+                e.damage = 20f; e.apCost = 30f; e.cooldownSeconds = 8f;
+                e.bladeCharges = 3; e.bladeShotInterval = 0f; e.bladeAbilityDuration = 10f;
+                e.effectDuration = 8f; e.woundHealingMultiplier = .5f;
+                e.projectileSpeed = 100f; e.projectileRadius = 2.4f;
+                e.range = 100f; e.projectileLifetime = 1.2f;
                 break;
             case MagicType.Smoke:
                 e.effect = MagicEffectKind.Smoke; e.apCost = 40; e.cooldownSeconds = 15;

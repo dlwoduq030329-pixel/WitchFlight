@@ -16,8 +16,6 @@ public static class PerkEffects
         mana = Mathf.Max(1f - Mathf.Clamp01(table.manaDiscountCap), mana);
         cooldown = Mathf.Max(1f - Mathf.Clamp01(table.cooldownDiscountCap), cooldown);
         s.apCost *= mana;
-        s.bladeChargeManaPerSecond *= mana;
-        s.bladeChargeMaxMana *= mana;
         s.apPerSecond = s.ChannelManaPerSecond(baseMp) * mana;
         s.maxApFractionPerSecond = 0f; // Extra maximum mana must extend channel duration.
         s.cooldownSeconds *= cooldown;
@@ -52,7 +50,7 @@ public static class PerkEffects
                 else s.activationDelay *= 1f - Mathf.Clamp01(a);
                 break;
             case PerkId.FlareEfficiency: s.effectDuration += a; break;
-            case PerkId.BladeCharges: s.bladeMaxDamage *= 1f + a; break;
+            case PerkId.BladeCharges: s.bladeCharges = Mathf.Max(1, Mathf.RoundToInt(a)); break;
             case PerkId.BladeWound: s.woundHealingMultiplier = 1f - Mathf.Clamp01(a); break;
             case PerkId.StormCount: s.stormShotCount = Mathf.Clamp(Mathf.RoundToInt(a), 1, 120); break;
             case PerkId.StormPrecision: s.stormSpreadAngle *= 1f - Mathf.Clamp01(a); break;
