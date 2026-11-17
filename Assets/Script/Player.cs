@@ -2093,7 +2093,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         PlayerData.FindPerkData(Runner,attacker)?.RecordMissionMagicHit(stats.magic);
         NotifyConfirmedMagicHit(attacker, attackerId);
         OnAcceptedPerkHit(stats, perkSource, attackerId);
-        if (IsAlive && (stats.effect == MagicEffectKind.BladeVolley || stats.magic == MagicType.Curse)) ApplyWound(stats);
+        if (IsAlive && stats.magic == MagicType.Curse) ApplyWound(stats);
         if (IsAlive && stats.effect == MagicEffectKind.MagicStorm) ApplyStormSlow(stats);
         if (IsAlive && stats.effect == MagicEffectKind.SlowDamage)
             ApplySlow(stats.movementMultiplier, stats.effectDuration);

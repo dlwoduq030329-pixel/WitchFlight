@@ -128,7 +128,7 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.EchoSpell,"되울림의 주문","마법 쿨타임 {percent}% 감소. 패링 제외.",.2f),
         D(PerkId.ManaRemnant,"잔향 흡수","적중 시 최대 MP {percent}% 회복. 재발동 {seconds}초. 지속형 마법 제외.",.08f,3),
         D(PerkId.BladeCharges,"연속 검격","검기 공격 횟수가 {amount}회로 증가.",5f),
-        D(PerkId.BladeWound,"깊은 상처","상처의 받는 회복량 감소율이 {percent}%로 증가.",0.75f),
+        D(PerkId.BladeWound,"넓은 칼날","칼날 투사체의 판정 반경이 {percent}% 증가.",0.5f),
         D(PerkId.StormCount,"쏟아지는 마탄","발사하는 마탄이 {amount}발로 증가.",40f),
         D(PerkId.StormPrecision,"집중 사격","마탄의 탄퍼짐 {percent}% 감소.",0.5f),
         D(PerkId.RainCharge,"급속 충전","차징 중 초당 마나 소모량이 {amount}로 증가.",20f),

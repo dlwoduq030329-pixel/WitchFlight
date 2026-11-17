@@ -472,11 +472,11 @@ public sealed class MagicStatTable : ScriptableObject
                 break;
             case MagicType.Blade:
                 e.displayName = "칼날 마법";
-                e.description = "시전 후 10초 안에 좌클릭을 3회 눌러 보라색 검기를 발사합니다. 무기 교체 시 해제됩니다. 적중한 적은 8초간 상처 상태가 되어 받는 회복량이 50% 감소합니다.";
+                e.description = "시전 후 10초 안에 좌클릭으로 칼날을 3회 발사합니다. 발당 피해량은 50입니다. 다른 무기 선택 시 해제됩니다.";
                 e.effect = MagicEffectKind.BladeVolley;
-                e.damage = 20f; e.apCost = 30f; e.cooldownSeconds = 8f;
+                e.damage = 50f; e.apCost = 30f; e.cooldownSeconds = 8f;
                 e.bladeCharges = 3; e.bladeShotInterval = 0f; e.bladeAbilityDuration = 10f;
-                e.effectDuration = 8f; e.woundHealingMultiplier = .5f;
+                e.effectDuration = 0f; e.woundHealingMultiplier = 1f;
                 e.projectileSpeed = 100f; e.projectileRadius = 2.4f;
                 e.range = 100f; e.projectileLifetime = 1.2f;
                 break;
