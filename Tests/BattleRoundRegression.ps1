@@ -61,10 +61,11 @@ public class BattleFlag {
  public bool CanSkipLocalMapTour()=>false; // This suite checks timed transitions; skip rules have separate coverage.
  public void SelectMatchAwards(){}
  public bool AllReady=true;public int PickupTeam;
- public float initialFlagHeight,introSeconds,matchSeconds,magicChangeSeconds;
+ public float initialFlagHeight,introSeconds,matchSeconds,magicChangeSeconds,RoundDurationSeconds;
  public float TourMoveSeconds,TourFadeSeconds;
  public PlayerRef DroppedBy;public TickTimer DroppedPickupTimer;
  public Vector3 WorldPosition,roundFlagPosition,carryOffset;
+ public int Team1PossessionTicks,Team2PossessionTicks;
  public int ExpectedPlayerCount,RoundNumber,AllowedMagicChanges,Team1Wins,Team2Wins,LastRoundWinner,LastCarrierTeam,WinningTeam,CarrierObjectId;
  public const int WinsRequired=2;
  public PlayerRef Carrier,LastCarrier;public BattleStartPhase Phase;public TickTimer MatchTimer,PhaseTimer;
@@ -145,12 +146,19 @@ public static class Tests {
   }
   var overtime=New();Start(overtime);overtime.Runner.Time=overtime.MatchTimer.End;overtime.FixedUpdateNetwork();
   Check(overtime.IsOvertime&&overtime.Phase==BattleStartPhase.Playing,"unclaimed flag extends round instead of scoring a draw");
-  overtime.PickupTeam=2;overtime.FixedUpdateNetwork();Check(overtime.Team2Wins==1&&overtime.Phase==BattleStartPhase.RoundResult,"first overtime pickup wins");
+  overtime.PickupTeam=2;overtime.FixedUpdateNetwork();overtime.FixedUpdateNetwork();Check(overtime.Team2Wins==1&&overtime.Phase==BattleStartPhase.RoundResult,"first accrued overtime possession wins");
   var dropped=New();Start(dropped);dropped.LastCarrierTeam=1;dropped.LastCarrier=PlayerRef.A;dropped.IsDescending=true;
   dropped.Runner.Time=dropped.MatchTimer.End;dropped.FixedUpdateNetwork();
   Check(dropped.IsOvertime&&dropped.Team1Wins==0&&dropped.Team2Wins==0,"past holder cannot win a free falling flag at deadline");
   dropped.Runner.Time+=5;dropped.FixedUpdateNetwork();Check(dropped.IsOvertime&&dropped.Team1Wins==0,"overtime remains open with old owner history");
-  dropped.PickupTeam=2;dropped.FixedUpdateNetwork();Check(dropped.Team2Wins==1,"new holder wins instead of previous holder");
+  dropped.PickupTeam=2;dropped.FixedUpdateNetwork();dropped.FixedUpdateNetwork();Check(dropped.Team2Wins==1,"new holder wins instead of previous holder");
+  var leader=New();Start(leader);leader.Team1PossessionTicks=300;leader.Team2PossessionTicks=100;
+  leader.Carrier=PlayerRef.B;leader.CurrentHolder=new Player{TeamIndex=2};leader.Runner.Time=leader.MatchTimer.End;leader.FixedUpdateNetwork();
+  Check(leader.Team1Wins==1,"cumulative leader wins even when opponent holds flag at expiry");
+  var free=New();Start(free);free.Team1PossessionTicks=100;free.Runner.Time=free.MatchTimer.End;free.FixedUpdateNetwork();
+  Check(free.Team1Wins==1,"earned possession wins even when flag is free");
+  Check(BattleRoundRules.PossessionShare(300,100,1)==.75f && BattleRoundRules.PossessionShare(300,100,2)==.25f,"possession share uses both teams total");
+  Check(BattleRoundRules.PossessionShare(0,0,1)==0f && BattleRoundRules.PossessionWinner(100,100)==0,"empty shares and ties are deterministic");
   var dead=New();Start(dead);dead.Carrier=PlayerRef.A;dead.LastCarrierTeam=1;dead.CurrentHolder=new Player{IsAlive=false,TeamIndex=1};
   dead.Runner.Time=dead.MatchTimer.End;dead.FixedUpdateNetwork();Check(dead.IsOvertime&&dead.Carrier==PlayerRef.None&&dead.Team1Wins==0,"dead carrier is dropped before deadline scoring");
   var missing=New();Start(missing);missing.Carrier=PlayerRef.A;missing.LastCarrierTeam=1;missing.Runner.Time=missing.MatchTimer.End;missing.FixedUpdateNetwork();
@@ -160,7 +168,7 @@ public static class Tests {
   var limited=New(1);Start(limited);Win(limited,1);var manager=BattleManager.Instance;var data=new PlayerData{Runner=limited.Runner};manager.playerDatas[PlayerRef.A]=data;
   Check(!manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _,true),"reset is blocked during result presentation");
   limited.Runner.Time=limited.PhaseTimer.End;limited.FixedUpdateNetwork();
-  Check(manager.TryChangeRoundMagic(data,1,MagicType.Vision,MagicType.Ice,out _),"one slot may change");
+  Check(manager.TryChangeRoundMagic(data,1,MagicType.Binding,MagicType.Ice,out _),"one slot may change");
   Check(manager.TryChangeRoundMagic(data,1,MagicType.Thunder,MagicType.Ice,out _),"same slot may be selected again");
   Check(!manager.TryChangeRoundMagic(data,1,MagicType.Thunder,MagicType.Flare,out _)&&data.magic2==MagicType.Ice,"second changed slot rejected without mutation");
   Check(manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Ice,out _)&&manager.TryChangeRoundMagic(data,1,MagicType.Fire,MagicType.Smoke,out _),"restore baseline then change other slot");

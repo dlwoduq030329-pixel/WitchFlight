@@ -3,6 +3,12 @@ using UnityEngine;
 
 public partial class Player
 {
+    [SerializeField, Tooltip("칼날 시작 위치. 비우면 지팡이 MagicCastAnchor를 사용합니다. 파란 축이 칼날 방향입니다.")]
+    private Transform bladeSlashAnchor;
+    [SerializeField] private Vector3 bladeSlashLocalEuler;
+    public Transform BladeSlashAnchor => bladeSlashAnchor != null ? bladeSlashAnchor : MagicCastAnchor;
+    public Vector3 BladeSlashDirection => BladeSlashAnchor.rotation * Quaternion.Euler(bladeSlashLocalEuler) * Vector3.forward;
+    public int BladeSurfaceMask => lockObstructionMask;
     [Networked] public int BladeCharges { get; private set; }
     [Networked] private TickTimer BladeShotCooldown { get; set; }
     [Networked] private TickTimer WoundTimer { get; set; }
@@ -122,7 +128,7 @@ public partial class Player
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_BladeSlash(Vector3 origin, Vector3 aim, float reach, float angle, float height)
     {
-        BladeSlashVisual.Play(origin, aim, reach, angle, height);
+        BladeSlashVisual.Play(this, reach, bladeSwing.Duration, GetMagicStats(MagicType.Blade).bladeSlashTexture);
         presentation ??= GetComponent<CombatPresentation>();
         presentation.ShowCast(MagicType.Blade, origin, origin);
     }
@@ -171,7 +177,8 @@ public partial class Player
         for (int i=0;i<49;i++)
         {
             float a = Mathf.Lerp(-settings.bladeSlashAngle*.5f,settings.bladeSlashAngle*.5f,i/48f)*Mathf.Deg2Rad;
-            bladeChargeArc.SetPosition(i,LockAimPoint+frame*new Vector3(Mathf.Sin(a),0,Mathf.Cos(a))*radius);
+            Vector3 endpoint = LockAimPoint+frame*new Vector3(Mathf.Sin(a),0,Mathf.Cos(a))*radius;
+            bladeChargeArc.SetPosition(i, BladeSlashVisual.ProjectToSurface(this, LockAimPoint, endpoint));
         }
     }
 }

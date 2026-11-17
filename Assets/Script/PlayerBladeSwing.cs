@@ -14,6 +14,8 @@ public sealed class PlayerBladeSwing
     private int sequence, step;
     private float elapsed = 10f;
     public bool IsActive => initialized && elapsed < duration;
+    public float Duration => Mathf.Max(.2f, duration);
+    public static float CutProgress(float time) => Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.1f, .38f, time));
 
     public void RestorePose()
     {
@@ -72,9 +74,9 @@ public sealed class PlayerBladeSwing
         elapsed += Mathf.Max(0f, deltaTime);
         float side = step % 2 == 0 ? -1f : 1f;
         // Short draw-back, fast cross-body sweep, then a long weighted recovery.
-        float sweep = t < .18f ? Mathf.Lerp(0f, -.35f, Mathf.SmoothStep(0f, 1f, t / .18f)) :
-            t < .4f ? Mathf.Lerp(-.35f, 1f, Mathf.SmoothStep(0f, 1f, (t - .18f) / .22f)) :
-            Mathf.Lerp(1f, 0f, Mathf.SmoothStep(0f, 1f, (t - .4f) / .6f));
+        float sweep = t < .1f ? Mathf.Lerp(0f, -.7f, Mathf.SmoothStep(0f, 1f, t / .1f)) :
+            t < .38f ? Mathf.Lerp(-.7f, 1f, CutProgress(t)) :
+            Mathf.Lerp(1f, 0f, Mathf.SmoothStep(0f, 1f, (t - .38f) / .62f));
         float lift = Mathf.Sin(t * Mathf.PI);
         // Store all local poses before applying parent rotations. Bone lengths stay authored.
         for (int i = 0; i < bones.Length; i++)
@@ -82,6 +84,19 @@ public sealed class PlayerBladeSwing
         Rotate(body, bones[0], new Vector3(6f * lift, side * torsoTwist * sweep, -side * 7f * lift));
         Rotate(body, bones[1], new Vector3(-18f * lift, side * armSweep * sweep, side * 15f * sweep));
         Rotate(body, bones[2], new Vector3(-10f * lift, side * 18f * sweep, 0f));
+        // Aim the whole arm across the chest instead of merely twisting its local axes.
+        // Keep authored bone lengths and the broom-holding left arm untouched.
+        if (bones[1] != null && bones[3] != null)
+        {
+            float reachWeight = t < .1f ? Mathf.SmoothStep(0,1,t/.1f) :
+                1f - Mathf.SmoothStep(0,1,Mathf.InverseLerp(.48f,1f,t));
+            float yaw = Mathf.Lerp(75f, -85f, CutProgress(t)) * -side;
+            Vector3 desired = body.rotation * (Quaternion.Euler(0,yaw,0) * new Vector3(0,.18f,1));
+            Vector3 current = bones[3].position - bones[1].position;
+            if (current.sqrMagnitude > .001f)
+                bones[1].rotation = Quaternion.Slerp(Quaternion.identity,
+                    Quaternion.FromToRotation(current,desired),reachWeight) * bones[1].rotation;
+        }
         if (TryGetArmDirection(out Vector3 armDirection) && weaponAnchor != null && weaponAnchor.IsChildOf(bones[3]))
         {
             Vector3 wandDirection = weaponAnchor.position - bones[3].position;
