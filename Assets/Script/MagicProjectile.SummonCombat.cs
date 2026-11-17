@@ -156,19 +156,5 @@ public partial class MagicProjectile
         return contacted;
     }
 
-    public static bool DamageSummonsInBladeSlash(NetworkRunner runner, int team, Vector3 center, Quaternion frame,
-        float radius, MagicStatEntry attack, NetworkId attacker)
-    {
-        bool hit = false;
-        foreach (var candidate in active)
-        {
-            if (candidate == null || !candidate.IsLiveSummon || candidate.Runner != runner || candidate.ShooterTeam == team) continue;
-            Vector3 p = Quaternion.Inverse(frame) * (candidate.transform.position - center);
-            if (Mathf.Abs(p.y) > attack.bladeSlashHalfHeight || new Vector2(p.x,p.z).sqrMagnitude > radius*radius ||
-                Mathf.Abs(Mathf.Atan2(p.x,p.z)*Mathf.Rad2Deg) > attack.bladeSlashAngle*.5f ||
-                !HasSummonSight(center,candidate.transform.position)) continue;
-            hit |= candidate.ReceiveSummonHit(attack,team,attacker);
-        }
-        return hit;
-    }
+
 }

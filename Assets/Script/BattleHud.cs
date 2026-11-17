@@ -914,9 +914,8 @@ public sealed partial class BattleHud : MonoBehaviour
         }
         Visible(lockMarker != null ? lockMarker.gameObject : null, completed);
         Visible(lockChargeMarker != null ? lockChargeMarker.gameObject : null, charging);
-        bool bladeCharging = show && owner.BladeCharging;
-        Visible(lockProgressFill != null ? lockProgressFill.gameObject : null, locked || bladeCharging);
-        if (lockProgressFill != null) lockProgressFill.fillAmount = bladeCharging ? owner.BladeChargeProgress : locked ? Mathf.Clamp01(owner.LockProgress) : 0f;
+        Visible(lockProgressFill != null ? lockProgressFill.gameObject : null, locked);
+        if (lockProgressFill != null) lockProgressFill.fillAmount = locked ? Mathf.Clamp01(owner.LockProgress) : 0f;
         if (lockText != null)
         {
             SetText(lockText, "");

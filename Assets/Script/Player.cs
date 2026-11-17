@@ -1154,7 +1154,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         if (CurrentMagicSlot == 3 || CurrentMagicSlot == 0) return false;
         MagicStatEntry stats = SelectedMagicStats;
-        if (stats.magic == MagicType.BladeRain || stats.magic == MagicType.Blade) return false;
+        if (stats.magic == MagicType.BladeRain) return false;
         int index = (int)stats.magic;
         if (index <= 0 || index >= MagicCooldowns.Length || TimerIsActive(MagicCooldowns[index]))
             return false;
@@ -1189,12 +1189,6 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (IsHitStunned) { areaAimArmed = false; StopChannel(); CancelBladeRain(); ClearBladeAbility(); ClearLockTargetInternal(); return; }
 
         if (RainFiring) return;
-        if (stats.magic == MagicType.Blade && CurrentMagicSlot != 3)
-        {
-            StopChannel(); areaAimArmed = false;
-            ProcessBladeCharge(held, released);
-            return;
-        }
         if (stats.magic == MagicType.BladeRain && CurrentMagicSlot != 3)
         {
             StopChannel(); areaAimArmed = false;
@@ -1266,7 +1260,6 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void ProcessPredictedProjectileInput(NetworkInputData data, NetworkButtons buttons)
     {
         MagicStatEntry stats = SelectedMagicStats;
-        if (stats.magic == MagicType.Blade) return;
         bool held = buttons.IsSet(PlayerInputButton.Lock);
         bool released = !held && previousButtons.IsSet(PlayerInputButton.Lock);
         bool pressed = buttons.WasPressed(previousButtons, PlayerInputButton.Lock);
@@ -1400,7 +1393,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (Object.HasStateAuthority)
         {
-            ClearBladeAbility();
+            if (slot != 0 && GetMagicInSlot(slot) != MagicType.Blade) ClearBladeAbility();
             CancelBladeRain();
         }
         CurrentMagicSlot = slot;
@@ -1742,7 +1735,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         else if (stats.effect == MagicEffectKind.BladeVolley)
         {
-            if (BladeCharging) ReleaseBladeSlash();
+            bladeStats = stats;
+            BladeCharges = Mathf.Max(1, stats.bladeCharges);
+            BladeAbilityTimer = TickTimer.CreateFromSeconds(Runner, stats.bladeAbilityDuration > 0f ? stats.bladeAbilityDuration : 10f);
+            BladeShotCooldown = TickTimer.None;
+            RPC_PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, 0f);
         }
         else if (stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
         {
@@ -2096,7 +2093,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         PlayerData.FindPerkData(Runner,attacker)?.RecordMissionMagicHit(stats.magic);
         NotifyConfirmedMagicHit(attacker, attackerId);
         OnAcceptedPerkHit(stats, perkSource, attackerId);
-        if (IsAlive && (stats.effect == MagicEffectKind.BladeVolley || stats.magic == MagicType.Curse)) ApplyWound(stats);
+        if (IsAlive && stats.magic == MagicType.Curse) ApplyWound(stats);
         if (IsAlive && stats.effect == MagicEffectKind.MagicStorm) ApplyStormSlow(stats);
         if (IsAlive && stats.effect == MagicEffectKind.SlowDamage)
             ApplySlow(stats.movementMultiplier, stats.effectDuration);
@@ -2900,15 +2897,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         bladeSwing.Apply(transform, animator, Object != null && Object.IsValid ? BladeSwingSequence : 0,
             Object != null && Object.IsValid ? BladeSwingStep : 0,
-            canLook && !IsParrying && CurrentMagicSlot != 3 && (BladeCharging || LastCastMagic == MagicType.Blade) && (CurrentMagicSlot == 0 || GetSelectedMagic() == MagicType.Blade), Time.deltaTime * TimeFieldSpeed, MagicCastAnchor, BladeCharging);
+            canLook && !IsParrying && CurrentMagicSlot != 3 && LastCastMagic == MagicType.Blade && (CurrentMagicSlot == 0 || GetSelectedMagic() == MagicType.Blade), Time.deltaTime * TimeFieldSpeed, MagicCastAnchor);
         headLook.Apply(transform, animator, angles, canLook, Time.deltaTime);
         presentation?.UpdateBladeWeaponVfx();
-        RenderBladeChargePreview();
     }
 
     private void OnDisable()
     {
-        if (bladeChargeArc != null) bladeChargeArc.enabled = false;
         manaBuffContacts.Clear();
         ClearAreaAimPreview();
         if (festivalVisual != null) festivalVisual.Hide();
@@ -2960,7 +2955,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             Playing = battle != null && battle.IsGameplayActive,
             TopSpeed = broomAnimation.UseFastPose(SpeedStage, Mathf.Abs(Speed) / Mathf.Max(1f, flightMaxSpeed)),
             Disarmed = CurrentMagicSlot == 3,
-            Attacking = predictedRaisePending || pendingMagic != MagicType.None || channelRaising || RainCharging || RainFiring || BladeCharging || LockProgress > 0f || IsChanneling || areaAimArmed || bladeSwing.IsActive || IsMagicStormActive,
+            Attacking = predictedRaisePending || pendingMagic != MagicType.None || channelRaising || RainCharging || RainFiring || LockProgress > 0f || IsChanneling || areaAimArmed || bladeSwing.IsActive || IsMagicStormActive,
             Parrying = IsParrying,
             Respawning = TimerIsActive(RespawnAnimationTimer),
             WeaponKey = CurrentMagicSlot * 100 + (int)GetSelectedMagic(),
@@ -2999,7 +2994,6 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void OnDestroy()
     {
-        if (bladeChargeMaterial != null) Destroy(bladeChargeMaterial);
         combatants.Remove(this);
         if (LocalPlayer == this) LocalPlayer = null;
     }
