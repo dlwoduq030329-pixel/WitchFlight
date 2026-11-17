@@ -19,6 +19,7 @@ public sealed class LobbyHatShapeLimit : MonoBehaviour
     private Vector3[][] surfacePoints;
     private LobbyHatContactSurface weightedSurface;
     private bool surfaceInitialized;
+    private System.Threading.Tasks.Task<Vector3[][]> surfaceBuild;
     private static readonly Unity.Profiling.ProfilerMarker SurfaceMarker = new Unity.Profiling.ProfilerMarker("WitchFlight.HatSurface.Initialize");
     private Vector3[] flutterAxes;
     private void Awake()
@@ -62,64 +63,95 @@ public sealed class LobbyHatShapeLimit : MonoBehaviour
         renderer.BakeMesh(baked);
         Vector3[] vertices = baked.vertices;
         int[] triangles = baked.triangles;
-        var coverage = new List<Vector3>(vertices);
-        // Include face interiors: an arm can cross a large triangle without
-        // touching any of its vertices. Generated once, not during simulation.
-        for (int t = 0; t < triangles.Length; t += 3)
-        {
-            Vector3 a = vertices[triangles[t]], b = vertices[triangles[t + 1]], c = vertices[triangles[t + 2]];
-            coverage.Add((a + b + c) / 3f);
-            coverage.Add((a + b) * .5f);
-            coverage.Add((b + c) * .5f);
-            coverage.Add((c + a) * .5f);
-        }
         Destroy(baked);
-        var candidates = new List<Vector3>[bones.Length];
-        for (int i = 0; i < bones.Length; i++) candidates[i] = new List<Vector3>();
-        foreach (Vector3 vertex in coverage)
-        {
-            Vector3 world = renderer.transform.TransformPoint(vertex);
-            int closest = -1; float best = float.PositiveInfinity;
-            for (int i = 0; i < bones.Length; i++)
-            {
-                Transform b = bones[i];
-                if (b == null || b.childCount == 0) continue;
-                string name = b.name;
-                if (!name.StartsWith("Hat_Brim_") && !name.StartsWith("AsHatBrim_") && !name.StartsWith("SortingHatBone")) continue;
-                Vector3 axis = b.GetChild(0).position - b.position;
-                float t = axis.sqrMagnitude > .000001f ? Mathf.Clamp01(Vector3.Dot(world - b.position, axis) / axis.sqrMagnitude) : 0f;
-                float distance = (world - b.position - axis * t).sqrMagnitude;
-                if (distance < best) { best = distance; closest = i; }
-            }
-            if (closest >= 0) candidates[closest].Add(world);
-        }
-        // Farthest-point selection spreads samples over the surface instead of
-        // concentrating on duplicate UV seam vertices. Limited to 64 per bone.
+        // Snapshot transforms once. Dense meshes otherwise cross the managed/native
+        // boundary for every sample x bone, blocking the main thread for seconds.
+        var starts = new Vector3[bones.Length];
+        var axes = new Vector3[bones.Length];
+        var lengths = new float[bones.Length];
+        var usable = new bool[bones.Length];
+        var toLocal = new Matrix4x4[bones.Length];
         for (int i = 0; i < bones.Length; i++)
         {
-            var points = candidates[i]; if (points.Count == 0) continue;
-            int count = Mathf.Min(64, points.Count);
-            var chosen = new Vector3[count]; var distances = new float[points.Count];
-            for (int j = 0; j < distances.Length; j++) distances[j] = float.PositiveInfinity;
-            int next = 0;
-            for (int n = 0; n < count; n++)
-            {
-                Vector3 selected = points[next]; chosen[n] = bones[i].InverseTransformPoint(selected);
-                float farthest = -1f;
-                for (int j = 0; j < points.Count; j++)
-                {
-                    distances[j] = Mathf.Min(distances[j], (points[j] - selected).sqrMagnitude);
-                    if (distances[j] > farthest) { farthest = distances[j]; next = j; }
-                }
-            }
-            surfacePoints[i] = chosen;
+            Transform bone = bones[i];
+            if (bone == null || bone.childCount == 0) continue;
+            string name = bone.name;
+            if (!name.StartsWith("Hat_Brim_") && !name.StartsWith("AsHatBrim_") && !name.StartsWith("SortingHatBone")) continue;
+            usable[i] = true;
+            starts[i] = bone.position;
+            axes[i] = bone.GetChild(0).position - starts[i];
+            lengths[i] = axes[i].sqrMagnitude;
+            toLocal[i] = bone.worldToLocalMatrix;
         }
+        Matrix4x4 toWorld = renderer.transform.localToWorldMatrix;
+        // From here on, only immutable array snapshots and value-type math are used.
+        // Never read a Transform, Renderer or Mesh from the worker thread.
+        surfaceBuild = System.Threading.Tasks.Task.Run(() =>
+        {
+            var result = new Vector3[starts.Length][];
+            var coverage = new List<Vector3>(vertices);
+            // Include face interiors: an arm can cross a large triangle without
+            // touching any of its vertices. Generated once, not during simulation.
+            for (int t = 0; t < triangles.Length; t += 3)
+            {
+                Vector3 a = vertices[triangles[t]], b = vertices[triangles[t + 1]], c = vertices[triangles[t + 2]];
+                coverage.Add((a + b + c) / 3f);
+                coverage.Add((a + b) * .5f);
+                coverage.Add((b + c) * .5f);
+                coverage.Add((c + a) * .5f);
+            }
+            var candidates = new List<Vector3>[starts.Length];
+            for (int i = 0; i < starts.Length; i++) candidates[i] = new List<Vector3>();
+            foreach (Vector3 vertex in coverage)
+            {
+                Vector3 world = toWorld.MultiplyPoint3x4(vertex);
+                int closest = -1; float best = float.PositiveInfinity;
+                for (int i = 0; i < starts.Length; i++)
+                {
+                    if (!usable[i]) continue;
+                    Vector3 offset = world - starts[i];
+                    float t = lengths[i] > .000001f ? Mathf.Clamp01(Vector3.Dot(offset, axes[i]) / lengths[i]) : 0f;
+                    float distance = (offset - axes[i] * t).sqrMagnitude;
+                    if (distance < best) { best = distance; closest = i; }
+                }
+                if (closest >= 0) candidates[closest].Add(world);
+            }
+            // Farthest-point selection spreads samples over the surface instead of
+            // concentrating on duplicate UV seam vertices. Limited to 64 per bone.
+            for (int i = 0; i < starts.Length; i++)
+            {
+                var points = candidates[i]; if (points.Count == 0) continue;
+                int count = Mathf.Min(64, points.Count);
+                var chosen = new Vector3[count]; var distances = new float[points.Count];
+                for (int j = 0; j < distances.Length; j++) distances[j] = float.PositiveInfinity;
+                int next = 0;
+                for (int n = 0; n < count; n++)
+                {
+                    Vector3 selected = points[next]; chosen[n] = toLocal[i].MultiplyPoint3x4(selected);
+                    float farthest = -1f;
+                    for (int j = 0; j < points.Count; j++)
+                    {
+                        distances[j] = Mathf.Min(distances[j], (points[j] - selected).sqrMagnitude);
+                        if (distances[j] > farthest) { farthest = distances[j]; next = j; }
+                    }
+                }
+                result[i] = chosen;
+            }
+            return result;
+        });
     }
+
     private void LateUpdate()
     {
         if (solver == null || !solver.enabled) return;
         // Remote/hidden hats never need the expensive contact sample cache.
         if (!surfaceInitialized) InitializeSurface();
+        if (surfaceBuild != null && surfaceBuild.IsCompleted)
+        {
+            if (surfaceBuild.IsCompletedSuccessfully) surfacePoints = surfaceBuild.Result;
+            else if (surfaceBuild.IsFaulted) Debug.LogException(surfaceBuild.Exception, this);
+            surfaceBuild = null;
+        }
         float boost = contact != null && contact.flightMode ? contact.FlightBoostAmount : 0f;
         float bendLimit = boost > 0f ? Mathf.Min(40f, maxBend * Mathf.Lerp(1f, 1.25f, boost)) : maxBend;
         float displacementLimit = maxDisplacement * Mathf.Lerp(1f, 1.15f, boost);
