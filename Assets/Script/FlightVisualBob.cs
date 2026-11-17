@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 // Additive presentation only: the network root, controller and camera never bob.
@@ -26,9 +26,9 @@ public sealed class FlightVisualBob : MonoBehaviour
 
     [Header("Turn banking")]
     [Tooltip("선회 시 최대 기울기(도). 0이면 기울임을 끕니다.")]
-    [SerializeField, Range(0f, 60f)] private float maxBankAngle = 25f;
+    [SerializeField, Range(0f, 75f)] private float maxBankAngle = 55f;
     [Tooltip("최대 기울기에 도달하는 초당 선회 각도입니다.")]
-    [SerializeField, Min(1f)] private float fullBankTurnSpeed = 120f;
+    [SerializeField, Min(1f)] private float fullBankTurnSpeed = 90f;
     [Tooltip("기울고 원래 자세로 돌아오는 반응성입니다.")]
     [SerializeField, Min(0.01f)] private float bankBlendSpeed = 5f;
     [Tooltip("Player 로컬 좌표 기준 기울임 중심입니다.")]
@@ -57,10 +57,10 @@ public sealed class FlightVisualBob : MonoBehaviour
     private float blend;
     private float movementBlend;
     private float bankAngle;
+    public float NormalizedBank => maxBankAngle > .001f ? Mathf.Clamp(bankAngle / maxBankAngle, -1f, 1f) : 0f;
     private Quaternion previousRotation;
     private bool hasPreviousRotation;
     private bool hasAppliedOffset;
-
     private void Awake()
     {
         owner = GetComponent<Player>();

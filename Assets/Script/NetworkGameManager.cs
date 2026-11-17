@@ -1336,6 +1336,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             {
                 CameraFollow follow = inputCameraFollow;
                 follow.SynchronizePortalExit();
+                data.freeLook = follow.IsFreeLooking;
                 data.aimDirection = (follow.GetDisplayedAimPoint() - local.LockAimPoint).normalized;
                 if (follow.TryGetSteeringInput(out Vector3 direction, out Vector3 up))
                 {

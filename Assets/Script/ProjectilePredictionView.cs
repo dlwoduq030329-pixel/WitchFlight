@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -381,20 +381,14 @@ public sealed class ProjectilePredictionView : MonoBehaviour
     {
         blocked = false;
         float radius = Mathf.Max(0.02f, stats.projectileRadius);
-        int count = Physics.OverlapSphereNonAlloc(from, radius, overlaps, ~0, QueryTriggerInteraction.Ignore);
-        Collider[] allOverlaps = overlaps;
-        if (count == overlaps.Length)
-        { allOverlaps = Physics.OverlapSphere(from, radius, ~0, QueryTriggerInteraction.Ignore); count = allOverlaps.Length; }
+        Collider[] allOverlaps = MagicProjectile.QueryShotOverlap(stats, from, direction, overlaps, out int count);
         for (int i = 0; i < count; i++)
             if (!Ignore(allOverlaps[i]) && (stats.magic != MagicType.Blade || MagicProjectile.BladeOverlapBlocks(allOverlaps[i], from)))
             { blocked = true; return from; }
         Vector3 delta = to - from;
         float length = delta.magnitude;
         if (length < 0.0001f) return from;
-        count = Physics.SphereCastNonAlloc(from, radius, delta / length, hits, length, ~0, QueryTriggerInteraction.Ignore);
-        RaycastHit[] allHits = hits;
-        if (count == hits.Length)
-        { allHits = Physics.SphereCastAll(from, radius, delta / length, length, ~0, QueryTriggerInteraction.Ignore); count = allHits.Length; }
+        RaycastHit[] allHits = MagicProjectile.QueryShotCast(stats, from, delta / length, length, hits, out count);
         float nearest = length;
         for (int i = 0; i < count; i++)
         {

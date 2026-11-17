@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Fusion;
 using TMPro;
 using UnityEngine;
@@ -275,6 +275,8 @@ public sealed partial class BattleHud : MonoBehaviour
     [Tooltip("남은 시간 알림용 텍스트. 미지정 시 기존 경기 시간 텍스트에 표시합니다.")]
     [SerializeField] private TMP_Text remainingTimeAnnouncement;
     private Graphic blinkingPossessionFill;
+    private Color possessionBaseColor;
+    [SerializeField] private float timeAnnouncementOffset = 80f;
 
     private void UpdateRemainingTimeAnnouncement(BattleManager battle, BattleFlag flag, int localTeam)
     {
@@ -291,29 +293,39 @@ public sealed partial class BattleHud : MonoBehaviour
         if (remainingTimeAnnouncement != null)
         {
             remainingTimeAnnouncement.gameObject.SetActive(message != null);
-            if (message != null) SetText(remainingTimeAnnouncement, message);
+            if (message != null)
+            {
+                SetText(remainingTimeAnnouncement, message);
+                remainingTimeAnnouncement.fontStyle = FontStyles.Bold;
+                remainingTimeAnnouncement.color = Color.red;
+                var aim = desiredAimMarker != null && desiredAimMarker.gameObject.activeInHierarchy ? desiredAimMarker :
+                    reticle != null ? reticle.transform as RectTransform : null;
+                Vector2 center = aim != null ? GetScreenRect(aim).center : new Vector2(Screen.width * .5f, Screen.height * .5f);
+                PlaceScreen(remainingTimeAnnouncement.rectTransform, center + Vector2.up * timeAnnouncementOffset);
+            }
         }
         else if (message != null && matchTimeText != null) SetText(matchTimeText, message);
 
-        Slider losing = null;
+        Slider leading = null;
         if (active && flag.IsFinalScoreBonus && (localTeam == 1 || localTeam == 2) &&
             flag.Team1PossessionScoreTicks != flag.Team2PossessionScoreTicks)
         {
-            int losingTeam = flag.Team1PossessionScoreTicks < flag.Team2PossessionScoreTicks ? 1 : 2;
-            losing = localTeam == losingTeam ? allyTimeSlider : enemyTimeSlider;
+            int leadingTeam = flag.Team1PossessionScoreTicks > flag.Team2PossessionScoreTicks ? 1 : 2;
+            leading = localTeam == leadingTeam ? allyTimeSlider : enemyTimeSlider;
         }
-        var fill = losing != null && losing.fillRect != null ? losing.fillRect.GetComponent<Graphic>() : null;
+        var fill = leading != null && leading.fillRect != null ? leading.fillRect.GetComponent<Graphic>() : null;
         if (blinkingPossessionFill != fill)
         {
-            if (blinkingPossessionFill != null) blinkingPossessionFill.canvasRenderer.SetAlpha(1f);
+            if (blinkingPossessionFill != null) blinkingPossessionFill.color = possessionBaseColor;
             blinkingPossessionFill = fill;
+            if (fill != null) possessionBaseColor = fill.color;
         }
-        if (fill != null) fill.canvasRenderer.SetAlpha(Mathf.Lerp(.25f, 1f, .5f + .5f * Mathf.Sin(Time.unscaledTime * 8f)));
+        if (fill != null) fill.color = Mathf.Sin(Time.unscaledTime * 8f) >= 0f ? new Color(1f, 1f, 1f, possessionBaseColor.a) : possessionBaseColor;
     }
 
     private void ClearTimeAnnouncement()
     {
-        if (blinkingPossessionFill != null) blinkingPossessionFill.canvasRenderer.SetAlpha(1f);
+        if (blinkingPossessionFill != null) blinkingPossessionFill.color = possessionBaseColor;
         blinkingPossessionFill = null;
         if (remainingTimeAnnouncement != null) remainingTimeAnnouncement.gameObject.SetActive(false);
     }
@@ -977,8 +989,25 @@ public sealed partial class BattleHud : MonoBehaviour
     [SerializeField] private GameObject instantAimRoot;
     [SerializeField] private GameObject idleAttackAimRoot;
 
+    private readonly RectTransform[] movementDots = new RectTransform[3];
+    private readonly GameObject[] movementDotRoots = new GameObject[3];
+
+    private void BindMovementDot(int index, GameObject root)
+    {
+        if (movementDotRoots[index] == root) return;
+        movementDotRoots[index] = root;
+        movementDots[index] = null;
+        if (root == null) return;
+        foreach (var rect in root.GetComponentsInChildren<RectTransform>(true))
+            if (string.Equals(rect.name, "dot", System.StringComparison.OrdinalIgnoreCase))
+            { movementDots[index] = rect; break; }
+    }
+
     private void BindSelectedCrosshair(bool show)
     {
+        BindMovementDot(0, lockOnAimRoot);
+        BindMovementDot(1, instantAimRoot);
+        BindMovementDot(2, idleAttackAimRoot);
         bool basic = show && owner.LocalMagicInputSlot == 0;
         bool lockOn = show && !basic && owner.InputMagicStats.UsesLockIndicator;
         Visible(idleAttackAimRoot, basic);
@@ -1358,19 +1387,30 @@ public sealed partial class BattleHud : MonoBehaviour
         bool desiredVisible = false;
         bool forwardVisible = false;
         bool aligned = false;
+        Vector3 forwardPoint = Vector3.zero;
         if (show)
         {
             Vector3 desiredPoint = follow.GetDisplayedAimPoint();
             Vector3 origin = pilot.LockAimPoint;
             float distance = Mathf.Max(1f, Vector3.Distance(origin, desiredPoint));
-            Vector3 forwardPoint = origin + pilot.transform.forward * distance;
+            forwardPoint = origin + pilot.FlightIndicatorDirection * distance;
             // Never project the fixed crosshair through a shaken render matrix.
             desiredVisible = desiredAimMarker != null && PlaceScreen(desiredAimMarker, worldCamera.pixelRect.center);
             forwardVisible = forwardAimMarker != null && forwardAimMarker != desiredAimMarker &&
                 PlaceStableAim(forwardAimMarker, forwardPoint);
             aligned = pilot.IsAimAligned((desiredPoint - origin).normalized);
-            SetText(aimAlignmentText, aligned ? "AIM ALIGNED" : "ALIGNING");
+            SetText(aimAlignmentText, follow.IsFreeLooking ? "FREE LOOK" : aligned ? "AIM ALIGNED" : "ALIGNING");
         }
+        bool hasSelectedDot = false;
+        for (int i = 0; i < movementDots.Length; i++)
+        {
+            var dot = movementDots[i];
+            if (dot == null) continue;
+            bool selected = movementDotRoots[i] != null && movementDotRoots[i].activeInHierarchy;
+            hasSelectedDot |= selected;
+            Visible(dot.gameObject, show && selected && PlaceStableAim(dot, forwardPoint));
+        }
+        if (hasSelectedDot) forwardVisible = false;
         SetAimColors(show && aligned);
         Visible(desiredAimMarker != null ? desiredAimMarker.gameObject : null, desiredVisible);
         if (forwardAimMarker != desiredAimMarker)
