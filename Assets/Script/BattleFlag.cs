@@ -50,6 +50,13 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     [Networked] public int LastRoundWinner { get; private set; }
     [Networked] public int AllowedMagicChanges { get; private set; }
     [Networked] public bool IsOvertime { get; private set; }
+    [Networked] public int Team1PossessionTicks { get; private set; }
+    [Networked] public int Team2PossessionTicks { get; private set; }
+    public float Team1PossessionSeconds => Team1PossessionTicks * Runner.DeltaTime;
+    public float Team2PossessionSeconds => Team2PossessionTicks * Runner.DeltaTime;
+    [Networked] public float RoundDurationSeconds { get; private set; }
+    public float PossessionProgress(int team) => RoundDurationSeconds > 0f
+        ? Mathf.Clamp01((team == 1 ? Team1PossessionSeconds : team == 2 ? Team2PossessionSeconds : 0f) / RoundDurationSeconds) : 0f;
     public const int WinsRequired = 2;
 
     // Bounded persistent areas; only creation changes network state (no per-frame RPCs).
@@ -296,6 +303,8 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         transform.position = position;
         HasEnded = false;
         HasStarted = true;
+        Team1PossessionTicks = Team2PossessionTicks = 0;
+        RoundDurationSeconds = Mathf.Max(1f, durationSeconds);
         Phase = BattleStartPhase.Playing;
         foreach(var data in PlayerData.PerkPlayers)
             if(data!=null&&data.Runner==Runner)data.RecordTitleRoundStart(RoundNumber);
@@ -341,18 +350,22 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
                 DropCarrier(Carrier, carrier != null ? carrier.transform.position : WorldPosition,
                     carrier != null && carrier.DiedFromAltitude);
             else
+            {
                 WorldPosition = carrier.transform.TransformPoint(carryOffset);
+                // Count the holder of this elapsed simulation interval, not a new pickup at its end.
+                if (carrier.TeamIndex == 1) Team1PossessionTicks++;
+                else if (carrier.TeamIndex == 2) Team2PossessionTicks++;
+            }
         }
         UpdateDescent();
         CheckPickupAndRecordPositions();
         transform.position = WorldPosition;
-        // Resolve death/drop and pickups before the deadline decision. A past owner
-        // never wins while the flag is free, including while it is falling.
+        // Possession already earned remains valid even if the flag is dropped at the deadline.
         if (!training && (IsOvertime || MatchTimer.Expired(Runner)))
         {
-            Player current = Carrier != PlayerRef.None ? GetCarrierPlayer() : null;
-            if (current != null && current.IsAlive && (current.TeamIndex == 1 || current.TeamIndex == 2))
-                FinishRound(current.TeamIndex);
+            int winner = BattleRoundRules.PossessionWinner(Team1PossessionTicks, Team2PossessionTicks);
+            if (winner != 0)
+                FinishRound(winner);
             else IsOvertime = true;
         }
     }
@@ -382,6 +395,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         if (!Object.HasStateAuthority || Phase != BattleStartPhase.Intermission ||
             (!PhaseTimer.Expired(Runner) && !AreAllRoundPlayersReady())) return;
         RoundNumber++;
+        Team1PossessionTicks = Team2PossessionTicks = 0;
         WorldPosition = roundFlagPosition;
         transform.position = roundFlagPosition;
         LastCarrier = Carrier = PlayerRef.None;

@@ -199,7 +199,7 @@ public sealed partial class MagicCustomizationUI : MonoBehaviour
             foreach (MagicChoice choice in magicChoices)
             {
                 if (choice == null) continue;
-                if (choice.magic == MagicType.Vision && choice.button != null) choice.button.gameObject.SetActive(false);
+                if (choice.magic == MagicType.Vision && choice.button != null) choice.button.gameObject.SetActive(true);
                 if (!IsSelectableMagic(choice.magic)) continue;
                 int magicId = (int)choice.magic;
                 Bind(choice.button, () => SelectMagic(magicId));
@@ -665,7 +665,7 @@ public sealed partial class MagicCustomizationUI : MonoBehaviour
     }
 
     private static MagicType EquippedMagic(int slot) => (MagicType)(slot == 1 ? DataConfig.magic1Index : DataConfig.magic2Index);
-    private static bool IsSelectableMagic(MagicType magic) => magic != MagicType.Vision && magic >= MagicType.Fire && magic <= MagicType.BladeRain;
+    private static bool IsSelectableMagic(MagicType magic) => magic >= MagicType.Fire && magic <= MagicType.BladeRain;
     private static bool IsSelectableHat(HatType hat) => hat >= HatType.Classic && hat <= HatType.Cosmic;
     private static bool IsSelectableBroom(BroomType broom) => broom >= BroomType.Slow && broom <= BroomType.Cleaner;
     private string EditBlockedMessage() => !ProfileReady ? "로그인 및 유저 정보 불러오기를 먼저 완료해주세요." : "매칭 중이거나 방에 입장한 상태에서는 장비를 변경할 수 없습니다.";

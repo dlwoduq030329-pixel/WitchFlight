@@ -23,6 +23,8 @@ public struct MagicStatEntry
     [NonSerialized] public Fusion.PlayerRef perkAttacker;
     public MagicType magic;
     [Header("칼날 차징 베기")]
+    [Tooltip("궤적 PNG. 가로: 잔상 꼬리→칼날 선두, 세로 아래: 바깥 날 / 위: 안쪽. 흰색+알파 권장. 비우면 기존 형태.")]
+    public Texture2D bladeSlashTexture;
     [Min(0f)] public float bladeMinDamage;
     [Min(0f)] public float bladeMaxDamage;
     [Min(.1f)] public float bladeMinRange;

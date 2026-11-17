@@ -3,6 +3,32 @@ using UnityEngine;
 
 public partial class Player
 {
+    [SerializeField, Tooltip("칼날 시작 위치. 비우면 지팡이 MagicCastAnchor를 사용합니다. 파란 축이 칼날 방향입니다.")]
+    private Transform bladeSlashAnchor;
+    [SerializeField] private Vector3 bladeSlashLocalEuler;
+    [Header("칼날 검 외형 크기 (판정과 별개)")]
+    [SerializeField, Min(.01f)] private float bladeVisualLength = 1f;
+    [SerializeField, Min(.01f)] private float bladeVisualWidth = .18f;
+    [SerializeField, Min(.01f)] private float bladeVisualThickness = .035f;
+    public Vector3 BladeVisualScale => new Vector3(bladeVisualWidth, bladeVisualThickness, bladeVisualLength);
+    public float BladeVisualAngle => GetMagicStats(MagicType.Blade).bladeSlashAngle;
+    public Vector3 BladePreviewAim => localCameraFollow != null && localCameraFollow.TryGetSteeringInput(out Vector3 direction, out _) ? direction : transform.forward;
+    public float BladeChargedVisualRange { get { var stats = GetMagicStats(MagicType.Blade); return Mathf.Lerp(stats.bladeMinRange, stats.bladeMaxRange, BladeChargeProgress); } }
+    private BladeSlashVisual chargingSword;
+    public Transform BladeSlashAnchor => bladeSlashAnchor != null ? bladeSlashAnchor : MagicCastAnchor;
+    public Vector3 BladeSlashDirection
+    {
+        get
+        {
+            if (bladeSwing.TryGetArmDirection(out Vector3 direction))
+            {
+                direction = Vector3.ProjectOnPlane(direction, Vector3.up);
+                if (direction.sqrMagnitude > .001f) return direction.normalized;
+            }
+            return BladeSlashAnchor.rotation * Quaternion.Euler(bladeSlashLocalEuler) * Vector3.forward;
+        }
+    }
+    public int BladeSurfaceMask => lockObstructionMask;
     [Networked] public int BladeCharges { get; private set; }
     [Networked] private TickTimer BladeShotCooldown { get; set; }
     [Networked] private TickTimer WoundTimer { get; set; }
@@ -122,7 +148,8 @@ public partial class Player
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_BladeSlash(Vector3 origin, Vector3 aim, float reach, float angle, float height)
     {
-        BladeSlashVisual.Play(origin, aim, reach, angle, height);
+        var visual = BladeSlashVisual.Play(this, reach, bladeSwing.Duration, GetMagicStats(MagicType.Blade).bladeSlashTexture);
+        visual.SetSweep(origin, aim, angle);
         presentation ??= GetComponent<CombatPresentation>();
         presentation.ShowCast(MagicType.Blade, origin, origin);
     }
@@ -148,6 +175,9 @@ public partial class Player
 
     private void RenderBladeChargePreview()
     {
+        bool charging = networkSpawned && Object != null && Object.IsValid && BladeCharging && IsAlive;
+        if (charging && chargingSword == null) chargingSword = BladeSlashVisual.Play(this, 1f, 1f, null, true);
+        if (!charging && chargingSword != null) { Destroy(chargingSword.gameObject); chargingSword = null; }
         bool show = networkSpawned && Object != null && Object.IsValid && Object.HasInputAuthority && BladeCharging && IsAlive;
         if (!show) { if (bladeChargeArc != null) bladeChargeArc.enabled = false; return; }
         if (bladeChargeArc == null)
@@ -170,8 +200,7 @@ public partial class Player
         Quaternion frame = Quaternion.LookRotation(aim.sqrMagnitude > .001f ? aim : transform.forward);
         for (int i=0;i<49;i++)
         {
-            float a = Mathf.Lerp(-settings.bladeSlashAngle*.5f,settings.bladeSlashAngle*.5f,i/48f)*Mathf.Deg2Rad;
-            bladeChargeArc.SetPosition(i,LockAimPoint+frame*new Vector3(Mathf.Sin(a),0,Mathf.Cos(a))*radius);
+            bladeChargeArc.SetPosition(i, BladeSlashVisual.SweepPoint(this, LockAimPoint, frame, settings.bladeSlashAngle, radius, i/48f));
         }
     }
 }

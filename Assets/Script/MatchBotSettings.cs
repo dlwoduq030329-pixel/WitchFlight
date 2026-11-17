@@ -129,7 +129,7 @@ public sealed class MatchBotSettings : ScriptableObject
     public MagicType CounterFor(MagicType source)
     {
         if (counters != null) foreach (var row in counters)
-            if (row != null && row.opponent == source && row.preferred >= MagicType.Fire && row.preferred <= MagicType.BladeRain && row.preferred != MagicType.Vision) return row.preferred;
+            if (row != null && row.opponent == source && row.preferred >= MagicType.Fire && row.preferred <= MagicType.BladeRain) return row.preferred;
         return MagicType.Fire;
     }
     private static bool Offensive(MagicType magic) => magic != MagicType.Flare && magic != MagicType.Smoke && magic != MagicType.Healing && magic != MagicType.Binding;
@@ -143,7 +143,7 @@ public sealed class MatchBotSettings : ScriptableObject
         // Preserve the primary counter. Never replace it just to avoid a duplicate.
         if (alternativeAttacks == null) return;
         foreach (var candidate in alternativeAttacks)
-            if (candidate >= MagicType.Fire && candidate <= MagicType.BladeRain && candidate != MagicType.Vision && Offensive(candidate) &&
+            if (candidate >= MagicType.Fire && candidate <= MagicType.BladeRain && Offensive(candidate) &&
                 candidate != primary && candidate != secondary) { secondary = candidate; return; }
     }
     public static PlayerConfig RandomAppearance(System.Collections.Generic.IReadOnlyList<PlayerConfig> teammates = null)

@@ -80,8 +80,8 @@ public static class DataConfig
     public static int playerprofile { get => _playerprofile; set => SetValue(ref _playerprofile, value); }
     public static int hatIndex { get => _hatIndex; set => SetValue(ref _hatIndex, value); }
     public static int broomIndex { get => _broomIndex; set => SetValue(ref _broomIndex, value); }
-    public static int magic1Index { get => _magic1Index; set => SetValue(ref _magic1Index, value == (int)MagicType.Vision ? (int)MagicType.Fire : value); }
-    public static int magic2Index { get => _magic2Index; set => SetValue(ref _magic2Index, value == (int)MagicType.Vision ? (int)MagicType.Ice : value); }
+    public static int magic1Index { get => _magic1Index; set => SetValue(ref _magic1Index, value); }
+    public static int magic2Index { get => _magic2Index; set => SetValue(ref _magic2Index, value); }
     public static int hairStylePreset { get => _hairStylePreset; set => SetValue(ref _hairStylePreset, value); }
     public static float bangsLength { get => _bangsLength; set => SetValue(ref _bangsLength, value); }
     public static float bangsDirection { get => _bangsDirection; set => SetValue(ref _bangsDirection, value); }
