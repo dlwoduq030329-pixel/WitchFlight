@@ -11,6 +11,13 @@ public partial class Player
     [Networked] public int BladeSwingStep { get; private set; }
     [Networked] private TickTimer BladeAbilityTimer { get; set; }
     private MagicStatEntry bladeStats;
+    [Networked] public bool BladeCharging { get; private set; }
+    [Networked] public float BladeChargeProgress { get; private set; }
+    private float bladeManaSpent;
+    private bool bladeFullCue;
+    private bool bladeNeedsRelease;
+    private LineRenderer bladeChargeArc;
+    private Material bladeChargeMaterial;
     public bool IsBladeArmed => networkSpawned && Object != null && Object.IsValid && IsAlive && BladeCharges > 0 &&
         (CurrentMagicSlot == 0 || GetSelectedMagic() == MagicType.Blade) && TimerIsActive(BladeAbilityTimer);
 
@@ -30,6 +37,11 @@ public partial class Player
 
     private void ClearBladeAbility()
     {
+        if (BladeCharging && Object != null && Object.IsValid && Object.HasStateAuthority)
+            RPC_PresentLockComplete(MagicType.None);
+        BladeCharging = false;
+        BladeChargeProgress = 0f;
+        bladeManaSpent = 0f;
         BladeCharges = 0;
         BladeAbilityTimer = TickTimer.None;
     }
@@ -39,37 +51,127 @@ public partial class Player
         if (Object.HasStateAuthority && BladeCharges > 0 && !IsBladeArmed) ClearBladeAbility();
     }
 
+    private void ProcessBladeCharge(bool held, bool released)
+    {
+        if (!held) bladeNeedsRelease = false;
+        if (bladeNeedsRelease) return;
+        if (!BladeCharging)
+        {
+            if (!held || TimerIsActive(MagicCooldowns[(int)MagicType.Blade])) return;
+            if (NowAp <= .0001f) { NotifyManaFailure(); bladeNeedsRelease = true; return; }
+            bladeStats = SelectedMagicStats;
+            BladeCharging = true;
+            bladeManaSpent = 0f;
+            BladeChargeProgress = 0f;
+            bladeFullCue = false;
+        }
+        if (released) { ReleaseBladeSlash(); return; }
+        if (!held) return;
+        float budget = Mathf.Max(.01f, bladeStats.bladeChargeMaxMana);
+        float spend = Mathf.Min(Mathf.Max(.01f, bladeStats.bladeChargeManaPerSecond) * Runner.DeltaTime,
+            Mathf.Max(0f, NowAp), Mathf.Max(0f, budget - bladeManaSpent));
+        NowAp -= spend;
+        bladeManaSpent += spend;
+        BladeChargeProgress = Mathf.Clamp01(bladeManaSpent / budget);
+        SyncApToPlayerData();
+        if (!bladeFullCue && BladeChargeProgress >= .9999f)
+        {
+            bladeFullCue = true;
+            RPC_PresentLockComplete(MagicType.Blade);
+        }
+    }
+
+    private void ReleaseBladeSlash()
+    {
+        if (!BladeCharging) return;
+        float charge = BladeChargeProgress;
+        MagicStatEntry hit = bladeStats;
+        hit.damage = Mathf.Lerp(hit.bladeMinDamage, Mathf.Max(hit.bladeMinDamage, hit.bladeMaxDamage), charge);
+        float reach = Mathf.Lerp(hit.bladeMinRange, Mathf.Max(hit.bladeMinRange, hit.bladeMaxRange), charge);
+        Vector3 aim = IsFiniteDirection(castAimDirection) && castAimDirection.sqrMagnitude > .001f
+            ? castAimDirection.normalized : transform.forward;
+        Vector3 origin = LockAimPoint;
+        Quaternion frame = Quaternion.LookRotation(aim);
+        CastSequence++;
+        LastCastMagic = MagicType.Blade;
+        hit.perkCast = CastSequence;
+        hit.perkAttacker = ParticipantRef;
+        hit.titleCastId = PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordTitleCast(MagicType.Blade, false) ?? 0;
+        bool contacted = false;
+        foreach (Player enemy in ActiveCombatants)
+        {
+            if (enemy == null || enemy.Runner != Runner || !enemy.IsAlive || enemy.TeamIndex == TeamIndex) continue;
+            Vector3 local = Quaternion.Inverse(frame) * (enemy.LockAimPoint - origin);
+            if (Mathf.Abs(local.y) > hit.bladeSlashHalfHeight || new Vector2(local.x, local.z).sqrMagnitude > reach * reach ||
+                Mathf.Abs(Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg) > hit.bladeSlashAngle * .5f ||
+                !MagicProjectile.HasBlastSight(origin, enemy)) continue;
+            int before = enemy.HitSequence;
+            enemy.ReceiveMagicHit(hit, ParticipantRef, Object.Id, enemy.LockAimPoint - origin, enemy.LockAimPoint);
+            contacted |= enemy.HitSequence != before;
+        }
+        contacted |= MagicProjectile.DamageSummonsInBladeSlash(Runner, TeamIndex, origin, frame, reach, hit, Object.Id);
+        if (!contacted) NotifyFaceMiss();
+        BladeSwingStep = 0; // Always sweep the staff to the left.
+        BladeSwingSequence++;
+        MagicCooldowns.Set((int)MagicType.Blade, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, hit.cooldownSeconds)));
+        ClearBladeAbility();
+        ClearLockTargetInternal(false);
+        RPC_BladeSlash(origin, aim, reach, hit.bladeSlashAngle, hit.bladeSlashHalfHeight);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_BladeSlash(Vector3 origin, Vector3 aim, float reach, float angle, float height)
+    {
+        BladeSlashVisual.Play(origin, aim, reach, angle, height);
+        presentation ??= GetComponent<CombatPresentation>();
+        presentation.ShowCast(MagicType.Blade, origin, origin);
+    }
+
     private void ResetBladeState()
     {
         ClearBladeAbility();
+        bladeNeedsRelease = false;
         BladeShotCooldown = WoundTimer = TickTimer.None;
         WoundHealingMultiplier = 1f;
     }
 
-    private void FireBlade()
-    {
-        if (!Object.HasStateAuthority || !IsBladeArmed || TimerIsActive(BladeShotCooldown) ||
-            !magicProjectilePrefab.IsValid) return;
-        Vector3 direction = IsFiniteDirection(castAimDirection) && castAimDirection.sqrMagnitude > .001f
-            ? castAimDirection.normalized : transform.forward;
-        var shot = Runner.Spawn(magicProjectilePrefab, MagicCastPosition, Quaternion.LookRotation(direction), ParticipantRef);
-        if (shot == null) return;
-        MagicStatEntry entry = bladeStats;
-        CastSequence++;
-        entry.perkCast = CastSequence;
-        entry.titleCastId = PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordTitleCast(MagicType.Blade, false) ?? 0;
-        shot.GetComponent<MagicProjectile>().Initialize(this, null, entry, direction, castInputTick);
-        BladeSwingStep = Mathf.Max(0, bladeStats.bladeCharges - BladeCharges);
-        BladeSwingSequence++;
-        BladeCharges--;
-        BladeShotCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, entry.bladeShotInterval));
-        LastCastMagic = MagicType.Blade;
-        RPC_PresentCast(MagicType.Blade, MagicCastPosition, MagicCastPosition, 0f);
-    }
+    private void FireBlade() => ReleaseBladeSlash();
 
     private void ApplyWound(MagicStatEntry entry)
     {
-        WoundTimer = TickTimer.CreateFromSeconds(Runner, StatusPerkDuration(entry.effectDuration));
-        WoundHealingMultiplier = Mathf.Clamp01(entry.woundHealingMultiplier);
+        float remaining = WoundTimer.RemainingTime(Runner) ?? 0f;
+        float multiplier = Mathf.Clamp01(entry.woundHealingMultiplier);
+        if (remaining > 0f) multiplier = Mathf.Min(multiplier, WoundHealingMultiplier);
+        WoundTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(remaining, StatusPerkDuration(entry.effectDuration)));
+        WoundHealingMultiplier = multiplier;
+    }
+
+    private void RenderBladeChargePreview()
+    {
+        bool show = networkSpawned && Object != null && Object.IsValid && Object.HasInputAuthority && BladeCharging && IsAlive;
+        if (!show) { if (bladeChargeArc != null) bladeChargeArc.enabled = false; return; }
+        if (bladeChargeArc == null)
+        {
+            var root = new GameObject("Blade charge range");
+            root.transform.SetParent(transform, false);
+            bladeChargeArc = root.AddComponent<LineRenderer>();
+            bladeChargeArc.useWorldSpace = true;
+            bladeChargeArc.positionCount = 49;
+            bladeChargeArc.startWidth = bladeChargeArc.endWidth = .12f;
+            bladeChargeMaterial = CombatPresentation.CreateEffectMaterial(new Color(.7f,.3f,1f,.35f));
+            bladeChargeArc.sharedMaterial = bladeChargeMaterial;
+            bladeChargeArc.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+        bladeChargeArc.enabled = true;
+        MagicStatEntry settings = GetMagicStats(MagicType.Blade);
+        float radius = Mathf.Lerp(settings.bladeMinRange, Mathf.Max(settings.bladeMinRange, settings.bladeMaxRange), BladeChargeProgress);
+        Vector3 aim = localCameraFollow != null && localCameraFollow.TryGetSteeringInput(out Vector3 direction, out _)
+            ? direction : transform.forward;
+        Quaternion frame = Quaternion.LookRotation(aim.sqrMagnitude > .001f ? aim : transform.forward);
+        for (int i=0;i<49;i++)
+        {
+            float a = Mathf.Lerp(-settings.bladeSlashAngle*.5f,settings.bladeSlashAngle*.5f,i/48f)*Mathf.Deg2Rad;
+            bladeChargeArc.SetPosition(i,LockAimPoint+frame*new Vector3(Mathf.Sin(a),0,Mathf.Cos(a))*radius);
+        }
     }
 }

@@ -6,6 +6,9 @@ using Unity.Profiling;
 // Uses the existing runner. Only StateAuthority simulates flight and damage.
 public partial class MagicProjectile : NetworkBehaviour
 {
+    private bool weaknessPending;
+    private TickTimer weaknessTimer;
+    private Player weaknessVictim;
     private static readonly ProfilerMarker simulationMarker = new("WitchFlight.Projectile.Simulate");
     private static readonly HashSet<MagicProjectile> active = new();
     [Networked] public MagicType Magic { get; protected set; }
@@ -32,7 +35,7 @@ public partial class MagicProjectile : NetworkBehaviour
 
     public static bool UsesFlightExhaustion(MagicType magic, MagicStatTable table) =>
         table != null && table.homingExhaustion &&
-        (magic == MagicType.Fire || magic == MagicType.Ice || magic == MagicType.Binding);
+        (magic == MagicType.Fire || magic == MagicType.Ice || magic == MagicType.Binding || magic == MagicType.Curse);
 
     public static float DrainFlightSpeed(float fraction, Vector3 before, Vector3 after, float dt, MagicStatTable table)
     {
@@ -168,6 +171,8 @@ public partial class MagicProjectile : NetworkBehaviour
 
     public void Initialize(Player shooter, Player target, MagicStatEntry entry, Vector3 aim, int predictionInputTick = 0, NetworkId summonTargetId = default)
     {
+        weaknessPending = false;
+        weaknessVictim = null;
         if (!Object.HasStateAuthority)
             return;
         ConstructKind = MagicConstructKind.Projectile;
@@ -238,6 +243,7 @@ public partial class MagicProjectile : NetworkBehaviour
         { TickFlareField(); return; }
         if (IsConstruct) { TickConstruct(); return; }
         if (iceDamagePending) { TickIceFollowUpDamage(); return; }
+        if (weaknessPending) { TickWeaknessExplosion(); return; }
         float flightDelta = TimeFlightStep();
         if (Lifetime.Expired(Runner))
         {
@@ -592,7 +598,14 @@ public partial class MagicProjectile : NetworkBehaviour
                 ? directHit.ResolveHeadHit(stats, headTraceOrigin.Value, direction,
                     Vector3.Distance(headTraceOrigin.Value, point), stats.projectileRadius)
                 : stats;
+            int hitBefore = directHit.HitSequence;
             directHit.ReceiveMagicHit(hitStats, Shooter, ShooterId, direction, point);
+            if (Magic == MagicType.Curse && directHit.HitSequence != hitBefore)
+            {
+                weaknessPending = true;
+                weaknessVictim = directHit;
+                weaknessTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.01f, stats.weaknessExplosionDelay));
+            }
             if (ConstructKind == MagicConstructKind.SummonBolt && !directHit.IsAlive &&
                 Runner.TryFindObject(ShooterId, out NetworkObject catOwner) && catOwner != null)
                 catOwner.GetComponent<Player>()?.NotifySummonKillAudio(point);
@@ -602,6 +615,26 @@ public partial class MagicProjectile : NetworkBehaviour
         RPC_Impact(point, Magic);
         // Leave the object alive briefly so the impact RPC reaches all observers.
         Lifetime = TickTimer.CreateFromSeconds(Runner, 0.2f);
+    }
+
+    private void TickWeaknessExplosion()
+    {
+        if (weaknessVictim != null && weaknessVictim.Object != null && weaknessVictim.Object.IsValid)
+            transform.position = weaknessVictim.LockAimPoint;
+        if (!weaknessTimer.Expired(Runner)) return;
+        weaknessPending = false;
+        Vector3 center = transform.position;
+        MagicStatEntry blast = stats;
+        blast.damage = stats.weaknessExplosionDamage;
+        foreach (Player player in Player.ActiveCombatants)
+        {
+            if (player == null || player.Runner != Runner || !player.IsAlive || player.TeamIndex == ShooterTeam ||
+                (player.LockAimPoint - center).sqrMagnitude > stats.radius * stats.radius || !HasBlastSight(player)) continue;
+            player.ReceiveMagicHit(blast, Shooter, ShooterId, player.LockAimPoint - center, center);
+        }
+        DamageSummonsInArea(Runner, ShooterTeam, center, stats.radius, blast, ShooterId);
+        RPC_Impact(center, Magic);
+        Lifetime = TickTimer.CreateFromSeconds(Runner, .2f);
     }
 
     private bool TryBeginIceFollowUp(Player victim, Vector3 point)

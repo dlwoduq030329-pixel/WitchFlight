@@ -103,7 +103,7 @@ public partial class MagicProjectile
     {
         if (!IsLiveSummon || !Object.HasStateAuthority || ShooterTeam == attackerTeam || ShooterId.Equals(attackerId) ||
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive) return false;
-        bool sustained = attack.magic == MagicType.Curse || attack.magic == MagicType.Razier;
+        bool sustained = attack.IsChanneled;
         if (sustained)
         {
             if (attack.damage <= 0f || float.IsNaN(attack.damage) || float.IsInfinity(attack.damage)) return false;
@@ -154,5 +154,21 @@ public partial class MagicProjectile
             }
         }
         return contacted;
+    }
+
+    public static bool DamageSummonsInBladeSlash(NetworkRunner runner, int team, Vector3 center, Quaternion frame,
+        float radius, MagicStatEntry attack, NetworkId attacker)
+    {
+        bool hit = false;
+        foreach (var candidate in active)
+        {
+            if (candidate == null || !candidate.IsLiveSummon || candidate.Runner != runner || candidate.ShooterTeam == team) continue;
+            Vector3 p = Quaternion.Inverse(frame) * (candidate.transform.position - center);
+            if (Mathf.Abs(p.y) > attack.bladeSlashHalfHeight || new Vector2(p.x,p.z).sqrMagnitude > radius*radius ||
+                Mathf.Abs(Mathf.Atan2(p.x,p.z)*Mathf.Rad2Deg) > attack.bladeSlashAngle*.5f ||
+                !HasSummonSight(center,candidate.transform.position)) continue;
+            hit |= candidate.ReceiveSummonHit(attack,team,attacker);
+        }
+        return hit;
     }
 }

@@ -19,6 +19,7 @@ public sealed class LobbyHatShapeLimit : MonoBehaviour
     private Vector3[][] surfacePoints;
     private LobbyHatContactSurface weightedSurface;
     private bool surfaceInitialized;
+    private static readonly Unity.Profiling.ProfilerMarker SurfaceMarker = new Unity.Profiling.ProfilerMarker("WitchFlight.HatSurface.Initialize");
     private Vector3[] flutterAxes;
     private void Awake()
     {
@@ -40,6 +41,8 @@ public sealed class LobbyHatShapeLimit : MonoBehaviour
     }
     private void InitializeSurface()
     {
+        using var workTimer = new RespawnWorkTimer("HatSurface.Initialize", this);
+        using var marker = SurfaceMarker.Auto();
         surfaceInitialized = true;
         if (contact != null && contact.motionRoot != null && contact.hatRenderer is SkinnedMeshRenderer skinned &&
             skinned.sharedMesh != null && skinned.sharedMesh.isReadable && skinned.sharedMesh.name == "LobbyDefaultHatRig")

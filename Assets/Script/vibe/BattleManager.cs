@@ -249,8 +249,13 @@ public partial class BattleManager : MonoBehaviour
             SpawnBattlePlayer(pair.Key, pair.Value, prefab);
     }
 
+    private static readonly Unity.Profiling.ProfilerMarker SpawnProfile = new Unity.Profiling.ProfilerMarker("WitchFlight.SpawnBattlePlayer");
+
     protected virtual void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
     {
+        RespawnWorkTimer.WatchFrames();
+        using var workTimer = new RespawnWorkTimer("BattlePlayer.Spawn", this);
+        using var spawnProfile = SpawnProfile.Auto();
         if (IsDeathMatch)
         {
             SpawnDeathMatchPlayer(playerRef, playerData, prefab, isRespawn);

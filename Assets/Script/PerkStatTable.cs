@@ -107,12 +107,12 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.BindingCost,"온전한 속박","속박 지속시간 {amount}초 증가.",2.0f,0.0f,0.0f,0.0f),
         D(PerkId.DarkCost,"피의 환원","적중 시 체력 회복량 {percent}% 증가.",0.25f,0.0f,0.0f,0.0f),
         D(PerkId.DarkHarvest,"살육의 마법","피해량 {percent}% 증가. 이 마법으로 적 플레이어 처치 시 쿨타임 즉시 초기화.",0.3f,0.0f,0.0f,0.0f),
-        D(PerkId.CurseRange,"긴 손아귀","사거리 {percent}% 증가.",.3f),
-        D(PerkId.CurseEfficiency,"저주의 늪","저주로 피해를 받는 동안 적의 이동속도 {percent}% 감소.",0.3f,0.0f,0.0f,0.0f),
+        D(PerkId.CurseRange,"저주","적중 시 {seconds}초간 초당 {amount} 피해를 줍니다.",10f,3f),
+        D(PerkId.CurseEfficiency,"큰 상처","치유 감소가 {percent}%로 증가합니다.",1f),
         D(PerkId.MineArming,"신속한 사역마","소환체의 록온 시간 {percent}% 감소, 공격 간격 {secondaryPercent}% 감소.",.45f,0,.2f),
         D(PerkId.MineRadius,"이중계약","한 번에 사역마를 {amount}마리 소환합니다.",2.0f,0.0f,0.0f,0.0f),
-        D(PerkId.BeamWidth,"확장렌즈","광선 판정 반경 {percent}% 증가, 피해량 {secondaryPercent}% 증가.",0.5f,0.0f,0.2f,0.0f),
-        D(PerkId.BeamFocus,"열 집중","같은 적에게 {condition}초 연속 피해를 주면 {seconds}초간 총 {amount} 화상 피해. 중첩 없이 갱신.",16.0f,2.0f,0.0f,2.0f),
+        D(PerkId.BeamWidth,"마력 환기","치유 광선 적중 시 MP {amount} 회복.",10f),
+        D(PerkId.BeamFocus,"과다주입","치유 광선 피해량 {amount} 증가.",10f),
         D(PerkId.FlarePulse,"텔레키네시스","개별 플레어의 유인 반경이 {amount}m로 증가하고 아군을 추적하는 마법도 유인합니다.",60.0f,0.0f,0.0f,0.0f),
         D(PerkId.FlareEfficiency,"효율 방출","플레어 유지시간 {amount}초 증가.",1.0f,0.0f,0.0f,0.0f),
         D(PerkId.SmokeRadius,"광역 차폐","연막 반경 {percent}% 증가.",.2f),
@@ -127,7 +127,7 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.FrugalRune,"절약의 룬","마법 MP 소모 {percent}% 감소. 패링·부스트 제외.",.2f),
         D(PerkId.EchoSpell,"되울림의 주문","마법 쿨타임 {percent}% 감소. 패링 제외.",.2f),
         D(PerkId.ManaRemnant,"잔향 흡수","적중 시 최대 MP {percent}% 회복. 재발동 {seconds}초. 지속형 마법 제외.",.08f,3),
-        D(PerkId.BladeCharges,"연속 검격","검기 공격 횟수가 {amount}회로 증가.",5f),
+        D(PerkId.BladeCharges,"칼날 응축","최대 충전 피해량이 {percent}% 증가.",.3f),
         D(PerkId.BladeWound,"깊은 상처","상처의 받는 회복량 감소율이 {percent}%로 증가.",0.75f),
         D(PerkId.StormCount,"쏟아지는 마탄","발사하는 마탄이 {amount}발로 증가.",40f),
         D(PerkId.StormPrecision,"집중 사격","마탄의 탄퍼짐 {percent}% 감소.",0.5f),
@@ -135,7 +135,7 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.RainPursuit,"칼날 집중","누르는 동안 최대 마나의 50%까지 충전하고, 놓으면 에임 방향으로 검 하나를 발사합니다. 피해 {secondary} + 소모 마나 × {amount}. 충전량에 따라 크기·판정 증가, 헤드샷 2배.",.8f,0f,40f,.5f),
         D(PerkId.TimeRadius,"확장된 시간","시간 역장의 반지름 {percent}% 증가.",0.3f),
         D(PerkId.TimeHealing,"회복의 시간","역장 내부 아군의 체력을 초당 {amount} 회복. 역장끼리 중첩되지 않음.",10f),
-        D(PerkId.FestivalSpeed,"축제의 바람","대축제 대상의 이동속도 {percent}% 증가.",0.3f),
-        D(PerkId.FestivalGuard,"먀오녀의 수호","대축제 지속 중 피해를 {amount}회 방어.",1f)
+        D(PerkId.FestivalSpeed,"축제 준비","회복받은 아군은 영역 내부에서 이동속도 {percent}% 증가.",.2f),
+        D(PerkId.FestivalGuard,"클라이맥스","영역 내부 아군의 체력이 피해로 1 미만이 되지 않습니다.",1f)
     };
 }

@@ -55,6 +55,7 @@ public sealed class CatBattleCompanion : MonoBehaviour
     }
     private void BindSeat(GameObject broom, CatCompanionTable table)
     {
+        using var workTimer = new RespawnWorkTimer("Companion.BindSeat", this);
         if (ownsSeat && broomSeat != null) Destroy(broomSeat.gameObject);
         seatedBroom = broom; broomSeat = null; ownsSeat = false;
         avatar.SetAuthoredSeat(false);

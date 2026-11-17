@@ -257,6 +257,7 @@ public partial class PlayerData : NetworkBehaviour
 
     private static MagicType NormalizeMagic(MagicType selectedMagic, MagicType fallback)
     {
+        if (selectedMagic == MagicType.Vision) return fallback;
         // None (0) is an intentional empty slot and must survive backend/network loading.
         int value = (int)selectedMagic;
         return value >= (int)MagicType.None && value <= (int)MagicType.BladeRain
