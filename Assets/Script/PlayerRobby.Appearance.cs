@@ -50,7 +50,7 @@ public sealed partial class PlayerRobby
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     private void RPC_SetLobbyAppearance(PlayerConfig config)
     {
-        if (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.IsWaitingInCodeRoom) return;
+        if (NetworkGameManager.Instance == null || !NetworkGameManager.Instance.CanReceiveLobbyAppearance(Runner)) return;
         LobbyAppearanceConfig = config.Sanitized();
         LobbyAppearanceReady = true;
         PlayerData.FindPerkData(Runner, Object.InputAuthority)?.ApplyLobbyAppearanceConfig(LobbyAppearanceConfig);

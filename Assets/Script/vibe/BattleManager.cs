@@ -452,6 +452,8 @@ public partial class BattleManager : MonoBehaviour
         if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject playerObject) && playerObject != null)
             battleFlag?.DropCarrier(playerRef, playerObject.transform.position);
         pendingRespawns.RemoveAll(pending => pending.PlayerRef == playerRef);
+        // Free-for-all participants may leave without ending the remaining match.
+        if (IsDeathMatch) return;
         // A rejected/late connection was never a participant. It cannot forfeit a match.
         if (!playerDatas.TryGetValue(playerRef, out PlayerData departed) || departed == null ||
             departed.Object == null || !departed.Object.IsValid) return;

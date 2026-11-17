@@ -1239,6 +1239,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
         assignedTeamIndexes.Remove(player);
         if (replaceWithBot) ReplaceDepartedHumanWithBot(replacementTeam);
+        // Update the migration roster promptly so a departed participant is not
+        // retained until the next periodic checkpoint.
+        if (IsDeathMatch) nextMigrationSnapshot = 0f;
     }
 
 
