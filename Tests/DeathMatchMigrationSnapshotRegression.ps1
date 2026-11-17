@@ -13,10 +13,10 @@ public class NetworkRunner {
  public TaskCompletionSource<bool> Upload=new TaskCompletionSource<bool>();
  public Task<bool> PushHostMigrationSnapshot(){Calls++;return Upload.Task;}
 }
-public static class Debug {public static void LogWarning(string message, object context) {}}
+public static class Debug {public static void Log(string message, object context) {} public static void LogWarning(string message, object context) {}}
 public class MigrationTest {
  private bool migrationSnapshotBusy, IsMigratingDeathMatch=false;
- private Task migrationSnapshotTask=Task.CompletedTask;
+ private Task migrationSnapshotTask=Task.CompletedTask; private NetworkRunner snapshotConfirmedRunner;
  public static async Task Run(){
   var m=new MigrationTest(); var r=new NetworkRunner();
   var periodic=m.PushDeathMatchSnapshot(r);
@@ -39,3 +39,4 @@ public class MigrationTest {
 Add-Type -TypeDefinition ($stubs + $methods + '}')
 [MigrationTest]::Run().GetAwaiter().GetResult()
 Write-Output 'PASS: concurrent host exit waits for snapshot; failure releases busy state; retry; non-host guard.'
+

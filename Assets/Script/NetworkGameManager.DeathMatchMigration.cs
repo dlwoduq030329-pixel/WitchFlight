@@ -12,10 +12,20 @@ public partial class NetworkGameManager
     private byte[] deathMatchConnectionToken;
     private bool migrationSnapshotBusy, migrationRestoring;
     private Task migrationSnapshotTask = Task.CompletedTask;
+    private NetworkRunner snapshotConfirmedRunner;
     private float nextMigrationSnapshot, migrationReservationDeadline;
     private readonly Dictionary<string, NetworkObject> migrationData = new();
     private readonly Dictionary<string, NetworkObject> migrationCharacters = new();
     private readonly HashSet<PlayerRef> migrationParticipants = new();
+
+    private NetworkProjectConfig DeathMatchNetworkConfig()
+    {
+        var config = NetworkProjectConfig.Deserialize(NetworkProjectConfig.Serialize(NetworkProjectConfig.Global));
+        config.Simulation.HostMigration = true;
+        // Snapshots are explicitly scheduled by TickDeathMatchMigration.
+        config.HostMigration.EnableAutoUpdate = false;
+        return config;
+    }
 
     private byte[] DeathMatchConnectionToken() => deathMatchConnectionToken ??= Guid.NewGuid().ToByteArray();
     private string DeathMatchIdentity(NetworkRunner runner, PlayerRef player)
@@ -32,7 +42,8 @@ public partial class NetworkGameManager
         if (Time.unscaledTime >= nextMigrationSnapshot && !migrationSnapshotBusy)
         {
             nextMigrationSnapshot = Time.unscaledTime + Mathf.Max(1f, deathMatchSnapshotSeconds);
-            _ = PushDeathMatchSnapshot(_runner);
+            // No successor exists in a solo session. Final exit still explicitly uploads.
+            if (ConnectedPlayerCount > 1) _ = PushDeathMatchSnapshot(_runner);
         }
         if (migrationData.Count > 0 && Time.unscaledTime >= migrationReservationDeadline)
         {
@@ -56,6 +67,11 @@ public partial class NetworkGameManager
         try
         {
             bool saved = await runner.PushHostMigrationSnapshot();
+            if (saved && this != null && snapshotConfirmedRunner != runner)
+            {
+                snapshotConfirmedRunner = runner;
+                Debug.Log("[DeathMatch/Migration] 첫 복구 스냅샷 저장 성공.", this);
+            }
             if (!saved && this != null && !IsMigratingDeathMatch)
                 Debug.LogWarning("[DeathMatch/Migration] 호스트 복구 스냅샷 전송 실패. 다음 주기에 재시도합니다.", this);
         }
@@ -102,6 +118,7 @@ public partial class NetworkGameManager
             var result = await resumed.StartGame(new StartGameArgs
             {
                 GameMode = token.GameMode, HostMigrationToken = token, HostMigrationResume = ResumeDeathMatch,
+                Config = DeathMatchNetworkConfig(),
                 ConnectionToken = DeathMatchConnectionToken(), CustomPhotonAppSettings = DeathMatchPhotonSettings(),
                 PlayerCount = DeathMatchCapacity, Scene = SceneRef.FromIndex(battleSceneIndex),
                 SceneManager = scenes, ObjectProvider = pool, IsOpen = true, IsVisible = false
@@ -192,3 +209,4 @@ public partial class NetworkGameManager
         return true;
     }
 }
+

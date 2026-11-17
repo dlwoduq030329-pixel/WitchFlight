@@ -272,6 +272,51 @@ public sealed partial class BattleHud : MonoBehaviour
     [Tooltip("상대 진영의 라운드 승리 횟수만 표시합니다. VS 문구는 별도 UI로 두세요.")]
     [SerializeField] private TextMeshProUGUI enemyRoundWinsText;
     [SerializeField] private TMP_Text matchTimeText;
+    [Tooltip("남은 시간 알림용 텍스트. 미지정 시 기존 경기 시간 텍스트에 표시합니다.")]
+    [SerializeField] private TMP_Text remainingTimeAnnouncement;
+    private Graphic blinkingPossessionFill;
+
+    private void UpdateRemainingTimeAnnouncement(BattleManager battle, BattleFlag flag, int localTeam)
+    {
+        string message = null;
+        bool active = flag != null && flag.Object != null && flag.Object.IsValid &&
+            flag.Phase == BattleStartPhase.Playing && !battle.IsTraining && !battle.IsDeathMatch && !battle.IsRace && !flag.IsOvertime;
+        if (active)
+        {
+            float seconds = flag.RemainingSeconds;
+            if (seconds > 58f && seconds <= 60f) message = "남은 시간 60초!";
+            else if (seconds > 28f && seconds <= 30f) message = "남은 시간 30초!";
+            else if (seconds > 0f && seconds <= 5f) message = Mathf.CeilToInt(seconds).ToString();
+        }
+        if (remainingTimeAnnouncement != null)
+        {
+            remainingTimeAnnouncement.gameObject.SetActive(message != null);
+            if (message != null) SetText(remainingTimeAnnouncement, message);
+        }
+        else if (message != null && matchTimeText != null) SetText(matchTimeText, message);
+
+        Slider losing = null;
+        if (active && flag.IsFinalScoreBonus && (localTeam == 1 || localTeam == 2) &&
+            flag.Team1PossessionScoreTicks != flag.Team2PossessionScoreTicks)
+        {
+            int losingTeam = flag.Team1PossessionScoreTicks < flag.Team2PossessionScoreTicks ? 1 : 2;
+            losing = localTeam == losingTeam ? allyTimeSlider : enemyTimeSlider;
+        }
+        var fill = losing != null && losing.fillRect != null ? losing.fillRect.GetComponent<Graphic>() : null;
+        if (blinkingPossessionFill != fill)
+        {
+            if (blinkingPossessionFill != null) blinkingPossessionFill.canvasRenderer.SetAlpha(1f);
+            blinkingPossessionFill = fill;
+        }
+        if (fill != null) fill.canvasRenderer.SetAlpha(Mathf.Lerp(.25f, 1f, .5f + .5f * Mathf.Sin(Time.unscaledTime * 8f)));
+    }
+
+    private void ClearTimeAnnouncement()
+    {
+        if (blinkingPossessionFill != null) blinkingPossessionFill.canvasRenderer.SetAlpha(1f);
+        blinkingPossessionFill = null;
+        if (remainingTimeAnnouncement != null) remainingTimeAnnouncement.gameObject.SetActive(false);
+    }
     [SerializeField] private Slider allyTimeSlider;
     [SerializeField] private Slider enemyTimeSlider;
     [SerializeField] private TMP_Text flagText;
@@ -626,6 +671,7 @@ public sealed partial class BattleHud : MonoBehaviour
         bool show = battle != null && (battle.IsGameplayActive || battle.IsBattleEnded);
         if (!show)
         {
+            ClearTimeAnnouncement();
             if (MenuOpen) SetMenuOpen(false);
             respawnAt = 0f;
             BindOwner(null);
@@ -666,6 +712,7 @@ public sealed partial class BattleHud : MonoBehaviour
         int localTeam = PlayerData.Local != null ? PlayerData.Local.teamIndex : valid ? owner.TeamIndex : 0;
         UpdatePossessionSlider(allyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam) : 0f);
         UpdatePossessionSlider(enemyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam == 1 ? 2 : localTeam == 2 ? 1 : 0) : 0f);
+        UpdateRemainingTimeAnnouncement(battle, flag, localTeam);
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null)
         {
@@ -1804,6 +1851,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void OnDisable()
     {
+        ClearTimeAnnouncement();
         PauseMenuEntrance();
         CloseSettings();
         HideParryWindow();

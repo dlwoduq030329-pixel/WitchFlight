@@ -8,10 +8,23 @@ public partial class PlayerData
     // This object survives character respawns and all three rounds. Never save to DataConfig/BACKND.
     private static readonly HashSet<PlayerData> perkPlayers = new();
     public static IEnumerable<PlayerData> PerkPlayers => perkPlayers;
+    private static readonly Dictionary<(NetworkRunner, PlayerRef), PlayerData> framePlayerLookup = new();
+    private static int playerLookupFrame = -1;
     public static PlayerData FindPerkData(NetworkRunner runner, PlayerRef player)
     {
+        if (playerLookupFrame != Time.frameCount)
+        {
+            framePlayerLookup.Clear();
+            playerLookupFrame = Time.frameCount;
+        }
+        var key = (runner, player);
+        if (framePlayerLookup.TryGetValue(key, out var cached) && cached != null &&
+            cached.Object != null && cached.Object.IsValid && cached.Runner == runner &&
+            cached.ParticipantRef == player && perkPlayers.Contains(cached)) return cached;
         foreach (var data in perkPlayers)
-            if (data != null && data.Object != null && data.Object.IsValid && data.Runner == runner && data.ParticipantRef == player) return data;
+            if (data != null && data.Object != null && data.Object.IsValid && data.Runner == runner && data.ParticipantRef == player)
+            { framePlayerLookup[key] = data; return data; }
+        framePlayerLookup.Remove(key);
         return null;
     }
     [Networked] public bool PerksInitialized { get; private set; }

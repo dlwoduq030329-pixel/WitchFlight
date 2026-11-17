@@ -13,7 +13,7 @@ public partial class BattleManager
     public void AdmitDeathMatchPlayer(PlayerData data)
     {
         if (!IsDeathMatch || !isInitialized || runner == null || !runner.IsServer || data == null ||
-            data.Runner != runner || !data.IsLoadoutInitialized || spawnedPlayers.ContainsKey(data.ParticipantRef)) return;
+            data.Runner != runner || !data.IsLoadoutInitialized || !data.DeathMatchEntryReady || spawnedPlayers.ContainsKey(data.ParticipantRef)) return;
         foreach (var pending in pendingRespawns)
             if (pending.PlayerRef == data.ParticipantRef) return;
         if (!NetworkGameManager.Instance.IsRestoredDeathMatchPlayer(data.ParticipantRef))
@@ -23,7 +23,7 @@ public partial class BattleManager
 
     private void SpawnDeathMatchPlayer(PlayerRef participant, PlayerData data, NetworkPrefabRef prefab, bool respawn)
     {
-        if (data == null || !data.IsLoadoutInitialized || !IsConnected(participant) ||
+        if (data == null || !data.IsLoadoutInitialized || !data.DeathMatchEntryReady || !IsConnected(participant) ||
             (spawnedPlayers.TryGetValue(participant, out var existing) && existing != null && existing.IsValid)) return;
         if (!TryDeathMatchSpawn(out var position))
         {

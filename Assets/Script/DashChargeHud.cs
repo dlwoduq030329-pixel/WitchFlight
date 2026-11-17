@@ -109,10 +109,12 @@ public sealed class DashChargeHud : MonoBehaviour
         {
             var slider = segments[i];
             if (slider == null) continue;
-            float target = i < count ? 1 : i == count ? progress : 0;
+            // Consume the first authored slot first; keep positions and capacity visibility intact.
+            int chargeIndex = Mathf.Min(segments.Length, previousCapacity) - 1 - i;
+            float target = chargeIndex < count ? 1 : chargeIndex == count ? progress : 0;
             float value = snap || target < slider.value || target >= 1 ? target : Mathf.Lerp(slider.value, target, blend);
             slider.SetValueWithoutNotify(value);
-            UpdateRechargeFlash(i, charged && i >= previousCharges && i < count, i < count);
+            UpdateRechargeFlash(i, charged && chargeIndex >= previousCharges && chargeIndex < count, chargeIndex < count);
         }
         previousPlayer = player; previousCharges = count;
     }
