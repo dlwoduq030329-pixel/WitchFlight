@@ -95,6 +95,7 @@ public class PlayerAppearance : MonoBehaviour
 
     private void ApplyConfigValues(PlayerConfig config)
     {
+        using var workTimer = new RespawnWorkTimer("Appearance.Apply", this);
         ApplyBangsLength(config.bangsLength);
         ApplyBangsDirection(config.bangsDirection);
         ApplySideHairLength(config.sideHairLength);

@@ -16,6 +16,8 @@ public static class PerkEffects
         mana = Mathf.Max(1f - Mathf.Clamp01(table.manaDiscountCap), mana);
         cooldown = Mathf.Max(1f - Mathf.Clamp01(table.cooldownDiscountCap), cooldown);
         s.apCost *= mana;
+        s.bladeChargeManaPerSecond *= mana;
+        s.bladeChargeMaxMana *= mana;
         s.apPerSecond = s.ChannelManaPerSecond(baseMp) * mana;
         s.maxApFractionPerSecond = 0f; // Extra maximum mana must extend channel duration.
         s.cooldownSeconds *= cooldown;
@@ -31,9 +33,8 @@ public static class PerkEffects
             case PerkId.IceSlow: s.movementMultiplier = Mathf.Clamp(1f - (1f - s.movementMultiplier) * (1f + a), .05f, 1f); break;
             case PerkId.VisionAim: s.hitscanRadius *= 1f + a; break;
             case PerkId.BeamWidth:
-                s.hitscanRadius *= 1f + a;
-                s.damagePerSecond *= 1f + Mathf.Max(0f, p.secondaryAmount);
-                break;
+                break; // Mana is returned only after a confirmed healing-beam hit.
+            case PerkId.BeamFocus: s.damage += a; break;
             case PerkId.ThunderRadius: case PerkId.SmokeRadius: s.radius *= 1f + a; break;
             // MineRadius (이중계약) changes the number created by Player.CreateSpecialMagic.
             case PerkId.HealingPower: s.healing *= 1f + a; break;
@@ -41,7 +42,8 @@ public static class PerkEffects
             case PerkId.BindingCost: s.effectDuration += a; break;
             case PerkId.DarkCost: s.healOnHit *= 1f + a; break;
             case PerkId.DarkHarvest: s.damage *= 1f + a; break;
-            case PerkId.CurseRange: s.range *= 1f + a; break;
+            case PerkId.CurseRange: break; // Curse damage is applied after a confirmed hit.
+            case PerkId.CurseEfficiency: s.woundHealingMultiplier = 1f - Mathf.Clamp01(a); break;
             case PerkId.MineArming:
                 if (s.effect == MagicEffectKind.PursuitSummon) {
                     s.lockChargeSeconds *= 1f - Mathf.Clamp01(a);
@@ -50,7 +52,7 @@ public static class PerkEffects
                 else s.activationDelay *= 1f - Mathf.Clamp01(a);
                 break;
             case PerkId.FlareEfficiency: s.effectDuration += a; break;
-            case PerkId.BladeCharges: s.bladeCharges = Mathf.Max(1, Mathf.RoundToInt(a)); break;
+            case PerkId.BladeCharges: s.bladeMaxDamage *= 1f + a; break;
             case PerkId.BladeWound: s.woundHealingMultiplier = 1f - Mathf.Clamp01(a); break;
             case PerkId.StormCount: s.stormShotCount = Mathf.Clamp(Mathf.RoundToInt(a), 1, 120); break;
             case PerkId.StormPrecision: s.stormSpreadAngle *= 1f - Mathf.Clamp01(a); break;
@@ -63,8 +65,8 @@ public static class PerkEffects
                 break;
             case PerkId.TimeRadius: s.radius *= 1f + a; break;
             case PerkId.TimeHealing: s.timeHealingPerSecond = a; break;
-            case PerkId.FestivalSpeed: s.festivalSpeedBonus = a; break;
-            case PerkId.FestivalGuard: s.festivalGuardCharges = Mathf.Max(0, Mathf.RoundToInt(a)); break;
+            // Festival zone applies these on healed allies and at authoritative damage time.
+            case PerkId.FestivalSpeed: case PerkId.FestivalGuard: break;
         }
     }
     public static MagicStatEntry FocusBladeShot(MagicStatEntry s, float spent, float budget)

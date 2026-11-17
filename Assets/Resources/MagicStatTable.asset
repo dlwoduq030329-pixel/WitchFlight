@@ -1015,46 +1015,46 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 8
-    displayName: "\uC800\uC8FC \uB9C8\uBC95"
-    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uAC00\uAE4C\uC6B4 \uC801\uC744
-      \uC790\uB3D9 \uCD94\uC801\uD569\uB2C8\uB2E4. \n\uBCBD\uC774\uB098 \uD654\uBA74
-      \uBC16\uC73C\uB85C \uBC97\uC5B4\uB098\uBA74 \uB04A\uC5B4\uC9D1\uB2C8\uB2E4."
+    weaknessExplosionDelay: 1
+    weaknessExplosionDamage: 30
+    displayName: "\uc1e0\uc57d"
+    description: "\ub85d\uc628 \uc801\uc911 \uc2dc \ud53c\ud574 30, 4\ucd08\uac04 \uce58\uc720 \uac10\uc18c 50%. 1\ucd08 \ub4a4 \ubc18\uacbd 10\uc5d0 \ud53c\ud574 30\uacfc \uce58\uc720 \uac10\uc18c\ub97c \uc801\uc6a9\ud569\ub2c8\ub2e4."
     icon: {fileID: 21300000, guid: 4d794e788156b404c8d6ae2f9c7bc036, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
-    effect: 6
+    effect: 0
     displayDamage: 0.75
     displayAimTime: 0
     displayRange: 0.2
     displayManaCost: 0.2
     displayDamageLabel: "\uB192\uC74C"
-    displayAimTimeLabel: "\uC989\uBC1C"
+    displayAimTimeLabel: "\ub85d\uc628"
     displayRangeLabel: "\uB0AE\uC74C"
     displayManaCostLabel: "\uB0AE\uC74C"
-    displayCategory: 
-    displayCastType: 
-    displayFeatures: 
-    apCost: 0
-    cooldownSeconds: 0.375
-    lockChargeSeconds: 0
+    displayCategory: "\uc9c0\uc6d0"
+    displayCastType: "\ub85d\uc628"
+    displayFeatures: "\uce58\uc720 \uac10\uc18c 50% / 1\ucd08 \ub4a4 \uad11\uc5ed \ud3ed\ubc1c"
+    apCost: 40
+    cooldownSeconds: 6
+    lockChargeSeconds: 0.8
     castSeconds: 0
-    projectileSpeed: 0
-    projectileTurnSpeed: 0
+    projectileSpeed: 100
+    projectileTurnSpeed: 180
     projectileLifetime: 4
     projectileRadius: 0.12
     hitscanRadius: 0
     range: 50
-    damage: 0
+    damage: 30
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
-    effectDuration: 0
-    radius: 0
+    effectDuration: 4
+    radius: 10
     activationDelay: 0
     placementDistance: 0
-    requiresTarget: 0
-    requiresFullLock: 0
+    requiresTarget: 1
+    requiresFullLock: 1
     flareBurstInterval: 0
     flareAttractionRadius: 0
     flareLength: 0
@@ -1091,7 +1091,7 @@ MonoBehaviour:
     bladeWeaponOffset: {x: 0, y: 0, z: 0}
     bladeWeaponEuler: {x: 0, y: 0, z: 0}
     bladeShotInterval: 0
-    woundHealingMultiplier: 0
+    woundHealingMultiplier: 0.5
     strikeDelay: 0
     areaAimDistance: 0
     areaAimScrollSpeed: 0
@@ -1116,8 +1116,8 @@ MonoBehaviour:
     healthCost: 0
     healing: 0
     healOnHit: 0
-    damagePerSecond: 25
-    apPerSecond: 30
+    damagePerSecond: 0
+    apPerSecond: 0
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
@@ -1256,14 +1256,13 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 10
-    displayName: "\uAD11\uC120 \uB9C8\uBC95"
-    description: "\uB204\uB974\uB294 \uB3D9\uC548 \uC815\uBA74\uC5D0 \uC9C1\uC120
-      \uAD11\uC120\uC744 \uC720\uC9C0\uD558\uBA70 \uB9C8\uB098\uB97C \uC18C\uBAA8\uD569\uB2C8\uB2E4."
+    displayName: "\uce58\uc720 \uad11\uc120"
+    description: "\uc870\uc900 \ubc29\ud5a5\uc73c\ub85c \ub2e8\ubc1c \uad11\uc120\uc744 \ubc1c\uc0ac\ud569\ub2c8\ub2e4. \uc801\uc5d0\uac8c \ud53c\ud574 35, \uc544\uad70\uc5d0\uac8c \ud68c\ubcf5 20\uc744 \uc90d\ub2c8\ub2e4."
     icon: {fileID: 21300000, guid: 82d5cbd78bedbed4b882e96a4030dff0, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
     lockChargeCircleOffset: {x: 0, y: 0.8, z: -0.7}
-    effect: 8
+    effect: 0
     displayDamage: 0.8
     displayAimTime: 0
     displayRange: 0.7
@@ -1275,17 +1274,18 @@ MonoBehaviour:
     displayCategory: 
     displayCastType: 
     displayFeatures: 
-    apCost: 0
-    cooldownSeconds: 0.375
+    apCost: 35
+    cooldownSeconds: 2.5
     lockChargeSeconds: 0
     castSeconds: 0
     projectileSpeed: 0
     projectileTurnSpeed: 0
     projectileLifetime: 4
     projectileRadius: 0
-    hitscanRadius: 0.3
+    hitscanRadius: 0.9
+    allyHitscanRadius: 2.4
     range: 100
-    damage: 0
+    damage: 35
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
@@ -1354,10 +1354,10 @@ MonoBehaviour:
     summonAttackAnimation: {fileID: 0}
     summonDeathAnimation: {fileID: 0}
     healthCost: 0
-    healing: 0
+    healing: 20
     healOnHit: 0
-    damagePerSecond: 35
-    apPerSecond: 35
+    damagePerSecond: 0
+    apPerSecond: 0
     maxApFractionPerSecond: 0
     channelTickSeconds: 0.1
     autoAimHalfAngle: 20
@@ -1618,10 +1618,16 @@ MonoBehaviour:
     flareVfxScale: 0
     flareVfxBrightness: 0
   - magic: 13
+    bladeMinDamage: 20
+    bladeMaxDamage: 60
+    bladeMinRange: 8
+    bladeMaxRange: 20
+    bladeSlashAngle: 140
+    bladeSlashHalfHeight: 3
+    bladeChargeManaPerSecond: 20
+    bladeChargeMaxMana: 40
     displayName: "\uCE7C\uB0A0 \uB9C8\uBC95"
-    description: "\uC2DC\uC804 \uD6C4 10\uCD08 \uC548\uC5D0 \uC88C\uD074\uB9AD 3\uD68C\uB85C
-      \uBCF4\uB77C\uC0C9 \uAC80\uAE30\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4. \n\uC801\uC911
-      \uC2DC 8\uCD08\uAC04 \uBC1B\uB294 \uD68C\uBCF5\uB7C9\uC774 50% \uAC10\uC18C\uD569\uB2C8\uB2E4."
+    description: "\ub204\ub974\ub294 \ub3d9\uc548 \ub9c8\ub098\ub97c \uc18c\ubaa8\ud574 \ucda9\uc804\ud558\uace0 \ub5bc\uba74 \uc804\ubc29\uc744 \ud55c \ubc88 \ubcb1\ub2c8\ub2e4. \ucda9\uc804\ub7c9\uc5d0 \ube44\ub840\ud574 \ud53c\ud574\uc640 \ubc94\uc704\uac00 \uc99d\uac00\ud569\ub2c8\ub2e4."
     icon: {fileID: 342325613, guid: 739b11d6b80584d48994af14791fc924, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -1632,22 +1638,22 @@ MonoBehaviour:
     displayRange: 0.679
     displayManaCost: 0.7
     displayDamageLabel: "\uB0AE\uC74C"
-    displayAimTimeLabel: "\uC5C6\uC74C"
+    displayAimTimeLabel: "\ucc28\uc9d5"
     displayRangeLabel: "\uAE38\uB2E4"
     displayManaCostLabel: "\uB192\uC74C"
     displayCategory: 
-    displayCastType: 
-    displayFeatures: 
-    apCost: 30
+    displayCastType: "\ucc28\uc9d5 \ubca0\uae30"
+    displayFeatures: "\ub204\ub974\uae30: \ucc28\uc9d5 / \ub5bc\uae30: \uc804\ubc29 \ubca0\uae30"
+    apCost: 0
     cooldownSeconds: 8
     lockChargeSeconds: 0
     castSeconds: 0
-    projectileSpeed: 100
+    projectileSpeed: 0
     projectileTurnSpeed: 0
     projectileLifetime: 1.2
     projectileRadius: 3
     hitscanRadius: 0
-    range: 100
+    range: 20
     damage: 20
     hitStunSeconds: 0
     knockbackForce: 0
@@ -1688,7 +1694,7 @@ MonoBehaviour:
     stormDuration: 0
     stormLaunchAngle: 0
     stormSpreadAngle: 0
-    bladeCharges: 3
+    bladeCharges: 0
     bladeAbilityDuration: 10
     bladeWeaponVfxPrefab: {fileID: 100000, guid: 2a8c2eacbc6b457bb3b02ade1149ef0a, type: 3}
     bladeWeaponOffset: {x: 0, y: 0, z: 0}
@@ -1738,6 +1744,9 @@ MonoBehaviour:
     flareVfxScale: 1
     flareVfxBrightness: 2
   - magic: 14
+    stormSlowPerHit: 0.05
+    stormSlowMaximum: 0.9
+    stormSlowSeconds: 2
     displayName: "\uB9C8\uD0C4 \uD3ED\uD48D"
     description: "2\uCD08\uAC04 \uB9C8\uD0C4 30\uBC1C\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
     icon: {fileID: 706995332, guid: bf7fc59d8f3f908468d1f546e3604cfb, type: 3}
@@ -1760,10 +1769,10 @@ MonoBehaviour:
     cooldownSeconds: 5
     lockChargeSeconds: 0
     castSeconds: 0
-    projectileSpeed: 110
+    projectileSpeed: 165
     projectileTurnSpeed: 180
     projectileLifetime: 1.8
-    projectileRadius: 0.5
+    projectileRadius: 0.75
     hitscanRadius: 0
     range: 120
     damage: 10
@@ -1977,9 +1986,7 @@ MonoBehaviour:
     flareVfxBrightness: 2
   - magic: 16
     displayName: "\uBA00\uC624\uB140 \uB300\uCD95\uC81C"
-    description: "\uC790\uC2E0 \uB610\uB294 \uC544\uAD70\uC758 \uCCB4\uB825\xB7\uB9C8\uB825
-      \uD68C\uBCF5\uB7C9\uC744 50% \uC99D\uAC00\uC2DC\uD0A4\uACE0 \uCD08\uB2F9 \uCCB4\uB825
-      5\uB97C \uD68C\uBCF5\uD569\uB2C8\uB2E4."
+    description: "\ubcf8\uc778 \ub610\ub294 \uc544\uad70\uc744 \ub530\ub77c\uac00\ub294 \ubc18\uc9c0\ub984 20\uc758 \ud68c\ubcf5 \uc601\uc5ed\uc744 4\ucd08\uac04 \uc0dd\uc131\ud569\ub2c8\ub2e4. \ub0b4\ubd80 \uc544\uad70\uc740 \ucd08\ub2f9 HP 5 \ud68c\ubcf5, \ub300\uc0c1\uc740 \uc774\ub3d9\uc18d\ub3c4 20% \uc99d\uac00."
     icon: {fileID: 632450003, guid: 436518df393d6dc428c7f40354562843, type: 3}
     lockChargeCirclePrefab: {fileID: 575105189756329235, guid: 778ce1572e1133a4bb2424d212225632, type: 3}
     lockChargeCircleSize: 1.8
@@ -2010,8 +2017,8 @@ MonoBehaviour:
     hitStunSeconds: 0
     knockbackForce: 0
     movementMultiplier: 1
-    effectDuration: 7
-    radius: 0
+    effectDuration: 4
+    radius: 20
     activationDelay: 0
     placementDistance: 0
     requiresTarget: 0
@@ -2036,8 +2043,11 @@ MonoBehaviour:
     rainFocusMaxScale: 0
     rainFocusHeadMultiplier: 0
     rainFocusProjectilePrefab: {fileID: 0}
-    festivalRecoveryMultiplier: 1.5
+    festivalRecoveryMultiplier: 1
     festivalHealPerSecond: 5
+    festivalTargetSpeedBonus: 0.2
+    festivalSong: {fileID: 0}
+    festivalSongVolume: 0.65
     timeFieldVfxPrefab: {fileID: 0}
     timeEnemySpeed: 0.7
     timeAllySpeed: 1.3

@@ -7,6 +7,18 @@ using Unity.Profiling;
 internal sealed class LobbyHatContactSurface
 {
     private struct Sample { public int a, b, c; }
+    private sealed class MeshCache
+    {
+        public Vector3[] vertices;
+        public BoneWeight[] weights;
+        public Matrix4x4[] bind;
+        public Sample[][] samples;
+    }
+    // Only immutable mesh-space data is shared. Poses and collision state remain per avatar.
+    private static readonly Dictionary<Mesh, MeshCache> meshCaches = new();
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetCaches() => meshCaches.Clear();
+    private static readonly ProfilerMarker BuildMarker = new ProfilerMarker("WitchFlight.HatContact.Initialize");
     private readonly Vector3[] vertices;
     private readonly BoneWeight[] weights;
     private readonly Matrix4x4[] bind, matrices;
@@ -22,19 +34,25 @@ internal sealed class LobbyHatContactSurface
 
     public LobbyHatContactSurface(SkinnedMeshRenderer renderer, LobbyHatSoftBone contact)
     {
+        using var marker = BuildMarker.Auto();
         this.contact = contact;
         var mesh = renderer.sharedMesh;
-        vertices = mesh.vertices; weights = mesh.boneWeights; bind = mesh.bindposes; skin = renderer.bones;
+        skin = renderer.bones;
+        bool cached = meshCaches.TryGetValue(mesh, out var cache) && cache.samples.Length == skin.Length;
+        vertices = cached ? cache.vertices : mesh.vertices;
+        weights = cached ? cache.weights : mesh.boneWeights;
+        bind = cached ? cache.bind : mesh.bindposes;
         matrices = new Matrix4x4[skin.Length]; samples = new Sample[skin.Length][];
         axes = new Vector3[skin.Length]; angles = new float[skin.Length]; baseRotations = new Quaternion[skin.Length];
-        var candidates = new List<Sample>[skin.Length];
         for (int i = 0; i < skin.Length; i++)
         {
-            candidates[i] = new List<Sample>();
             if (skin[i] == null || skin[i].childCount == 0) continue;
             Vector3 radial = skin[i].GetChild(0).position - skin[i].position;
             axes[i] = skin[i].parent.InverseTransformDirection(Vector3.Cross(radial, contact.motionRoot.up).normalized);
         }
+        if (cached) { samples = cache.samples; return; }
+        var candidates = new List<Sample>[skin.Length];
+        for (int i = 0; i < skin.Length; i++) candidates[i] = new List<Sample>();
         for (int i = 0; i < vertices.Length; i++) Add(new Sample { a = i, b = i, c = i }, candidates);
         int[] triangles = mesh.triangles;
         for (int i = 0; i < triangles.Length; i += 3)
@@ -57,6 +75,7 @@ internal sealed class LobbyHatContactSurface
             }
             samples[bone] = selected;
         }
+        meshCaches[mesh] = new MeshCache { vertices = vertices, weights = weights, bind = bind, samples = samples };
     }
     private Vector3 RestPoint(Sample s) => (vertices[s.a] + vertices[s.b] + vertices[s.c]) / 3f;
     private void Add(Sample s, List<Sample>[] candidates)

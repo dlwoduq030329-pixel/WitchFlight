@@ -278,16 +278,19 @@ public sealed partial class linkuserinfo
         {
             var stats = MagicStatTable.Default.GetStats(kind == 0 ? player.magic1 : player.magic2);
             title = stats.displayName;
-            bool support = stats.effect == MagicEffectKind.Healing || stats.effect == MagicEffectKind.MeowFestival ||
+            bool support = stats.magic == MagicType.Curse || stats.magic == MagicType.Razier || stats.effect == MagicEffectKind.Healing || stats.effect == MagicEffectKind.MeowFestival ||
                 stats.effect == MagicEffectKind.Binding || stats.effect == MagicEffectKind.TimeField;
             string category = support ? "지원" : stats.UsesAutoTarget ? "록온" : "조준";
-            string result = stats.effect == MagicEffectKind.Healing ? $"회복 {stats.healing:0.##}" :
+            string result = stats.magic == MagicType.Razier ? $"피해량 {stats.damage:0.##}\n아군 회복 {stats.healing:0.##}" :
+                stats.effect == MagicEffectKind.Healing ? $"회복 {stats.healing:0.##}" :
                 stats.effect == MagicEffectKind.MeowFestival ? $"회복 초당 {stats.festivalHealPerSecond:0.##}" :
                 stats.effect == MagicEffectKind.GuidedChannel || stats.effect == MagicEffectKind.BeamChannel ? $"피해량 초당 {stats.damagePerSecond:0.##}" :
                 stats.effect == MagicEffectKind.PursuitSummon ? $"소환수 피해량 {stats.damage:0.##}" :
                 stats.effect == MagicEffectKind.BladeRain ? "피해량 소모 MP ÷ 2" :
                 support ? "" : $"피해량 {stats.damage:0.##}";
             detail = $"{category} | MP {stats.apCost:0.##}" + (result.Length > 0 ? "\n" + result : "");
+            if (stats.magic == MagicType.Blade)
+                detail = $"차징 베기 | MP 초당 {stats.bladeChargeManaPerSecond:0.##} (최대 {stats.bladeChargeMaxMana:0.##})\n피해량 {stats.bladeMinDamage:0.##}~{stats.bladeMaxDamage:0.##}\n범위 {stats.bladeMinRange:0.##}~{stats.bladeMaxRange:0.##}";
         }
         activeEquipmentHover = hover;
         if (equipmentInfoImage != null) equipmentInfoImage.sprite = icon.sprite;

@@ -35,6 +35,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
     private string status = "Photon 없는 로컬 비행 실험실";
     private readonly MagicType[] homingMagics = { MagicType.Fire, MagicType.Ice, MagicType.Binding };
     private string[] magicNames, broomNames, hatNames;
+    private MagicType[] selectableMagics;
     private GUIStyle titleStyle, labelStyle;
     private readonly List<MagicBalanceLabShot> shots = new();
     private Material shotMaterial;
@@ -46,7 +47,9 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
         Equipment = Instantiate(sourceEquipment);
         Equipment.brooms = (BroomStatEntry[])sourceEquipment.brooms.Clone();
         Equipment.hats = (HatStatEntry[])sourceEquipment.hats.Clone();
-        magicNames = Array.ConvertAll(Magic.magics, x => x.displayName);
+        selectableMagics = Array.ConvertAll(Array.FindAll(Magic.magics,
+            x => x.magic != MagicType.Vision && x.magic != MagicType.None), x => x.magic);
+        magicNames = Array.ConvertAll(selectableMagics, x => Magic.GetStats(x).displayName);
         broomNames = Array.ConvertAll(Equipment.brooms, x => x.displayName);
         hatNames = Array.ConvertAll(Equipment.hats, x => x.displayName);
         var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
@@ -314,12 +317,13 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
         MagicType selected = editActor == 0 ? playerMagic : botMagic;
         if (editActor == 0)
         {
-            int index = Array.FindIndex(Magic.magics, x => x.magic == selected);
+            int index = Array.IndexOf(selectableMagics, selected);
             int next = GUILayout.SelectionGrid(Mathf.Max(0, index), magicNames, 3);
             if (next != index)
             {
-                playerMagic = Magic.magics[next].magic;
-                if (Magic.magics[next].requiresTarget) distance = Mathf.Min(distance, Magic.magics[next].range * .95f);
+                playerMagic = selectableMagics[next];
+                MagicStatEntry chosen = Magic.GetStats(playerMagic);
+                if (chosen.requiresTarget) distance = Mathf.Min(distance, chosen.range * .95f);
                 ResetTrial(); selected = playerMagic;
             }
         }
