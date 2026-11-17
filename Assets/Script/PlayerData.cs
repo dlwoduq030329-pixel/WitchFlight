@@ -10,6 +10,15 @@ public enum Camp { A, B }
 
 public partial class PlayerData : NetworkBehaviour
 {
+    [Networked] public bool DeathMatchEntryReady { get; private set; }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_ConfirmDeathMatchEntry()
+    {
+        var manager = NetworkGameManager.Instance;
+        if (manager == null || !manager.IsDeathMatch || !manager.IsBattleSceneLoaded || !IsLoadoutInitialized) return;
+        DeathMatchEntryReady = true;
+    }
     public static PlayerData Local { get; private set; }
     public static event System.Action LobbyRosterChanged;
     private void NotifyLobbyRosterChanged() => LobbyRosterChanged?.Invoke();
