@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Fusion;
 using TMPro;
 using UnityEngine;
@@ -289,8 +289,6 @@ public sealed partial class linkuserinfo
                 stats.effect == MagicEffectKind.BladeRain ? "피해량 소모 MP ÷ 2" :
                 support ? "" : $"피해량 {stats.damage:0.##}";
             detail = $"{category} | MP {stats.apCost:0.##}" + (result.Length > 0 ? "\n" + result : "");
-            if (stats.magic == MagicType.Blade)
-                detail = $"차징 베기 | MP 초당 {stats.bladeChargeManaPerSecond:0.##} (최대 {stats.bladeChargeMaxMana:0.##})\n피해량 {stats.bladeMinDamage:0.##}~{stats.bladeMaxDamage:0.##}\n범위 {stats.bladeMinRange:0.##}~{stats.bladeMaxRange:0.##}";
         }
         activeEquipmentHover = hover;
         if (equipmentInfoImage != null) equipmentInfoImage.sprite = icon.sprite;

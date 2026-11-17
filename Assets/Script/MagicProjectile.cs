@@ -6,7 +6,11 @@ using Unity.Profiling;
 // Uses the existing runner. Only StateAuthority simulates flight and damage.
 public partial class MagicProjectile : NetworkBehaviour
 {
-    private bool weaknessPending;
+    [Networked] private bool weaknessPending { get; set; }
+    [Networked] private NetworkId weaknessVictimId { get; set; }
+    [Networked] private Vector3 weaknessLocalPoint { get; set; }
+    private GameObject weaknessAttachedVfx;
+    private Material weaknessAttachedMaterial;
     private TickTimer weaknessTimer;
     private Player weaknessVictim;
     private static readonly ProfilerMarker simulationMarker = new("WitchFlight.Projectile.Simulate");
@@ -604,7 +608,11 @@ public partial class MagicProjectile : NetworkBehaviour
             {
                 weaknessPending = true;
                 weaknessVictim = directHit;
+                weaknessVictimId = directHit.Object.Id;
+                weaknessLocalPoint = directHit.transform.InverseTransformPoint(point);
                 weaknessTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.01f, stats.weaknessExplosionDelay));
+                Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.01f, stats.weaknessExplosionDelay) + .2f);
+                return; // Keep the attached effect until the delayed area explosion.
             }
             if (ConstructKind == MagicConstructKind.SummonBolt && !directHit.IsAlive &&
                 Runner.TryFindObject(ShooterId, out NetworkObject catOwner) && catOwner != null)
@@ -620,7 +628,7 @@ public partial class MagicProjectile : NetworkBehaviour
     private void TickWeaknessExplosion()
     {
         if (weaknessVictim != null && weaknessVictim.Object != null && weaknessVictim.Object.IsValid)
-            transform.position = weaknessVictim.LockAimPoint;
+            transform.position = weaknessVictim.transform.TransformPoint(weaknessLocalPoint);
         if (!weaknessTimer.Expired(Runner)) return;
         weaknessPending = false;
         Vector3 center = transform.position;
@@ -913,6 +921,7 @@ public partial class MagicProjectile : NetworkBehaviour
     private void RPC_Impact(Vector3 position, MagicType magic)
     {
         flightAudio.Stop();
+        ClearWeaknessVfx();
         impactPresented = true;
         if (IsConstruct) ClearConstructVisual(true);
         if (view != null) view.ConfirmImpact();
@@ -934,8 +943,61 @@ public partial class MagicProjectile : NetworkBehaviour
         }
     }
 
+    private void ClearWeaknessVfx()
+    {
+        if (weaknessAttachedVfx != null) Destroy(weaknessAttachedVfx);
+        if (weaknessAttachedMaterial != null) Destroy(weaknessAttachedMaterial);
+        weaknessAttachedVfx = null;
+        weaknessAttachedMaterial = null;
+    }
+
+    private void RenderWeaknessAttachment()
+    {
+        if (!weaknessPending || impactPresented) { ClearWeaknessVfx(); return; }
+        Vector3 position = transform.position;
+        Quaternion rotation = transform.rotation;
+        if (Runner.TryFindObject(weaknessVictimId, out NetworkObject victim) && victim != null)
+        {
+            position = victim.transform.TransformPoint(weaknessLocalPoint);
+            rotation = victim.transform.rotation;
+        }
+        if (weaknessAttachedVfx == null)
+        {
+            weaknessAttachedVfx = new GameObject("Weakness attached mark");
+            GameObject effect = CombatPresentation.InstantiateVfx(PresentationStats.weaknessAttachedVfxPrefab,
+                position, rotation, weaknessAttachedVfx.transform);
+            if (effect != null)
+            {
+                effect.transform.localPosition = Vector3.zero;
+                effect.transform.localRotation = Quaternion.identity;
+                foreach (ParticleSystem particles in effect.GetComponentsInChildren<ParticleSystem>(true))
+                {
+                    var main = particles.main;
+                    main.simulationSpace = ParticleSystemSimulationSpace.Local;
+                    main.loop = true;
+                    particles.Play();
+                }
+            }
+            else
+            {
+                var ring = weaknessAttachedVfx.AddComponent<LineRenderer>();
+                weaknessAttachedMaterial = CombatPresentation.CreateEffectMaterial(new Color(.8f,.15f,1f,1f));
+                ring.sharedMaterial = weaknessAttachedMaterial;
+                ring.useWorldSpace = false; ring.loop = true; ring.positionCount = 32;
+                ring.startWidth = ring.endWidth = .08f;
+                for (int i=0;i<32;i++)
+                {
+                    float angle = i*Mathf.PI*2/32;
+                    ring.SetPosition(i,new Vector3(Mathf.Cos(angle),Mathf.Sin(angle),0)*.45f);
+                }
+            }
+        }
+        weaknessAttachedVfx.transform.SetPositionAndRotation(position, rotation);
+    }
+
     public override void Render()
     {
+        RenderWeaknessAttachment();
         if (Magic == MagicType.None) return;
         if (ConstructKind == MagicConstructKind.TimeField) { RenderTimeField(); return; }
         if (ConstructKind == MagicConstructKind.FlareField) { RenderFlareField(); return; }
@@ -947,6 +1009,7 @@ public partial class MagicProjectile : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        ClearWeaknessVfx();
         flightAudio.Stop();
         active.Remove(this);
         ClearFlareField();
@@ -958,6 +1021,7 @@ public partial class MagicProjectile : NetworkBehaviour
 
     private void OnDestroy()
     {
+        ClearWeaknessVfx();
         flightAudio.Stop();
         ClearConstructVisual();
         active.Remove(this);

@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -133,9 +133,7 @@ public partial class Player
         {
             botHeldTime += dt;
             bool castTargetAlive = stats.TargetsAllies ? IsBotCombatant(botCastAlly) : hasEnemy;
-            bool release = !castTargetAlive || (stats.magic == MagicType.Blade
-                ? BladeCharging && (BladeChargeProgress >= .999f || NowAp <= .0001f)
-                : stats.focusedBlade
+            bool release = !castTargetAlive || (stats.focusedBlade
                 ? RainCharging && (RainManaSpent >= RainChargeBudget - .0001f || NowAp <= .0001f)
                 : stats.requiresTarget ? IsFullyLocked || botHeldTime > 3f :
                 botHeldTime >= (stats.IsChanneled ? 1.5f : .35f));

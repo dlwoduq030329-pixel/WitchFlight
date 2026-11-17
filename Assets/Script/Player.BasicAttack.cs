@@ -42,7 +42,7 @@ public partial class Player
         if (!IsAlive || completingSkillRevision != lastMagicSelectionRevision || completingSkillSlot != CurrentMagicSlot)
         { awaitSkillCompletion = false; return; }
         // Complete selection only after charge/release and ongoing casts have finished.
-        if (pendingMagic != MagicType.None || IsChanneling || BladeCharging || RainCharging || RainFiring || IsMagicStormActive) return;
+        if (pendingMagic != MagicType.None || IsChanneling || RainCharging || RainFiring || IsMagicStormActive) return;
         CompletedSkillSelectionRevision = completingSkillRevision;
         HasCompletedSkillSelection = true;
         awaitSkillCompletion = false;
