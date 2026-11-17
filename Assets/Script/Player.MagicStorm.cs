@@ -3,6 +3,24 @@ using UnityEngine;
 
 public partial class Player
 {
+    [Networked] private TickTimer StormSlowTimer { get; set; }
+    [Networked] private float StormSlowAmount { get; set; }
+    private void ApplyStormSlow(MagicStatEntry stats)
+    {
+        float current = TimerIsActive(StormSlowTimer) ? StormSlowAmount : 0f;
+        StormSlowAmount = Mathf.Clamp(current + Mathf.Max(0f, stats.stormSlowPerHit), 0f,
+            Mathf.Clamp(stats.stormSlowMaximum, 0f, .9f));
+        StormSlowTimer = TickTimer.CreateFromSeconds(Runner, StatusPerkDuration(stats.stormSlowSeconds));
+    }
+
+    private Vector3 StormFlightDirection(NetworkButtons buttons)
+    {
+        float forward = (buttons.IsSet(PlayerInputButton.Accelerate) ? 1f : 0f) -
+            (buttons.IsSet(PlayerInputButton.Decelerate) ? 1f : 0f);
+        float side = (buttons.IsSet(PlayerInputButton.TurnRight) ? 1f : 0f) -
+            (buttons.IsSet(PlayerInputButton.TurnLeft) ? 1f : 0f);
+        return Vector3.ClampMagnitude(transform.forward * forward + transform.right * side, 1f);
+    }
     [Networked] public int StormShotsRemaining { get; private set; }
     [Networked] private TickTimer StormTimer { get; set; }
     [Networked] private Vector3 StormAimDirection { get; set; }

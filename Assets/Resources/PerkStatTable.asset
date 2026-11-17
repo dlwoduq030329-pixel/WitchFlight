@@ -135,19 +135,18 @@ MonoBehaviour:
     seconds: 0
     condition: 0
   - id: 15
-    displayName: "\uAE34 \uC190\uC544\uADC0"
-    description: "\uC0AC\uAC70\uB9AC {percent}% \uC99D\uAC00."
+    displayName: "\uc800\uc8fc"
+    description: "\uc801\uc911 \uc2dc {seconds}\ucd08\uac04 \ucd08\ub2f9 {amount} \ud53c\ud574\ub97c \uc90d\ub2c8\ub2e4."
     icon: {fileID: 0}
-    amount: 0.3
+    amount: 10
     secondaryAmount: 0
-    seconds: 0
+    seconds: 3
     condition: 0
   - id: 16
-    displayName: "\uC800\uC8FC\uC758 \uB2AA"
-    description: "\uC800\uC8FC\uB85C \uD53C\uD574\uB97C \uBC1B\uB294 \uB3D9\uC548
-      \uC801\uC758 \uC774\uB3D9\uC18D\uB3C4 {percent}% \uAC10\uC18C."
+    displayName: "\ud070 \uc0c1\ucc98"
+    description: "\uce58\uc720 \uac10\uc18c\uac00 {percent}%\ub85c \uc99d\uac00\ud569\ub2c8\ub2e4."
     icon: {fileID: 0}
-    amount: 0.3
+    amount: 1
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -170,24 +169,21 @@ MonoBehaviour:
     seconds: 0
     condition: 0
   - id: 19
-    displayName: "\uD655\uC7A5\uB80C\uC988"
-    description: "\uAD11\uC120 \uD310\uC815 \uBC18\uACBD {percent}% \uC99D\uAC00,
-      \uD53C\uD574\uB7C9 {secondaryPercent}% \uC99D\uAC00."
+    displayName: "\ub9c8\ub825 \ud658\uae30"
+    description: "\uce58\uc720 \uad11\uc120 \uc801\uc911 \uc2dc MP {amount} \ud68c\ubcf5."
     icon: {fileID: 0}
-    amount: 0.5
-    secondaryAmount: 0.2
+    amount: 10
+    secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 20
-    displayName: "\uC5F4 \uC9D1\uC911"
-    description: "\uAC19\uC740 \uC801\uC5D0\uAC8C {condition}\uCD08 \uC5F0\uC18D
-      \uD53C\uD574\uB97C \uC8FC\uBA74 {seconds}\uCD08\uAC04 \uCD1D {amount} \uD654\uC0C1
-      \uD53C\uD574. \uC911\uCCA9 \uC5C6\uC774 \uAC31\uC2E0."
+    displayName: "\uacfc\ub2e4\uc8fc\uc785"
+    description: "\uce58\uc720 \uad11\uc120 \ud53c\ud574\ub7c9 {amount} \uc99d\uac00."
     icon: {fileID: 0}
-    amount: 16
+    amount: 10
     secondaryAmount: 0
-    seconds: 2
-    condition: 2
+    seconds: 0
+    condition: 0
   - id: 21
     displayName: "\uD154\uB808\uD0A4\uB124\uC2DC\uC2A4"
     description: "개별 플레어의 유인 반경이 {amount}m로 증가하고 아군을 추적하는 마법도 유인합니다."
@@ -309,11 +305,10 @@ MonoBehaviour:
     seconds: 3
     condition: 0
   - id: 35
-    displayName: "\uC5F0\uC18D \uAC80\uACA9"
-    description: "\uAC80\uAE30 \uACF5\uACA9 \uD69F\uC218\uAC00 {amount}\uD68C\uB85C
-      \uC99D\uAC00."
+    displayName: "\uce7c\ub0a0 \uc751\ucd95"
+    description: "\ucd5c\ub300 \ucda9\uc804 \ud53c\ud574\ub7c9\uc774 {percent}% \uc99d\uac00."
     icon: {fileID: 0}
-    amount: 5
+    amount: 0.3
     secondaryAmount: 0
     seconds: 0
     condition: 0
@@ -383,18 +378,16 @@ MonoBehaviour:
     seconds: 0
     condition: 0
   - id: 43
-    displayName: "\uCD95\uC81C\uC758 \uBC14\uB78C"
-    description: "\uB300\uCD95\uC81C \uB300\uC0C1\uC758 \uC774\uB3D9\uC18D\uB3C4
-      {percent}% \uC99D\uAC00."
+    displayName: "\ucd95\uc81c \uc900\ube44"
+    description: "\ud68c\ubcf5\ubc1b\uc740 \uc544\uad70\uc740 \uc601\uc5ed \ub0b4\ubd80\uc5d0\uc11c \uc774\ub3d9\uc18d\ub3c4 {percent}% \uc99d\uac00. \ub300\uc0c1\uc758 \uae30\ubcf8 \uc99d\uac00\uc640 \uc911\ucca9\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
     icon: {fileID: 0}
-    amount: 0.3
+    amount: 0.2
     secondaryAmount: 0
     seconds: 0
     condition: 0
   - id: 44
-    displayName: "\uBA00\uC624\uB140\uC758 \uC218\uD638"
-    description: "\uB300\uCD95\uC81C \uC9C0\uC18D \uC911 \uD53C\uD574\uB97C {amount}\uD68C
-      \uBC29\uC5B4."
+    displayName: "\ud074\ub77c\uc774\ub9e5\uc2a4"
+    description: "\ucd95\uc81c \uc601\uc5ed \ub0b4\ubd80 \uc544\uad70\uc758 \uccb4\ub825\uc774 \ud53c\ud574\ub85c 1 \ubbf8\ub9cc\uc774 \ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
     icon: {fileID: 0}
     amount: 1
     secondaryAmount: 0

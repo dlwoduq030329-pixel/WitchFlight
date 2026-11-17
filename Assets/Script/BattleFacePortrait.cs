@@ -169,6 +169,7 @@ public sealed class BattleFacePortrait : MonoBehaviour
     }
     private bool Bind(Player source)
     {
+        using var workTimer = new RespawnWorkTimer("FacePortrait.Bind", this);
         character = source.GetComponentInChildren<Animator>(true);
         if (character == null || !character.isHuman) return false;
         head = character.GetBoneTransform(HumanBodyBones.Head);

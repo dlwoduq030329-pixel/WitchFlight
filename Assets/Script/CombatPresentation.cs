@@ -568,7 +568,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (!isActiveAndEnabled || owner == null || owner.Object == null || !owner.Object.IsValid || !owner.IsAlive)
             return;
         MagicStatEntry stats = OwnerStats(magic);
-        if (!stats.requiresTarget && !stats.focusedBlade) return;
+        if (!stats.requiresTarget && !stats.focusedBlade && stats.magic != MagicType.Blade) return;
         if (owner.Object.HasInputAuthority)
             BattleAudio.PlayMagic(magic, MagicSound.LockComplete, owner.MagicCastPosition, local: true);
         Transform anchor = owner.MagicCastAnchor;
@@ -644,7 +644,7 @@ public sealed class CombatPresentation : MonoBehaviour
         if (!utility || stats.castVfxPrefab != null) ShowCastVfx(stats, origin);
         if (stats.effect == MagicEffectKind.Flare) return; // Replicated flare construct owns its three trails.
         if (stats.effect == MagicEffectKind.Smoke) return; // Persistent BattleFlag snapshot owns its VFX.
-        if (stats.projectileSpeed > 0f || stats.IsChanneled || stats.effect == MagicEffectKind.Healing ||
+        if (magic == MagicType.Blade || stats.projectileSpeed > 0f || stats.IsChanneled || stats.effect == MagicEffectKind.Healing ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon) return;
         if (stats.beamVfxPrefab == null && stats.beamMaterial == null)
             CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic), owner, followMuzzle);

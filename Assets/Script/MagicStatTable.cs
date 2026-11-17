@@ -22,6 +22,22 @@ public struct MagicStatEntry
     [NonSerialized] public PerkDefinition perkFirst, perkSecond;
     [NonSerialized] public Fusion.PlayerRef perkAttacker;
     public MagicType magic;
+    [Header("칼날 차징 베기")]
+    [Min(0f)] public float bladeMinDamage;
+    [Min(0f)] public float bladeMaxDamage;
+    [Min(.1f)] public float bladeMinRange;
+    [Min(.1f)] public float bladeMaxRange;
+    [Range(1f, 180f)] public float bladeSlashAngle;
+    [Min(.1f)] public float bladeSlashHalfHeight;
+    [Min(.01f)] public float bladeChargeManaPerSecond;
+    [Min(.01f)] public float bladeChargeMaxMana;
+    [Header("쇠약")]
+    [Min(0f)] public float weaknessExplosionDelay;
+    [Min(0f)] public float weaknessExplosionDamage;
+    [Header("Magic Storm stacking slow")]
+    [Range(0f, 1f)] public float stormSlowPerHit;
+    [Range(0f, 1f)] public float stormSlowMaximum;
+    [Min(0f)] public float stormSlowSeconds;
     public string displayName;
     [TextArea] public string description;
     public Sprite icon;
@@ -64,6 +80,11 @@ public struct MagicStatEntry
     [Min(0f)] public float projectileRadius;
     [Tooltip("즉발 마법과 직선 유지 광선의 SphereCast 반경(월드 단위). 0이면 기존 Raycast. 투사체 크기나 광역 폭발 반경과는 별개입니다.")]
     [SerializeField, Min(0f)] public float hitscanRadius;
+    [Tooltip("치유 광선의 아군 적중 반경")]
+    [SerializeField, Min(0f)] public float allyHitscanRadius;
+    [Header("먀오녀 대축제 음악")]
+    public AudioClip festivalSong;
+    [Range(0f, 1f)] public float festivalSongVolume;
     [Tooltip("마법 사거리. 소환은 최초 적 탐색 반경이며, 한 번 찾은 적은 이 범위를 벗어나도 추적합니다.")]
     [Min(0f)] public float range;
     [Min(0f)] public float damage;
@@ -110,6 +131,7 @@ public struct MagicStatEntry
     [Header("Meow Festival")]
     [Min(1f)] public float festivalRecoveryMultiplier;
     [Min(0f)] public float festivalHealPerSecond;
+    [Min(0f)] public float festivalTargetSpeedBonus;
 
     [Header("Time field")]
     public GameObject timeFieldVfxPrefab;
@@ -396,13 +418,19 @@ public sealed class MagicStatTable : ScriptableObject
                 e.requiresTarget = e.requiresFullLock = true;
                 e.description = "록온 후 유도 마법을 발사합니다. 피해 없이 3초 동안 적의 이동을 막습니다."; break;
             case MagicType.Curse:
-                e.effect = MagicEffectKind.GuidedChannel; e.range = 50f; e.damagePerSecond = 10;
-                e.apPerSecond = 0.5f; e.cooldownSeconds = 0.375f;
-                e.description = "누르는 동안 가까운 적을 자동 추적합니다. 벽이나 화면 밖으로 벗어나면 끊어집니다."; break;
+                e.displayName = "쇠약";
+                e.effect = MagicEffectKind.DirectDamage; e.range = 50f; e.damage = 30;
+                e.apCost = 40; e.cooldownSeconds = 6; e.lockChargeSeconds = .8f;
+                e.requiresTarget = e.requiresFullLock = true;
+                e.projectileSpeed = 100; e.projectileTurnSpeed = 180; e.projectileRadius = .12f;
+                e.effectDuration = 4; e.woundHealingMultiplier = .5f; e.radius = 10;
+                e.weaknessExplosionDelay = 1; e.weaknessExplosionDamage = 30;
+                e.description = "록온 적중 시 피해 30과 4초간 치유 감소 50%. 1초 뒤 반경 10에 피해 30과 같은 치유 감소를 적용합니다."; break;
             case MagicType.Razier:
-                e.effect = MagicEffectKind.BeamChannel; e.range = 100f; e.damagePerSecond = 20;
-                e.apPerSecond = 1; e.cooldownSeconds = 0.375f; e.projectileRadius = 0; e.hitscanRadius = 0.3f;
-                e.description = "누르는 동안 정면에 직선 광선을 유지하며 마나를 소모합니다."; break;
+                e.displayName = "치유 광선";
+                e.effect = MagicEffectKind.DirectDamage; e.range = 100f; e.damage = 35; e.healing = 20;
+                e.apCost = 35; e.cooldownSeconds = 2.5f; e.projectileSpeed = 0; e.projectileRadius = 0; e.hitscanRadius = 0.9f; e.allyHitscanRadius = 2.4f;
+                e.description = "조준 방향으로 단발 광선을 발사합니다. 적에게 피해 35, 아군에게 회복 20을 줍니다."; break;
             case MagicType.Flare:
                 e.flareBurstInterval = .5f; e.flareAttractionRadius = 30f;
                 e.effect = MagicEffectKind.Flare; e.apCost = 50; e.cooldownSeconds = 6; e.effectDuration = 3f;
@@ -426,10 +454,10 @@ public sealed class MagicStatTable : ScriptableObject
                 break;
             case MagicType.MeowFestival:
                 e.displayName = "먀오녀 대축제";
-                e.description = "자신 또는 아군의 체력·마력 회복량을 50% 증가시키고 초당 체력 5를 회복합니다. 대축제의 지속 회복은 자체 회복 증가 효과를 받지 않습니다. 재시전 시 지속시간만 갱신합니다.";
-                e.effect = MagicEffectKind.MeowFestival; e.range = 100f; e.effectDuration = 7f;
+                e.description = "본인 또는 아군을 따라가는 반지름 20의 회복 영역을 4초간 생성합니다. 내부 아군은 초당 HP 5 회복, 대상은 이동속도 20% 증가.";
+                e.effect = MagicEffectKind.MeowFestival; e.range = 100f; e.effectDuration = 4f; e.radius = 20f; e.festivalTargetSpeedBonus = .2f;
                 e.apCost = 70f; e.cooldownSeconds = 10f;
-                e.festivalRecoveryMultiplier = 1.5f; e.festivalHealPerSecond = 5f;
+                e.festivalRecoveryMultiplier = 1f; e.festivalHealPerSecond = 5f;
                 break;
             case MagicType.TimeStop:
                 e.displayName = "시간 마법";
@@ -445,18 +473,21 @@ public sealed class MagicStatTable : ScriptableObject
                 e.damage = 10f; e.apCost = 60f; e.cooldownSeconds = 5f;
                 e.stormShotCount = 30; e.stormDuration = 2f;
                 e.stormLaunchAngle = 24f; e.stormSpreadAngle = 2.5f;
-                e.projectileSpeed = 85f; e.projectileTurnSpeed = 180f;
-                e.projectileRadius = .234f; e.projectileLifetime = 1.8f; e.range = 120f;
+                e.projectileSpeed = 127.5f; e.projectileTurnSpeed = 180f;
+                e.projectileRadius = .351f; e.projectileLifetime = 1.8f; e.range = 120f;
+                e.stormSlowPerHit = .05f; e.stormSlowMaximum = .9f; e.stormSlowSeconds = 2f;
                 break;
             case MagicType.Blade:
                 e.displayName = "칼날 마법";
-                e.description = "시전 후 10초 안에 좌클릭을 3회 눌러 보라색 검기를 발사합니다. 무기 교체 시 해제됩니다. 적중한 적은 8초간 상처 상태가 되어 받는 회복량이 50% 감소합니다.";
+                e.description = "누르는 동안 마나를 소모하며 충전합니다. 떼면 전방을 한 번 베며, 충전량에 비례해 피해와 범위가 증가합니다.";
                 e.effect = MagicEffectKind.BladeVolley;
-                e.damage = 20f; e.apCost = 30f; e.cooldownSeconds = 8f;
-                e.bladeCharges = 3; e.bladeShotInterval = 0f; e.bladeAbilityDuration = 10f;
-                e.effectDuration = 8f; e.woundHealingMultiplier = .5f;
-                e.projectileSpeed = 100f; e.projectileRadius = 2.4f;
-                e.range = 100f; e.projectileLifetime = 1.2f;
+                e.damage = e.bladeMinDamage = 20; e.bladeMaxDamage = 60;
+                e.bladeMinRange = 8; e.range = e.bladeMaxRange = 20;
+                e.bladeSlashAngle = 140; e.bladeSlashHalfHeight = 3;
+                e.bladeChargeManaPerSecond = 20; e.bladeChargeMaxMana = 40;
+                e.apCost = 0; e.cooldownSeconds = 8;
+                e.effectDuration = 8; e.woundHealingMultiplier = .5f;
+                e.projectileSpeed = 0; e.bladeCharges = 0;
                 break;
             case MagicType.Smoke:
                 e.effect = MagicEffectKind.Smoke; e.apCost = 40; e.cooldownSeconds = 15;
@@ -481,7 +512,7 @@ public sealed class MagicStatTable : ScriptableObject
     public MagicStatEntry ApplyHomingTurnSettings(MagicStatEntry entry)
     {
         if (!useIndividualHomingTurnSpeeds && entry.requiresTarget &&
-            (entry.magic == MagicType.Fire || entry.magic == MagicType.Ice || entry.magic == MagicType.Binding))
+            (entry.magic == MagicType.Fire || entry.magic == MagicType.Ice || entry.magic == MagicType.Binding || entry.magic == MagicType.Curse))
             entry.projectileTurnSpeed = Mathf.Max(0f, homingTurnSpeed);
         return entry;
     }

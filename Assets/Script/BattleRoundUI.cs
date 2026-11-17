@@ -216,7 +216,7 @@ public sealed partial class BattleRoundUI : MonoBehaviour
     public void SelectMagic(int magicId)
     {
         if (!CanEdit || requestPending) return;
-        if (magicId < (int)MagicType.Fire || magicId > (int)MagicType.BladeRain) return;
+        if (magicId == (int)MagicType.Vision || magicId < (int)MagicType.Fire || magicId > (int)MagicType.BladeRain) return;
         selectedMagic = (MagicType)magicId;
         descriptionOpen = true;
         descriptionRevision++;
@@ -457,6 +457,7 @@ public sealed partial class BattleRoundUI : MonoBehaviour
         roundScoreText = Label(root, "Round score", "", new Vector2(0, 295), new Vector2(1200, 50), 26);
         for (int i = 1; i <= (int)MagicType.BladeRain; i++)
         {
+            if ((MagicType)i == MagicType.Vision) continue;
             int id = i;
             Vector2 pos = new Vector2(-450 + ((i - 1) % 6) * 180, 180 - ((i - 1) / 6) * 110);
             Button button = Button(root, "", pos, new Vector2(160, 100), () => SelectMagic(id));

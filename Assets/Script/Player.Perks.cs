@@ -45,7 +45,7 @@ public partial class Player
     private float beamContact, beamLastContact = -100f;
     private readonly float[] visionFirstHit = { -100f, -100f, -100f };
     private readonly NetworkId[] visionVictim = new NetworkId[3];
-    protected sealed class Burn { public PlayerRef attacker; public float remaining, damagePerSecond, nextTick, interval; }
+    protected sealed class Burn { public PlayerRef attacker; public MagicType magic = MagicType.Fire; public float remaining, damagePerSecond, nextTick, interval; }
     private sealed class IceMark
     {
         public int slot, cast; public bool used; public float expires, amount, channelSeconds, channelUntil;
@@ -103,6 +103,7 @@ public partial class Player
         if (!Object.HasStateAuthority) return;
         StopMagicStorm();
         CancelBladeRain();
+        ClearBladeAbility();
         StopChannel(); pendingMagic = MagicType.None; pendingTargetId = default; castTimer = TickTimer.None;
     }
     private bool CanCleanse(MagicStatEntry s) => s.perkSecond != null && s.perkSecond.id == PerkId.HealingCleanse &&
@@ -127,7 +128,7 @@ public partial class Player
             if (perkClock < burn.nextTick) continue;
             float dt = Mathf.Min(burn.interval, burn.remaining);
             burn.remaining -= dt; burn.nextTick += burn.interval;
-            TakeDamage(burn.damagePerSecond * dt, burn.attacker, MagicType.Fire, false, 0f, 0f);
+            TakeDamage(burn.damagePerSecond * dt, burn.attacker, burn.magic, false, 0f, 0f);
             if (burn.remaining <= .00001f) perkBurns.RemoveAt(i);
         }
         HasBurnStatus = perkBurns.Count > 0;
@@ -184,13 +185,9 @@ public partial class Player
                 iceMarks[sourceId] = new IceMark { slot=s.perkSlot, expires=perkClock+s.perkSecond.seconds,
                     amount=Mathf.Max(0f,s.perkSecond.amount), channelSeconds=Mathf.Max(0f,s.perkSecond.condition) };
         }
-        if (IsAlive && s.perkSecond?.id == PerkId.CurseEfficiency)
-        {
-            CurseSpeedMultiplier = Mathf.Clamp(1f - s.perkSecond.amount, .05f, 1f);
-            CurseSlowTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.05f, s.channelTickSeconds + Runner.DeltaTime * 2));
-        }
         PerkDefinition burnPerk = s.perkFirst?.id == PerkId.FireBurn ? s.perkFirst : null;
-        if (IsAlive && source != null && s.perkSecond?.id == PerkId.BeamFocus)
+        if (s.magic == MagicType.Curse && s.perkFirst?.id == PerkId.CurseRange) burnPerk = s.perkFirst;
+        if (IsAlive && source != null && s.effect == MagicEffectKind.BeamChannel && s.perkSecond?.id == PerkId.BeamFocus)
         {
             source.TrackPerkBeam(this, s.channelContactSeconds, s);
             if (source.beamContact + .0001f >= s.perkSecond.condition) burnPerk = s.perkSecond;
@@ -198,10 +195,11 @@ public partial class Player
         if (IsAlive && burnPerk != null && burnPerk.seconds > 0f)
         {
             PlayerRef attacker = source != null ? source.ParticipantRef : s.perkAttacker;
-            Burn burn = perkBurns.Find(x => x.attacker == attacker);
-            if (burn == null) { burn = new Burn {attacker=attacker}; perkBurns.Add(burn); }
+            Burn burn = perkBurns.Find(x => x.attacker == attacker && x.magic == s.magic);
+            if (burn == null) { burn = new Burn {attacker=attacker, magic=s.magic}; perkBurns.Add(burn); }
             bool starting = burn.remaining <= 0f;
             burn.remaining = burnPerk.seconds; burn.damagePerSecond = Mathf.Max(0f,burnPerk.amount) / burn.remaining;
+            if (s.magic == MagicType.Curse) burn.damagePerSecond = Mathf.Max(0f, burnPerk.amount);
             burn.interval = Mathf.Max(.05f,Perks.burnTickSeconds);
             if (starting) burn.nextTick = perkClock + Mathf.Min(burn.interval,burn.remaining);
             HasBurnStatus = true;
