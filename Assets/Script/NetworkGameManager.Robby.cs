@@ -51,7 +51,8 @@ public partial class NetworkGameManager
     {
         float deadline = Time.realtimeSinceStartup + 30f;
         while (PlayerRobby.LocalPlayer == null || PlayerRobby.LocalPlayer.Runner != runner ||
-            PlayerRobby.LocalPlayer.Object == null || !PlayerRobby.LocalPlayer.Object.IsValid)
+            PlayerRobby.LocalPlayer.Object == null || !PlayerRobby.LocalPlayer.Object.IsValid ||
+            !PlayerRobby.LocalPlayer.IsLobbyPresentationReady || !AreVisibleLobbyAvatarsReady(runner))
         {
             cancellation.ThrowIfCancellationRequested();
             if (runner == null || !runner.IsRunning || Time.realtimeSinceStartup >= deadline)
@@ -61,6 +62,13 @@ public partial class NetworkGameManager
         // Give Spawned/Start, appearance and animation graph initialization their frames.
         await Awaitable.NextFrameAsync(cancellation);
         await Awaitable.NextFrameAsync(cancellation);
+    }
+
+    private static bool AreVisibleLobbyAvatarsReady(NetworkRunner runner)
+    {
+        foreach (var avatar in PlayerRobby.ActivePlayers)
+            if (avatar != null && avatar.Runner == runner && !avatar.IsLobbyPresentationReady) return false;
+        return true;
     }
 
     private bool CanSpawnRobbyPlayer(NetworkRunner runner)

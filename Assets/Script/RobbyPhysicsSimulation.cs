@@ -10,6 +10,9 @@ public sealed class RobbyPhysicsSimulation : SimulationBehaviour, IAfterTick
     private static int defaultSceneUsers;
     private static SimulationMode previousMode;
     private bool ownsDefaultScene;
+    private int measuredFrame = -1, forwardTicks, replayTicks;
+    private double physicsMilliseconds;
+    private static readonly Unity.Profiling.ProfilerMarker PhysicsProfile = new("WitchFlight.LobbyPhysics.AfterTick");
 
     public void Register(PlayerRobby avatar)
     {
@@ -41,10 +44,26 @@ public sealed class RobbyPhysicsSimulation : SimulationBehaviour, IAfterTick
         if (avatars.Count == 0) return;
         PhysicsScene scene = Runner.GetPhysicsScene();
         if (!scene.IsValid()) return;
+        if (measuredFrame != Time.frameCount)
+        {
+            measuredFrame = Time.frameCount;
+            forwardTicks = replayTicks = 0; physicsMilliseconds = 0;
+        }
+        if (Runner.IsForward) forwardTicks++; else replayTicks++;
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        using var profile = PhysicsProfile.Auto();
         Physics.SyncTransforms();
         scene.Simulate(Runner.DeltaTime);
         foreach (PlayerRobby avatar in avatars)
             if (avatar != null) avatar.CaptureRobbyPhysics();
+        physicsMilliseconds += (System.Diagnostics.Stopwatch.GetTimestamp() - started) *
+            1000.0 / System.Diagnostics.Stopwatch.Frequency;
+    }
+
+    private void LateUpdate()
+    {
+        if (measuredFrame != Time.frameCount || physicsMilliseconds < 8) return;
+        Debug.LogWarning($"[LobbyPhysics] frame={measuredFrame} server={Runner.IsServer} forwardTicks={forwardTicks} replayTicks={replayTicks} total={physicsMilliseconds:F2}ms avatars={avatars.Count} defaultScene={ownsDefaultScene}");
     }
 
     private void ReleaseDefaultScene()

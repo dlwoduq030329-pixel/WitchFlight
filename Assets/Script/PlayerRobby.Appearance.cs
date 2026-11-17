@@ -10,9 +10,14 @@ public sealed partial class PlayerRobby
     private PlayerConfig lastSentAppearance;
     private bool sentAppearance;
     private bool appearanceDirty;
+    private bool appearanceApplied;
+    private PlayerConfig lastAppliedAppearance;
+    public bool IsLobbyPresentationReady => Object != null && Object.IsValid &&
+        LobbyAppearanceReady && appearanceApplied;
 
     private void StartLobbyAppearance()
     {
+        appearanceApplied = false;
         if (lobbyAppearance == null) lobbyAppearance = GetComponent<PlayerAppearance>();
         if (lobbyAppearance != null) lobbyAppearance.UnbindFromDataConfig();
         if (Object.HasInputAuthority)
@@ -55,10 +60,15 @@ public sealed partial class PlayerRobby
     private void ApplyLobbyAppearance()
     {
         if (Object == null || !Object.IsValid || !LobbyAppearanceReady) return;
-        lobbyAppearance?.ApplyPlayerConfig(LobbyAppearanceConfig);
+        var config = LobbyAppearanceConfig;
+        if (appearanceApplied && lastAppliedAppearance.Equals(config)) return;
+        using var timer = new RespawnWorkTimer("LobbyAvatar.ApplyReplicatedAppearance", this);
+        lobbyAppearance?.ApplyPlayerConfig(config);
         if (lobbyHats != null)
             for (int i = 0; i < lobbyHats.Length; i++)
-                if (lobbyHats[i] != null) lobbyHats[i].SetActive(i == LobbyAppearanceConfig.hatIndex);
+                if (lobbyHats[i] != null) lobbyHats[i].SetActive(i == config.hatIndex);
+        lastAppliedAppearance = config;
+        appearanceApplied = true;
     }
 
     private void StopLobbyAppearance()
