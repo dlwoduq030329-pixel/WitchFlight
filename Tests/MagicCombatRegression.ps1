@@ -1,4 +1,4 @@
-﻿# Offline checks of actual Player combat methods. No live BACKND/Fusion connection.
+# Offline checks of actual Player combat methods. No live BACKND/Fusion connection.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $player = Get-Content (Join-Path $repo 'Assets/Script/Player.cs') -Raw
@@ -182,7 +182,7 @@ public class Player {
  public void LaunchMagic(MagicStatEntry s,Player target,MagicProjectile summon=null){Launches++;LastLaunched=s;LastLaunchDirection=castAimDirection;LaunchedSummon=summon;}
  public int Predictions;
  public void TryPredictProjectile(MagicStatEntry s){Predictions++;}
- public void RPC_PresentCast(MagicType m,Vector3 a,Vector3 b,float v){LastCastOrigin=a;}
+ public void PresentCast(MagicType m,Vector3 a,Vector3 b){LastCastOrigin=a;}
  public void RPC_ParryShieldHit(Vector3 facing,Vector3 hitOffset){}
  public int LockReadyEvents,LockClearEvents;public MagicType LastReadyMagic;
  public void RPC_PresentLockComplete(MagicType m){if(m==MagicType.None)LockClearEvents++;else {LockReadyEvents++;LastReadyMagic=m;}}

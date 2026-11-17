@@ -614,8 +614,28 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         return ApplyPerkStats(raw, slot);
     }
 
+    private bool diagnosticFirstRender;
+    private bool diagnosticDeath;
     public override void Spawned()
     {
+        renderedLoadoutVersion = lastMagicSlot = localMagicInputSlot = -1;
+        localCameraFollow = null;
+        predictedRaisePending = false; predictedRaiseTarget = null; predictedRaiseSummon = null;
+        pendingMagic = MagicType.None; pendingTargetId = default; castTimer = TickTimer.None;
+        channelNeedsRelease = false; channelDamageTime = channelRaiseRemaining = 0f;
+        perkOwner = null; perkBurns.Clear(); iceMarks.Clear(); nextInfoApSync = TickTimer.None;
+        botDecisionTime = botAttackTime = botHeldTime = botAimRefresh = 0f;
+        botHolding = botReleaseFrame = botRecovering = botAimMiss = false;
+        botTarget = botAimTarget = botCarrier = botCastAlly = botFormationTarget = null;
+        botHealthPickup = null; botParryHandled.Clear(); botParryExpired.Clear();
+        botParryRound = botMobilityRound = -1;
+        botParryProbabilityOffset = 0f;
+        botTacticalRoster.Clear(); botPortals.Clear(); botPortalEntries.Clear(); botPortalExits.Clear();
+        botEvasionRemaining = botEvasionDelay = botEvasionRetry = botEvasionScan = 0f;
+        botEvasionThreat = null; botAvoiding = botProgressSampled = false;
+        botPortal = null; botPortalRefresh = botRouteRefresh = botRouteRemaining = botStuckTime = 0f;
+        diagnosticFirstRender = false; diagnosticDeath = false;
+        RespawnWorkTimer.Mark("Player.Spawned.begin", this);
         RespawnWorkTimer.WatchFrames();
         using var workTimer = new RespawnWorkTimer("Player.Spawned", this);
         manaBuffLayer = LayerMask.NameToLayer("ManaBuff");
@@ -1739,7 +1759,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             BladeCharges = Mathf.Max(1, stats.bladeCharges);
             BladeAbilityTimer = TickTimer.CreateFromSeconds(Runner, stats.bladeAbilityDuration > 0f ? stats.bladeAbilityDuration : 10f);
             BladeShotCooldown = TickTimer.None;
-            RPC_PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, 0f);
+            PresentCast(stats.magic, MagicCastPosition, MagicCastPosition);
         }
         else if (stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
         {
@@ -1748,13 +1768,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else if (stats.effect == MagicEffectKind.Flare)
         {
             StartPerkFlare(stats);
-            RPC_PresentCast(stats.magic, LockAimPoint, -transform.forward, 0f);
+            PresentCast(stats.magic, LockAimPoint, -transform.forward);
         }
         else if (stats.effect == MagicEffectKind.Smoke)
         {
             // Persistent replicated area survives the caster's death/despawn.
             if (CombatSmoke.Create(this, stats))
-                RPC_PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, 0f);
+                PresentCast(stats.magic, MagicCastPosition, MagicCastPosition);
         }
         else if (stats.effect == MagicEffectKind.MeowFestival)
         {
@@ -1767,7 +1787,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             recipient.ApplyPerkCleanse(stats);
             recipient.RestoreHealth(stats.healing,ParticipantRef);
             if (recipient != this) RPC_PlayBattleSound(BattleSound.HealOtherVoice);
-            RPC_PresentCast(stats.magic, recipient.LockAimPoint, recipient.LockAimPoint, 0f);
+            PresentCast(stats.magic, recipient.LockAimPoint, recipient.LockAimPoint);
         }
         else LaunchMagic(stats, target, summon);
     }
@@ -1794,7 +1814,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             {
                 shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, direction,
                     IsTestBot ? 0 : castInputTick, summon != null ? summon.Object.Id : default);
-                RPC_PresentCast(stats.magic, origin, origin, 0f);
+                PresentCast(stats.magic, origin, origin);
             }
             return;
         }
@@ -1856,7 +1876,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         else { ResetVisionMiss(stats); NotifyFaceMiss(); }
 
-        RPC_PresentCast(stats.magic, origin, end, 0f);
+        PresentCast(stats.magic, origin, end);
     }
 
     // Local input-only query: converge the physical cast root onto the point under the Dot.
@@ -2093,7 +2113,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         PlayerData.FindPerkData(Runner,attacker)?.RecordMissionMagicHit(stats.magic);
         NotifyConfirmedMagicHit(attacker, attackerId);
         OnAcceptedPerkHit(stats, perkSource, attackerId);
-        if (IsAlive && (stats.effect == MagicEffectKind.BladeVolley || stats.magic == MagicType.Curse)) ApplyWound(stats);
+        if (IsAlive && stats.magic == MagicType.Curse) ApplyWound(stats);
         if (IsAlive && stats.effect == MagicEffectKind.MagicStorm) ApplyStormSlow(stats);
         if (IsAlive && stats.effect == MagicEffectKind.SlowDamage)
             ApplySlow(stats.movementMultiplier, stats.effectDuration);
@@ -2110,8 +2130,27 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else presentation?.ShowLockComplete(magic);
     }
 
+    // Equal endpoints are common for projectile/channel casts. Preserve exact coordinates,
+    // but do not serialize the same vector twice or the old unused float argument.
+    private void PresentCast(MagicType magic, Vector3 origin, Vector3 end)
+    {
+        if (origin.Equals(end)) RPC_PresentCastAt(magic, origin);
+        else RPC_PresentCastBeam(magic, origin, end);
+    }
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_PresentCast(MagicType magic, Vector3 origin, Vector3 end, float value)
+    private void RPC_PresentCastAt(MagicType magic, Vector3 origin)
+    {
+        ApplyCastPresentation(magic, origin, origin);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_PresentCastBeam(MagicType magic, Vector3 origin, Vector3 end)
+    {
+        ApplyCastPresentation(magic, origin, end);
+    }
+
+    private void ApplyCastPresentation(MagicType magic, Vector3 origin, Vector3 end)
     {
         presentation ??= GetComponent<CombatPresentation>();
         presentation?.ShowCast(magic, origin, end);
@@ -2861,6 +2900,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Render()
     {
+        if (!diagnosticFirstRender) { diagnosticFirstRender = true; RespawnWorkTimer.Mark("Player.FirstRender", this); }
+        if (!IsAlive && !diagnosticDeath) { diagnosticDeath = true; RespawnWorkTimer.Mark("Player.DeathObserved", this); }
         UpdatePredictedWandRelease();
         if (!IsAlive && DeathSequence > 0 && characterController != null)
             characterController.enabled = false;

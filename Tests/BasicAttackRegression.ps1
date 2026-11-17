@@ -1,4 +1,4 @@
-﻿# Execute production targeting, recharge and firing with deterministic Unity/Fusion doubles.
+# Execute production targeting, recharge and firing with deterministic Unity/Fusion doubles.
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $source = @'
@@ -63,7 +63,7 @@ public partial class Player {
  public bool IsTargetableBy(Player p)=>IsAlive&&Hostile&&this!=p;
  public bool TimerIsActive(TickTimer t)=>t.active;
  public bool IsFiniteDirection(Vector3 v)=>!float.IsNaN(v.x)&&!float.IsNaN(v.y)&&!float.IsNaN(v.z);
- public void RPC_PresentCast(MagicType t,Vector3 a,Vector3 b,int i){}
+ public void PresentCast(MagicType t,Vector3 a,Vector3 b){}
  public void Reset()=>ResetBasicAttack();public void Recharge(float dt){Runner.DeltaTime=dt;TickBasicAttackRecharge();}
  public Player Pick()=>FindBasicAttackTarget(MagicCastPosition,Vector3.forward,130);
  public void Fire(){BasicAttackShotCooldown=TickTimer.None;FireBasicAttack();}

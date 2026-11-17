@@ -82,7 +82,7 @@ public partial class Player
             Mathf.Max(.05f, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.shotInterval : .2f));
         LastCastMagic = MagicType.BasicAttack;
         CastSequence++;
-        RPC_PresentCast(MagicType.BasicAttack, MagicCastPosition, MagicCastPosition + aim, 0);
+        PresentCast(MagicType.BasicAttack, MagicCastPosition, MagicCastPosition + aim);
     }
 
     private Player FindBasicAttackTarget(Vector3 origin, Vector3 aim, float range)

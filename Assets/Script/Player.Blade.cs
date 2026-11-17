@@ -64,7 +64,7 @@ public partial class Player
         BladeCharges--;
         BladeShotCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, entry.bladeShotInterval));
         LastCastMagic = MagicType.Blade;
-        RPC_PresentCast(MagicType.Blade, MagicCastPosition, MagicCastPosition, 0f);
+        PresentCast(MagicType.Blade, MagicCastPosition, MagicCastPosition);
     }
 
     private void ApplyWound(MagicStatEntry entry)

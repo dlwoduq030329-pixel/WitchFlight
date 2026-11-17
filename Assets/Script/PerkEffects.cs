@@ -51,7 +51,7 @@ public static class PerkEffects
                 break;
             case PerkId.FlareEfficiency: s.effectDuration += a; break;
             case PerkId.BladeCharges: s.bladeCharges = Mathf.Max(1, Mathf.RoundToInt(a)); break;
-            case PerkId.BladeWound: s.woundHealingMultiplier = 1f - Mathf.Clamp01(a); break;
+            case PerkId.BladeWound: s.projectileRadius *= 1f + Mathf.Max(0f, a); break;
             case PerkId.StormCount: s.stormShotCount = Mathf.Clamp(Mathf.RoundToInt(a), 1, 120); break;
             case PerkId.StormPrecision: s.stormSpreadAngle *= 1f - Mathf.Clamp01(a); break;
             case PerkId.RainCharge: s.rainManaPerSecond = a; break;

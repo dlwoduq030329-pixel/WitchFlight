@@ -3,6 +3,16 @@ using UnityEngine;
 // Local presentation only: no player colliders, damage, input or network authority.
 public sealed class CatAvatar : MonoBehaviour
 {
+    // Texture presets do not change geometry. Cache only our own prefab in its evaluated sitting pose.
+    private sealed class SittingGeometry
+    {
+        public bool hasBounds, contactMeasured, hasContact;
+        public Bounds bounds;
+        public Vector3 contact;
+    }
+    private static readonly System.Collections.Generic.Dictionary<(GameObject, RuntimeAnimatorController, string, float, Vector3), SittingGeometry> sittingGeometry = new();
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetSittingGeometry() => sittingGeometry.Clear();
     public Transform Cat { get; private set; }
     public Transform Plane { get; private set; }
     public int BodyIndex { get; private set; } = 1;
@@ -34,6 +44,7 @@ public sealed class CatAvatar : MonoBehaviour
 
     public static CatAvatar Create(Transform parent, int body, int eyes, bool plane, GameObject existingCat = null)
     {
+        using var workTimer = new RespawnWorkTimer("CatAvatar.Create", parent);
         var table = CatCompanionTable.Default;
         if (table == null || table.catPrefab == null) return null;
         var root = new GameObject("WitchCat companion");
@@ -57,7 +68,17 @@ public sealed class CatAvatar : MonoBehaviour
         foreach (Collider collider in cat.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
         avatar.appearance = cat.GetComponent<WitchCatAppearance>();
         avatar.SetAppearance(body, eyes);
-        if (CatSeatGeometry.TryBounds(cat.transform, out Bounds bounds))
+        var geometryKey = (table.catPrefab, avatar.animator != null ? avatar.animator.runtimeAnimatorController : null,
+            table.GetAnimation(CatAnimation.SittingIdle)?.stateName ?? "", table.catHeight, table.catEuler);
+        SittingGeometry geometry;
+        if (existingCat != null || !sittingGeometry.TryGetValue(geometryKey, out geometry))
+        {
+            geometry = new SittingGeometry();
+            geometry.hasBounds = CatSeatGeometry.TryBounds(cat.transform, out geometry.bounds);
+            if (existingCat == null) sittingGeometry[geometryKey] = geometry;
+        }
+        Bounds bounds = geometry.bounds;
+        if (geometry.hasBounds)
         {
             float size = Mathf.Max(.0001f, bounds.size.y);
             cat.transform.localScale *= table.catHeight / size;
@@ -65,8 +86,16 @@ public sealed class CatAvatar : MonoBehaviour
             cat.transform.localPosition = new Vector3(table.catSeatOffset.x, -bounds.min.y * (table.catHeight / size), table.catSeatOffset.z);
         }
         avatar.authoredSeatPosition = new Vector3(0f, cat.transform.localPosition.y, 0f);
-        if (!plane && CatSeatGeometry.TrySittingContact(cat.transform, out Vector3 contact))
-            avatar.authoredSeatPosition = -Vector3.Scale(contact, cat.transform.localScale);
+        if (!plane)
+        {
+            if (!geometry.contactMeasured)
+            {
+                geometry.hasContact = CatSeatGeometry.TrySittingContact(cat.transform, out geometry.contact);
+                geometry.contactMeasured = true;
+            }
+            if (geometry.hasContact)
+                avatar.authoredSeatPosition = -Vector3.Scale(geometry.contact, cat.transform.localScale);
+        }
         if (table.paperAirplanePrefab != null)
         {
             avatar.Plane = Instantiate(table.paperAirplanePrefab, root.transform).transform;

@@ -70,7 +70,7 @@ public partial class Player
             if (shot == null) { StopMagicStorm(); return; }
             shot.GetComponent<MagicProjectile>().Initialize(this, null, stormStats, direction, castInputTick);
             StormShotsRemaining--;
-            RPC_PresentCast(MagicType.MagicStorm, MagicCastPosition, MagicCastPosition, 0f);
+            PresentCast(MagicType.MagicStorm, MagicCastPosition, MagicCastPosition);
         }
     }
 }
