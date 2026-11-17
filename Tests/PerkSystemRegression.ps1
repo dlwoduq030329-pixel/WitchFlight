@@ -1,4 +1,4 @@
-﻿# Offline execution of the production rules, table, stat transform and input policy.
+# Offline execution of the production rules, table, stat transform and input policy.
 # Does not replace Fusion weaving or two-client Play Mode verification.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -88,7 +88,7 @@ public class FlareProbe {
  private readonly List<Burn> perkBurns=new();public int Pulses,Visuals;
  private void TakeDamage(float damage,PlayerRef attacker,MagicType magic,bool parry,float stun,float force){}
  private void TriggerPerkFlare(MagicStatEntry stats){Pulses++;}
- private void RPC_PresentCast(MagicType magic,Vector3 origin,Vector3 direction,float unused){Visuals++;}
+ private void PresentCast(MagicType magic,Vector3 origin,Vector3 direction){Visuals++;}
  public void Cast(MagicStatEntry s)=>StartPerkFlare(s);public void Tick()=>TickPerkEffects();
 '@
 $code+=RuntimeMethod $playerPerks 'StartPerkFlare'

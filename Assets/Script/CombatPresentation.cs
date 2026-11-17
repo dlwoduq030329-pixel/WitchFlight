@@ -393,6 +393,22 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void OnDisable()
     {
+        initialized = false;
+        deathStarted = -1f; fallingDeath = false;
+        hitFlashUntil = 0f; wasFlashing = false;
+        if (channelVisual != null) MagicVfxPool.Release(channelVisual.gameObject);
+        channelVisual = null; visualChannel = MagicType.None;
+        foreach (var visual in visuals)
+        {
+            if (visual.renderer == null) continue;
+            if (visual.fading != null)
+            {
+                visual.renderer.sharedMaterials = visual.originals;
+                foreach (var fading in visual.fading) if (fading != null) Destroy(fading);
+                visual.fading = null;
+            }
+            for (int i=0;i<visual.originalBlocks.Length;i++) visual.renderer.SetPropertyBlock(visual.originalBlocks[i],i);
+        }
         ClearManaBuffRecoveryVfx();
         ClearManaPotionVfx();
         for (int i = 0; i < spawnShields.Length; i++)

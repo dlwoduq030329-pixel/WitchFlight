@@ -11,6 +11,7 @@ public partial class NetworkGameManager
     public bool IsMigratingDeathMatch { get; private set; }
     private byte[] deathMatchConnectionToken;
     private bool migrationSnapshotBusy, migrationRestoring;
+    private Task migrationSnapshotTask = Task.CompletedTask;
     private float nextMigrationSnapshot, migrationReservationDeadline;
     private readonly Dictionary<string, NetworkObject> migrationData = new();
     private readonly Dictionary<string, NetworkObject> migrationCharacters = new();
@@ -41,10 +42,17 @@ public partial class NetworkGameManager
         }
     }
 
-    private async Task PushDeathMatchSnapshot(NetworkRunner runner)
+    private Task PushDeathMatchSnapshot(NetworkRunner runner)
     {
-        if (migrationSnapshotBusy || runner == null || !runner.IsRunning || !runner.IsServer) return;
+        // A departing host must await the in-flight upload, not a completed no-op.
+        if (migrationSnapshotBusy) return migrationSnapshotTask;
+        if (runner == null || !runner.IsRunning || !runner.IsServer) return Task.CompletedTask;
         migrationSnapshotBusy = true;
+        return migrationSnapshotTask = UploadDeathMatchSnapshot(runner);
+    }
+
+    private async Task UploadDeathMatchSnapshot(NetworkRunner runner)
+    {
         try
         {
             bool saved = await runner.PushHostMigrationSnapshot();
@@ -63,10 +71,11 @@ public partial class NetworkGameManager
         SetMatchStatus("호스트를 이전하는 중...");
         Debug.Log($"[DeathMatch/Migration] 시작: 새 역할 {token.GameMode}", this);
         Scene oldScene = SceneManager.GetSceneByBuildIndex(battleSceneIndex);
-        Scene holdingScene = SceneManager.CreateScene("DeathMatch Host Transfer");
-        SceneManager.SetActiveScene(holdingScene);
+        Scene holdingScene = default;
         try
         {
+            holdingScene = SceneManager.CreateScene("DeathMatch Host Transfer");
+            SceneManager.SetActiveScene(holdingScene);
             if (battleInitializationRoutine != null) StopCoroutine(battleInitializationRoutine);
             battleInitializationRoutine = null;
             await previous.Shutdown(destroyGameObject: false, shutdownReason: ShutdownReason.HostMigration);

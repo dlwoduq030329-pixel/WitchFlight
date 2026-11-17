@@ -13,6 +13,12 @@ public partial class NetworkGameManager
     private readonly List<UnityEngine.Object> retainedRobbyAssets = new();
     private bool robbyResourcesReady;
 
+    // Appearance is part of startup itself: it cannot require IsWaitingInCodeRoom,
+    // which becomes true only AFTER WaitForRobbyAvatar completes.
+    public bool CanReceiveLobbyAppearance(NetworkRunner runner) => runner != null && runner == _runner &&
+        runner.IsRunning && !IsDeathMatch && !IsTraining && !IsRandomMatch &&
+        !stopInProgress && !cancelRequested && !isGameStarting && !IsBattleSceneLoaded;
+
     private async System.Threading.Tasks.Task PrepareRobbyAssets(System.Threading.CancellationToken cancellation)
     {
         // Allow the existing loading overlay to render before asset deserialization.
@@ -51,16 +57,28 @@ public partial class NetworkGameManager
     {
         float deadline = Time.realtimeSinceStartup + 30f;
         while (PlayerRobby.LocalPlayer == null || PlayerRobby.LocalPlayer.Runner != runner ||
-            PlayerRobby.LocalPlayer.Object == null || !PlayerRobby.LocalPlayer.Object.IsValid)
+            PlayerRobby.LocalPlayer.Object == null || !PlayerRobby.LocalPlayer.Object.IsValid ||
+            !PlayerRobby.LocalPlayer.IsLobbyPresentationReady || !AreVisibleLobbyAvatarsReady(runner))
         {
             cancellation.ThrowIfCancellationRequested();
             if (runner == null || !runner.IsRunning || Time.realtimeSinceStartup >= deadline)
-                throw new System.InvalidOperationException("Lobby avatar initialization did not complete.");
+                throw new System.InvalidOperationException(
+                    $"Lobby avatar initialization did not complete. running={runner != null && runner.IsRunning}, " +
+                    $"localExists={PlayerRobby.LocalPlayer != null}, " +
+                    $"localReady={PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.IsLobbyPresentationReady}, " +
+                    $"visibleAvatarsReady={AreVisibleLobbyAvatarsReady(runner)}");
             await Awaitable.NextFrameAsync(cancellation);
         }
         // Give Spawned/Start, appearance and animation graph initialization their frames.
         await Awaitable.NextFrameAsync(cancellation);
         await Awaitable.NextFrameAsync(cancellation);
+    }
+
+    private static bool AreVisibleLobbyAvatarsReady(NetworkRunner runner)
+    {
+        foreach (var avatar in PlayerRobby.ActivePlayers)
+            if (avatar != null && avatar.Runner == runner && !avatar.IsLobbyPresentationReady) return false;
+        return true;
     }
 
     private bool CanSpawnRobbyPlayer(NetworkRunner runner)

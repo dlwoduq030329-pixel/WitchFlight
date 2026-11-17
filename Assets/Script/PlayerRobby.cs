@@ -182,6 +182,8 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     public override void Spawned()
     {
+        RespawnWorkTimer.WatchFrames();
+        using var timer = new RespawnWorkTimer("LobbyAvatar.Spawned", this);
         if (Object.HasStateAuthority)
         {
             SimulationPosition = transform.position;
@@ -222,6 +224,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     private void IgnoreOtherRobbyAvatars()
     {
+        using var timer = new RespawnWorkTimer("LobbyAvatar.CollisionPairs", this);
         avatarColliders ??= GetComponentsInChildren<Collider>(true);
         foreach (PlayerRobby other in ActivePlayers)
         {
@@ -276,6 +279,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     private void StartAnimation()
     {
+        using var timer = new RespawnWorkTimer("LobbyAvatar.AnimationGraph", this);
         if (animationGraph.IsValid() || avatarAnimator == null || idleClip == null || walkClip == null || kickClip == null) return;
         // A generic Mixamo-path clip cannot drive this character's humanoid rig.
         // Blending it with a humanoid idle removes the valid body pose and can sink
@@ -390,6 +394,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
     }
     private void LateUpdate()
     {
+        FlushLobbyAppearance();
         PresentInteractionHeading();
         ApplySeatPose();
         ApplyPetReach();

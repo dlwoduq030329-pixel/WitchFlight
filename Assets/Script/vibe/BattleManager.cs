@@ -253,7 +253,7 @@ public partial class BattleManager : MonoBehaviour
 
     protected virtual void SpawnBattlePlayer(PlayerRef playerRef, PlayerData playerData, NetworkPrefabRef prefab, bool isRespawn = false)
     {
-        RespawnWorkTimer.WatchFrames();
+        RespawnWorkTimer.Mark(isRespawn ? "BattlePlayer.RespawnRequested" : "BattlePlayer.InitialSpawn", this);
         using var workTimer = new RespawnWorkTimer("BattlePlayer.Spawn", this);
         using var spawnProfile = SpawnProfile.Auto();
         if (IsDeathMatch)
@@ -452,6 +452,8 @@ public partial class BattleManager : MonoBehaviour
         if (spawnedPlayers.TryGetValue(playerRef, out NetworkObject playerObject) && playerObject != null)
             battleFlag?.DropCarrier(playerRef, playerObject.transform.position);
         pendingRespawns.RemoveAll(pending => pending.PlayerRef == playerRef);
+        // Free-for-all participants may leave without ending the remaining match.
+        if (IsDeathMatch) return;
         // A rejected/late connection was never a participant. It cannot forfeit a match.
         if (!playerDatas.TryGetValue(playerRef, out PlayerData departed) || departed == null ||
             departed.Object == null || !departed.Object.IsValid) return;
