@@ -4,6 +4,55 @@ using UnityEngine;
 
 public partial class NetworkGameManager
 {
+    private NetworkRunner deathMatchEntryRunner;
+    private bool deathMatchEntryComplete;
+    private float nextDeathMatchEntryAck;
+    private bool deathMatchPrefabReady;
+
+    private void TickDeathMatchEntry()
+    {
+        if (!IsDeathMatch || _runner == null || !_runner.IsRunning || stopInProgress || cancelRequested) return;
+        if (deathMatchEntryRunner != _runner)
+        {
+            deathMatchEntryRunner = _runner;
+            deathMatchEntryComplete = false;
+            nextDeathMatchEntryAck = 0;
+            deathMatchPrefabReady = false;
+        }
+        if (deathMatchEntryComplete) return;
+        BattleLoadingUI.Show("로딩중");
+        if (IsMigratingDeathMatch || !IsBattleSceneLoaded || !BattleLoadingUI.AssetsReady ||
+            BattleManager.Instance == null || DeathMatchState.Instance == null ||
+            DeathMatchState.Instance.Runner != _runner ||
+            DeathMatchState.Instance.Object == null || !DeathMatchState.Instance.Object.IsValid) return;
+        if (!deathMatchPrefabReady)
+        {
+            var prefabs = _runner.Config.PrefabTable;
+            if (!playerPrefab.IsValid ||
+                prefabs.Load(prefabs.GetId((NetworkObjectGuid)playerPrefab), isSynchronous: false) == null) return;
+            deathMatchPrefabReady = true;
+        }
+        // Require participant data from the current session snapshot, not merely a scene-load callback.
+        foreach (var participant in _runner.ActivePlayers)
+        {
+            var data = PlayerData.FindPerkData(_runner, participant);
+            if (data == null || data.Object == null || !data.Object.IsValid || !data.IsLoadoutInitialized) return;
+        }
+        var local = PlayerData.FindPerkData(_runner, _runner.LocalPlayer);
+        if (local == null || !local.Object.HasInputAuthority) return;
+        BattleLoadingUI.SetProgress(.85f);
+        if (!local.DeathMatchEntryReady && Time.unscaledTime >= nextDeathMatchEntryAck)
+        {
+            nextDeathMatchEntryAck = Time.unscaledTime + 1f;
+            local.RPC_ConfirmDeathMatchEntry();
+        }
+        var avatar = Player.LocalPlayer;
+        if (avatar == null || avatar.Runner != _runner || !avatar.IsPresentationReady) return;
+        deathMatchEntryComplete = true;
+        BattleLoadingUI.SetProgress(1f);
+        BattleLoadingUI.Hide();
+    }
+
     [SerializeField] private NetworkPrefabRef deathMatchStatePrefab;
     public void SpawnDeathMatchState()
     {

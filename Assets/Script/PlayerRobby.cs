@@ -137,7 +137,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
         var manager = NetworkGameManager.Instance;
         if (manager == null || !manager.IsWaitingInCodeRoom) input = default;
         if (TickInteraction(input)) return;
-        movementBody.useGravity = true;
+        if (!movementBody.useGravity) movementBody.useGravity = true;
         // Absolute view heading survives missing input ticks and rollback. Never
         // derive the next input heading from a physics/Animator presentation pose.
         if (input.hasHeading) { SimulationYaw = Mathf.Repeat(input.yaw, 360f); LookPitch = Mathf.Clamp(input.pitch, -70f, 70f); }
@@ -149,8 +149,9 @@ public sealed partial class PlayerRobby : NetworkBehaviour
         bool moving = move.sqrMagnitude > 0.001f;
         IsRunning = moving && input.sprint;
         // Only prevent tipping. Yaw belongs to mouse input, not the physics solver.
-        movementBody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ |
+        var constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ |
             (moving ? RigidbodyConstraints.None : RigidbodyConstraints.FreezePositionX | RigidbodyConstraints.FreezePositionZ);
+        if (movementBody.constraints != constraints) movementBody.constraints = constraints;
         movementBody.rotation = rotation;
         Vector3 velocity = direction * (IsRunning ? Mathf.Max(moveSpeed, runSpeed) : moveSpeed);
         velocity.y = movementBody.linearVelocity.y;

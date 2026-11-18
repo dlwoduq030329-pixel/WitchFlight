@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 using Unity.Profiling;
@@ -445,15 +445,7 @@ public partial class MagicProjectile : NetworkBehaviour
         nearest = default;
         float best = float.PositiveInfinity;
         float radius = Mathf.Max(0.02f, stats.projectileRadius);
-        int count = Physics.SphereCastNonAlloc(transform.position, radius, direction,
-            collisionHits, distance, ~0, QueryTriggerInteraction.Ignore);
-        RaycastHit[] hits = collisionHits;
-        if (count == hits.Length)
-        {
-            hits = Physics.SphereCastAll(transform.position, radius, direction,
-                distance, ~0, QueryTriggerInteraction.Ignore);
-            count = hits.Length;
-        }
+        RaycastHit[] hits = QueryShotCast(stats, transform.position, direction, distance, collisionHits, out int count);
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = hits[i];
@@ -479,15 +471,7 @@ public partial class MagicProjectile : NetworkBehaviour
     private bool TryGetInitialOverlap(out Collider overlap)
     {
         float radius = Mathf.Max(0.02f, stats.projectileRadius);
-        int count = Physics.OverlapSphereNonAlloc(transform.position, radius, overlapHits,
-            ~0, QueryTriggerInteraction.Ignore);
-        Collider[] hits = overlapHits;
-        while (count == hits.Length)
-        {
-            overlapHits = hits = new Collider[hits.Length * 2];
-            count = Physics.OverlapSphereNonAlloc(transform.position, radius, hits,
-                ~0, QueryTriggerInteraction.Ignore);
-        }
+        Collider[] hits = QueryShotOverlap(stats, transform.position, direction, overlapHits, out int count);
         for (int i = 0; i < count; i++)
         {
             Collider collider = hits[i];
@@ -504,7 +488,60 @@ public partial class MagicProjectile : NetworkBehaviour
         return false;
     }
 
-    // Blade wings can clip scenery. Damage still uses the full projectile sphere.
+    // Disabled root BoxCollider on the VFX prefab is an authoring volume, never a
+    // local physics trigger. Both authority and prediction sweep this same shape.
+    private static void ShotBox(MagicStatEntry entry, Vector3 origin, Vector3 forward,
+        out Vector3 center, out Vector3 half, out Quaternion rotation)
+    {
+        rotation = Quaternion.LookRotation(forward.sqrMagnitude > .00001f ? forward : Vector3.forward);
+        var prefab = entry.projectileVfxPrefab;
+        var box = prefab != null ? prefab.GetComponent<BoxCollider>() : null;
+        Vector3 scale = prefab != null ? prefab.transform.localScale : Vector3.one;
+        scale = new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+        float baseline = CombatPresentation.Stats(MagicType.Blade).projectileRadius;
+        scale *= baseline > .001f ? Mathf.Max(.01f, entry.projectileRadius / baseline) : 1f;
+        center = origin + rotation * Vector3.Scale(box != null ? box.center : Vector3.zero, scale);
+        half = Vector3.Scale(box != null ? box.size : new Vector3(8f, .6f, 2f), scale) * .5f;
+        half = Vector3.Max(half, Vector3.one * .01f);
+    }
+
+    public static Collider[] QueryShotOverlap(MagicStatEntry entry, Vector3 origin, Vector3 forward,
+        Collider[] buffer, out int count)
+    {
+        if (entry.magic != MagicType.Blade)
+        {
+            float radius = Mathf.Max(.02f, entry.projectileRadius);
+            count = Physics.OverlapSphereNonAlloc(origin, radius, buffer, ~0, QueryTriggerInteraction.Ignore);
+            if (count < buffer.Length) return buffer;
+            var all = Physics.OverlapSphere(origin, radius, ~0, QueryTriggerInteraction.Ignore);
+            count = all.Length; return all;
+        }
+        ShotBox(entry, origin, forward, out var center, out var half, out var rotation);
+        count = Physics.OverlapBoxNonAlloc(center, half, buffer, rotation, ~0, QueryTriggerInteraction.Ignore);
+        if (count < buffer.Length) return buffer;
+        var boxes = Physics.OverlapBox(center, half, rotation, ~0, QueryTriggerInteraction.Ignore);
+        count = boxes.Length; return boxes;
+    }
+
+    public static RaycastHit[] QueryShotCast(MagicStatEntry entry, Vector3 origin, Vector3 forward,
+        float distance, RaycastHit[] buffer, out int count)
+    {
+        if (entry.magic != MagicType.Blade)
+        {
+            float radius = Mathf.Max(.02f, entry.projectileRadius);
+            count = Physics.SphereCastNonAlloc(origin, radius, forward, buffer, distance, ~0, QueryTriggerInteraction.Ignore);
+            if (count < buffer.Length) return buffer;
+            var all = Physics.SphereCastAll(origin, radius, forward, distance, ~0, QueryTriggerInteraction.Ignore);
+            count = all.Length; return all;
+        }
+        ShotBox(entry, origin, forward, out var center, out var half, out var rotation);
+        count = Physics.BoxCastNonAlloc(center, half, forward, buffer, rotation, distance, ~0, QueryTriggerInteraction.Ignore);
+        if (count < buffer.Length) return buffer;
+        var boxes = Physics.BoxCastAll(center, half, forward, rotation, distance, ~0, QueryTriggerInteraction.Ignore);
+        count = boxes.Length; return boxes;
+    }
+
+    // Blade wings can clip scenery. Player damage uses the authored projectile box.
     // Shared with cosmetic prediction so a side-wall touch cannot hide a live shot.
     public static bool BladeOverlapBlocks(Collider collider, Vector3 center)
     {

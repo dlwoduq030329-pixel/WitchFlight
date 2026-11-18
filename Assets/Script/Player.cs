@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 using Unity.Profiling;
 
@@ -9,7 +9,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Header("Automatic cruise experiment")]
     [SerializeField] private bool automaticCruise = true;
     [SerializeField, Min(.05f)] private float glideStopSeconds = 1.5f;
-    [SerializeField, Min(.05f)] private float burstBoostSeconds = 2f;
+    [SerializeField, Min(.05f)] private float burstBoostSeconds = 1.5f;
     [SerializeField, Min(1f)] private float burstAccelerationMultiplier = 4f;
     [Networked] private float GlideElapsed { get; set; }
     [Networked] private float GlideStartSpeed { get; set; }
@@ -159,6 +159,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private TickTimer WallDamageTimer { get; set; }
     [Networked] private TickTimer WallContactTimer { get; set; }
     [Networked] private Vector3 LastFlightVelocity { get; set; }
+    public Vector3 FlightIndicatorDirection => LastFlightVelocity.sqrMagnitude > .01f
+        ? LastFlightVelocity.normalized : transform.forward;
     [Networked] public bool IsBoosting { get; private set; }
     [Networked] public bool IsReturningToMap { get; private set; }
     [Networked] public bool DiedFromAltitude { get; private set; }
@@ -1390,7 +1392,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 areaAimArmed = false;
                 ClearLockTargetInternal();
                 if (Object.HasStateAuthority)
-                { StopChannel(); CancelBladeRain(); ClearBladeAbility(); pendingMagic = MagicType.None; channelNeedsRelease = false; }
+                // BladeVolley survives returning to basic attack: the next clicks spend
+                // BladeCharges. SelectMagicSlot still clears it when choosing another spell.
+                { StopChannel(); CancelBladeRain(); pendingMagic = MagicType.None; channelNeedsRelease = false; }
             }
         }
         else
@@ -2760,6 +2764,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         // In-flight packets still contain the pre-portal camera direction. Wait until
         // the owner has observed the exit and reset its camera, including during replay.
         if (data.portalExitSequence != PortalExitSequence) return;
+        if (data.freeLook)
+        {
+            currentAimTurnSpeed = currentTurnSpeed = 0f;
+            return;
+        }
         if (data.steerToAim && IsFiniteDirection(data.aimDirection) && data.aimDirection.sqrMagnitude > 0.0001f)
         {
             Vector3 forward = data.aimDirection.normalized;

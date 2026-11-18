@@ -12,6 +12,7 @@ public sealed class RobbyPhysicsSimulation : SimulationBehaviour, IAfterTick
     private bool ownsDefaultScene;
     private int measuredFrame = -1, forwardTicks, replayTicks;
     private double physicsMilliseconds;
+    private float nextPhysicsWarning;
     private static readonly Unity.Profiling.ProfilerMarker PhysicsProfile = new("WitchFlight.LobbyPhysics.AfterTick");
 
     public void Register(PlayerRobby avatar)
@@ -62,7 +63,9 @@ public sealed class RobbyPhysicsSimulation : SimulationBehaviour, IAfterTick
 
     private void LateUpdate()
     {
-        if (measuredFrame != Time.frameCount || physicsMilliseconds < 8) return;
+        // Keep full profiler sampling, but do not generate a stack trace every slow frame.
+        if (measuredFrame != Time.frameCount || physicsMilliseconds < 8 || Time.unscaledTime < nextPhysicsWarning) return;
+        nextPhysicsWarning = Time.unscaledTime + 1f;
         Debug.LogWarning($"[LobbyPhysics] frame={measuredFrame} server={Runner.IsServer} forwardTicks={forwardTicks} replayTicks={replayTicks} total={physicsMilliseconds:F2}ms avatars={avatars.Count} defaultScene={ownsDefaultScene}");
     }
 

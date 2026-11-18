@@ -129,6 +129,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if ((IsRandomMatch || IsTraining || IsDeathMatch) && IsRoomHost) CheckPlayerCount();
         RefreshRoomAdmission();
         TickDeathMatchMigration();
+        TickDeathMatchEntry();
         if (Time.unscaledTime >= nextWaitingStatusRefresh)
         {
             nextWaitingStatusRefresh = Time.unscaledTime + 0.25f;
@@ -579,6 +580,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             var result = await sessionRunner.StartGame(new StartGameArgs
             {
                 GameMode = requestedMode,
+                Config = IsDeathMatch ? DeathMatchNetworkConfig() : null,
                 // Explicit join must never silently create a room when the code is absent.
                 EnableClientSessionCreation = request != MatchRequest.JoinRoom,
                 // Null + AutoHostOrClient = join random or create, handled by Photon.
@@ -1334,6 +1336,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             {
                 CameraFollow follow = inputCameraFollow;
                 follow.SynchronizePortalExit();
+                data.freeLook = follow.IsFreeLooking;
                 data.aimDirection = (follow.GetDisplayedAimPoint() - local.LockAimPoint).normalized;
                 if (follow.TryGetSteeringInput(out Vector3 direction, out Vector3 up))
                 {
@@ -1459,6 +1462,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         HostMigrationToken hostMigrationToken)
     {
+        Debug.Log($"[DeathMatch/Migration] 콜백 수신: deathmatch={IsDeathMatch}, currentRunner={runner == _runner}, stopping={stopInProgress}, cancelled={cancelRequested}", this);
         MigrateDeathMatch(runner, hostMigrationToken);
     }
 

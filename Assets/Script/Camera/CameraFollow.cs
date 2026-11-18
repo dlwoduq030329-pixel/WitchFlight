@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 
@@ -89,7 +89,19 @@ public partial class CameraFollow : MonoBehaviour
     private Renderer[] targetRenderers;
     private float mouseOrbitYaw;
     private Quaternion mouseAimRotation = Quaternion.identity;
+    [Header("Hold R: free look")]
+    [SerializeField, Min(.1f)] private float freeLookReturnSpeed = 8f;
+    private bool freeLookHeld, freeLookReturning;
+    public bool IsFreeLooking => freeLookHeld || freeLookReturning;
     private int observedPortalExitSequence;
+    [Header("Turn camera roll")]
+    [Tooltip("선회 시 화면의 최대 기울기(도). 0이면 비활성화합니다.")]
+    [SerializeField, Range(0f, 8f)] private float turnRollDegrees = 6f;
+    [SerializeField, Min(.1f)] private float turnRollResponse = 4f;
+    private FlightVisualBob turnBankSource;
+    private float turnRoll;
+    private int turnRollFrame = -1;
+
     private float speedShakeIntensity;
     private int speedShakeUpdatedFrame = -1;
     private bool speedShakeViewApplied;
@@ -161,6 +173,7 @@ public partial class CameraFollow : MonoBehaviour
 
     public void SetTarget(GameObject targetObject)
     {
+        freeLookHeld = freeLookReturning = false;
         ResetLockOnCameraPreview();
         bool newLife = target != targetObject || deathObserving;
         ClearDeathObservation();
@@ -216,10 +229,29 @@ public partial class CameraFollow : MonoBehaviour
             BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
             CombatPresentation.MenuOpen || BattleEmoteUI.CapturesMouse || Cursor.lockState != CursorLockMode.Locked ||
             targetPlayer.IsReturningToMap || boundaryCameraFrozen || boundaryReturnBlending)
+        {
+            if (IsFreeLooking && targetPlayer != null) mouseAimRotation = targetPlayer.transform.rotation;
+            freeLookHeld = freeLookReturning = false;
             return;
+        }
 
         if (enableMouseAimSteering)
         {
+            bool held = Input.GetKey(KeyCode.R);
+            if (freeLookHeld && !held) freeLookReturning = true;
+            freeLookHeld = held;
+            if (held) freeLookReturning = false;
+            if (freeLookReturning)
+            {
+                mouseAimRotation = Quaternion.Slerp(mouseAimRotation, target.transform.rotation,
+                    1f - Mathf.Exp(-freeLookReturnSpeed * Time.deltaTime));
+                if (Quaternion.Angle(mouseAimRotation, target.transform.rotation) < .2f)
+                {
+                    mouseAimRotation = target.transform.rotation;
+                    freeLookReturning = false;
+                }
+                return;
+            }
             float keyboardYaw = (ControlSettings.Held(ControlAction.TurnRight) ? 1f : 0f) - (ControlSettings.Held(ControlAction.TurnLeft) ? 1f : 0f);
             float yaw = Input.GetAxisRaw("Mouse X") * Mathf.Max(0f, mouseYawSensitivity) * ControlSettings.SensitivityMultiplier +
                 keyboardYaw * targetPlayer.SteeringTurnRate * Time.deltaTime;
@@ -295,6 +327,7 @@ public partial class CameraFollow : MonoBehaviour
         Vector3 positionNoise = new Vector3(ShakeNoise(phase, 11f), ShakeNoise(phase, 29f), ShakeNoise(phase, 47f));
         Vector3 rotationNoise = new Vector3(ShakeNoise(phase, 61f), ShakeNoise(phase, 83f), ShakeNoise(phase, 107f));
         Vector3 localOffset = Vector3.Scale(positionNoise, speedShakePositionAmplitude) * speedShakeIntensity;
+        // Render-only translation: keep steering, reticles and attack rays on the stable camera.
         Quaternion localRotation = Quaternion.Euler(
             Vector3.Scale(rotationNoise, speedShakeRotationAmplitude) * speedShakeIntensity);
 
@@ -518,7 +551,18 @@ public partial class CameraFollow : MonoBehaviour
             }
             return;
         }
-        transform.SetPositionAndRotation(desiredPosition, rawRotation);
+        if (turnBankSource == null || turnBankSource.gameObject != targetPlayer?.gameObject)
+            turnBankSource = targetPlayer != null ? targetPlayer.GetComponent<FlightVisualBob>() : null;
+        if (snap) { turnRoll = 0f; turnRollFrame = -1; }
+        if (turnRollFrame != Time.frameCount)
+        {
+            turnRollFrame = Time.frameCount;
+            float wanted = canKick && !IsFreeLooking && turnBankSource != null
+                ? turnBankSource.NormalizedBank * turnRollDegrees : 0f;
+            turnRoll = Mathf.Lerp(turnRoll, wanted, GetExponentialBlend(turnRollResponse));
+        }
+        // Roll only around the view's forward axis: forward aim and camera position stay fixed.
+        transform.SetPositionAndRotation(desiredPosition, rawRotation * Quaternion.Euler(0f, 0f, turnRoll));
     }
 
     public void SynchronizePortalExit()
@@ -527,6 +571,7 @@ public partial class CameraFollow : MonoBehaviour
             !targetPlayer.Object.HasInputAuthority || observedPortalExitSequence == targetPlayer.PortalExitSequence)
             return;
         observedPortalExitSequence = targetPlayer.PortalExitSequence;
+        freeLookHeld = freeLookReturning = false;
         mouseAimRotation = targetPlayer.PortalExitRotation;
         mouseOrbitYaw = 0f;
         boundaryCameraFrozen = false;
