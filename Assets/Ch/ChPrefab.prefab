@@ -3656,7 +3656,7 @@ MonoBehaviour:
   m_Gravity: {x: 0, y: 0, z: 0}
   m_ForceModule: {fileID: 0}
   m_ForceScale: 1
-  m_SimulateSpace: {fileID: 5553512542147760588}
+  m_SimulateSpace: {fileID: 8165883999008896482}
 --- !u!114 &3872640172450378154
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6839,16 +6839,9 @@ MonoBehaviour:
   _CompletedSkillSelectionRevision: 0
   _HasCompletedSkillSelection:
     _value: 0
-  bladeSlashAnchor: {fileID: 0}
-  bladeSlashLocalEuler: {x: 0, y: 0, z: 0}
-  bladeVisualLength: 0.2
-  bladeVisualWidth: 0.02
-  bladeVisualThickness: 0.01
   _BladeCharges: 0
   _BladeSwingSequence: 0
   _BladeSwingStep: 0
-  _BladeCharging: 0
-  _BladeChargeProgress: 0
   _RainManaSpent: 0
   _RainFocused: 0
   _RainChargeBudget: 0
@@ -6872,7 +6865,7 @@ MonoBehaviour:
   _SubmergedSeconds: 0
   automaticCruise: 1
   glideStopSeconds: 1.5
-  burstBoostSeconds: 2
+  burstBoostSeconds: 1.5
   burstAccelerationMultiplier: 4
   _DashWindupDuration: 0
   maxSpeed: 60
@@ -6928,7 +6921,6 @@ MonoBehaviour:
     duration: 0.65
     armSweep: 65
     torsoTwist: 20
-    elbowBendStartAngle: 130
   _IsBoosting: 0
   _IsReturningToMap: 0
   _DiedFromAltitude: 0
@@ -7245,8 +7237,8 @@ MonoBehaviour:
   fullAmplitudeSpeed: 10
   blendSpeed: 4
   highSpeedBobMultiplier: 0.8
-  maxBankAngle: 25
-  fullBankTurnSpeed: 120
+  maxBankAngle: 55
+  fullBankTurnSpeed: 90
   bankBlendSpeed: 5
   bankPivot: {x: 0, y: 0.6, z: 0}
 --- !u!114 &4244350144727647271
@@ -12148,7 +12140,7 @@ MonoBehaviour:
   m_Gravity: {x: 0, y: 0, z: 0}
   m_ForceModule: {fileID: 0}
   m_ForceScale: 1
-  m_SimulateSpace: {fileID: 5553512542147760588}
+  m_SimulateSpace: {fileID: 8165883999008896482}
 --- !u!114 &8437860752886302938
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15144,7 +15136,7 @@ MonoBehaviour:
   m_Gravity: {x: 0, y: 0, z: 0}
   m_ForceModule: {fileID: 0}
   m_ForceScale: 1
-  m_SimulateSpace: {fileID: 5553512542147760588}
+  m_SimulateSpace: {fileID: 8165883999008896482}
 --- !u!114 &1872345289190307723
 MonoBehaviour:
   m_ObjectHideFlags: 0

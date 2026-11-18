@@ -62,6 +62,7 @@ public struct NetworkInputData : INetworkInput
     public NetworkBool hasAreaAimPoint;
     public Vector3 aimUp;
     public NetworkBool steerToAim;
+    public NetworkBool freeLook;
     // Acknowledges the exit-facing camera reset; stale pre-portal steering is ignored.
     public int portalExitSequence;
     public NetworkId lockTarget;
