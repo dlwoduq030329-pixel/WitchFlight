@@ -15,6 +15,10 @@ public partial class Player
     private Player botAimTarget;
     private MagicType botAimMagic;
     private BattleItemPickup botHealthPickup;
+    private BattleItemPickup botDenyHealthPickup;
+    private float botBasicAttackTime;
+    private int botNextMagicSlot = 1;
+    private bool EnemyHasBotFlag => IsBotCombatant(botCarrier) && botCarrier.TeamIndex != TeamIndex;
 
     private bool ReadCombatInput(out NetworkInputData input)
     {
@@ -36,7 +40,7 @@ public partial class Player
         var settings = MatchBotSettings.Default;
         float dt = Runner.DeltaTime;
         TickBotMobilityPlan(dt);
-        botDecisionTime -= dt; botAttackTime -= dt;
+        botDecisionTime -= dt; botAttackTime -= dt; botBasicAttackTime -= dt;
         if (BattleFlag.Instance != null && botObservedCarrier != BattleFlag.Instance.Carrier) botDecisionTime = 0f;
         if (botDecisionTime <= 0)
         {
@@ -46,13 +50,14 @@ public partial class Player
             if (health <= settings.seekHealthBelow) botRecovering = true;
             else if (health >= Mathf.Max(settings.seekHealthBelow, settings.resumeCombatAbove)) botRecovering = false;
             RefreshBotTactics(settings);
-            botHealthPickup = botRecovering ? FindBotHealthPickup(settings) : null;
+            botHealthPickup = botRecovering && !EnemyHasBotFlag ? FindBotHealthPickup(settings) : null;
+            botDenyHealthPickup = FindBotCarrierHealthDenial(settings);
             RefreshBotEncirclement(settings);
         }
         bool hasEnemy = botTarget != null && botTarget.Object != null && botTarget.Object.IsValid && botTarget.IsAlive;
         var flag = BattleFlag.Instance;
         bool carrying = flag != null && flag.Carrier == ParticipantRef;
-        bool retreating = botRecovering || carrying;
+        bool retreating = (botRecovering && !EnemyHasBotFlag) || carrying;
         bool pickupGoal = false;
         var botBoundary = BattleManager.Instance != null ? BattleManager.Instance.MapBoundary : null;
         float goalRadius = .85f;
@@ -78,6 +83,8 @@ public partial class Player
         { destination = flagDestination; pickupGoal = true; goalRadius = flagRadius; encircling = false; }
         if (botHealthPickup != null && botHealthPickup.IsAvailableHealth(Runner))
         { destination = botHealthPickup.BotPickupPoint; pickupGoal = true; goalRadius = botHealthPickup.BotPickupRadius; encircling = false; }
+        if (EnemyHasBotFlag && NowHp < MaxHp && botDenyHealthPickup != null && botDenyHealthPickup.IsAvailableHealth(Runner))
+        { destination = botDenyHealthPickup.BotPickupPoint; pickupGoal = true; goalRadius = botDenyHealthPickup.BotPickupRadius; encircling = false; }
         bool ramAllowed = !retreating && !pickupGoal && hasEnemy &&
             (!escorting || (botTarget.LockAimPoint - botCarrier.LockAimPoint).sqrMagnitude <=
                 settings.escortDistance * settings.escortDistance * 4f);
@@ -141,7 +148,12 @@ public partial class Player
             else { botHolding = false; botReleaseFrame = true; botAttackTime = settings.attackPauseSeconds; }
             return true;
         }
-        if (botAttackTime > 0 || pendingMagic != MagicType.None) return true;
+        if (pendingMagic != MagicType.None) return true;
+        if (botAttackTime > 0)
+        {
+            TryBotBasicAttack(settings, ref input);
+            return true;
+        }
         if (BladeCharges > 0)
         {
             if (hasEnemy)
@@ -153,30 +165,93 @@ public partial class Player
             return true;
         }
         // Alternate slots after a complete release, preserving normal cast/cooldown validation.
-        SelectMagicSlot(CurrentMagicSlot == 1 ? 2 : 1);
+        SelectMagicSlot(botNextMagicSlot);
+        botNextMagicSlot = botNextMagicSlot == 1 ? 2 : 1;
         stats = SelectedMagicStats;
         botAttackTime = settings.attackPauseSeconds;
         bool support = stats.magic == MagicType.Healing || stats.magic == MagicType.Flare || stats.magic == MagicType.Smoke || stats.magic == MagicType.MeowFestival || stats.magic == MagicType.TimeStop;
         if (stats.TargetsAllies)
         {
             botCastAlly = ChooseBotSupportTarget(stats);
-            if (botCastAlly == null) return true;
+            if (botCastAlly == null) { TryBotBasicAttack(settings, ref input); return true; }
             AimBotSupport(ref input);
         }
         else
         {
-            if (!hasEnemy || (!support && Vector3.Distance(LockAimPoint, botTarget.LockAimPoint) > stats.range)) return true;
+            if (!hasEnemy || (!support && Vector3.Distance(LockAimPoint, botTarget.LockAimPoint) > stats.range))
+            { TryBotBasicAttack(settings, ref input); return true; }
             // The previous slot may have been a heal: reset its ally aim after switching to an attack.
             input.lockTarget = botTarget.Object.Id;
             input.magicAimDirection = (botTarget.LockAimPoint - MagicCastPosition).normalized;
         }
-        if (stats.magic == MagicType.Flare && !HasIncomingBotThreat()) return true;
-        if (TimerIsActive(MagicCooldowns[(int)stats.magic]) || NowAp < stats.apCost) return true;
+        if (stats.magic == MagicType.Flare && !HasIncomingBotThreat())
+        { TryBotBasicAttack(settings, ref input); return true; }
+        if (TimerIsActive(MagicCooldowns[(int)stats.magic]) || NowAp < stats.apCost)
+        { TryBotBasicAttack(settings, ref input); return true; }
         input.buttons.Set(PlayerInputButton.Lock, true);
         botHolding = stats.magic == MagicType.Blade || stats.focusedBlade || stats.requiresTarget || stats.IsChanneled || stats.effect == MagicEffectKind.DelayedArea;
         botHeldTime = 0;
         if (!botHolding) botReleaseFrame = true;
         return true;
+    }
+
+    private bool TryBotBasicAttack(MatchBotSettings settings, ref NetworkInputData input)
+    {
+        if (botHolding || BladeCharges > 0 || IsMagicStormActive || pendingMagic != MagicType.None ||
+            BasicAttackCharges <= 0 || botBasicAttackTime > 0f || TimerIsActive(BasicAttackShotCooldown) ||
+            previousButtons.IsSet(PlayerInputButton.Lock) || !IsBotCombatant(botTarget) ||
+            !botTarget.IsTargetableBy(this)) return false;
+        Vector3 delta = botTarget.LockAimPoint - MagicCastPosition;
+        float range = BasicAttackSettings.Stats.range;
+        if (delta.sqrMagnitude > range * range || delta.sqrMagnitude < .001f ||
+            !IsAimAligned(delta.normalized) || !HasLineOfSight(botTarget)) return false;
+        SelectMagicSlot(0);
+        input.lockTarget = botTarget.Object.Id;
+        input.magicAimDirection = delta.normalized;
+        input.buttons.Set(PlayerInputButton.Lock, true);
+        botReleaseFrame = true;
+        botBasicAttackTime = Mathf.Max(.05f, settings.basicAttackPauseSeconds);
+        return true; // Normal FireBasicAttack owns targeting, charge consumption and recharge.
+    }
+
+    private BattleItemPickup FindBotCarrierHealthDenial(MatchBotSettings settings)
+    {
+        if (!EnemyHasBotFlag || NowHp >= MaxHp || botCarrier.MaxHp <= 0f ||
+            botCarrier.NowHp / botCarrier.MaxHp > settings.denyCarrierHealthBelow) return null;
+        BattleItemPickup best = null;
+        float bestScore = float.PositiveInfinity;
+        foreach (var item in BattleItemPickup.ActiveItems)
+        {
+            if (item == null || !item.IsAvailableHealth(Runner)) continue;
+            Vector3 point = item.BotPickupPoint;
+            float carrierDistance = Vector3.Distance(botCarrier.LockAimPoint, point);
+            float distance = Vector3.Distance(LockAimPoint, point);
+            if (carrierDistance > settings.denyCarrierHealthSearchDistance || distance > settings.healthSearchDistance) continue;
+            float arrival = BotHealthArrivalSeconds(this, point, item.BotPickupRadius);
+            float carrierArrival = BotHealthArrivalSeconds(botCarrier, point, item.BotPickupRadius);
+            if (arrival + settings.denyHealthArrivalLeadSeconds >= carrierArrival) continue;
+            // Only the best-positioned eligible bot reserves a pack; the others keep attacking.
+            bool anotherCloser = false;
+            foreach (var ally in botTacticalRoster)
+            {
+                if (ally == this || !ally.IsMatchBot || ally.TeamIndex != TeamIndex || ally.NowHp >= ally.MaxHp) continue;
+                float otherArrival = BotHealthArrivalSeconds(ally, point, item.BotPickupRadius);
+                if (otherArrival < arrival - .01f || (Mathf.Abs(otherArrival - arrival) <= .01f &&
+                    ally.ParticipantRef.RawEncoded < ParticipantRef.RawEncoded)) { anotherCloser = true; break; }
+            }
+            if (anotherCloser) continue;
+            float score = carrierDistance + distance * .5f;
+            if (score < bestScore) { bestScore = score; best = item; }
+        }
+        return best;
+    }
+
+    private static float BotHealthArrivalSeconds(Player player, Vector3 point, float radius)
+    {
+        Vector3 delta = point - player.LockAimPoint;
+        // Estimate normal flight plus turning cost; dash/obstacle decisions still use normal navigation.
+        return Mathf.Max(0f, delta.magnitude - radius) / Mathf.Max(1f, Mathf.Max(player.Speed, player.flightMaxSpeed)) +
+            Vector3.Angle(player.transform.forward, delta) / 180f;
     }
 
     private BattleItemPickup FindBotHealthPickup(MatchBotSettings settings)

@@ -102,6 +102,11 @@ public sealed class MatchBotSettings : ScriptableObject
     [Range(.05f, .9f)] public float seekHealthBelow = .4f;
     [Range(.1f, 1f)] public float resumeCombatAbove = .7f;
     [Min(5f)] public float healthSearchDistance = 180f;
+    [Header("적 깃발 운반자 힐팩 선점 / 기본공격")]
+    [Range(0f, 1f)] public float denyCarrierHealthBelow = .5f;
+    [Min(5f)] public float denyCarrierHealthSearchDistance = 80f;
+    [Min(0f)] public float denyHealthArrivalLeadSeconds = .25f;
+    [Min(.05f)] public float basicAttackPauseSeconds = .35f;
     [Min(5f)] public float carrierSafeDistance = 45f;
     [Header("포탈 지름길")]
     public bool usePortals = true;

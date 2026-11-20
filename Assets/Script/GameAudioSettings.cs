@@ -32,7 +32,13 @@ public static class GameAudioSettings
             bgm = music.Length > 0 ? music[0] : null;
             voice = voices.Length > 0 ? voices[0] : null;
         }
-        return category == GameAudioCategory.Voice ? voice : category == GameAudioCategory.BGM ? bgm : sfx;
+        // Recorded character voices are game SFX. Photon voice is routed separately.
+        return category == GameAudioCategory.BGM ? bgm : sfx;
+    }
+    public static bool IsLegacyVoiceGroup(AudioMixerGroup group)
+    {
+        Group(GameAudioCategory.SFX);
+        return group != null && group == voice;
     }
     public static float Decibels(float volume) => volume <= 0f ? -80f : Mathf.Log10(Mathf.Clamp01(volume)) * 20f;
     public static void Apply()
@@ -82,6 +88,8 @@ public sealed class GameAudioRouting : MonoBehaviour
         {
             if (source == null) continue;
             if (source.GetComponent<Photon.Voice.Unity.Speaker>() != null) continue;
+            if (GameAudioSettings.IsLegacyVoiceGroup(source.outputAudioMixerGroup))
+                source.outputAudioMixerGroup = GameAudioSettings.Group(GameAudioCategory.SFX);
             if (source.outputAudioMixerGroup != null) continue;
             var tag = source.GetComponentInParent<AudioCategory>();
             string clipName = source.clip != null ? source.clip.name : "";

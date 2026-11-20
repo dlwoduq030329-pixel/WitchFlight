@@ -155,7 +155,7 @@ public partial class Player
         foreach (var ally in botTacticalRoster)
         {
             if (ally == this || !ally.IsMatchBot || ally.TeamIndex != TeamIndex || ally.botTarget != botTarget ||
-                ally.botRecovering || ally == botCarrier) continue;
+                (ally.botRecovering && !EnemyHasBotFlag) || ally == botCarrier) continue;
             // Close escorts stay with their carrier; do not reserve an attack sector they won't use.
             if (botCarrier != null && botCarrier.TeamIndex == TeamIndex && ally.botEscortDuty) continue;
             count++;

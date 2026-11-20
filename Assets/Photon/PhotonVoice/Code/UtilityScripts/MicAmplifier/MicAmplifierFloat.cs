@@ -20,7 +20,7 @@
             }
             for (int i = 0; i < buf.Length; i++)
             {
-                buf[i] *= this.AmplificationFactor;
+                buf[i] = System.Math.Max(-1f, System.Math.Min(1f, buf[i] * this.AmplificationFactor));
             }
             return buf;
         }
