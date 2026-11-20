@@ -32,8 +32,8 @@ public sealed class SoundSettingsUI : MonoBehaviour
         var modeRoot = transform.Find("VoiceChatToggle");
         if (modeRoot != null)
         {
-            voiceMode = modeRoot.GetComponent<TMP_Dropdown>();
-            legacyVoiceMode = modeRoot.GetComponent<Dropdown>();
+            voiceMode = modeRoot.GetComponentInChildren<TMP_Dropdown>(true);
+            legacyVoiceMode = modeRoot.GetComponentInChildren<Dropdown>(true);
             if (voiceMode != null) voiceMode.onValueChanged.AddListener(SetMode);
             if (legacyVoiceMode != null) legacyVoiceMode.onValueChanged.AddListener(SetMode);
         }

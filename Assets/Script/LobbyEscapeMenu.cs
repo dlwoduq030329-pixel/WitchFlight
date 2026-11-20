@@ -55,6 +55,7 @@ public sealed class LobbyEscapeMenu : MonoBehaviour
                 }
         }
         if (menu == null) return;
+        EnsureIndependentCanvas();
         var background = menu.transform.Find("Background");
         if (background != null) entrance = background.GetComponents<DOTweenAnimation>();
         foreach (var animation in entrance)
@@ -69,6 +70,47 @@ public sealed class LobbyEscapeMenu : MonoBehaviour
         canvas.sortingOrder = 300;
         if (menu.GetComponent<GraphicRaycaster>() == null) menu.AddComponent<GraphicRaycaster>();
     }
+    private void EnsureIndependentCanvas()
+    {
+        // Robby is disabled in the 3D room. Reuse the authored panels outside that
+        // hierarchy, without turning on the whole lobby or its camera.
+        if (menu.transform.parent != null && menu.transform.parent.name == "LobbyMenuCanvas") return;
+        Canvas originalCanvas = menu.GetComponentInParent<Canvas>(true);
+        CanvasScaler originalScaler = originalCanvas != null
+            ? originalCanvas.GetComponentInParent<CanvasScaler>(true) : null;
+        var root = new GameObject("LobbyMenuCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        SceneManager.MoveGameObjectToScene(root, menu.scene);
+        var canvas = root.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 300;
+        var scaler = root.GetComponent<CanvasScaler>();
+        if (originalScaler != null)
+        {
+            scaler.uiScaleMode = originalScaler.uiScaleMode;
+            scaler.referenceResolution = originalScaler.referenceResolution;
+            scaler.screenMatchMode = originalScaler.screenMatchMode;
+            scaler.matchWidthOrHeight = originalScaler.matchWidthOrHeight;
+            scaler.scaleFactor = originalScaler.scaleFactor;
+            scaler.referencePixelsPerUnit = originalScaler.referencePixelsPerUnit;
+        }
+        else
+        {
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+        }
+        menu.transform.SetParent(root.transform, false);
+        if (settings != null && !settings.transform.IsChildOf(menu.transform))
+            settings.transform.SetParent(root.transform, false);
+        if (settings != null)
+        {
+            var settingsCanvas = settings.GetComponent<Canvas>();
+            if (settingsCanvas == null) settingsCanvas = settings.AddComponent<Canvas>();
+            settingsCanvas.overrideSorting = true;
+            settingsCanvas.sortingOrder = 301;
+            if (settings.GetComponent<GraphicRaycaster>() == null) settings.AddComponent<GraphicRaycaster>();
+        }
+    }
+
     private void RestartEntrance()
     {
         foreach (var animation in entrance)

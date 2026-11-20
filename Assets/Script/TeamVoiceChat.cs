@@ -129,9 +129,16 @@ public sealed class TeamVoiceChat : FusionVoiceClient
             microphone.InterestGroup = (byte)(desired == 0 ? 3 : desired);
             subscribedGroup = desired;
         }
-        if (!focused || desired == 0 || IsTyping() || CombatPresentation.MenuOpen || LobbyEscapeMenu.IsOpen)
+        if (!focused || desired == 0)
         {
             StopTalking();
+            requireRelease = true;
+            return;
+        }
+        if (IsTyping())
+        {
+            // Preserve an enabled toggle, but never interpret typed F as a voice command.
+            microphone.TransmitEnabled = mode == 1 && toggled;
             requireRelease = true;
             return;
         }

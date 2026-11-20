@@ -170,6 +170,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
 
     private void UpdateCodeRoomRobbyToggle()
     {
+        if (IsWaitingInCodeRoom && LobbyEscapeMenu.IsOpen) return;
         if (!IsWaitingInCodeRoom)
         {
             if (robbyTabChanged && codeRoomRobby != null)
