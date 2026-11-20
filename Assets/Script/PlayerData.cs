@@ -20,6 +20,13 @@ public partial class PlayerData : NetworkBehaviour
         DeathMatchEntryReady = true;
     }
     public static PlayerData Local { get; private set; }
+    [Networked] public NetworkBool VoiceMicrophoneEnabled { get; private set; }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_SetVoiceMicrophoneEnabled(bool enabled)
+    {
+        VoiceMicrophoneEnabled = !IsMatchBot && enabled;
+    }
     public static event System.Action LobbyRosterChanged;
     private void NotifyLobbyRosterChanged() => LobbyRosterChanged?.Invoke();
     [Networked] public int MagicChangeRound { get; private set; }
