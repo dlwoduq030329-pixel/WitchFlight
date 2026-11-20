@@ -129,7 +129,7 @@ public sealed class TeamVoiceChat : FusionVoiceClient
             microphone.InterestGroup = (byte)(desired == 0 ? 3 : desired);
             subscribedGroup = desired;
         }
-        if (!focused || desired == 0 || IsTyping() || CombatPresentation.MenuOpen)
+        if (!focused || desired == 0 || IsTyping() || CombatPresentation.MenuOpen || LobbyEscapeMenu.IsOpen)
         {
             StopTalking();
             requireRelease = true;
