@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -81,6 +81,7 @@ public sealed class GameAudioRouting : MonoBehaviour
         foreach (var source in sources.Collect(gameObject.scene))
         {
             if (source == null) continue;
+            if (source.GetComponent<Photon.Voice.Unity.Speaker>() != null) continue;
             if (source.outputAudioMixerGroup != null) continue;
             var tag = source.GetComponentInParent<AudioCategory>();
             string clipName = source.clip != null ? source.clip.name : "";

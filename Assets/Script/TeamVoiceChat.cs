@@ -1,4 +1,6 @@
 ﻿using Fusion;
+using Photon.Voice.Unity.UtilityScripts;
+using System.Collections.Generic;
 using Photon.Voice.Fusion;
 using Photon.Voice.Unity;
 using UnityEngine;
@@ -17,6 +19,25 @@ public sealed class TeamVoiceChat : FusionVoiceClient
     public static int SavedMode => Mathf.Clamp(PlayerPrefs.GetInt(ModeKey, 0), 0, 1);
     public bool IsTransmitting => microphone != null && microphone.TransmitEnabled;
     public bool IsVoiceConnected => Client != null && Client.InRoom;
+    public static event System.Action SettingsChanged;
+    public static float OutputVolume => Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Output", 50f), 0f, 100f);
+    public static float InputVolume => Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Input", 50f), 0f, 100f);
+    public static void SetOutputVolume(float value) => SetVolume("VoiceChat.Output", value);
+    public static void SetInputVolume(float value) => SetVolume("VoiceChat.Input", value);
+    private static void SetVolume(string key, float value)
+    {
+        if (float.IsNaN(value) || float.IsInfinity(value)) return;
+        PlayerPrefs.SetFloat(key, Mathf.Clamp(value, 0f, 100f));
+        if (Instance != null) Instance.ApplyVolumes();
+        SettingsChanged?.Invoke();
+    }
+    private readonly List<AudioSource> outputs = new List<AudioSource>();
+    private MicAmplifier amplifier;
+    private void ApplyVolumes()
+    {
+        if (amplifier != null) amplifier.AmplificationFactor = InputVolume / 50f;
+        foreach (var output in outputs) if (output != null) output.volume = OutputVolume / 100f;
+    }
     private Recorder microphone;
     private NetworkRunner runner;
     private int subscribedGroup = -1;
@@ -44,6 +65,8 @@ public sealed class TeamVoiceChat : FusionVoiceClient
         microphone.InterestGroup = 3; // Never broadcast group 0 (cannot unsubscribe).
         microphone.VoiceDetection = false;
         microphone.StopRecordingWhenPaused = true;
+        amplifier = gameObject.AddComponent<MicAmplifier>();
+        ApplyVolumes();
         PrimaryRecorder = microphone;
         AddRecorder(microphone);
     }
@@ -55,6 +78,7 @@ public sealed class TeamVoiceChat : FusionVoiceClient
         PlayerPrefs.SetInt(ModeKey, value);
         PlayerPrefs.Save();
         if (Instance != null) Instance.SetLocalMode(value);
+        SettingsChanged?.Invoke();
     }
     public void SetVoiceMode(int value) => SaveVoiceMode(value);
     private void SetLocalMode(int value)
@@ -126,9 +150,12 @@ public sealed class TeamVoiceChat : FusionVoiceClient
         var audio = output.AddComponent<AudioSource>();
         audio.spatialBlend = 0f;
         audio.playOnAwake = false;
+        outputs.Add(audio);
+        ApplyVolumes();
         var speaker = output.AddComponent<Speaker>();
         speaker.OnRemoteVoiceRemoveAction += removed =>
         {
+            outputs.Remove(audio);
             if (removed != null) Destroy(removed.gameObject);
         };
         return speaker;

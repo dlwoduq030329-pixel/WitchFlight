@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 // Scene-owned camera. Never attaches to the battle Player or battle cameras.
 [DisallowMultipleComponent]
@@ -55,7 +55,46 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         if (followListener != null) followListener.enabled = false;
     }
 
-    private bool ControlsActive => showing && Application.isFocused &&
+    private GameObject lobbyMenu, lobbySettings;
+    private bool menuBound, menuWasOpen;
+    private CursorLockMode menuCursorLock;
+    private bool menuCursorVisible;
+    private void UpdateLobbyMenu()
+    {
+        var manager = NetworkGameManager.Instance;
+        if (manager == null || manager.IsBattleSceneLoaded) return;
+        if (!menuBound)
+        {
+            menuBound = true;
+            foreach (var root in gameObject.scene.GetRootGameObjects())
+                foreach (var child in root.GetComponentsInChildren<Transform>(true))
+                {
+                    if (child.name == "MenuUI") lobbyMenu = child.gameObject;
+                    if (child.name == "SettingUI") lobbySettings = child.gameObject;
+                }
+        }
+        if (lobbyMenu == null) return;
+        if (Input.GetKeyDown(KeyCode.Escape) && !MainRoomChatUI.BlocksLobbyInput)
+        {
+            if (lobbySettings != null && lobbySettings.activeInHierarchy)
+            {
+                lobbySettings.SetActive(false);
+                lobbyMenu.SetActive(true);
+            }
+            else lobbyMenu.SetActive(!lobbyMenu.activeSelf);
+        }
+        bool open = lobbyMenu.activeInHierarchy || (lobbySettings != null && lobbySettings.activeInHierarchy);
+        if (open && !menuWasOpen)
+        {
+            menuCursorLock = Cursor.lockState;
+            menuCursorVisible = Cursor.visible;
+        }
+        if (open) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
+        else if (menuWasOpen) { Cursor.lockState = menuCursorLock; Cursor.visible = menuCursorVisible; }
+        menuWasOpen = open;
+    }
+
+    private bool ControlsActive => showing && Application.isFocused && !menuWasOpen &&
         !MainRoomChatUI.BlocksLobbyInput &&
         Cursor.lockState == CursorLockMode.Locked && robbyUI != null && !robbyUI.activeInHierarchy &&
         NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsWaitingInCodeRoom &&
@@ -63,6 +102,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
 
     private void Update()
     {
+        UpdateLobbyMenu();
         if (ControlsActive)
         {
             var player = PlayerRobby.LocalPlayer;
