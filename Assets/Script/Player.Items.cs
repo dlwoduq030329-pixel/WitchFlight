@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -9,8 +9,11 @@ public partial class Player
     [Networked] private NetworkBool ManaBuffActive { get; set; }
     public bool HasManaBuff => networkSpawned && Object != null && Object.IsValid && ManaBuffActive && IsAlive && !IsReturningToMap &&
         BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
-    private float ManaBuffManaRecoveryMultiplier => HasManaBuff
-        ? Mathf.Max(1f, FlightCombatTable.Default != null ? FlightCombatTable.Default.manaBuffManaRecoveryMultiplier : 2f) : 1f;
+    private float EffectiveManaRecoveryPerSecond => HasManaBuff
+        ? Mathf.Max(0f, equipmentStatTable != null
+            ? equipmentStatTable.GetHatStats(HatType.Elemental).apRecoveryPerSecond : 7f) *
+          Mathf.Max(1f, FlightCombatTable.Default != null ? FlightCombatTable.Default.manaBuffManaRecoveryMultiplier : 2f)
+        : ApRecoveryPerSecond * FestivalRecoveryBonus;
     private float ManaBuffDashRechargeMultiplier => HasManaBuff
         ? Mathf.Max(1f, FlightCombatTable.Default != null ? FlightCombatTable.Default.manaBuffDashRechargeMultiplier : 4f) : 1f;
     private readonly List<Collider> manaBuffContacts = new();

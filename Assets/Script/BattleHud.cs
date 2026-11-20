@@ -329,6 +329,7 @@ public sealed partial class BattleHud : MonoBehaviour
         blinkingPossessionFill = null;
         if (remainingTimeAnnouncement != null) remainingTimeAnnouncement.gameObject.SetActive(false);
     }
+    [SerializeField] private Slider overtimeSlider;
     [SerializeField] private Slider allyTimeSlider;
     [SerializeField] private Slider enemyTimeSlider;
     [SerializeField] private TMP_Text flagText;
@@ -724,6 +725,10 @@ public sealed partial class BattleHud : MonoBehaviour
         int localTeam = PlayerData.Local != null ? PlayerData.Local.teamIndex : valid ? owner.TeamIndex : 0;
         UpdatePossessionSlider(allyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam) : 0f);
         UpdatePossessionSlider(enemyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam == 1 ? 2 : localTeam == 2 ? 1 : 0) : 0f);
+        bool overtimeVisible = possessionValid && flag.Phase == BattleStartPhase.Playing &&
+            flag.IsOvertime && flag.OvertimeChallengerTeam != 0;
+        Visible(overtimeSlider != null ? overtimeSlider.gameObject : null, overtimeVisible);
+        UpdatePossessionSlider(overtimeSlider, overtimeVisible ? flag.OvertimeProgress : 0f);
         UpdateRemainingTimeAnnouncement(battle, flag, localTeam);
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null)
