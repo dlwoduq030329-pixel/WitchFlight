@@ -2,26 +2,78 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+[ExecuteAlways]
+[DisallowMultipleComponent]
 public sealed class TeamTargetPingHUD : MonoBehaviour
 {
-    private static readonly Color32[] Colors = {
-        new Color32(231,40,56,255), new Color32(45,145,255,255),
-        new Color32(50,235,100,255), new Color32(255,225,45,255), new Color32(255,95,195,255) };
+    [SerializeField, Min(20f)] private float pingRadius = 120f;
+    [SerializeField] private bool previewRadius = true;
+    [SerializeField] private bool previewDuringPlay;
+    [SerializeField] private RectTransform radiusGuide;
+    public void SetPingRadius(float value)
+    {
+        pingRadius = Mathf.Max(20f, value);
+        UpdateGuide();
+    }
+    private Camera worldCamera;
+    private Camera uiCamera;
     private readonly List<PlayerData> allies = new(5);
-    private readonly RectTransform[] directions = new RectTransform[5];
-    private readonly RectTransform[] heads = new RectTransform[5];
-    private GameObject canvasObject;
-    private RectTransform canvasRect;
+    [SerializeField] private RectTransform[] directions = new RectTransform[5];
+    [SerializeField] private RectTransform[] heads = new RectTransform[5];
+    [SerializeField] private RectTransform canvasRect;
+    private GameObject canvasObject => canvasRect != null ? canvasRect.gameObject : null;
     private Player localTarget;
     private float localHeadUntil;
 
-    public void LocalPing(Player target)
+    private void OnEnable()
+    {
+        enemyLockOn.TargetDesignated += LocalPing;
+        UpdateGuide();
+    }
+    private void OnValidate()
+    {
+        pingRadius = Mathf.Max(20f, pingRadius);
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
+    }
+    private bool IsBound => canvasRect != null && directions.Length == 5 && heads.Length == 5 &&
+        System.Array.TrueForAll(directions, item => item != null) && System.Array.TrueForAll(heads, item => item != null);
+    private void UpdateGuide()
+    {
+        if (radiusGuide == null) return;
+        radiusGuide.sizeDelta = Vector2.one * (pingRadius * 2f);
+        bool show = previewRadius && (!Application.isPlaying || previewDuringPlay);
+        if (radiusGuide.gameObject.activeSelf != show) radiusGuide.gameObject.SetActive(show);
+    }
+    private void LateUpdate()
+    {
+        if (!IsBound) return;
+        UpdateGuide();
+        if (!Application.isPlaying)
+        {
+            canvasObject.SetActive(true);
+            for (int i = 0; i < 5; i++)
+            {
+                float angle = i * Mathf.PI * 2f / 5f;
+                directions[i].anchoredPosition = new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * pingRadius;
+                directions[i].localRotation = Quaternion.Euler(0, 0, -angle * Mathf.Rad2Deg);
+                directions[i].gameObject.SetActive(previewRadius);
+                heads[i].gameObject.SetActive(false);
+            }
+            return;
+        }
+        if (worldCamera == null) worldCamera = Camera.main;
+        Render(Player.LocalPlayer, worldCamera, enemyLockOn.LocalDesignatedTarget, pingRadius);
+    }
+
+    private void LocalPing(Player target)
     {
         localTarget = target;
         localHeadUntil = Time.unscaledTime + 3f;
     }
 
-    public void Render(Player owner, Camera camera, Player designated, float radius)
+    private void Render(Player owner, Camera camera, Player designated, float radius)
     {
         if (owner == null || owner != Player.LocalPlayer || owner.Object == null || !owner.Object.IsValid ||
             !owner.IsAlive || camera == null || CombatPresentation.MenuOpen ||
@@ -34,11 +86,13 @@ public sealed class TeamTargetPingHUD : MonoBehaviour
                 data.Runner == owner.Runner && data.teamIndex == owner.TeamIndex && !data.IsMatchBot)
                 allies.Add(data);
         allies.Sort((a,b) => a.ParticipantRef.RawEncoded.CompareTo(b.ParticipantRef.RawEncoded));
-        EnsureCanvas();
+        var canvas = canvasRect.GetComponentInParent<Canvas>();
+        var root = canvas != null ? canvas.rootCanvas : null;
+        uiCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
         canvasObject.SetActive(true);
-        // Centre the ring on the same forward-flight marker used by BattleHud.
-        Vector2 centerScreen = BattleHud.GetForwardAimScreenPoint(camera);
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, centerScreen, null, out var center);
+        // Fixed UI centre, independent of mouse aim and the forward-flight marker.
+        Vector2 center = Vector2.zero;
+        Vector2 centerScreen = RectTransformUtility.WorldToScreenPoint(uiCamera, canvasRect.TransformPoint(center));
         for (int i = 0; i < 5; i++)
         {
             Player target = null;
@@ -57,56 +111,36 @@ public sealed class TeamTargetPingHUD : MonoBehaviour
             }
             bool valid = target != null && target.Object != null && target.Object.IsValid &&
                 target.Runner == owner.Runner && target.IsTargetableBy(owner);
-            directions[i].gameObject.SetActive(valid);
+            directions[i].gameObject.SetActive(false);
             heads[i].gameObject.SetActive(false);
             if (!valid) continue;
             Vector3 screen = camera.WorldToScreenPoint(target.LockAimPoint);
+            bool onScreen = screen.z > 0f && camera.pixelRect.Contains((Vector2)screen);
+            directions[i].gameObject.SetActive(!onScreen);
             Vector2 delta = (Vector2)screen - centerScreen;
             if (screen.z < 0f) delta = -delta;
             if (delta.sqrMagnitude < 0.01f) delta = Vector2.up;
             delta.Normalize();
-            // Small concentric offsets keep multiple teammates' arrows legible.
-            directions[i].anchoredPosition = center + delta * (radius + i * 10f);
+            directions[i].anchoredPosition = center + delta * radius;
             directions[i].localRotation = Quaternion.Euler(0,0,Mathf.Atan2(delta.y,delta.x)*Mathf.Rad2Deg-90f);
             Vector3 headScreen = camera.WorldToScreenPoint(target.LockAimPoint + Vector3.up * 1.5f);
             if (head && headScreen.z > 0 && camera.pixelRect.Contains(headScreen))
             {
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, headScreen, null, out var position);
-                heads[i].anchoredPosition = position + new Vector2((i-2)*22f, 22f);
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, headScreen, uiCamera, out var position);
+                heads[i].anchoredPosition = position + new Vector2(0f, 22f);
                 heads[i].localRotation = Quaternion.Euler(0,0,180f);
                 heads[i].gameObject.SetActive(true);
             }
         }
     }
-    private void EnsureCanvas()
+    public void Hide()
     {
-        if (canvasObject != null) return;
-        canvasObject = new GameObject("TeamTargetPings", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
-        canvasRect = canvasObject.GetComponent<RectTransform>();
-        var canvas = canvasObject.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 50;
-        var scaler = canvasObject.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920,1080);
-        for (int i=0;i<5;i++)
-        {
-            directions[i] = CreateArrow("Direction " + i, Colors[i]);
-            heads[i] = CreateArrow("Head ping " + i, Colors[i]);
-        }
+        foreach (var arrow in directions) if (arrow != null) arrow.gameObject.SetActive(false);
+        foreach (var arrow in heads) if (arrow != null) arrow.gameObject.SetActive(false);
     }
-    private RectTransform CreateArrow(string name, Color tint)
+    private void OnDisable()
     {
-        var arrow = new GameObject(name, typeof(RectTransform), typeof(DesignatedTargetTriangle));
-        var rect = arrow.GetComponent<RectTransform>();
-        rect.SetParent(canvasRect, false);
-        rect.sizeDelta = new Vector2(24,30);
-        var graphic = arrow.GetComponent<DesignatedTargetTriangle>();
-        graphic.color = tint;
-        graphic.raycastTarget = false;
-        return rect;
+        enemyLockOn.TargetDesignated -= LocalPing;
+        Hide();
     }
-    public void Hide() { if (canvasObject != null) canvasObject.SetActive(false); }
-    private void OnDisable() => Hide();
-    private void OnDestroy() { if (canvasObject != null) Destroy(canvasObject); }
 }

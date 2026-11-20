@@ -17,9 +17,8 @@ public class enemyLockOn : MonoBehaviour
     private readonly RaycastHit[] obstructionHits = new RaycastHit[32];
     private Player designatedTarget;
     private static enemyLockOn localDesignator;
-    [SerializeField, Min(20f)] private float pingRadius = 120f;
-    private TeamTargetPingHUD pingHud;
-    public void SetPingRadius(float value) => pingRadius = Mathf.Max(20f, value);
+    public static event System.Action<Player> TargetDesignated;
+    public static Player LocalDesignatedTarget => localDesignator != null ? localDesignator.designatedTarget : null;
     public Player DesignatedTarget => designatedTarget;
 
     // Viewer-local presentation only. No replicated target/appearance state.
@@ -52,7 +51,7 @@ public class enemyLockOn : MonoBehaviour
             var data = PlayerData.Local;
             if (data != null && data.Object != null && data.Object.IsValid && data.Runner == owner.Runner)
                 data.RPC_SetTeamPing(target != null && target.Object != null && target.Object.IsValid ? target.Object.Id : default);
-            if (pingHud != null) pingHud.LocalPing(target);
+            TargetDesignated?.Invoke(target);
         }
     }
 
@@ -85,7 +84,6 @@ public class enemyLockOn : MonoBehaviour
         if (!active)
         {
             SetDesignatedTarget(null);
-            SetArrowVisible(false);
             return;
         }
         if (designatedTarget != null && (designatedTarget.Object == null || !designatedTarget.Object.IsValid ||
@@ -97,13 +95,7 @@ public class enemyLockOn : MonoBehaviour
         }
     }
 
-    private void LateUpdate()
-    {
-        if (owner == Player.LocalPlayer && targetCamera == null) targetCamera = Camera.main;
-        if (pingHud != null) pingHud.Render(owner, targetCamera, designatedTarget, pingRadius);
-    }
-    private void SetArrowVisible(bool visible) { if (!visible && pingHud != null) pingHud.Hide(); }
-    private void OnDisable() { SetDesignatedTarget(null); if (localDesignator == this) localDesignator = null; SetArrowVisible(false); }
+    private void OnDisable() { SetDesignatedTarget(null); if (localDesignator == this) localDesignator = null; }
     private void OnDestroy() { if (localDesignator == this) localDesignator = null; }
     public Player CurrentTarget => currentTarget != null ? currentTarget.GetComponent<Player>() : null;
     // Read-only camera presentation state; includes summon targets and requires no new search.
@@ -117,7 +109,6 @@ public class enemyLockOn : MonoBehaviour
     private void Awake()
     {
         owner = GetComponent<Player>();
-        pingHud = gameObject.AddComponent<TeamTargetPingHUD>();
     }
 
     // Called from OnInput, including latched clicks that happened between network ticks.
@@ -333,23 +324,3 @@ public class enemyLockOn : MonoBehaviour
     }
 }
 
-// Two nested triangles keep the outline crisp without a texture or an Outline mesh effect.
-public sealed class DesignatedTargetTriangle : MaskableGraphic
-{
-    protected override void OnPopulateMesh(VertexHelper mesh)
-    {
-        mesh.Clear();
-        Rect rect = rectTransform.rect;
-        AddTriangle(mesh, rect.width, rect.height, Color.black);
-        AddTriangle(mesh, rect.width * .68f, rect.height * .68f, color);
-    }
-
-    private static void AddTriangle(VertexHelper mesh, float width, float height, Color tint)
-    {
-        int start = mesh.currentVertCount;
-        mesh.AddVert(new Vector3(0f, height * .5f), tint, Vector2.zero);
-        mesh.AddVert(new Vector3(width * .5f, -height * .5f), tint, Vector2.zero);
-        mesh.AddVert(new Vector3(-width * .5f, -height * .5f), tint, Vector2.zero);
-        mesh.AddTriangle(start, start + 1, start + 2);
-    }
-}
