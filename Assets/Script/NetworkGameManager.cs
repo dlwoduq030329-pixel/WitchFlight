@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 
 using Fusion;
@@ -552,6 +552,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             runnerObject = new GameObject("WitchFlight Network Session");
             runnerObject.transform.SetParent(transform, false);
             sessionRunner = runnerObject.AddComponent<NetworkRunner>();
+            if (request != MatchRequest.Training) TeamVoiceChat.Attach(sessionRunner);
             _runner = sessionRunner;
             sessionRunner.AddCallbacks(this);
             sessionRunner.ProvideInput = true;

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 [CreateAssetMenu(menuName = "WitchFlight/Combat/Flight Combat Table")]
 public sealed class FlightCombatTable : ScriptableObject
@@ -11,7 +11,7 @@ public sealed class FlightCombatTable : ScriptableObject
     [Tooltip("대쉬 가속 전 FOV 수축 시간. 이 시간이 끝나면 가속과 카메라 후퇴가 함께 시작됩니다.")]
     [Min(0f)] public float dashWindupSeconds = .08f;
     [Header("ManaBuff area recovery")]
-    [Tooltip("ManaBuff Trigger 내부의 자연 마나 회복 배율. 여러 영역이 겹쳐도 중첩하지 않습니다.")]
+    [Tooltip("ManaBuff Trigger 내부에서는 착용 모자와 무관하게 마력 모자(Elemental)의 기본 초당 회복량에 이 배율을 적용합니다. 여러 영역이 겹쳐도 중첩하지 않습니다.")]
     [Min(1f)] public float manaBuffManaRecoveryMultiplier = 2f;
     [Tooltip("ManaBuff Trigger 내부의 대쉬 충전 속도 배율. 기본 8초 / 4배 = 2초에 1회 충전.")]
     [Min(1f)] public float manaBuffDashRechargeMultiplier = 4f;

@@ -2531,10 +2531,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private void RegenerateAp()
     {
         if (RainCharging || IsChanneling || (SelectedMagicStats.IsChanneled && previousButtons.IsSet(PlayerInputButton.Lock)) ||
-            MaxAp <= 0f || NowAp >= MaxAp || ApRecoveryPerSecond <= 0f)
+            MaxAp <= 0f || NowAp >= MaxAp)
             return;
 
-        NowAp = Mathf.Min(MaxAp, NowAp + ApRecoveryPerSecond * Runner.DeltaTime * FestivalRecoveryBonus * ManaBuffManaRecoveryMultiplier);
+        NowAp = Mathf.Min(MaxAp, NowAp + Mathf.Max(0f, EffectiveManaRecoveryPerSecond) * Runner.DeltaTime);
     }
 
     public void ReportBattleSceneReady()

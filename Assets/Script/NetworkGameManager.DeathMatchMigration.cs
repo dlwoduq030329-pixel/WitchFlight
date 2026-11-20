@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fusion;
@@ -110,6 +110,7 @@ public partial class NetworkGameManager
             runnerObject = new GameObject("WitchFlight Migrated Deathmatch");
             runnerObject.transform.SetParent(transform, false);
             var resumed = runnerObject.AddComponent<NetworkRunner>();
+            TeamVoiceChat.Attach(resumed);
             _runner = resumed;
             resumed.AddCallbacks(this);
             resumed.ProvideInput = true;

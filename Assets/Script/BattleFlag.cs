@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -50,6 +50,21 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
     [Networked] public int LastRoundWinner { get; private set; }
     [Networked] public int AllowedMagicChanges { get; private set; }
     [Networked] public bool IsOvertime { get; private set; }
+    [Networked] public int OvertimeChallengerTeam { get; private set; }
+    [Networked] private TickTimer OvertimeTimer { get; set; }
+    [Networked] private int OvertimeHeldTicks { get; set; }
+    [Networked] private float OvertimeWindowSeconds { get; set; }
+    public float OvertimeProgress => IsOvertime && OvertimeChallengerTeam != 0 && OvertimeWindowSeconds > 0f
+        ? Mathf.Clamp01((OvertimeTimer.RemainingTime(Runner) ?? 0f) / OvertimeWindowSeconds) : 0f;
+
+    private void ResetOvertimeClock()
+    {
+        OvertimeChallengerTeam = 0;
+        OvertimeTimer = TickTimer.None;
+        OvertimeHeldTicks = 0;
+        OvertimeWindowSeconds = 15f;
+    }
+
     [Networked] public int Team1PossessionTicks { get; private set; }
     [Networked] public int Team2PossessionTicks { get; private set; }
     [Networked] public int Team1PossessionScoreTicks { get; private set; }
@@ -149,6 +164,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         RoundNumber = 1;
         Team1Wins = Team2Wins = LastRoundWinner = 0;
         IsOvertime = false;
+        ResetOvertimeClock();
         Phase = BattleStartPhase.WaitingForPlayers;
         PhaseTimer = TickTimer.None;
         MatchTimer = TickTimer.None;
@@ -358,6 +374,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
                 WorldPosition = carrier.transform.TransformPoint(carryOffset);
                 // Count the holder of this elapsed simulation interval, not a new pickup at its end.
                 int score = IsFinalScoreBonus ? 2 : 1;
+                if (IsOvertime && OvertimeChallengerTeam != 0) OvertimeHeldTicks++;
                 if (carrier.TeamIndex == 1) { Team1PossessionTicks++; Team1PossessionScoreTicks += score; }
                 else if (carrier.TeamIndex == 2) { Team2PossessionTicks++; Team2PossessionScoreTicks += score; }
             }
@@ -365,13 +382,37 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         UpdateDescent();
         CheckPickupAndRecordPositions();
         transform.position = WorldPosition;
-        // Possession already earned remains valid even if the flag is dropped at the deadline.
         if (!training && (IsOvertime || MatchTimer.Expired(Runner)))
         {
             int winner = BattleRoundRules.PossessionWinner(Team1PossessionScoreTicks, Team2PossessionScoreTicks);
-            if (winner != 0)
+            Player holder = GetCarrierPlayer();
+            int carrierTeam = holder != null && holder.IsAlive ? holder.TeamIndex : 0;
+            if (!IsOvertime)
+            {
+                if (BattleRoundRules.CanStartComeback(winner, carrierTeam))
+                {
+                    IsOvertime = true;
+                    ResetOvertimeClock();
+                    OvertimeChallengerTeam = carrierTeam;
+                    OvertimeTimer = TickTimer.CreateFromSeconds(Runner, OvertimeWindowSeconds);
+                }
+                else if (winner != 0) FinishRound(winner);
+                else { IsOvertime = true; ResetOvertimeClock(); }
+            }
+            else if (OvertimeChallengerTeam == 0)
+            {
+                // Preserve sudden death for an exactly tied regulation result.
+                if (winner != 0) FinishRound(winner);
+            }
+            else if (winner == OvertimeChallengerTeam)
                 FinishRound(winner);
-            else IsOvertime = true;
+            else if (carrierTeam == OvertimeChallengerTeam)
+            {
+                OvertimeWindowSeconds = BattleRoundRules.OvertimeGraceSeconds(OvertimeHeldTicks * Runner.DeltaTime);
+                OvertimeTimer = TickTimer.CreateFromSeconds(Runner, OvertimeWindowSeconds);
+            }
+            else if (OvertimeTimer.Expired(Runner))
+                FinishRound(OvertimeChallengerTeam == 1 ? 2 : 1);
         }
     }
 
@@ -388,6 +429,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         MatchTimer = TickTimer.None;
         HasStarted = false;
         IsOvertime = false;
+        ResetOvertimeClock();
         Carrier = PlayerRef.None;
         CarrierObjectId = default;
         ClearRoundSmoke();
@@ -410,6 +452,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         LastCarrierTeam = 0;
         CarrierObjectId = default;
         IsDescending = IsOvertime = HasStarted = false;
+        ResetOvertimeClock();
         previousPositions.Clear();
         readyPlayers.Clear();
         PhaseTimer = MatchTimer = TickTimer.None;

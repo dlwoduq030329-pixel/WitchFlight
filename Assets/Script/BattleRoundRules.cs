@@ -4,6 +4,12 @@ public static class BattleRoundRules
     public static int PossessionWinner(int team1Ticks, int team2Ticks)
         => team1Ticks == team2Ticks ? 0 : team1Ticks > team2Ticks ? 1 : 2;
 
+    public static float OvertimeGraceSeconds(float heldSeconds)
+        => heldSeconds > 60f ? 1.5f : 15f - 12f * System.Math.Max(0f, System.Math.Min(1f, heldSeconds / 60f));
+
+    public static bool CanStartComeback(int winner, int carrierTeam)
+        => winner != 0 && (carrierTeam == 1 || carrierTeam == 2) && carrierTeam != winner;
+
     public static float PossessionShare(int team1Ticks, int team2Ticks, int team)
     {
         long total = (long)team1Ticks + team2Ticks;

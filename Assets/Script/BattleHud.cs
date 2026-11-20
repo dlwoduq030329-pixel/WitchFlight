@@ -329,6 +329,25 @@ public sealed partial class BattleHud : MonoBehaviour
         blinkingPossessionFill = null;
         if (remainingTimeAnnouncement != null) remainingTimeAnnouncement.gameObject.SetActive(false);
     }
+    [SerializeField] private Slider overtimeSlider;
+    [SerializeField] private TMP_Text overtimeLabel;
+    [SerializeField] private Color overtimeColor = new Color(1f, .72f, .08f, 1f);
+    [SerializeField] private Color overtimeFlashColor = new Color(1f, .98f, .72f, 1f);
+    [SerializeField, Min(0f)] private float overtimeFlashFrequency = 2.5f;
+    private Graphic overtimeFillGraphic;
+
+    private void BindOvertimePresentation(bool show, float progress)
+    {
+        Visible(overtimeLabel != null ? overtimeLabel.gameObject : null, show);
+        if (overtimeFillGraphic == null && overtimeSlider != null && overtimeSlider.fillRect != null)
+            overtimeFillGraphic = overtimeSlider.fillRect.GetComponent<Graphic>();
+        float pulse = show && progress < .999f
+            ? Mathf.Pow(.5f + .5f * Mathf.Sin(Time.unscaledTime * overtimeFlashFrequency * Mathf.PI * 2f), 3f) : 0f;
+        Color color = Color.Lerp(overtimeColor, overtimeFlashColor, pulse);
+        if (overtimeFillGraphic != null) overtimeFillGraphic.color = color;
+        if (overtimeLabel != null) overtimeLabel.color = Color.white;
+    }
+
     [SerializeField] private Slider allyTimeSlider;
     [SerializeField] private Slider enemyTimeSlider;
     [SerializeField] private TMP_Text flagText;
@@ -724,6 +743,12 @@ public sealed partial class BattleHud : MonoBehaviour
         int localTeam = PlayerData.Local != null ? PlayerData.Local.teamIndex : valid ? owner.TeamIndex : 0;
         UpdatePossessionSlider(allyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam) : 0f);
         UpdatePossessionSlider(enemyTimeSlider, possessionValid ? flag.PossessionProgress(localTeam == 1 ? 2 : localTeam == 2 ? 1 : 0) : 0f);
+        bool overtimeVisible = possessionValid && flag.Phase == BattleStartPhase.Playing &&
+            flag.IsOvertime && flag.OvertimeChallengerTeam != 0;
+        Visible(overtimeSlider != null ? overtimeSlider.gameObject : null, overtimeVisible);
+        UpdatePossessionSlider(overtimeSlider, overtimeVisible ? flag.OvertimeProgress : 0f);
+        BindOvertimePresentation(possessionValid && flag.Phase == BattleStartPhase.Playing && flag.IsOvertime,
+            overtimeVisible ? flag.OvertimeProgress : 1f);
         UpdateRemainingTimeAnnouncement(battle, flag, localTeam);
         bool hasFlag = flag != null && flag.Object != null && flag.Object.IsValid && flag.Carrier != PlayerRef.None;
         if (flagText != null)

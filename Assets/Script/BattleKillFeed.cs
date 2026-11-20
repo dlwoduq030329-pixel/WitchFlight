@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -18,6 +18,45 @@ public sealed class BattleKillFeed : MonoBehaviour
     private Vector3 mineScale;
     private float mineStarted;
     private bool mineVisible;
+    [Header("Consecutive kills (scene-authored VFX_DoubleKill)")]
+    [SerializeField] private GameObject multiKillPanel;
+    [SerializeField] private TMP_Text multiKillText;
+    [SerializeField, Min(.1f)] private float multiKillWindowSeconds = 5f;
+    [SerializeField, Min(.1f)] private float multiKillDisplaySeconds = 3f;
+    private ParticleSystem[] multiKillParticles;
+    private int consecutiveKills;
+    private float lastKillTime;
+    private float multiKillShownAt;
+    private bool multiKillVisible;
+
+    public static int NextConsecutiveKillCount(int count, float elapsed, float window)
+        => count > 0 && elapsed <= window && elapsed >= 0f ? count + 1 : 1;
+
+    private void RecordLocalKill()
+    {
+        float now = Time.unscaledTime;
+        consecutiveKills = NextConsecutiveKillCount(consecutiveKills, now - lastKillTime, multiKillWindowSeconds);
+        lastKillTime = now;
+        if (consecutiveKills < 2 || multiKillPanel == null) return;
+        multiKillPanel.SetActive(false);
+        SetName(multiKillText, consecutiveKills + "명 연속 처치!");
+        multiKillPanel.SetActive(true);
+        foreach (var effect in multiKillParticles)
+        {
+            if (effect == null || !effect.gameObject.activeInHierarchy) continue;
+            effect.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+            effect.Play(false);
+        }
+        multiKillShownAt = now;
+        multiKillVisible = true;
+    }
+
+    private void HideMultiKill()
+    {
+        if (multiKillPanel != null) multiKillPanel.SetActive(false);
+        multiKillVisible = false;
+    }
+
     [Header("Kill card (empty = generated UI)")]
     [SerializeField] private GameObject killPanel;
     [SerializeField] private TMP_Text killerNameText;
@@ -59,6 +98,12 @@ public sealed class BattleKillFeed : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        if (multiKillPanel != null)
+        {
+            if (multiKillText == null) multiKillText = multiKillPanel.GetComponentInChildren<TMP_Text>(true);
+            multiKillParticles = multiKillPanel.GetComponentsInChildren<ParticleSystem>(true);
+            multiKillPanel.SetActive(false);
+        }
         if (minePanel != null)
         {
             mineScale = minePanel.transform.localScale;
@@ -81,6 +126,10 @@ public sealed class BattleKillFeed : MonoBehaviour
     {
         if (!isActiveAndEnabled) return;
         var owner = PlayerData.Local;
+        bool localKill = owner != null && owner.Object != null && owner.Object.IsValid &&
+            killerPlayer != Fusion.PlayerRef.None && owner.Object.InputAuthority == killerPlayer;
+        if (localKill && (killerTeam != victimTeam || (BattleManager.Instance != null && BattleManager.Instance.IsDeathMatch)))
+            RecordLocalKill();
         if (minePanel != null && owner != null && owner.Object != null && owner.Object.IsValid &&
             killerPlayer != Fusion.PlayerRef.None && owner.Object.InputAuthority == killerPlayer)
         {
@@ -117,6 +166,11 @@ public sealed class BattleKillFeed : MonoBehaviour
 
     private void Update()
     {
+        if (consecutiveKills > 0 && (Time.unscaledTime - lastKillTime > multiKillWindowSeconds ||
+            (BattleManager.Instance != null && !BattleManager.Instance.IsGameplayActive)))
+            consecutiveKills = 0;
+        if (multiKillVisible && (Time.unscaledTime - multiKillShownAt >= multiKillDisplaySeconds ||
+            (BattleManager.Instance != null && !BattleManager.Instance.IsGameplayActive))) HideMultiKill();
         if (mineVisible && minePanel != null)
         {
             float elapsed = Time.unscaledTime - mineStarted;
@@ -306,7 +360,7 @@ public sealed class BattleKillFeed : MonoBehaviour
         minePanel.transform.localScale = mineScale;
         if (mineGroup != null) mineGroup.alpha = 1f;
     }
-    private void OnDisable() { while (notices.Count > 0) RemoveNotice(notices.Count - 1); RestorePanel(); HideMine(); }
+    private void OnDisable() { while (notices.Count > 0) RemoveNotice(notices.Count - 1); RestorePanel(); HideMine(); HideMultiKill(); consecutiveKills = 0; }
     private void OnDestroy()
     {
         if (Instance == this) Instance = null;
