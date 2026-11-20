@@ -36,7 +36,15 @@ public sealed class TeamVoiceChat : FusionVoiceClient
     private void ApplyVolumes()
     {
         if (amplifier != null) amplifier.AmplificationFactor = InputVolume / 50f;
-        foreach (var output in outputs) if (output != null) output.volume = OutputVolume / 100f;
+        float value = OutputVolume;
+        // Preserve the default 50 and lower levels; expand the upper half to +12 dB.
+        float gain = value <= 50f ? value / 100f : 0.5f * Mathf.Pow(8f, (value - 50f) / 50f);
+        foreach (var output in outputs)
+        {
+            if (output == null) continue;
+            output.volume = Mathf.Min(1f, gain);
+            if (output.TryGetComponent<VoicePlaybackGain>(out var playback)) playback.SetGain(gain);
+        }
     }
     private Recorder microphone;
     private NetworkRunner runner;
@@ -222,6 +230,7 @@ public sealed class TeamVoiceChat : FusionVoiceClient
         var audio = output.AddComponent<AudioSource>();
         audio.spatialBlend = 0f;
         audio.playOnAwake = false;
+        output.AddComponent<VoicePlaybackGain>();
         outputs.Add(audio);
         ApplyVolumes();
         var speaker = output.AddComponent<Speaker>();
