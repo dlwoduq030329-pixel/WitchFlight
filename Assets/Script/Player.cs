@@ -629,7 +629,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         botDecisionTime = botAttackTime = botHeldTime = botAimRefresh = 0f;
         botHolding = botReleaseFrame = botRecovering = botAimMiss = false;
         botTarget = botAimTarget = botCarrier = botCastAlly = botFormationTarget = null;
-        botHealthPickup = null; botParryHandled.Clear(); botParryExpired.Clear();
+        botHealthPickup = null; botDenyHealthPickup = null; botBasicAttackTime = 0f; botNextMagicSlot = 1;
+        botParryHandled.Clear(); botParryExpired.Clear();
         botParryRound = botMobilityRound = -1;
         botParryProbabilityOffset = 0f;
         botTacticalRoster.Clear(); botPortals.Clear(); botPortalEntries.Clear(); botPortalExits.Clear();

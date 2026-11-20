@@ -334,17 +334,38 @@ public sealed partial class BattleHud : MonoBehaviour
     [SerializeField] private Color overtimeColor = new Color(1f, .72f, .08f, 1f);
     [SerializeField] private Color overtimeFlashColor = new Color(1f, .98f, .72f, 1f);
     [SerializeField, Min(0f)] private float overtimeFlashFrequency = 2.5f;
+    [SerializeField, Min(0f)] private float overtimeUrgentFlashFrequency = 5f;
+    [SerializeField, Range(0f, 1f)] private float overtimeHandlePulseScale = .45f;
     private Graphic overtimeFillGraphic;
+    private Graphic overtimeHandleGraphic;
+    private Vector3 overtimeHandleBaseScale;
+    private float overtimePulsePhase;
 
     private void BindOvertimePresentation(bool show, float progress)
     {
         Visible(overtimeLabel != null ? overtimeLabel.gameObject : null, show);
         if (overtimeFillGraphic == null && overtimeSlider != null && overtimeSlider.fillRect != null)
             overtimeFillGraphic = overtimeSlider.fillRect.GetComponent<Graphic>();
-        float pulse = show && progress < .999f
-            ? Mathf.Pow(.5f + .5f * Mathf.Sin(Time.unscaledTime * overtimeFlashFrequency * Mathf.PI * 2f), 3f) : 0f;
-        Color color = Color.Lerp(overtimeColor, overtimeFlashColor, pulse);
+        if (overtimeHandleGraphic == null && overtimeSlider != null && overtimeSlider.handleRect != null)
+        {
+            overtimeHandleGraphic = overtimeSlider.handleRect.GetComponent<Graphic>();
+            overtimeHandleBaseScale = overtimeSlider.handleRect.localScale;
+        }
+        bool draining = show && progress > 0f && progress < .999f;
+        float urgency = 1f - Mathf.Clamp01(progress);
+        if (draining)
+            overtimePulsePhase = Mathf.Repeat(overtimePulsePhase + Time.unscaledDeltaTime *
+                Mathf.Lerp(overtimeFlashFrequency, overtimeUrgentFlashFrequency, urgency), 1f);
+        else overtimePulsePhase = 0f;
+        float pulse = draining ? Mathf.Pow(.5f + .5f * Mathf.Sin(overtimePulsePhase * Mathf.PI * 2f), 3f) : 0f;
+        Color baseColor = draining ? Color.Lerp(overtimeColor, new Color(1f, .32f, .02f), urgency * .75f) : overtimeColor;
+        Color color = Color.Lerp(baseColor, overtimeFlashColor, pulse);
         if (overtimeFillGraphic != null) overtimeFillGraphic.color = color;
+        if (overtimeHandleGraphic != null)
+        {
+            overtimeHandleGraphic.color = Color.Lerp(baseColor, Color.white, .35f + .65f * pulse);
+            overtimeSlider.handleRect.localScale = overtimeHandleBaseScale * (1f + pulse * overtimeHandlePulseScale);
+        }
         if (overtimeLabel != null) overtimeLabel.color = Color.white;
     }
 

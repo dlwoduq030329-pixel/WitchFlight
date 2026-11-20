@@ -19,7 +19,9 @@
             }
             for (int i = 0; i < buf.Length; i++)
             {
-                buf[i] = (short)(buf[i] * this.AmplificationFactor);
+                // Saturate before casting: boosted speech must not wrap around Int16.
+                float sample = buf[i] * this.AmplificationFactor;
+                buf[i] = (short)System.Math.Max(short.MinValue, System.Math.Min(short.MaxValue, sample));
             }
             return buf;
         }

@@ -20,13 +20,30 @@ public sealed class TeamVoiceChat : FusionVoiceClient
     public bool IsTransmitting => microphone != null && microphone.TransmitEnabled;
     public bool IsVoiceConnected => Client != null && Client.InRoom;
     public static event System.Action SettingsChanged;
-    public static float OutputVolume => Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Output", 50f), 0f, 100f);
-    public static float InputVolume => Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Input", 50f), 0f, 100f);
+    public static float OutputVolume { get { MigrateVoiceGain(); return Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Output", 50f), 0f, 100f); } }
+    public static float InputVolume { get { MigrateVoiceGain(); return Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Input", 50f), 0f, 100f); } }
+    private static void MigrateVoiceGain()
+    {
+        if (PlayerPrefs.GetInt("VoiceChat.GainScaleVersion", 0) >= 2) return;
+        if (PlayerPrefs.HasKey("VoiceChat.Input"))
+            PlayerPrefs.SetFloat("VoiceChat.Input", Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Input"), 0f, 100f) * .5f);
+        if (PlayerPrefs.HasKey("VoiceChat.Output"))
+        {
+            float old = Mathf.Clamp(PlayerPrefs.GetFloat("VoiceChat.Output"), 0f, 100f);
+            float oldGain = old <= 50f ? old / 100f : .5f * Mathf.Pow(8f, (old - 50f) / 50f);
+            PlayerPrefs.SetFloat("VoiceChat.Output", oldGain / 4f * 50f);
+        }
+        PlayerPrefs.SetInt("VoiceChat.GainScaleVersion", 2);
+        PlayerPrefs.Save();
+    }
+    private static float VoiceGain(float value, float midpointGain) => value <= 50f
+        ? midpointGain * value / 50f : midpointGain * Mathf.Pow(4f, (value - 50f) / 50f);
     public static void SetOutputVolume(float value) => SetVolume("VoiceChat.Output", value);
     public static void SetInputVolume(float value) => SetVolume("VoiceChat.Input", value);
     private static void SetVolume(string key, float value)
     {
         if (float.IsNaN(value) || float.IsInfinity(value)) return;
+        MigrateVoiceGain();
         PlayerPrefs.SetFloat(key, Mathf.Clamp(value, 0f, 100f));
         if (Instance != null) Instance.ApplyVolumes();
         SettingsChanged?.Invoke();
@@ -35,10 +52,9 @@ public sealed class TeamVoiceChat : FusionVoiceClient
     private MicAmplifier amplifier;
     private void ApplyVolumes()
     {
-        if (amplifier != null) amplifier.AmplificationFactor = InputVolume / 50f;
-        float value = OutputVolume;
-        // Preserve the default 50 and lower levels; expand the upper half to +12 dB.
-        float gain = value <= 50f ? value / 100f : 0.5f * Mathf.Pow(8f, (value - 50f) / 50f);
+        if (amplifier != null) amplifier.AmplificationFactor = VoiceGain(InputVolume, 2f);
+        // New midpoint = previous maximum. New maximum = four times that gain.
+        float gain = VoiceGain(OutputVolume, 4f);
         foreach (var output in outputs)
         {
             if (output == null) continue;

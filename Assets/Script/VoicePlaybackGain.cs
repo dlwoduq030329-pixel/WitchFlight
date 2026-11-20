@@ -5,7 +5,7 @@ using UnityEngine;
 public sealed class VoicePlaybackGain : MonoBehaviour
 {
     private volatile float gain = 1f;
-    public void SetGain(float value) => gain = Mathf.Clamp(value, 1f, 4f);
+    public void SetGain(float value) => gain = Mathf.Clamp(value, 1f, 16f);
 
     private void OnAudioFilterRead(float[] samples, int channels)
     {
