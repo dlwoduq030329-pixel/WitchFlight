@@ -17,8 +17,9 @@ public class enemyLockOn : MonoBehaviour
     private readonly RaycastHit[] obstructionHits = new RaycastHit[32];
     private Player designatedTarget;
     private static enemyLockOn localDesignator;
-    private GameObject directionCanvas;
-    private RectTransform directionArrow;
+    [SerializeField, Min(20f)] private float pingRadius = 120f;
+    private TeamTargetPingHUD pingHud;
+    public void SetPingRadius(float value) => pingRadius = Mathf.Max(20f, value);
     public Player DesignatedTarget => designatedTarget;
 
     // Viewer-local presentation only. No replicated target/appearance state.
@@ -46,7 +47,13 @@ public class enemyLockOn : MonoBehaviour
             currentTarget = null;
             nextRefreshTime = 0f;
         }
-        SetArrowVisible(false);
+        if (owner != null && owner == Player.LocalPlayer && owner.Object != null && owner.Object.IsValid && owner.Object.HasInputAuthority)
+        {
+            var data = PlayerData.Local;
+            if (data != null && data.Object != null && data.Object.IsValid && data.Runner == owner.Runner)
+                data.RPC_SetTeamPing(target != null && target.Object != null && target.Object.IsValid ? target.Object.Id : default);
+            if (pingHud != null) pingHud.LocalPing(target);
+        }
     }
 
     private Player FindNextDesignatedTarget()
@@ -92,43 +99,12 @@ public class enemyLockOn : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (designatedTarget == null || targetCamera == null || CombatPresentation.MenuOpen)
-        { SetArrowVisible(false); return; }
-        Vector3 point = targetCamera.WorldToViewportPoint(designatedTarget.LockAimPoint);
-        if (point.z > 0f && point.x >= 0f && point.x <= 1f && point.y >= 0f && point.y <= 1f)
-        { SetArrowVisible(false); return; }
-        if (directionCanvas == null)
-        {
-            directionCanvas = new GameObject("DesignatedTargetDirection", typeof(Canvas), typeof(CanvasScaler));
-            var canvas = directionCanvas.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 50;
-            var scaler = directionCanvas.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            var arrow = new GameObject("RedTriangleBlackOutline", typeof(RectTransform), typeof(DesignatedTargetTriangle));
-            directionArrow = arrow.GetComponent<RectTransform>();
-            directionArrow.SetParent(directionCanvas.transform, false);
-            directionArrow.sizeDelta = new Vector2(32f, 38f);
-            arrow.GetComponent<DesignatedTargetTriangle>().raycastTarget = false;
-        }
-        SetArrowVisible(true);
-        Vector2 delta = new Vector2((point.x - .5f) * targetCamera.pixelWidth, (point.y - .5f) * targetCamera.pixelHeight);
-        if (point.z < 0f) delta = -delta;
-        if (delta.sqrMagnitude < .01f) delta = Vector2.down;
-        Rect rect = ((RectTransform)directionCanvas.transform).rect;
-        Vector2 edge = new Vector2(Mathf.Max(1f, rect.width * .5f - 42f), Mathf.Max(1f, rect.height * .5f - 42f));
-        float scale = Mathf.Min(edge.x / Mathf.Max(.001f, Mathf.Abs(delta.x)), edge.y / Mathf.Max(.001f, Mathf.Abs(delta.y)));
-        directionArrow.anchoredPosition = delta * scale;
-        directionArrow.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg - 90f);
+        if (owner == Player.LocalPlayer && targetCamera == null) targetCamera = Camera.main;
+        if (pingHud != null) pingHud.Render(owner, targetCamera, designatedTarget, pingRadius);
     }
-
-    private void SetArrowVisible(bool visible)
-    {
-        if (directionCanvas != null && directionCanvas.activeSelf != visible) directionCanvas.SetActive(visible);
-    }
+    private void SetArrowVisible(bool visible) { if (!visible && pingHud != null) pingHud.Hide(); }
     private void OnDisable() { SetDesignatedTarget(null); if (localDesignator == this) localDesignator = null; SetArrowVisible(false); }
-    private void OnDestroy() { if (localDesignator == this) localDesignator = null; if (directionCanvas != null) Destroy(directionCanvas); }
+    private void OnDestroy() { if (localDesignator == this) localDesignator = null; }
     public Player CurrentTarget => currentTarget != null ? currentTarget.GetComponent<Player>() : null;
     // Read-only camera presentation state; includes summon targets and requires no new search.
     public bool HasSelectedTarget => wasHeld && currentTarget != null && currentTarget.IsValid &&
@@ -138,7 +114,11 @@ public class enemyLockOn : MonoBehaviour
     public float SelectedTargetProgress => HasSelectedTarget && owner.HasLockTarget(currentTarget)
         ? Mathf.Clamp01(owner.LockProgress) : 0f;
 
-    private void Awake() => owner = GetComponent<Player>();
+    private void Awake()
+    {
+        owner = GetComponent<Player>();
+        pingHud = gameObject.AddComponent<TeamTargetPingHUD>();
+    }
 
     // Called from OnInput, including latched clicks that happened between network ticks.
     private bool wasHeld;
@@ -361,7 +341,7 @@ public sealed class DesignatedTargetTriangle : MaskableGraphic
         mesh.Clear();
         Rect rect = rectTransform.rect;
         AddTriangle(mesh, rect.width, rect.height, Color.black);
-        AddTriangle(mesh, rect.width * .68f, rect.height * .68f, new Color32(231, 40, 56, 255));
+        AddTriangle(mesh, rect.width * .68f, rect.height * .68f, color);
     }
 
     private static void AddTriangle(VertexHelper mesh, float width, float height, Color tint)

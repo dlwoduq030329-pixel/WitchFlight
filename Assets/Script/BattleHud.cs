@@ -1385,6 +1385,20 @@ public sealed partial class BattleHud : MonoBehaviour
 
     // Input samples the assigned Dot, never the moving nose-direction circle.
     // Only the owning client reads UI/camera state; the host receives a direction.
+    public static Vector2 GetForwardAimScreenPoint(Camera camera)
+    {
+        if (camera == null) return Vector2.zero;
+        var marker = instance != null && instance.isActiveAndEnabled ? instance.forwardAimMarker : null;
+        if (marker != null && marker.gameObject.activeInHierarchy)
+        {
+            var canvas = marker.GetComponentInParent<Canvas>();
+            var root = canvas != null ? canvas.rootCanvas : null;
+            var uiCamera = root != null && root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
+            return RectTransformUtility.WorldToScreenPoint(uiCamera, marker.TransformPoint(marker.rect.center));
+        }
+        return camera.pixelRect.center;
+    }
+
     public static Ray GetMagicAimRay(Camera camera)
     {
         if (camera == null) return default;
