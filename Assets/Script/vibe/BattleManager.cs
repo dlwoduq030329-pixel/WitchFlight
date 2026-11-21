@@ -86,7 +86,7 @@ public partial class BattleManager : MonoBehaviour
     public virtual string ObjectiveLabel => IsDeathMatch ? "자유롭게 전투하세요" : null;
     public virtual string ModeLabel => IsDeathMatch ? "데스매치" : null;
     public bool IsRace => RaceCourse.Instance != null;
-    public virtual BattleStartPhase Phase => IsDeathMatch ? (NetworkGameManager.Instance.IsMigratingDeathMatch ? BattleStartPhase.WaitingForPlayers : BattleStartPhase.Playing) : IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
+    public virtual BattleStartPhase Phase => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsMigratingDeathMatch ? BattleStartPhase.WaitingForPlayers : IsDeathMatch ? (NetworkGameManager.Instance.IsMigratingDeathMatch ? BattleStartPhase.WaitingForPlayers : BattleStartPhase.Playing) : IsRace ? RaceCourse.Instance.Phase : HasValidFlag ? battleFlag.Phase : BattleStartPhase.WaitingForPlayers;
     public bool IsGameplayActive => Phase == BattleStartPhase.Playing ||
         (IsTraining && Phase == BattleStartPhase.TrainingTutorial && CatTutorialDirector.PracticeInputActive);
     public bool IsTraining => NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsTraining;
@@ -203,6 +203,25 @@ public partial class BattleManager : MonoBehaviour
         if (!IsRace && !IsDeathMatch) SpawnFlag();
         if (collectMovementLogs)
             (GetComponent<BattleMovementRecorder>() ?? gameObject.AddComponent<BattleMovementRecorder>()).Begin(runner, this);
+    }
+
+    public void RestoreMigratedSession(NetworkRunner restoredRunner,
+        Dictionary<PlayerRef, PlayerData> restoredData, NetworkPrefabRef restoredPrefab,
+        Dictionary<PlayerRef, NetworkObject> restoredPlayers)
+    {
+        if (restoredRunner == null || !restoredRunner.IsServer) return;
+        runner = restoredRunner;
+        playerDatas = restoredData;
+        playerPrefab = restoredPrefab;
+        spawnedPlayers = restoredPlayers;
+        isInitialized = true;
+        battleFlag = BattleFlag.Instance;
+        resultAnnounced = battleFlag != null && battleFlag.HasEnded;
+        FindSpawnPoints();
+        if (battleFlag != null)
+            battleFlag.RestoreMigratedConfiguration(flagSpawnPoint != null ? flagSpawnPoint.position : battleFlag.transform.position,
+                matchDurationSeconds, introDurationSeconds, magicChangeDurationSeconds);
+        RestoreDeathMatchRespawns();
     }
 
     public void RecordRoundMagicPicks()

@@ -43,7 +43,7 @@ public partial class BattleManager
 
     public void RestoreDeathMatchRespawns()
     {
-        if (!IsDeathMatch || !isInitialized || runner == null || !runner.IsServer) return;
+        if (!isInitialized || runner == null || !runner.IsServer || IsBattleEnded) return;
         foreach (var pair in spawnedPlayers)
         {
             if (pair.Value == null || !pair.Value.IsValid) continue;

@@ -591,7 +591,10 @@ public sealed partial class BattleIntroPresentation : MonoBehaviour
         bool countdown = phase == BattleStartPhase.Countdown;
         if (countdown) EnsureCountdownText();
         bool waiting = phase == BattleStartPhase.WaitingForPlayers;
-        if (waiting && !training)
+        var session = NetworkGameManager.Instance;
+        bool connected = session != null && session.Runner != null && session.Runner.IsRunning;
+        // A destroyed flag after disconnect is not a fresh battle loading barrier.
+        if (waiting && !training && (connected || (session != null && session.IsMigratingDeathMatch)))
             BattleLoadingUI.Show("전투 화면을 준비하는 중...");
         else
         {
