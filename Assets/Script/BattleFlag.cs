@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -140,6 +140,47 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         BattleManager.Instance?.RegisterFlag(this);
         foreach (Collider flagCollider in GetComponentsInChildren<Collider>())
             flagCollider.isTrigger = true;
+    }
+
+    public void RestoreMigratedConfiguration(Vector3 spawn, float duration, float intro, float changes)
+    {
+        roundFlagPosition = spawn;
+        initialFlagHeight = spawn.y;
+        matchSeconds = Mathf.Max(1f, duration);
+        introSeconds = Mathf.Max(.1f, intro);
+        magicChangeSeconds = Mathf.Max(1f, changes);
+        startRequested = true;
+        mapTourStarted = Phase != BattleStartPhase.WaitingForPlayers;
+        fallStopHeight = WorldPosition.y;
+        fallSpeed = 5f;
+    }
+
+    public void RestoreMigratedRuntime(Dictionary<PlayerRef, PlayerRef> players)
+    {
+        if (!Object.HasStateAuthority) return;
+        PlayerRef Remap(PlayerRef old) => old == PlayerRef.None ? old :
+            players.TryGetValue(old, out var current) ? current :
+            PlayerData.FindPerkData(Runner, old) is { IsMatchBot: true } ? old : PlayerRef.None;
+        Carrier = Remap(Carrier);
+        LastCarrier = Remap(LastCarrier);
+        DroppedBy = Remap(DroppedBy);
+        CarrierObjectId = default;
+        if (Carrier != PlayerRef.None && BattleParticipants.TryGetPlayerObject(Runner, Carrier, out var carrier) && carrier != null)
+            CarrierObjectId = carrier.Id;
+        else Carrier = PlayerRef.None;
+        readyPlayers.Clear();
+        foreach (var player in players.Values) readyPlayers.Add(player);
+        int remainingPlayers = 0;
+        foreach (var data in PlayerData.PerkPlayers)
+            if (data != null && data.Object != null && data.Object.IsValid && data.Runner == Runner &&
+                data.ParticipantRef != PlayerRef.None) remainingPlayers++;
+        ExpectedPlayerCount = Mathf.Max(1, remainingPlayers);
+        for (int i = 0; i < Awards.Length; i++)
+        {
+            var award = Awards[i]; award.Winner = Remap(award.Winner); Awards.Set(i, award);
+        }
+        for (int i = 0; i < PraiseVoters.Length; i++) PraiseVoters.Set(i, Remap(PraiseVoters[i]));
+        previousPositions.Clear();
     }
 
     public void PrepareMatch(Vector3 position, float durationSeconds, int requiredPlayers, float presentationSeconds,
@@ -337,6 +378,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
 
     public override void FixedUpdateNetwork()
     {
+        if (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsMigratingDeathMatch) return;
         if (!Object.HasStateAuthority || !IsPrepared || HasEnded)
             return;
         if (Phase == BattleStartPhase.RoundResult)
