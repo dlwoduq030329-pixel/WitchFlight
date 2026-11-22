@@ -161,8 +161,18 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (!BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput)
         {
             bool fireHeld = ControlSettings.Held(ControlAction.MagicUse);
-            if (ControlSettings.Down(ControlAction.MagicSlot1)) { latchedButtons.Set(PlayerInputButton.Lock, false); magicSelectionInput.Toggle(1, fireHeld); }
-            if (ControlSettings.Down(ControlAction.MagicSlot2)) { latchedButtons.Set(PlayerInputButton.Lock, false); magicSelectionInput.Toggle(2, fireHeld); }
+            if (ControlSettings.Down(ControlAction.MagicSlot1))
+            {
+                latchedButtons.Set(PlayerInputButton.Lock, false);
+                magicSelectionInput.Toggle(1, fireHeld);
+                BattleAudio.Play(BattleSound.MagicSlotChanged, local: true);
+            }
+            if (ControlSettings.Down(ControlAction.MagicSlot2))
+            {
+                latchedButtons.Set(PlayerInputButton.Lock, false);
+                magicSelectionInput.Toggle(2, fireHeld);
+                BattleAudio.Play(BattleSound.MagicSlotChanged, local: true);
+            }
             LatchButton(PlayerInputButton.Lock, ControlSettings.Down(ControlAction.MagicUse));
         }
 

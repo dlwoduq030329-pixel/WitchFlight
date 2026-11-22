@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 using UnityEngine.Audio;
 
@@ -12,7 +12,8 @@ public enum BattleSound
     WallCrash, UIClick, UIConfirm, UICancel, BodyRam, Cobra, HurtVoice, WaterEnter, WaterExit,
     CatPetPurr, CatVictory, CatDefeat, CatAnnoyed, CatYawn, DrowningWarning,
     KillConfirmed,
-    AttackVoice, DeathVoice, HealVoice, GreetingVoice, VSVoice, HealOtherVoice, ParryVoice, LowHealthVoice, VictoryVoice, DefeatVoice, AllyHitVoice, CatAttackVoice, CatKillVoice, UIImportant, MatchFound, UIPopup, AttendanceSuccess, UITab, MagicSelected, MagicCast, LockCharging, LockFailed, ThunderExplosion, UITyping, IncomingMagic
+    AttackVoice, DeathVoice, HealVoice, GreetingVoice, VSVoice, HealOtherVoice, ParryVoice, LowHealthVoice, VictoryVoice, DefeatVoice, AllyHitVoice, CatAttackVoice, CatKillVoice, UIImportant, MatchFound, UIPopup, AttendanceSuccess, UITab, MagicSelected, MagicCast, LockCharging, LockFailed, ThunderExplosion, UITyping, IncomingMagic,
+    EnvironmentHit, ManaBuffZone, WaitingRoomDrink, WaitingRoomFootsteps, WaitingRoomKick
 }
 
 public enum MagicSound { LockComplete, Cast, ProjectileLoop, Impact, ChannelLoop, ChannelEnd, FollowUp, AreaWarning, SummonAttack, EffectLoop }

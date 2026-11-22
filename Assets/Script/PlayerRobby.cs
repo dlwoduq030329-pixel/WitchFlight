@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
@@ -260,6 +260,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     private void StartKickVisual()
     {
+        PlayKickAudio();
         if (!kickCompatible || !kickPlayable.IsValid()) return;
         kickPlayable.SetTime(0);
         kickPlaying = true;
@@ -346,6 +347,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     public override void Render()
     {
+        RenderLobbyAudio();
         if (!animationGraph.IsValid()) return;
         RenderInteraction();
         // Walk's source clip is not marked Loop; wrap this instance without editing the shared asset.
@@ -429,6 +431,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        StopLobbyAudio();
         StopLobbyAppearance();
         RobbyMagicPractice.Instance?.RemoveRemoteCaster(GetInstanceID());
         ReleasePhysics();
@@ -439,6 +442,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
 
     private void OnDestroy()
     {
+        StopLobbyAudio();
         StopLobbyAppearance();
         ReleasePhysics();
         ActivePlayers.Remove(this);
