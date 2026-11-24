@@ -9,6 +9,8 @@ using UnityEngine.UI;
 public sealed class RobbyMagicPractice : MonoBehaviour
 {
     public static RobbyMagicPractice Instance { get; private set; }
+    public bool IsInstantScopeAiming => inputActive && held && !pendingRelease && selected >= 0 &&
+        slots[selected].UsesInstantScope && bladeLeft <= 0;
     internal void ApplyAuthoritativeBallHit(PlayerRobby caster, byte kind, MagicType magic, Vector3 origin, Vector3 aim)
     {
         if ((kind != 0 && kind != 3 && kind != 4) || magicTable == null || caster == null ||
@@ -264,7 +266,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         // Shared lobby Canvas visibility follows room membership, never keyboard focus.
         bool inRoom = NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsWaitingInCodeRoom;
         if (canvas != null && canvas.enabled != inRoom) canvas.enabled = inRoom;
-        bool active = RobbyPlayerCamera.CanUsePractice && target != null && magicTable != null &&
+        bool active = Application.isFocused && RobbyPlayerCamera.CanUsePractice && target != null && magicTable != null &&
             PlayerRobby.LocalPlayer != null && PlayerRobby.LocalPlayer.PracticeMagicRoot != null;
         bool show = RobbyPlayerCamera.ShowsLobbyAvatar && target != null && magicTable != null;
         if (visible != show) SetPracticeVisible(show);
@@ -349,7 +351,7 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             {
                 Cast(stats); held = false;
             }
-            else if (!stats.requiresTarget && !stats.IsChanneled && stats.effect != MagicEffectKind.DelayedArea)
+            else if (!stats.requiresTarget && !stats.IsChanneled && !stats.UsesInstantScope && stats.effect != MagicEffectKind.DelayedArea)
             { Cast(stats); held = false; }
         }
         if (held && castHeld)

@@ -122,6 +122,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
     private LayerMask originalVolumeLayerMask;
     private float originalFieldOfView;
     private float fieldOfViewIncrease;
+    private float instantScopeWeight;
     private CameraFollow cameraFollow;
     private float effectWeight;
     private float peripheralWeight;
@@ -271,6 +272,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
         if (!canShow)
         {
+            instantScopeWeight = 0f;
             peripheralWeight = 0f;
             hasInnerRadius = false;
             RestorePlayerMotionVectors();
@@ -287,6 +289,8 @@ public sealed class SpeedCameraEffects : MonoBehaviour
         UpdateFieldOfView(displayStage, false, flightSensation.FieldOfViewScale(displayStage),
             flightSensation.ExtraFieldOfView);
         ApplyDashFovStart();
+        instantScopeWeight = InstantMagicScopeUI.Advance(instantScopeWeight, !boundaryView && InstantMagicScopeUI.Requested);
+        viewCamera.fieldOfView = InstantMagicScopeUI.ScopedFov(viewCamera.fieldOfView, instantScopeWeight);
 
         // Extra peripheral blur follows real forward speed; selecting stage 3 at rest
         // does not trigger it. Boost reaches the same capped maximum, never an overload.
@@ -643,6 +647,7 @@ public sealed class SpeedCameraEffects : MonoBehaviour
 
     private void OnDisable()
     {
+        instantScopeWeight = 0f;
         dashRefraction?.Reset();
         dashFovPlayer = null;
         dashFovAge = -1f;

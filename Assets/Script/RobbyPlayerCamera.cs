@@ -24,6 +24,7 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
     [SerializeField] private float lockSideOffset = .9f, lockForwardOffset = 1.2f, lockFovReduction = 7f;
     [SerializeField, Min(.01f)] private float lockBlendSeconds = .2f;
     private float baseFov, lockWeight;
+    private float instantScopeWeight;
     private Vector3 targetingPosition;
     [Header("Lobby camera obstruction")]
     [SerializeField] private LayerMask obstructionLayers = ~0;
@@ -134,7 +135,8 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         Vector3 shoulder = orbit * Vector3.right * (lockSideOffset * lockWeight);
         focus += shoulder;
         candidate += shoulder + orbit * Vector3.forward * Mathf.Min(lockForwardOffset * lockWeight, Vector3.Distance(candidate, focus) * .5f);
-        if (followCamera != null) followCamera.fieldOfView = Mathf.Max(15, baseFov - lockFovReduction * lockWeight);
+        instantScopeWeight = InstantMagicScopeUI.Advance(instantScopeWeight, InstantMagicScopeUI.Requested);
+        if (followCamera != null) followCamera.fieldOfView = InstantMagicScopeUI.ScopedFov(Mathf.Max(15, baseFov - lockFovReduction * lockWeight), instantScopeWeight);
         Vector3 safe = ResolveObstruction(focus, candidate, target);
         float desiredDistance = Vector3.Distance(focus, candidate);
         float safeFraction = desiredDistance > 0.001f ? Vector3.Distance(focus, safe) / desiredDistance : 1f;
@@ -207,6 +209,6 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         if (followListener != null) followListener.enabled = value;
     }
 
-    private void OnDisable() => SetShowing(false);
+    private void OnDisable() { instantScopeWeight = 0f; SetShowing(false); }
     private void OnDestroy() { if (instance == this) instance = null; }
 }

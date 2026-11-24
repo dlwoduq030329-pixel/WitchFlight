@@ -1290,7 +1290,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkInputData data =
             new NetworkInputData();
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            CombatPresentation.MenuOpen || Cursor.lockState != CursorLockMode.Locked)
+            !Application.isFocused || CombatPresentation.MenuOpen || Cursor.lockState != CursorLockMode.Locked)
         {
             data.suppressActions = true;
             accumulatedLook = Vector2.zero;
