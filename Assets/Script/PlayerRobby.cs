@@ -47,6 +47,8 @@ public sealed partial class PlayerRobby : NetworkBehaviour
     public Transform PracticeMagicRoot => practiceMagicRoot;
     public void SelectPracticeStaff(MagicType magic)
     {
+        var table = Resources.Load<MagicStatTable>("MagicStatTable");
+        practiceRaiseSpeed = FlightCombatTable.RaiseSpeed(table != null ? table.GetStats(magic) : MagicStatTable.DefaultEntry(magic));
         if (practiceStaffs == null) return;
         for (int i = 0; i < practiceStaffs.Length; i++)
             if (practiceStaffs[i] != null) practiceStaffs[i].SetActive(false);
@@ -72,8 +74,9 @@ public sealed partial class PlayerRobby : NetworkBehaviour
     [Header("Copied battle action clips, upper body only")]
     [SerializeField] private AnimationClip practiceEquip, practiceStart, practiceLoop, practiceEnd;
     [SerializeField, Min(.01f)] private float practiceRaiseSeconds = .25f;
+    private float practiceRaiseSpeed = 1f, activePracticeRaiseSeconds = .25f;
     public float PracticeRaiseRemaining => !practiceMixer.IsValid() || practiceAction == 2 ? 0f :
-        practiceAction == 1 ? Mathf.Max(0, practiceRaiseSeconds - practiceElapsed) : practiceRaiseSeconds;
+        practiceAction == 1 ? Mathf.Max(0, activePracticeRaiseSeconds - practiceElapsed) : Mathf.Max(.01f, practiceRaiseSeconds / practiceRaiseSpeed);
     public void PreparePracticeRelease()
     {
         practiceHolding = true;
@@ -105,6 +108,11 @@ public sealed partial class PlayerRobby : NetworkBehaviour
     {
         if (!practiceMixer.IsValid()) return;
         practiceAction = action; practiceElapsed = 0;
+        if (action == 1)
+        {
+            activePracticeRaiseSeconds = Mathf.Max(.01f, practiceRaiseSeconds / practiceRaiseSpeed);
+            practiceClips[1].SetSpeed(practiceStart.length / activePracticeRaiseSeconds);
+        }
         practiceClips[action].SetTime(0);
         for (int i = 0; i < 4; i++) practiceMixer.SetInputWeight(i, i == action ? 1 : 0);
     }
@@ -379,7 +387,7 @@ public sealed partial class PlayerRobby : NetworkBehaviour
         {
             practiceElapsed += Time.deltaTime;
             if (practiceAction == 2) LoopClip(practiceClips[2], practiceLoop);
-            else if (practiceAction >= 0 && practiceElapsed >= (practiceAction == 1 ? practiceRaiseSeconds : .25f))
+            else if (practiceAction >= 0 && practiceElapsed >= (practiceAction == 1 ? activePracticeRaiseSeconds : .25f))
             {
                 if (practiceAction == 1) SetPracticeAction(practiceHolding ? 2 : 3);
                 else practiceAction = -1;

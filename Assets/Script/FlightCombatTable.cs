@@ -3,6 +3,13 @@
 [CreateAssetMenu(menuName = "WitchFlight/Combat/Flight Combat Table")]
 public sealed class FlightCombatTable : ScriptableObject
 {
+    [Header("Instant magic animation")]
+    [Tooltip("즉발(록온/아군 대상 지정/지속 시전/평타 제외) 마법의 팔 뻗기 속도. 2이면 준비 동작과 발사 대기가 절반입니다. 마법 자체 castSeconds는 유지합니다.")]
+    [Min(.1f)] public float instantMagicRaiseSpeed = 2f;
+    public static float RaiseSpeed(MagicStatEntry stats) =>
+        stats.magic != MagicType.None && stats.magic != MagicType.BasicAttack &&
+        !stats.UsesLockIndicator && !stats.IsChanneled
+            ? Mathf.Max(.1f, Default != null ? Default.instantMagicRaiseSpeed : 2f) : 1f;
     private static FlightCombatTable cached;
     public static FlightCombatTable Default => cached != null ? cached : cached = Resources.Load<FlightCombatTable>("FlightCombatTable");
     [Header("Shift dash (capacity from EquipmentStatTable)")]
