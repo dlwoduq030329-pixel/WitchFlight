@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 using Fusion;
@@ -252,6 +252,15 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         else
         {
+            if (instance != null && instance.IsMigratingDeathMatch)
+            {
+                // The persistent manager survives; replace references to the unloaded Main UI.
+                instance.robbySpawnPoint = robbySpawnPoint;
+                instance.codeRoomRobby = codeRoomRobby;
+                instance.roomIdInput = roomIdInput;
+                instance.matchmakingStatusText = matchmakingStatusText;
+                instance.robbyLookupScene = -1;
+            }
             Destroy(gameObject);
         }
     }
@@ -592,7 +601,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
             var result = await sessionRunner.StartGame(new StartGameArgs
             {
                 GameMode = requestedMode,
-                Config = IsDeathMatch ? DeathMatchNetworkConfig() : null,
+                Config = !IsTraining ? DeathMatchNetworkConfig() : null,
                 // Explicit join must never silently create a room when the code is absent.
                 EnableClientSessionCreation = request != MatchRequest.JoinRoom,
                 // Null + AutoHostOrClient = join random or create, handled by Photon.
@@ -601,7 +610,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
                 // Admission and launch still enforce the selected match size.
                 PlayerCount = IsDeathMatch ? DeathMatchCapacity : IsTraining ? 1 : randomMatch ? RandomPlayerCount : BattleMatchRules.MaxTeamPlayers,
                 CustomPhotonAppSettings = IsDeathMatch ? DeathMatchPhotonSettings() : null,
-                ConnectionToken = IsDeathMatch ? DeathMatchConnectionToken() : null,
+                ConnectionToken = !IsTraining ? DeathMatchConnectionToken() : null,
                 CustomLobbyName = randomMatch ? RandomLobbyName : null,
                 SessionProperties = randomMatch ? new Dictionary<string, SessionProperty>
                 {
@@ -734,8 +743,6 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         stopInProgress = true;
         try
         {
-            if (IsDeathMatch && IsRoomHost)
-                await Task.WhenAny(PushDeathMatchSnapshot(_runner), Task.Delay(2000));
             await ShutdownSession(_runner);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -772,7 +779,12 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         try
         {
-            if (sessionRunner != null) await sessionRunner.Shutdown(destroyGameObject: false);
+            if (sessionRunner != null)
+            {
+                if (!IsTraining && sessionRunner.IsRunning && sessionRunner.IsServer && ConnectedPlayerCount > 1)
+                    await Task.WhenAny(PushFinalMigrationSnapshot(sessionRunner), Task.Delay(4000));
+                await sessionRunner.Shutdown(destroyGameObject: false);
+            }
         }
         catch (Exception exception) { Debug.LogWarning($"Session shutdown: {exception.Message}"); }
         finally
@@ -801,7 +813,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         IsDeathMatch = false;
         deathMatchJoinSequence = 0;
         deathMatchConnectionToken = null;
-        IsMigratingDeathMatch = migrationRestoring = false;
+        IsMigratingDeathMatch = migrationRestoring = migrationBattleRestored = false;
         migrationData.Clear(); migrationCharacters.Clear(); migrationParticipants.Clear();
         robbyPlayers.Clear();
         spawnedPlayers.Clear();
@@ -869,7 +881,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner runner,
         PlayerRef player)
     {
-        if (runner != _runner || cancelRequested || (IsDeathMatch && migrationRestoring)) return;
+        if (runner != _runner || cancelRequested || migrationRestoring) return;
         randomPlayersReadyAt = -1f;
         UpdateWaitingStatus();
         if (!runner.IsServer)
@@ -923,7 +935,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public void AssignTeamIndex(PlayerData data)
     {
         if (_runner == null || !_runner.IsServer || data == null || data.Runner != _runner || data.teamIndex != 0 ||
-            (IsDeathMatch && data.ParticipantRef == PlayerRef.None))
+            (data.ParticipantRef == PlayerRef.None))
             return;
 
         PlayerRef player = data.ParticipantRef;
@@ -935,9 +947,9 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         data.teamIndex = teamIndex;
-        if (IsDeathMatch)
+        if (IsDeathMatch) data.DeathMatchJoinOrder = ++deathMatchJoinSequence;
+        if (!IsTraining && !data.IsMatchBot)
         {
-            data.DeathMatchJoinOrder = ++deathMatchJoinSequence;
             data.DeathMatchIdentity = DeathMatchIdentity(_runner, player);
             nextMigrationSnapshot = 0f;
         }
@@ -961,7 +973,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     {
         // PlayerData Dictionary는 전투 Player를 생성하는 호스트만 관리한다.
         if (_runner == null || !_runner.IsServer || cancelRequested || data == null ||
-            data.Object == null || data.Runner != _runner || (IsDeathMatch && data.ParticipantRef == PlayerRef.None))
+            data.Object == null || data.Runner != _runner || (data.ParticipantRef == PlayerRef.None))
             return;
 
         PlayerRef player = data.ParticipantRef;
@@ -983,7 +995,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
     public void UnregisterPlayerData(
         PlayerData data)
     {
-        if (data == null || data.Object == null || data.Runner != _runner || (IsDeathMatch && data.ParticipantRef == PlayerRef.None))
+        if (data == null || data.Object == null || data.Runner != _runner || (data.ParticipantRef == PlayerRef.None))
             return;
 
         PlayerRef player =
@@ -1115,8 +1127,13 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (UsesBattleLoading) BattleLoadingUI.Show();
         SetMatchStatus(IsTraining ? "훈련장" : "매칭 완료");
 
-        if (!runner.IsServer || IsMigratingDeathMatch)
+        if (!runner.IsServer || IsMigratingDeathMatch) return;
+        if (migrationBattleRestored)
+        {
+            BattleManager.Instance?.RestoreMigratedSession(runner, playerDatas, playerPrefab, spawnedPlayers);
+            BattleLoadingUI.Hide();
             return;
+        }
 
         BattleManager battleManager =
             FindFirstObjectByType<BattleManager>();
@@ -1255,7 +1272,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         if (replaceWithBot) ReplaceDepartedHumanWithBot(replacementTeam);
         // Update the migration roster promptly so a departed participant is not
         // retained until the next periodic checkpoint.
-        if (IsDeathMatch) nextMigrationSnapshot = 0f;
+        if (!IsTraining) nextMigrationSnapshot = 0f;
     }
 
 
@@ -1387,7 +1404,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         Debug.LogWarning($"[MatchConnection] Shutdown reason={shutdownReason}, mode={CurrentMatchMode}, " +
             $"battle={isGameStarting}, intentional={stopInProgress || cancelRequested}, " +
             $"request={sessionRequestDescription}, role={sessionRole}", this);
-        if (IsDeathMatch && (IsMigratingDeathMatch || shutdownReason == ShutdownReason.HostMigration)) return;
+        if (IsMigratingDeathMatch || shutdownReason == ShutdownReason.HostMigration) return;
         // Async startup/cancellation owns cleanup until its await completes.
         if (startInProgress || stopInProgress) return;
         CleanupSession(runner);
@@ -1429,7 +1446,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunnerCallbackArgs.ConnectRequest request,
         byte[] token)
     {
-        if (IsTraining || runner != _runner || (!IsDeathMatch && isGameStarting) || cancelRequested || ConnectedPlayerCount >= RequiredPlayerCount)
+        if (IsTraining || runner != _runner || (!IsDeathMatch && isGameStarting && !IsMigratingDeathMatch) || cancelRequested || ConnectedPlayerCount >= RequiredPlayerCount)
             request.Refuse();
         else
             request.Accept();

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fusion;
@@ -10,7 +10,14 @@ public partial class NetworkGameManager
     [SerializeField, Min(1f)] private float deathMatchSnapshotSeconds = 2f;
     public bool IsMigratingDeathMatch { get; private set; }
     private byte[] deathMatchConnectionToken;
-    private bool migrationSnapshotBusy, migrationRestoring;
+    private bool migrationSnapshotBusy, migrationRestoring, migrationBattleRestored;
+    private readonly Dictionary<string, PlayerRef> migrationOldPlayers = new();
+    private readonly Dictionary<PlayerRef, PlayerRef> migrationPlayerMap = new();
+    private async Task PushFinalMigrationSnapshot(NetworkRunner runner)
+    {
+        if (migrationSnapshotBusy) await migrationSnapshotTask;
+        await PushDeathMatchSnapshot(runner);
+    }
     private Task migrationSnapshotTask = Task.CompletedTask;
     private NetworkRunner snapshotConfirmedRunner;
     private float nextMigrationSnapshot, migrationReservationDeadline;
@@ -38,7 +45,7 @@ public partial class NetworkGameManager
 
     private void TickDeathMatchMigration()
     {
-        if (!IsDeathMatch || IsMigratingDeathMatch || !IsRoomHost || !IsBattleSceneLoaded || stopInProgress) return;
+        if (IsTraining || IsMigratingDeathMatch || !IsRoomHost || !initialSceneLoaded || stopInProgress) return;
         if (Time.unscaledTime >= nextMigrationSnapshot && !migrationSnapshotBusy)
         {
             nextMigrationSnapshot = Time.unscaledTime + Mathf.Max(1f, deathMatchSnapshotSeconds);
@@ -81,12 +88,17 @@ public partial class NetworkGameManager
 
     private async void MigrateDeathMatch(NetworkRunner previous, HostMigrationToken token)
     {
-        if (!IsDeathMatch || IsMigratingDeathMatch || stopInProgress || cancelRequested || previous != _runner) return;
+        if (IsTraining || IsMigratingDeathMatch || stopInProgress || cancelRequested || previous != _runner) return;
         IsMigratingDeathMatch = true;
         startInProgress = true;
         SetMatchStatus("호스트를 이전하는 중...");
         Debug.Log($"[DeathMatch/Migration] 시작: 새 역할 {token.GameMode}", this);
-        Scene oldScene = SceneManager.GetSceneByBuildIndex(battleSceneIndex);
+        bool restoreBattle = IsBattleSceneLoaded;
+        int restoreSceneIndex = restoreBattle ? MatchSceneIndex : mainSceneIndex;
+        string restoreRoomName = previous.SessionInfo.Name;
+        roomMatchMode = CurrentMatchMode;
+        BattleLoadingUI.Show("호스트 이전 중");
+        Scene oldScene = SceneManager.GetSceneByBuildIndex(restoreSceneIndex);
         Scene holdingScene = default;
         try
         {
@@ -103,6 +115,10 @@ public partial class NetworkGameManager
             if (runnerObject != null) Destroy(runnerObject);
             spawnedPlayers.Clear(); playerDatas.Clear(); assignedTeamIndexes.Clear();
             migrationData.Clear(); migrationCharacters.Clear(); migrationParticipants.Clear();
+            migrationOldPlayers.Clear(); migrationPlayerMap.Clear();
+            robbyPlayers.Clear();
+            isGameStarting = restoreBattle;
+            migrationBattleRestored = restoreBattle && !IsDeathMatch;
             inputPlayer = null; inputTargeting = null; inputCamera = null; inputCameraFollow = null;
             accumulatedLook = Vector2.zero; latchedButtons = default;
             initialSceneLoaded = IsBattleSceneLoaded = false;
@@ -120,21 +136,45 @@ public partial class NetworkGameManager
             {
                 GameMode = token.GameMode, HostMigrationToken = token, HostMigrationResume = ResumeDeathMatch,
                 Config = DeathMatchNetworkConfig(),
-                ConnectionToken = DeathMatchConnectionToken(), CustomPhotonAppSettings = DeathMatchPhotonSettings(),
-                PlayerCount = DeathMatchCapacity, Scene = SceneRef.FromIndex(battleSceneIndex),
-                SceneManager = scenes, ObjectProvider = pool, IsOpen = true, IsVisible = false
+                ConnectionToken = DeathMatchConnectionToken(), CustomPhotonAppSettings = IsDeathMatch ? DeathMatchPhotonSettings() : null,
+                SessionName = restoreRoomName,
+                PlayerCount = IsDeathMatch ? DeathMatchCapacity : BattleMatchRules.MaxTeamPlayers,
+                Scene = SceneRef.FromIndex(restoreSceneIndex),
+                SceneManager = scenes, ObjectProvider = pool, IsOpen = true, IsVisible = IsRandomMatch
             });
             if (!result.Ok) throw new InvalidOperationException(result.ShutdownReason.ToString());
             migrationRestoring = false;
-            IsMigratingDeathMatch = false;
-            startInProgress = false;
             if (resumed.IsServer)
                 foreach (var player in resumed.ActivePlayers) OnPlayerJoined(resumed, player);
+            // Allow surviving clients to reclaim their snapshot identities before play/results resume.
+            float reconnectDeadline = Time.realtimeSinceStartup + 15f;
+            while (resumed.IsRunning && Time.realtimeSinceStartup < reconnectDeadline &&
+                (PlayerData.Local == null || PlayerData.Local.Runner != resumed ||
+                 (resumed.IsServer && migrationData.Count > 0)))
+                await Awaitable.NextFrameAsync();
+            if (!resumed.IsRunning) throw new InvalidOperationException("Host transfer disconnected while restoring participants.");
+            if (PlayerData.Local == null || PlayerData.Local.Runner != resumed)
+                throw new InvalidOperationException("Host transfer timed out restoring local player authority.");
+            if (resumed.IsServer && !IsDeathMatch && migrationData.Count > 0)
+            {
+                // Do not leave unclaimed identities blocking the next round's readiness barrier.
+                foreach (var obj in migrationCharacters.Values) if (obj != null && obj.IsValid) resumed.Despawn(obj);
+                foreach (var obj in migrationData.Values) if (obj != null && obj.IsValid) resumed.Despawn(obj);
+                migrationCharacters.Clear(); migrationData.Clear();
+            }
+            if (resumed.IsServer && restoreBattle && !IsDeathMatch)
+                BattleFlag.Instance?.RestoreMigratedRuntime(migrationPlayerMap);
+            IsMigratingDeathMatch = false;
+            startInProgress = false;
+            sessionRole = resumed.IsServer ? "Host" : "Client";
             OnSceneLoadDone(resumed);
+            if (!restoreBattle) await WaitForRobbyAvatar(resumed, System.Threading.CancellationToken.None);
+            BattleLoadingUI.Hide();
+            if (resumed.IsServer) resumed.SessionInfo.IsOpen = IsDeathMatch || !restoreBattle;
             migrationReservationDeadline = Time.unscaledTime + 30f;
             nextMigrationSnapshot = Time.unscaledTime + 1f;
             if (holdingScene.IsValid() && holdingScene.isLoaded) await SceneManager.UnloadSceneAsync(holdingScene);
-            SetMatchStatus("데스매치 · 호스트 이전 완료");
+            SetMatchStatus("호스트 이전 완료");
             Debug.Log("[DeathMatch/Migration] 완료. 경기 기록과 참가자 권한을 복구했습니다.", this);
         }
         catch (Exception error)
@@ -157,14 +197,25 @@ public partial class NetworkGameManager
             {
                 if (data.IsRoomOwner) continue; // The departed host must not remain as a ghost participant.
                 string id = data.DeathMatchIdentity.ToString();
+                if (data.IsMatchBot)
+                {
+                    var bot = runner.Spawn(snapshot, inputAuthority: PlayerRef.None,
+                        onBeforeSpawned: (r, obj) => obj.CopyStateFrom(snapshot));
+                    var botData = bot.GetComponent<PlayerData>();
+                    playerDatas[botData.ParticipantRef] = botData;
+                    assignedTeamIndexes[botData.ParticipantRef] = botData.teamIndex;
+                    runner.MakeDontDestroyOnLoad(bot.gameObject);
+                    continue;
+                }
                 if (string.IsNullOrEmpty(id)) continue;
+                migrationOldPlayers[id] = snapshot.InputAuthority;
                 var restored = runner.Spawn(snapshot, inputAuthority: PlayerRef.None,
                     onBeforeSpawned: (r, obj) => { obj.CopyStateFrom(snapshot); obj.AssignInputAuthority(PlayerRef.None); });
                 migrationData[id] = restored;
                 runner.MakeDontDestroyOnLoad(restored.gameObject);
                 deathMatchJoinSequence = Mathf.Max(deathMatchJoinSequence, data.DeathMatchJoinOrder);
             }
-            else if (snapshot.TryGetComponent<Player>(out var pilot) && identities.Contains(pilot.DeathMatchMigrationIdentity.ToString()))
+            else if (snapshot.TryGetComponent<Player>(out var pilot) && (pilot.IsMatchBot || identities.Contains(pilot.DeathMatchMigrationIdentity.ToString())))
             {
                 string id = pilot.DeathMatchMigrationIdentity.ToString();
                 bool pose = snapshot.TryGetBehaviour<NetworkTRSP>(out var trsp);
@@ -172,9 +223,10 @@ public partial class NetworkGameManager
                     pose ? trsp.Data.Rotation : snapshot.transform.rotation, PlayerRef.None,
                     onBeforeSpawned: (r, obj) => { obj.CopyStateFrom(snapshot); obj.AssignInputAuthority(PlayerRef.None); });
                 restored.GetComponent<Player>().ResetDeathMatchMigrationTargets();
-                migrationCharacters[id] = restored;
+                if (pilot.IsMatchBot) spawnedPlayers[pilot.ParticipantRef] = restored;
+                else migrationCharacters[id] = restored;
             }
-            else if (snapshot.TryGetComponent<DeathMatchState>(out _))
+            else if (snapshot.TryGetComponent<DeathMatchState>(out _) || snapshot.TryGetComponent<BattleFlag>(out _))
                 runner.Spawn(snapshot, onBeforeSpawned: (r, obj) => obj.CopyStateFrom(snapshot));
             // In-flight projectiles are not restored: their old NetworkIds/targets are no longer valid.
         }
@@ -186,7 +238,7 @@ public partial class NetworkGameManager
 
     private bool TryRestoreDeathMatchParticipant(NetworkRunner runner, PlayerRef participant)
     {
-        if (!IsDeathMatch) return false;
+        if (IsTraining) return false;
         string id = DeathMatchIdentity(runner, participant);
         if (string.IsNullOrEmpty(id) || !migrationData.TryGetValue(id, out var obj) || obj == null || !obj.IsValid) return false;
         migrationData.Remove(id);
@@ -196,6 +248,8 @@ public partial class NetworkGameManager
         assignedTeamIndexes[participant] = data.teamIndex;
         playerDatas[participant] = data;
         migrationParticipants.Add(participant);
+        if (migrationOldPlayers.TryGetValue(id, out var oldPlayer)) migrationPlayerMap[oldPlayer] = participant;
+        if (participant == runner.LocalPlayer) data.SetRoomMatchMode(roomMatchMode);
         if (migrationCharacters.TryGetValue(id, out var character))
         {
             migrationCharacters.Remove(id);
@@ -206,7 +260,8 @@ public partial class NetworkGameManager
                 runner.SetPlayerObject(participant, character);
             }
         }
-        BattleManager.Instance?.RestoreDeathMatchRespawns();
+        if (IsDeathMatch) BattleManager.Instance?.RestoreDeathMatchRespawns();
+        if (!isGameStarting) SpawnRobbyPlayer(runner, participant);
         return true;
     }
 }
