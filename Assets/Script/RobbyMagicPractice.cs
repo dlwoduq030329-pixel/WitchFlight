@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -452,8 +452,8 @@ public sealed class RobbyMagicPractice : MonoBehaviour
         if (stats.UsesAutoTarget && CanLock(stats)) return target.AimPoint;
         var c = RobbyPlayerCamera.PracticeCamera;
         Ray ray = AimRay(c);
-        Vector3 end = ray.GetPoint(Mathf.Max(1, stats.range));
-        if (Blocked(ray.origin, end, out Vector3 point)) end = point;
+        Vector3 end = ray.GetPoint(stats.HasUnlimitedInstantRange ? MagicStatEntry.EmptyBeamVisualDistance : Mathf.Max(1, stats.range));
+        if (Blocked(ray.origin, end, out Vector3 point, out _, stats.CastRange)) end = point;
         // Intersect the dummy's target sphere along the aim ray; do not snap an
         // unaimed spell sideways to its centre. Other players are never targets.
         Vector3 toward = target.AimPoint - ray.origin;
@@ -672,11 +672,13 @@ public sealed class RobbyMagicPractice : MonoBehaviour
     }
     private Vector3 ResolveInstantEnd(MagicStatEntry stats, Vector3 origin, Vector3 direction, float distance, out RobbyBeachBall ball)
     {
-        Vector3 end = origin + direction * distance;
+        if (stats.HasUnlimitedInstantRange) distance = Mathf.Infinity;
+        Vector3 end = origin + direction * (float.IsPositiveInfinity(distance) ? MagicStatEntry.EmptyBeamVisualDistance : distance);
         ball = null;
-        if (Blocked(origin, end, out Vector3 point, out Collider obstacle))
+        if (Blocked(origin, end, out Vector3 point, out Collider obstacle, distance))
         {
             end = point;
+            distance = Vector3.Distance(origin, point);
             // One lookup at the actual impact, never a per-frame scene search.
             ball = obstacle.GetComponentInParent<RobbyBeachBall>();
         }
@@ -685,19 +687,21 @@ public sealed class RobbyMagicPractice : MonoBehaviour
             Vector3 offset = target.AimPoint - origin;
             float along = Vector3.Dot(offset, direction);
             float hitRadius = target.Radius + Mathf.Max(0, stats.hitscanRadius);
-            if (along > 0 && along < Vector3.Distance(origin, end) &&
+            if (along > 0 && along < distance &&
                 (offset - direction * along).sqrMagnitude <= hitRadius * hitRadius)
             { end = origin + direction * along; ball = null; }
         }
         return end;
     }
     private bool Blocked(Vector3 start, Vector3 end, out Vector3 point) => Blocked(start, end, out point, out _);
-    private bool Blocked(Vector3 start, Vector3 end, out Vector3 point, out Collider obstacle)
+    private bool Blocked(Vector3 start, Vector3 end, out Vector3 point, out Collider obstacle, float queryDistance = -1f)
     {
         obstacle = null;
         point = end; Vector3 delta = end - start; float distance = delta.magnitude;
         if (distance < .0001f) return false;
-        int count = Physics.RaycastNonAlloc(start, delta / distance, hits, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        Vector3 direction = delta / distance;
+        if (queryDistance >= 0f) distance = queryDistance;
+        int count = Physics.RaycastNonAlloc(start, direction, hits, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
         bool blocked = false;
         for (int i = 0; i < count; i++)
         {

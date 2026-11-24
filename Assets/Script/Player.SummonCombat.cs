@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -73,9 +73,10 @@ public partial class Player
 
     private Vector3 TraceMagicTargets(MagicStatEntry stats, Vector3 origin, Vector3 direction, out Player victim, out MagicProjectile summon)
     {
+        if (stats.HasUnlimitedInstantRange) stats.range = Mathf.Infinity;
         environmentImpactHit = null;
         Vector3 end = TraceMagic(stats, origin, direction, out victim);
-        float distance = Vector3.Distance(origin, end);
+        float distance = tracedMagicDistance;
         if (MagicProjectile.TryTraceSummon(Runner, TeamIndex, origin, direction, distance, stats.hitscanRadius, out summon, out float hit))
         {
             victim = null;

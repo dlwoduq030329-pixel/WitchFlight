@@ -144,7 +144,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
 
     private bool CanAim(MagicBalanceLabActor from, MagicBalanceLabActor to, MagicStatEntry stats)
     {
-        if (from == null || to == null || Vector3.Distance(from.LockAimPoint, to.LockAimPoint) > stats.range) return false;
+        if (from == null || to == null || Vector3.Distance(from.LockAimPoint, to.LockAimPoint) > stats.CastRange) return false;
         if (from == pilot && Vector3.Dot(Quaternion.Euler(pitch, yaw, 0) * Vector3.forward, to.LockAimPoint - from.LockAimPoint) <= 0) return false;
         Vector3 delta = to.LockAimPoint - from.CastPoint;
         return !Physics.Raycast(from.CastPoint, delta.normalized, out var hit, delta.magnitude, ~0, QueryTriggerInteraction.Ignore) ||
@@ -155,7 +155,7 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
     {
         if (stats.projectileSpeed <= 0)
         {
-            if (Physics.SphereCast(owner.CastPoint, Mathf.Max(.001f, stats.hitscanRadius), aim, out var hit, stats.range, ~0, QueryTriggerInteraction.Ignore))
+            if (Physics.SphereCast(owner.CastPoint, Mathf.Max(.001f, stats.hitscanRadius), aim, out var hit, stats.CastRange, ~0, QueryTriggerInteraction.Ignore))
             {
                 var victim = hit.collider.GetComponentInParent<MagicBalanceLabActor>();
                 if (victim != null && victim != owner) { victim.Hit(stats); RecordHit(stats.damage); }
