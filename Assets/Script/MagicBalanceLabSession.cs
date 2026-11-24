@@ -90,8 +90,8 @@ public sealed partial class MagicBalanceLabSession : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F1)) SetEditing(!editing);
         if (Input.GetKeyDown(KeyCode.R) && !editing) ResetTrial();
         if (editing || !Running) { castHeld = false; return; }
-        yaw += Input.GetAxisRaw("Mouse X") * 3 * ControlSettings.SensitivityMultiplier;
-        pitch = Mathf.Clamp(pitch - Input.GetAxisRaw("Mouse Y") * 3 * ControlSettings.SensitivityMultiplier, -75, 75);
+        yaw += Input.GetAxisRaw("Mouse X") * 3 * ControlSettings.SensitivityMultiplier * InstantMagicScopeUI.LookSensitivityMultiplier;
+        pitch = Mathf.Clamp(pitch - Input.GetAxisRaw("Mouse Y") * 3 * ControlSettings.SensitivityMultiplier * InstantMagicScopeUI.LookSensitivityMultiplier, -75, 75);
         dashPressed |= ControlSettings.Down(ControlAction.Boost);
         bool held = ControlSettings.Held(ControlAction.LockOn);
         castPressed |= held && !castHeld; castReleased |= !held && castHeld; castHeld = held;

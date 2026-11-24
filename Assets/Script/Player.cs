@@ -285,6 +285,10 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private float boostApCostPerSecond { get; set; }
     [Networked] private bool boostNeedsRelease { get; set; }
     [Networked] private MagicType pendingMagic { get; set; }
+    [Networked] private bool instantScopeArmed { get; set; }
+    public bool IsInstantScopeAiming => Object != null && Object.IsValid && IsAlive && !IsHitStunned &&
+        !IsReturningToMap && !IsParrying && instantScopeArmed && CurrentMagicSlot > 0 && CurrentMagicSlot < 3 &&
+        SelectedMagicStats.UsesInstantScope && BladeCharges <= 0 && !IsMagicStormActive;
     private float pendingRaiseRemaining, weaponRaiseHeldSeconds;
     private Vector3 pendingAreaPoint;
     [Networked] private bool channelRaising { get; set; }
@@ -620,6 +624,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     private bool diagnosticDeath;
     public override void Spawned()
     {
+        instantScopeArmed = false;
+        weaponRaiseHeldSeconds = 0f;
         renderedLoadoutVersion = lastMagicSlot = localMagicInputSlot = -1;
         localCameraFollow = null;
         predictedRaisePending = false; predictedRaiseTarget = null; predictedRaiseSummon = null;
@@ -1095,6 +1101,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (data.suppressActions)
         {
+            instantScopeArmed = false;
+            weaponRaiseHeldSeconds = 0f;
             areaAimArmed = false;
             if (Object.HasStateAuthority) StopChannel();
             ClearLockTargetInternal();
@@ -1106,6 +1114,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (!IsAlive)
         {
+            instantScopeArmed = false;
             previousButtons = buttons;
             return;
         }
@@ -1119,6 +1128,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
 
         SelectInputMagicSlot(data);
+        if (data.suppressCombat || IsHitStunned || IsParrying) instantScopeArmed = false;
+        if (CurrentMagicSlot == 0 || CurrentMagicSlot == 3 || !SelectedMagicStats.UsesInstantScope || BladeCharges > 0 || IsMagicStormActive)
+            instantScopeArmed = false;
+        if (buttons.IsSet(PlayerInputButton.Lock)) weaponRaiseHeldSeconds += Runner.DeltaTime * TimeFieldSpeed;
+        else if (!previousButtons.IsSet(PlayerInputButton.Lock)) weaponRaiseHeldSeconds = 0f;
 
         bool stormFlight = IsMagicStormActive && !IsMatchBot && !IsTestBot;
         if (UsesAutomaticCruise) ProcessCruiseInput(stormFlight ? default : buttons, !data.suppressCombat);
@@ -1205,8 +1219,6 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         bool pressed = buttons.WasPressed(previousButtons, PlayerInputButton.Lock);
         bool released = !held && previousButtons.IsSet(PlayerInputButton.Lock);
         MagicStatEntry stats = SelectedMagicStats;
-        if (held) weaponRaiseHeldSeconds += Runner.DeltaTime * TimeFieldSpeed;
-        else if (!released) weaponRaiseHeldSeconds = 0f;
 
         if (!held) channelNeedsRelease = false;
         if (IsHitStunned) { areaAimArmed = false; StopChannel(); CancelBladeRain(); ClearBladeAbility(); ClearLockTargetInternal(); return; }
@@ -1273,8 +1285,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else
         {
             ClearLockTargetInternal();
-            // Instant spells fire on press. Only lock-on spells fire on release.
-            if (pressed) TryCastSelectedMagic();
+            if (stats.UsesInstantScope)
+            {
+                if (UpdateInstantScopeInput(held, pressed, released)) TryCastSelectedMagic();
+            }
+            else if (pressed) TryCastSelectedMagic();
         }
     }
 
@@ -1324,8 +1339,20 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else
         {
             ClearLockTargetInternal();
-            if (pressed) TryPredictProjectile(stats);
+            if (stats.UsesInstantScope)
+            {
+                if (UpdateInstantScopeInput(held, pressed, released)) TryPredictProjectile(stats);
+            }
+            else if (pressed) TryPredictProjectile(stats);
         }
+    }
+
+    private bool UpdateInstantScopeInput(bool held, bool pressed, bool released)
+    {
+        if (pressed && !IsParrying) instantScopeArmed = true;
+        bool fire = released && instantScopeArmed;
+        if (!held) instantScopeArmed = false;
+        return fire;
     }
 
     private void TryPredictProjectile(MagicStatEntry stats)
@@ -1339,7 +1366,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         Player target = null;
         MagicProjectile summon = null;
         if (stats.requiresTarget && !TryGetMagicTarget(LockTargetId, out target, out summon, out _)) return;
-        float raised = stats.requiresTarget ? LockProgress * Mathf.Max(0, stats.lockChargeSeconds) : 0;
+        float raised = stats.requiresTarget ? LockProgress * Mathf.Max(0, stats.lockChargeSeconds) : stats.UsesInstantScope ? weaponRaiseHeldSeconds : 0;
         float remaining = Mathf.Max(0, broomAnimation.GetAttackRaiseSeconds(stats) - raised);
         if (remaining <= 0 && stats.castSeconds <= 0)
             ProjectilePredictionView.Predict(this, target, stats, Runner.Tick.Raw, summon);
@@ -1388,6 +1415,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 previous.Set(PlayerInputButton.Lock, false);
                 previousButtons = previous;
                 weaponRaiseHeldSeconds = 0f;
+                instantScopeArmed = false;
                 predictedRaisePending = false;
                 SelectMagicSlot(data.selectedMagicSlot);
                 areaAimArmed = false;
@@ -1422,6 +1450,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             CancelBladeRain();
         }
         CurrentMagicSlot = slot;
+        instantScopeArmed = false;
         areaAimArmed = false;
         if (Object.HasStateAuthority)
         {
@@ -1628,7 +1657,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         stats.perkAttacker = ParticipantRef;
         stats.titleCastId=stats.effect == MagicEffectKind.BladeVolley ? 0 : PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleCast(stats.magic,summon!=null)??0;
         float raised = stats.requiresTarget ? Mathf.Min(weaponRaiseHeldSeconds, LockProgress * Mathf.Max(0f, stats.lockChargeSeconds)) :
-            stats.effect == MagicEffectKind.DelayedArea ? weaponRaiseHeldSeconds : 0f;
+            stats.effect == MagicEffectKind.DelayedArea || stats.UsesInstantScope ? weaponRaiseHeldSeconds : 0f;
         float raiseRemaining = Mathf.Max(0f, broomAnimation.GetAttackRaiseSeconds(stats) - raised);
         if (stats.castSeconds > 0f || raiseRemaining > 0f)
         {
@@ -3013,7 +3042,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             Playing = battle != null && battle.IsGameplayActive,
             TopSpeed = broomAnimation.UseFastPose(SpeedStage, Mathf.Abs(Speed) / Mathf.Max(1f, flightMaxSpeed)),
             Disarmed = CurrentMagicSlot == 3,
-            Attacking = predictedRaisePending || pendingMagic != MagicType.None || channelRaising || RainCharging || RainFiring || LockProgress > 0f || IsChanneling || areaAimArmed || bladeSwing.IsActive || IsMagicStormActive,
+            Attacking = instantScopeArmed || predictedRaisePending || pendingMagic != MagicType.None || channelRaising || RainCharging || RainFiring || LockProgress > 0f || IsChanneling || areaAimArmed || bladeSwing.IsActive || IsMagicStormActive,
             Parrying = IsParrying,
             Respawning = TimerIsActive(RespawnAnimationTimer),
             WeaponKey = CurrentMagicSlot * 100 + (int)GetSelectedMagic(),

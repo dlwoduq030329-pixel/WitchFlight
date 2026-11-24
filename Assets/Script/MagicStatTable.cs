@@ -241,6 +241,11 @@ public struct MagicStatEntry
     [SerializeField, Min(0.1f)] public float flareVfxBrightness;
 
     public bool IsChanneled => effect == MagicEffectKind.GuidedChannel || effect == MagicEffectKind.BeamChannel;
+    // Direct aimed shots only: utility activation, charged blade rain and channels
+    // retain their own input protocols.
+    public bool UsesInstantScope => magic != MagicType.None && magic != MagicType.BasicAttack &&
+        !requiresTarget && !TargetsAllies && !IsChanneled &&
+        (effect == MagicEffectKind.DirectDamage || effect == MagicEffectKind.LifeSteal || effect == MagicEffectKind.AreaDamage);
     public bool TargetsAllies => effect == MagicEffectKind.Healing || effect == MagicEffectKind.MeowFestival;
     public bool UsesLockIndicator => requiresTarget || TargetsAllies;
     public bool UsesAutoTarget => UsesLockIndicator || effect == MagicEffectKind.GuidedChannel;

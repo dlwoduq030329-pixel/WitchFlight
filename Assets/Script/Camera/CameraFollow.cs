@@ -253,9 +253,9 @@ public partial class CameraFollow : MonoBehaviour
                 return;
             }
             float keyboardYaw = (ControlSettings.Held(ControlAction.TurnRight) ? 1f : 0f) - (ControlSettings.Held(ControlAction.TurnLeft) ? 1f : 0f);
-            float yaw = Input.GetAxisRaw("Mouse X") * Mathf.Max(0f, mouseYawSensitivity) * ControlSettings.SensitivityMultiplier +
+            float yaw = Input.GetAxisRaw("Mouse X") * Mathf.Max(0f, mouseYawSensitivity) * ControlSettings.SensitivityMultiplier * InstantMagicScopeUI.LookSensitivityMultiplier +
                 keyboardYaw * targetPlayer.SteeringTurnRate * Time.deltaTime;
-            float pitch = -Input.GetAxisRaw("Mouse Y") * Mathf.Max(0f, mousePitchAimSensitivity) * ControlSettings.SensitivityMultiplier;
+            float pitch = -Input.GetAxisRaw("Mouse Y") * Mathf.Max(0f, mousePitchAimSensitivity) * ControlSettings.SensitivityMultiplier * InstantMagicScopeUI.LookSensitivityMultiplier;
             // Keep a quaternion goal independent of the pilot. Reading Euler angles at
             // vertical flight would flip the desired heading and create an endless chase.
             mouseAimRotation = (Quaternion.AngleAxis(yaw, Vector3.up) * mouseAimRotation *
@@ -266,7 +266,7 @@ public partial class CameraFollow : MonoBehaviour
         // Mouse axes are frame deltas: do not multiply by deltaTime or consume per network tick.
         // This is camera-local state and must never rotate the Player transform.
         mouseOrbitYaw = Mathf.Repeat(mouseOrbitYaw + Input.GetAxisRaw("Mouse X") *
-            Mathf.Max(0f, mouseYawSensitivity) * ControlSettings.SensitivityMultiplier + 180f, 360f) - 180f;
+            Mathf.Max(0f, mouseYawSensitivity) * ControlSettings.SensitivityMultiplier * InstantMagicScopeUI.LookSensitivityMultiplier + 180f, 360f) - 180f;
     }
 
     private void LateUpdate()
