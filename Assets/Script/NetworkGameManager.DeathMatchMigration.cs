@@ -27,7 +27,11 @@ public partial class NetworkGameManager
 
     private NetworkProjectConfig DeathMatchNetworkConfig()
     {
-        var config = NetworkProjectConfig.Deserialize(NetworkProjectConfig.Serialize(NetworkProjectConfig.Global));
+        var global = NetworkProjectConfig.Global;
+        var config = NetworkProjectConfig.Deserialize(NetworkProjectConfig.Serialize(global));
+        // JSON copies simulation settings, not the imported prefab sources. Preserve
+        // the catalog used by lobby preloading and Fusion's GUID-to-ID translation.
+        config.PrefabTable = global.PrefabTable;
         config.Simulation.HostMigration = true;
         // Snapshots are explicitly scheduled by TickDeathMatchMigration.
         config.HostMigration.EnableAutoUpdate = false;
