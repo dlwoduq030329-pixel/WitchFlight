@@ -5,6 +5,7 @@ public sealed class FlightCombatTable : ScriptableObject
 {
     [Header("Instant magic scope")]
     [Range(15f, 80f)] public float instantScopeFov = 35f;
+    [Min(0f)] public float instantScopeHoldDelay = .1f;
     [Min(.01f)] public float instantScopeZoomSeconds = .15f;
     [Min(0f)] public float instantScopeReturnSeconds = .04f;
     [Range(0f, 1f)] public float instantScopeDarkness = .82f;

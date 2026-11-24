@@ -246,6 +246,9 @@ public struct MagicStatEntry
     public bool UsesInstantScope => magic != MagicType.None && magic != MagicType.BasicAttack &&
         !requiresTarget && !TargetsAllies && !IsChanneled &&
         (effect == MagicEffectKind.DirectDamage || effect == MagicEffectKind.LifeSteal || effect == MagicEffectKind.AreaDamage);
+    public bool HasUnlimitedInstantRange => UsesInstantScope && projectileSpeed <= 0f;
+    public float CastRange => HasUnlimitedInstantRange ? Mathf.Infinity : Mathf.Max(.1f, range);
+    public const float EmptyBeamVisualDistance = 10000f;
     public bool TargetsAllies => effect == MagicEffectKind.Healing || effect == MagicEffectKind.MeowFestival;
     public bool UsesLockIndicator => requiresTarget || TargetsAllies;
     public bool UsesAutoTarget => UsesLockIndicator || effect == MagicEffectKind.GuidedChannel;

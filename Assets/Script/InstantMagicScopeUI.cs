@@ -22,7 +22,7 @@ public sealed class InstantMagicScopeUI : MaskableGraphic
                 var groups = new System.Collections.Generic.List<CanvasGroup>();
                 foreach (Transform sibling in child.parent)
                 {
-                    if (sibling == child || sibling.name.StartsWith("VSUI") || sibling.name == "VFX_Victory" || sibling.name == "VFX_Lose") continue;
+                    if (sibling == child || sibling.name == "EnemyHpBar" || sibling.name.StartsWith("VSUI") || sibling.name == "VFX_Victory" || sibling.name == "VFX_Lose") continue;
                     var group = sibling.GetComponent<CanvasGroup>();
                     groups.Add(group != null ? group : sibling.gameObject.AddComponent<CanvasGroup>());
                 }
@@ -31,7 +31,23 @@ public sealed class InstantMagicScopeUI : MaskableGraphic
             }
         }
     }
+    private static float aimStartedAt = -1f;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetAimDelay() => aimStartedAt = -1f;
+
     public static bool Requested
+    {
+        get
+        {
+            if (!CanRequestScope) { aimStartedAt = -1f; return false; }
+            if (aimStartedAt < 0f) aimStartedAt = Time.unscaledTime;
+            var settings = FlightCombatTable.Default;
+            float delay = settings != null ? Mathf.Max(0f, settings.instantScopeHoldDelay) : .1f;
+            return Time.unscaledTime - aimStartedAt >= delay;
+        }
+    }
+
+    private static bool CanRequestScope
     {
         get
         {

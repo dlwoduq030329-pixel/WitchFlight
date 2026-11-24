@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 using Unity.Profiling;
 
@@ -1922,7 +1922,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         if (!IsFiniteDirection(cameraRay.direction) || cameraRay.direction.sqrMagnitude < 0.0001f)
             return Vector3.zero;
         // Both slots are considered so switching slots and firing in the same input tick works.
-        float range = Mathf.Max(0.1f, Mathf.Max(GetMagicStats(Magic1).range, GetMagicStats(Magic2).range));
+        float range = Mathf.Max(0.1f, Mathf.Max(GetMagicStats(Magic1).CastRange, GetMagicStats(Magic2).CastRange));
         if (IsMagicStormActive) range = Mathf.Max(range, GetMagicStats(MagicType.MagicStorm).range);
         MagicStatEntry aimQuery = new MagicStatEntry { range = range, hitscanRadius = 0f };
         Vector3 point = TraceMagicTargets(aimQuery, cameraRay.origin, cameraRay.direction.normalized, out _, out _);
@@ -1940,16 +1940,18 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     // Shared authoritative sweep for hitscan and sustained straight beams.
     // Independent from projectileRadius: widening hitscan never changes flying spells.
+    private float tracedMagicDistance;
     private Vector3 TraceMagic(MagicStatEntry stats, Vector3 origin, Vector3 direction, out Player victim)
     {
         Vector3 end = TraceMagicSweep(stats, origin, direction, false, out victim);
         if (stats.magic != MagicType.Razier || stats.allyHitscanRadius <= 0f) return end;
         // The wider healing sweep cannot reach past the first enemy or obstruction.
-        stats.range = Vector3.Distance(origin, end);
+        stats.range = tracedMagicDistance;
         if (stats.range <= .001f) return end;
         stats.hitscanRadius = stats.allyHitscanRadius;
+        float firstDistance = tracedMagicDistance;
         Vector3 allyEnd = TraceMagicSweep(stats, origin, direction, true, out Player ally);
-        if (ally == null) return end;
+        if (ally == null) { tracedMagicDistance = firstDistance; return end; }
         victim = ally;
         return allyEnd;
     }
@@ -1972,7 +1974,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 : Physics.RaycastNonAlloc(origin, direction, hits, range, lockObstructionMask, QueryTriggerInteraction.Ignore);
         }
         float nearest = range;
-        Vector3 end = origin + direction * range;
+        Vector3 end = origin + direction * (float.IsPositiveInfinity(range) ? MagicStatEntry.EmptyBeamVisualDistance : range);
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = hits[i];
@@ -1988,6 +1990,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 environmentImpactHit = EnvironmentImpactVfx.IsEnvironment(hit.collider) ? hit : (RaycastHit?)null;
             end = origin + direction * Mathf.Max(0f, hit.distance - 0.02f);
         }
+        tracedMagicDistance = nearest;
         return end;
     }
 
