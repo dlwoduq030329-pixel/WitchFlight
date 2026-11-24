@@ -152,7 +152,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         // Retain a brief wheel opening even when it occurs entirely between Fusion input ticks.
         pendingEmoteCombatSuppression |= BattleEmoteUI.BlocksCombatInput;
         if (BattleEmoteUI.CapturesMouse) accumulatedLook = Vector2.zero;
-        else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * ControlSettings.SensitivityMultiplier;
+        else accumulatedLook += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * ControlSettings.SensitivityMultiplier * InstantMagicScopeUI.LookSensitivityMultiplier;
         LatchButton(PlayerInputButton.Accelerate, ControlSettings.Down(ControlAction.Accelerate));
         LatchButton(PlayerInputButton.Decelerate, Input.GetKeyDown(KeyCode.S));
         if (BattlePerkUI.BlocksCombatInput || BattleEmoteUI.BlocksCombatInput) latchedButtons.Set(PlayerInputButton.Parry, false);
@@ -1290,7 +1290,7 @@ public partial class NetworkGameManager : MonoBehaviour, INetworkRunnerCallbacks
         NetworkInputData data =
             new NetworkInputData();
         if (BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive ||
-            CombatPresentation.MenuOpen || Cursor.lockState != CursorLockMode.Locked)
+            !Application.isFocused || CombatPresentation.MenuOpen || Cursor.lockState != CursorLockMode.Locked)
         {
             data.suppressActions = true;
             accumulatedLook = Vector2.zero;

@@ -22,6 +22,42 @@ public sealed class CombatMagicVisual : MonoBehaviour
     private Vector3 instantBeamEnd, instantBeamDirection;
     private float readableBeamSeconds, readableBeamElapsed;
     private TimeVfxSpeed readableClock;
+    private float instantHold, instantFade, instantElapsed;
+    private readonly List<BeamFadeTarget> beamFadeTargets = new();
+    private struct BeamFadeTarget
+    {
+        public Renderer renderer;
+        public int slot, property;
+        public Color color;
+        public MaterialPropertyBlock block;
+    }
+    public void BeginInstantFade(float hold, float fade)
+    {
+        instantHold = Mathf.Max(0f, hold);
+        instantFade = Mathf.Max(.01f, fade);
+        instantElapsed = 0f;
+        readableBeamSeconds = 0f;
+        readableClock = GetComponent<TimeVfxSpeed>();
+        beamFadeTargets.Clear();
+        foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] materials = renderer.sharedMaterials;
+            for (int slot = 0; slot < materials.Length; slot++)
+            {
+                Material material = materials[slot];
+                if (material == null) continue;
+                foreach (string name in new[] { "_BaseColor", "_Color", "_TintColor" })
+                {
+                    int property = Shader.PropertyToID(name);
+                    if (!material.HasProperty(property)) continue;
+                    var block = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(block, slot);
+                    beamFadeTargets.Add(new BeamFadeTarget { renderer = renderer, slot = slot, property = property,
+                        color = block.HasColor(property) ? block.GetColor(property) : material.GetColor(property), block = block });
+                }
+            }
+        }
+    }
 
     public void SetReadability(float width, float seconds)
     {
@@ -328,6 +364,21 @@ public sealed class CombatMagicVisual : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (instantFade > 0f)
+        {
+            instantElapsed += Time.deltaTime * (readableClock != null ? readableClock.Multiplier : 1f);
+            float alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((instantElapsed - instantHold) / instantFade));
+            foreach (var target in beamFadeTargets)
+            {
+                if (target.renderer == null) continue;
+                // Preserve other overrides and support shaders exposing multiple tint names.
+                target.renderer.GetPropertyBlock(target.block, target.slot);
+                Color tint = target.color;
+                tint.a *= alpha;
+                target.block.SetColor(target.property, tint);
+                target.renderer.SetPropertyBlock(target.block, target.slot);
+            }
+        }
         if (readableBeamSeconds > 0f && line != null)
         {
             readableBeamElapsed += Time.deltaTime * (readableClock != null ? readableClock.Multiplier : 1f);
@@ -338,8 +389,8 @@ public sealed class CombatMagicVisual : MonoBehaviour
         {
             if (instantMuzzleOwner.Object == null || !instantMuzzleOwner.Object.IsValid || !instantMuzzleOwner.IsAlive ||
                 Vector3.Dot(instantBeamEnd - instantMuzzleOwner.MagicCastPosition, instantBeamDirection) <= 0f)
-            { MagicVfxPool.Release(gameObject); return; }
-            SetEndpoints(instantMuzzleOwner.MagicCastPosition, instantBeamEnd);
+                instantMuzzleOwner = null; // Keep the afterimage if the caster passes the endpoint or despawns.
+            else SetEndpoints(instantMuzzleOwner.MagicCastPosition, instantBeamEnd);
         }
         if (expires <= 0f) return;
         if (follow == null || follow.Object == null || !follow.Object.IsValid || !follow.IsAlive ||

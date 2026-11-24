@@ -3,6 +3,11 @@
 [CreateAssetMenu(menuName = "WitchFlight/Combat/Flight Combat Table")]
 public sealed class FlightCombatTable : ScriptableObject
 {
+    [Header("Instant magic scope")]
+    [Range(15f, 80f)] public float instantScopeFov = 35f;
+    [Min(.01f)] public float instantScopeZoomSeconds = .15f;
+    [Min(0f)] public float instantScopeReturnSeconds = .04f;
+    [Range(0f, 1f)] public float instantScopeDarkness = .82f;
     [Header("Instant magic animation")]
     [Tooltip("즉발(록온/아군 대상 지정/지속 시전/평타 제외) 마법의 팔 뻗기 속도. 2이면 준비 동작과 발사 대기가 절반입니다. 마법 자체 castSeconds는 유지합니다.")]
     [Min(.1f)] public float instantMagicRaiseSpeed = 2f;
