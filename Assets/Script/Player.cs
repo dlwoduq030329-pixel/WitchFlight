@@ -1340,7 +1340,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         MagicProjectile summon = null;
         if (stats.requiresTarget && !TryGetMagicTarget(LockTargetId, out target, out summon, out _)) return;
         float raised = stats.requiresTarget ? LockProgress * Mathf.Max(0, stats.lockChargeSeconds) : 0;
-        float remaining = Mathf.Max(0, broomAnimation.AttackRaiseSeconds - raised);
+        float remaining = Mathf.Max(0, broomAnimation.GetAttackRaiseSeconds(stats) - raised);
         if (remaining <= 0 && stats.castSeconds <= 0)
             ProjectilePredictionView.Predict(this, target, stats, Runner.Tick.Raw, summon);
         else if (!predictedRaisePending)
@@ -1629,7 +1629,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         stats.titleCastId=stats.effect == MagicEffectKind.BladeVolley ? 0 : PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleCast(stats.magic,summon!=null)??0;
         float raised = stats.requiresTarget ? Mathf.Min(weaponRaiseHeldSeconds, LockProgress * Mathf.Max(0f, stats.lockChargeSeconds)) :
             stats.effect == MagicEffectKind.DelayedArea ? weaponRaiseHeldSeconds : 0f;
-        float raiseRemaining = Mathf.Max(0f, broomAnimation.AttackRaiseSeconds - raised);
+        float raiseRemaining = Mathf.Max(0f, broomAnimation.GetAttackRaiseSeconds(stats) - raised);
         if (stats.castSeconds > 0f || raiseRemaining > 0f)
         {
             pendingMagic = selectedMagic;
@@ -3006,6 +3006,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         BattleManager battle = BattleManager.Instance;
         BroomAnimationSnapshot snapshot = new BroomAnimationSnapshot
         {
+            AttackRaiseSeconds = broomAnimation.GetAttackRaiseSeconds(predictedRaisePending ? predictedRaiseStats :
+                GetMagicStats(pendingMagic != MagicType.None ? pendingMagic : CurrentMagicSlot == 0 ? LastCastMagic : GetSelectedMagic())),
             Alive = IsAlive,
             Intro = battle != null && battle.UsesVersusPresentation && battle.Phase == BattleStartPhase.Intro,
             Playing = battle != null && battle.IsGameplayActive,

@@ -12,6 +12,8 @@ public sealed class PlayerBroomAnimation
     [Tooltip("봉을 최대로 드는 AttackStart 전체 재생 시간. 실제 마법 발사는 이 준비 동작 이후에 실행됩니다.")]
     [SerializeField, Min(.01f)] private float attackRaiseSeconds = .25f;
     public float AttackRaiseSeconds => Mathf.Max(.01f, attackRaiseSeconds);
+    public float GetAttackRaiseSeconds(MagicStatEntry stats) => Mathf.Max(.01f, AttackRaiseSeconds / FlightCombatTable.RaiseSpeed(stats));
+    private float activeAttackRaiseSeconds;
     [SerializeField, Min(0.01f)] private float parryStartSeconds = 0.08f;
     [SerializeField, Min(0.01f)] private float parryEndSeconds = 0.12f;
     [Tooltip("접수된 패링마다 같은 손을 몸 쪽으로 당기는 동작/위로 드는 동작을 교대로 재생합니다.")]
@@ -54,6 +56,10 @@ public sealed class PlayerBroomAnimation
             return;
         if (animator != target || controller != target.runtimeAnimatorController || machine == null)
             Initialize(target, hitState, deathState);
+        // Capture the cast's speed until AttackStart finishes, even when casting
+        // switches the selected slot back to basic attack.
+        if (machine.Motion != BroomMotion.AttackStart)
+            activeAttackRaiseSeconds = snapshot.AttackRaiseSeconds > 0f ? snapshot.AttackRaiseSeconds : AttackRaiseSeconds;
         machine.Step(snapshot, deltaTime);
         if (playedRevision == machine.Revision) return;
         playedRevision = machine.Revision;
@@ -129,7 +135,7 @@ public sealed class PlayerBroomAnimation
         if (!available[index]) return 0.01f;
         float length = ClipLength(index);
         if (!hasSpeedParameter) return length;
-        if (motion == BroomMotion.AttackStart) return AttackRaiseSeconds;
+        if (motion == BroomMotion.AttackStart) return Mathf.Max(.01f, activeAttackRaiseSeconds);
         float cap = motion switch
         {
             BroomMotion.ParryStart => parryStartSeconds,

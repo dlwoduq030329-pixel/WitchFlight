@@ -10,6 +10,7 @@ public enum BroomMotion
 
 public struct BroomAnimationSnapshot
 {
+    public float AttackRaiseSeconds;
     public bool Alive, Intro, Playing, TopSpeed, Disarmed, Attacking, Parrying, Respawning;
     public int WeaponKey, CastSequence, HitSequence, DeathSequence, ParryStartSequence;
 }

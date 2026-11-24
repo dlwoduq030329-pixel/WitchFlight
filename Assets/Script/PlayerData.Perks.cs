@@ -87,9 +87,12 @@ public partial class PlayerData
     private void RefreshCommonCandidates()
     {
         // Stable offers for this choice. Reopening UI and swapping weapons cannot reroll them.
-        int seed = ParticipantRef.PlayerId + PerkChoicesUsed * 3;
-        LeftCommonCandidate = PerkRules.CommonCandidate(CommonPerksMask, seed);
-        RightCommonCandidate = PerkRules.CommonCandidate(CommonPerksMask, seed + 5, LeftCommonCandidate);
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
+        int count = PerkRules.CommonCandidateCount(CommonPerksMask);
+        LeftCommonCandidate = PerkRules.CommonCandidate(CommonPerksMask, UnityEngine.Random.Range(0, Mathf.Max(1, count)));
+        count = PerkRules.CommonCandidateCount(CommonPerksMask, LeftCommonCandidate);
+        RightCommonCandidate = PerkRules.CommonCandidate(CommonPerksMask,
+            UnityEngine.Random.Range(0, Mathf.Max(1, count)), LeftCommonCandidate);
     }
     public void PerkLoadoutChanged()
     {

@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d3ed3fe6bab048d49561ca53fb8edfe1, type: 3}
   m_Name: FlightCombatTable
   m_EditorClassIdentifier: 
+  instantMagicRaiseSpeed: 2
   dashRechargeSeconds: 8
   dashWindupSeconds: 0.08
   manaBuffManaRecoveryMultiplier: 2
@@ -29,6 +30,8 @@ MonoBehaviour:
   spawnProtectionOrbitRadius: 0.8
   spawnShieldScale: 0.5
   spawnShieldOpacity: 0.5
+  wallCrashGraceSeconds: 3
+  minimumWallImpactSpeed: 3
   enableCobra: 1
   cobraMinimumSpeedRatio: 0.9
   cobraSeconds: 1.4

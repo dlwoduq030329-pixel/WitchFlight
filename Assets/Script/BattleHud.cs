@@ -343,6 +343,7 @@ public sealed partial class BattleHud : MonoBehaviour
 
     private void BindOvertimePresentation(bool show, float progress)
     {
+        SyncOvertimeHandle();
         Visible(overtimeLabel != null ? overtimeLabel.gameObject : null, show);
         if (overtimeFillGraphic == null && overtimeSlider != null && overtimeSlider.fillRect != null)
             overtimeFillGraphic = overtimeSlider.fillRect.GetComponent<Graphic>();
@@ -367,6 +368,31 @@ public sealed partial class BattleHud : MonoBehaviour
             overtimeSlider.handleRect.localScale = overtimeHandleBaseScale * (1f + pulse * overtimeHandlePulseScale);
         }
         if (overtimeLabel != null) overtimeLabel.color = Color.white;
+    }
+
+    private void SyncOvertimeHandle()
+    {
+        if (overtimeSlider == null || overtimeSlider.fillRect == null) return;
+        // Value is remaining time: a left-anchored fill drains right -> left.
+        if (overtimeSlider.direction != Slider.Direction.LeftToRight)
+            overtimeSlider.SetDirection(Slider.Direction.LeftToRight, false);
+        RectTransform fill = overtimeSlider.fillRect;
+        Vector3 scale = fill.localScale;
+        if (scale.x < 0f) { scale.x = -scale.x; fill.localScale = scale; }
+        Image fillImage = fill.GetComponent<Image>();
+        bool filled = fillImage != null && fillImage.type == Image.Type.Filled;
+        if (filled)
+        {
+            fillImage.fillMethod = Image.FillMethod.Horizontal;
+            fillImage.fillOrigin = (int)Image.OriginHorizontal.Left;
+            fillImage.fillAmount = overtimeSlider.normalizedValue;
+        }
+        if (overtimeSlider.handleRect == null) return;
+        // Fill and Handle may have different parents, padding and widths.
+        // Align the authored handle's pivot to the actual visible fill edge.
+        Rect rect = fill.rect;
+        float edge = filled ? Mathf.Lerp(rect.xMin, rect.xMax, overtimeSlider.normalizedValue) : rect.xMax;
+        overtimeSlider.handleRect.position = fill.TransformPoint(new Vector3(edge, rect.center.y, 0f));
     }
 
     [SerializeField] private Slider allyTimeSlider;
