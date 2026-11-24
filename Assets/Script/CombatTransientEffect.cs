@@ -70,7 +70,8 @@ public sealed class CombatTransientEffect : MonoBehaviour
         effect.gameObject.SetActive(true);
     }
 
-    public static void PlayBeam(Vector3 origin, Vector3 end, Color color, Player owner = null, bool followMuzzle = false)
+    public static void PlayBeam(Vector3 origin, Vector3 end, Color color, Player owner = null, bool followMuzzle = false,
+        float holdSeconds = .15f, float fadeSeconds = .25f)
     {
         CombatTransientEffect effect = Acquire(PoolKind.Beam);
         RearThreatCamera.ExcludeLocalEffect(effect.gameObject, owner);
@@ -81,7 +82,8 @@ public sealed class CombatTransientEffect : MonoBehaviour
         effect.fixedBeamEnd = end;
         effect.beamDirection = (end - origin).normalized;
         effect.materials[0].color = color;
-        effect.Initialize(0.16f, Vector3.one, Vector3.one, effect.materials);
+        fadeSeconds = Mathf.Max(.01f, fadeSeconds);
+        effect.Initialize(Mathf.Max(0f, holdSeconds) + fadeSeconds, Vector3.one, Vector3.one, effect.materials, fadeSeconds: fadeSeconds);
         effect.gameObject.SetActive(true);
     }
 
@@ -90,7 +92,7 @@ public sealed class CombatTransientEffect : MonoBehaviour
         if (muzzleOwner == null) return;
         if (muzzleOwner.Object == null || !muzzleOwner.Object.IsValid || !muzzleOwner.IsAlive ||
             Vector3.Dot(fixedBeamEnd - muzzleOwner.MagicCastPosition, beamDirection) <= 0f)
-        { ReturnOrDestroy(); return; }
+        { muzzleOwner = null; return; } // Leave the last visible segment to finish fading.
         beamLine.SetPosition(0, muzzleOwner.MagicCastPosition);
         beamLine.SetPosition(1, fixedBeamEnd);
     }
