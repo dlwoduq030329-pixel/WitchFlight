@@ -45,6 +45,8 @@ public sealed class InstantMagicScopeUI : MaskableGraphic
             return RobbyMagicPractice.Instance != null && RobbyMagicPractice.Instance.IsInstantScopeAiming;
         }
     }
+    public static float LookSensitivityMultiplier => Requested ? .15f : 1f;
+
     public static float Advance(float current, bool aiming)
     {
         var settings = FlightCombatTable.Default;

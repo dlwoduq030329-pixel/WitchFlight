@@ -68,8 +68,8 @@ public sealed class RobbyPlayerCamera : MonoBehaviour
         {
             var player = PlayerRobby.LocalPlayer;
             if (player != null && player.InteractionCameraReturning) return;
-            viewYaw = Mathf.Repeat(viewYaw + Input.GetAxisRaw("Mouse X") * mouseSensitivity, 360f);
-            viewPitch = Mathf.Clamp(viewPitch - Input.GetAxisRaw("Mouse Y") * verticalSensitivity, pitchLimits.x, pitchLimits.y);
+            viewYaw = Mathf.Repeat(viewYaw + Input.GetAxisRaw("Mouse X") * mouseSensitivity * InstantMagicScopeUI.LookSensitivityMultiplier, 360f);
+            viewPitch = Mathf.Clamp(viewPitch - Input.GetAxisRaw("Mouse Y") * verticalSensitivity * InstantMagicScopeUI.LookSensitivityMultiplier, pitchLimits.x, pitchLimits.y);
         }
     }
 
