@@ -11,6 +11,9 @@ public sealed class CombatPresentation : MonoBehaviour
     [Header("Death magic readability (visual only)")]
     [SerializeField, Min(.01f)] private float darkBeamWidth = .95f;
     [SerializeField, Min(.05f)] private float darkBeamSeconds = .32f;
+    [Header("Instant beam afterimage (visual only)")]
+    [SerializeField, Min(0f)] private float instantBeamHoldSeconds = .15f;
+    [SerializeField, Min(.01f)] private float instantBeamFadeSeconds = .25f;
     [SerializeField, Min(.01f)] private float darkCastScale = 1.35f;
     [Header("Mana potion pickup VFX")]
     [Tooltip("MP 포션 획득 시 재생할 외형 프리팹. NetworkObject 없이 제작하세요. 비우면 효과를 생성하지 않습니다.")]
@@ -663,7 +666,8 @@ public sealed class CombatPresentation : MonoBehaviour
         if (magic == MagicType.Blade || stats.projectileSpeed > 0f || stats.IsChanneled || stats.effect == MagicEffectKind.Healing ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon) return;
         if (stats.beamVfxPrefab == null && stats.beamMaterial == null)
-            CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic), owner, followMuzzle);
+            CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic), owner, followMuzzle,
+                instantBeamHoldSeconds, instantBeamFadeSeconds);
         else
         {
             CombatMagicVisual beam = CombatMagicVisual.Beam(magic, stats.beamVfxPrefab, stats.beamMaterial);
@@ -671,8 +675,9 @@ public sealed class CombatPresentation : MonoBehaviour
             if (owner != null) TimeVfxSpeed.Bind(beam.gameObject, owner.Runner, owner.TeamIndex, false);
             beam.SetEndpoints(origin, end);
             if (followMuzzle) beam.FollowInstantMuzzle(owner, end);
-            float beamSeconds = magic == MagicType.Dark ? darkBeamSeconds : .2f;
+            float beamSeconds = Mathf.Max(0f, instantBeamHoldSeconds) + Mathf.Max(.01f, instantBeamFadeSeconds);
             if (magic == MagicType.Dark) beam.SetReadability(darkBeamWidth, beamSeconds);
+            beam.BeginInstantFade(instantBeamHoldSeconds, instantBeamFadeSeconds);
             MagicVfxPool.Release(beam.gameObject, beamSeconds);
         }
         ShowImpact(end, magic, owner);
