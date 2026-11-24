@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 // Reads render-time replicated state; never plays from predicted/resimulated movement ticks.
 [DisallowMultipleComponent]
@@ -6,9 +6,9 @@ public sealed class CombatAudioFeedback : MonoBehaviour
 {
     private Player owner;
     private bool initialized, alive, boosting, lowHealth, charging;
-    private int hit, death, parryStart, parry, portal, slot, lockFailure;
+    private int hit, death, parryStart, parry, portal, lockFailure;
     private MagicType channel;
-    private BattleAudio.Loop boostLoop, channelLoop, lockLoop;
+    private BattleAudio.Loop boostLoop, channelLoop, lockLoop, burnLoop, manaBuffLoop;
     private readonly bool[] statuses = new bool[4];
     private static readonly StatusEffectType[] statusTypes = {
         StatusEffectType.Binding, StatusEffectType.Slow, StatusEffectType.HitStun, StatusEffectType.Burn };
@@ -23,11 +23,11 @@ public sealed class CombatAudioFeedback : MonoBehaviour
         if (!initialized)
         {
             hit = owner.HitSequence; death = owner.DeathSequence; parryStart = owner.ParryStartSequence;
-            parry = owner.ParrySequence; portal = owner.PortalExitSequence; slot = owner.CurrentMagicSlot;
+            parry = owner.ParrySequence; portal = owner.PortalExitSequence;
             alive = owner.IsAlive;
             lockFailure = owner.LockFailureSequence;
             lowHealth = owner.NowHp <= owner.MaxHp * .25f;
-            for (int i = 0; i < statuses.Length; i++) statuses[i] = owner.HasStatusEffect(statusTypes[i]);
+            for (int i = 0; i < statuses.Length; i++) statuses[i] = StatusActive(i);
             initialized = true;
         }
         if (hit != owner.HitSequence) { hit = owner.HitSequence; Sound(BattleSound.DamageReceived); Sound(BattleSound.HurtVoice); }
@@ -37,11 +37,6 @@ public sealed class CombatAudioFeedback : MonoBehaviour
         if (portal != owner.PortalExitSequence) { portal = owner.PortalExitSequence; Sound(BattleSound.Portal); }
         if (!alive && owner.IsAlive) Sound(BattleSound.Respawn);
         alive = owner.IsAlive;
-        if (slot != owner.CurrentMagicSlot)
-        {
-            slot = owner.CurrentMagicSlot;
-            if (IsLocal) BattleAudio.Play(BattleSound.MagicSlotChanged, local: true);
-        }
         bool gameplay = owner.IsAlive && BattleManager.Instance != null && BattleManager.Instance.IsGameplayActive;
         if (!gameplay || owner.NowHp > owner.MaxHp * .35f) lowHealth = false;
         if (gameplay && !lowHealth && owner.NowHp <= owner.MaxHp * .25f)
@@ -84,12 +79,21 @@ public sealed class CombatAudioFeedback : MonoBehaviour
         }
         for (int i = 0; i < statuses.Length; i++)
         {
-            bool active = gameplay && owner.HasStatusEffect(statusTypes[i]);
-            if (active && !statuses[i]) Sound(statusSounds[i]);
+            bool active = gameplay && StatusActive(i);
+            if (active && !statuses[i] && statusTypes[i] != StatusEffectType.Burn) Sound(statusSounds[i]);
             statuses[i] = active;
         }
+        // Burn audio follows the replicated perk-created status, not ordinary fire hits.
+        bool burning = gameplay && owner.HasStatusEffect(StatusEffectType.Burn);
+        if (!burning) burnLoop.Stop();
+        else if (!burnLoop.IsActive) burnLoop = BattleAudio.StartLoop(BattleSound.Burn, transform, IsLocal);
+        bool recoveringMana = gameplay && owner.HasManaBuff;
+        if (!recoveringMana) manaBuffLoop.Stop();
+        else if (!manaBuffLoop.IsActive) manaBuffLoop = BattleAudio.StartLoop(BattleSound.ManaBuffZone, transform, IsLocal);
     }
+    private bool StatusActive(int index) => statusTypes[index] == StatusEffectType.Slow
+        ? owner.HasIceSlowAudio : owner.HasStatusEffect(statusTypes[index]);
     private void Sound(BattleSound sound) => BattleAudio.Play(sound, owner.LockAimPoint, transform, IsLocal);
-    private void StopLoops() { boostLoop.Stop(); channelLoop.Stop(); lockLoop.Stop(); boosting = charging = false; channel = MagicType.None; }
+    private void StopLoops() { boostLoop.Stop(); channelLoop.Stop(); lockLoop.Stop(); burnLoop.Stop(); manaBuffLoop.Stop(); boosting = charging = false; channel = MagicType.None; }
     private void OnDisable() { StopLoops(); initialized = false; }
 }

@@ -312,7 +312,11 @@ public partial class MagicProjectile : NetworkBehaviour
             if (IsMine)
                 SettleMine();
             else
+            {
+                Vector3 surfacePoint = overlap.ClosestPoint(transform.position);
+                PresentEnvironmentContact(overlap, surfacePoint, -direction);
                 Impact(transform.position, overlap.GetComponentInParent<Player>(), headTraceOrigin: transform.position);
+            }
             return;
         }
         bool collided = TryGetCollision(step, out RaycastHit hit);
@@ -331,7 +335,10 @@ public partial class MagicProjectile : NetworkBehaviour
             if (IsMine)
                 SettleMine();
             else
+            {
+                PresentEnvironmentContact(hit.collider, hit.point, hit.normal);
                 Impact(next, hit.collider.GetComponentInParent<Player>(), headTraceOrigin: sweepOrigin);
+            }
             return;
         }
 

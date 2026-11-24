@@ -1882,6 +1882,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else { ResetVisionMiss(stats); NotifyFaceMiss(); }
 
         PresentCast(stats.magic, origin, end);
+        PresentEnvironmentContact(victim, summonHit);
     }
 
     // Local input-only query: converge the physical cast root onto the point under the Dot.
@@ -1954,6 +1955,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             if (!alliesOnly && stats.magic == MagicType.Razier && stats.allyHitscanRadius > 0f && ally) continue;
             nearest = hit.distance;
             victim = candidate;
+            if (!alliesOnly)
+                environmentImpactHit = EnvironmentImpactVfx.IsEnvironment(hit.collider) ? hit : (RaycastHit?)null;
             end = origin + direction * Mathf.Max(0f, hit.distance - 0.02f);
         }
         return end;
@@ -2053,6 +2056,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                     return;
                 }
             }
+            if (stats.effect != MagicEffectKind.GuidedChannel)
+                PresentEnvironmentContact(target, summon, channel: true);
             channelDamageTime = 0f;
         }
         if (exhausted) { NotifyManaFailure(); StopChannel(); channelNeedsRelease = true; }

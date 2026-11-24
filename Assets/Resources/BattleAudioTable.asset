@@ -1,4 +1,4 @@
-%YAML 1.1
+﻿%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
@@ -190,15 +190,16 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: "MagicSlotChanged - \uB9C8\uBC95 \uC2AC\uB86F \uBCC0\uACBD"
+  - label: MagicSlotChanged
     sound: 8
     audio:
       category: 0
-      clip: {fileID: 8300000, guid: df4e42596eb764f929c54721569d7190, type: 3}
-      volume: 0.45
+      clip: {fileID: 8300000, guid: dcdbb18d02d0b2549bc3482c3fb40ed1, type: 3}
+      variations: []
+      volume: 0.6
       pitch: 1
-      minimumInterval: 0.12
-      spatialBlend: 1
+      minimumInterval: 0.1
+      spatialBlend: 0
       minDistance: 4
       maxDistance: 80
   - label: "BoostStart - \uBD80\uC2A4\uD2B8 \uC2DC\uC791"
@@ -267,14 +268,15 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: "Updraft - \uC0C1\uC2B9\uAE30\uB958"
+  - label: Updraft
     sound: 15
     audio:
       category: 0
-      clip: {fileID: 8300000, guid: b7f08580250e04e01949f8602db6afd8, type: 3}
-      volume: 0.45
+      clip: {fileID: 8300000, guid: 2c25862ac010a874886750e6f6b657e5, type: 3}
+      variations: []
+      volume: 0.6
       pitch: 1
-      minimumInterval: 0.12
+      minimumInterval: 0.1
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
@@ -443,14 +445,15 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: "Slow - \uB454\uD654"
+  - label: Slow
     sound: 31
     audio:
       category: 0
-      clip: {fileID: 8300000, guid: cb201c4d86fcd48fe9dc0363480707d1, type: 3}
-      volume: 0.45
+      clip: {fileID: 8300000, guid: 815caab970d55e04f8e59222d23e359a, type: 3}
+      variations: []
+      volume: 0.6
       pitch: 1
-      minimumInterval: 0.12
+      minimumInterval: 0.1
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
@@ -465,14 +468,15 @@ MonoBehaviour:
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
-  - label: "Burn - \uD654\uC0C1"
+  - label: Burn
     sound: 33
     audio:
       category: 0
-      clip: {fileID: 8300000, guid: 1ac88265a7ccf47288943cad41069d82, type: 3}
+      clip: {fileID: 8300000, guid: 50e073c5c6aef984d97ed947144663f5, type: 3}
+      variations: []
       volume: 0.45
       pitch: 1
-      minimumInterval: 0.12
+      minimumInterval: 0.1
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
@@ -850,6 +854,66 @@ MonoBehaviour:
       pitch: 1
       minimumInterval: 0.045
       spatialBlend: 0
+      minDistance: 4
+      maxDistance: 80
+  - label: EnvironmentHit
+    sound: 75
+    audio:
+      category: 0
+      clip: {fileID: 8300000, guid: 63ada218ac67b9a4d9ba7ebf626c6caa, type: 3}
+      variations: []
+      volume: 0.45
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: ManaBuffZone
+    sound: 76
+    audio:
+      category: 0
+      clip: {fileID: 8300000, guid: 5be4c6ab5a7f1fd4399e2efbc0ca41f7, type: 3}
+      variations: []
+      volume: 0.35
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: WaitingRoomDrink
+    sound: 77
+    audio:
+      category: 0
+      clip: {fileID: 8300000, guid: aa60bad1baf78ae49ab4ef09fd64ec7c, type: 3}
+      variations: []
+      volume: 0.6
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: WaitingRoomFootsteps
+    sound: 78
+    audio:
+      category: 0
+      clip: {fileID: 8300000, guid: 5faf87aaaf172f543897d813f660c493, type: 3}
+      variations: []
+      volume: 0.45
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: WaitingRoomKick
+    sound: 79
+    audio:
+      category: 0
+      clip: {fileID: 8300000, guid: 11fd59143aea8b843b80229e909481bf, type: 3}
+      variations: []
+      volume: 0.6
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
       minDistance: 4
       maxDistance: 80
   magicSounds:
@@ -1510,8 +1574,9 @@ MonoBehaviour:
       maxDistance: 80
     cast:
       category: 0
-      clip: {fileID: 8300000, guid: 5b22306809bc5264982ab3c663269fb0, type: 3}
-      volume: 0.5
+      clip: {fileID: 8300000, guid: 1391f392d56881f48a5a06fb01762d26, type: 3}
+      variations: []
+      volume: 0.6
       pitch: 1
       minimumInterval: 0.1
       spatialBlend: 1
@@ -1528,10 +1593,11 @@ MonoBehaviour:
       maxDistance: 80
     impact:
       category: 0
-      clip: {fileID: 8300000, guid: c1317c75cb179464588c5658eea94e07, type: 3}
-      volume: 0.2
+      clip: {fileID: 8300000, guid: 99991cb6243ba8a4db0c6969ec947508, type: 3}
+      variations: []
+      volume: 0.6
       pitch: 1
-      minimumInterval: 0.2
+      minimumInterval: 0.1
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
@@ -1602,8 +1668,9 @@ MonoBehaviour:
       maxDistance: 80
     cast:
       category: 0
-      clip: {fileID: 8300000, guid: e39f822c236874ae4b139f62f8f329c2, type: 3}
-      volume: 0.5
+      clip: {fileID: 8300000, guid: eec2393f069bd75419c80118cef2dc9d, type: 3}
+      variations: []
+      volume: 0.6
       pitch: 1
       minimumInterval: 0.1
       spatialBlend: 1
@@ -2046,6 +2113,108 @@ MonoBehaviour:
       volume: 1
       pitch: 1
       minimumInterval: 0.03
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+  - label: BasicAttack
+    magic: 18
+    lockComplete:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    cast:
+      category: 0
+      clip: {fileID: 8300000, guid: 1ac2a76ba0c0afc419fe78aca5ed19e3, type: 3}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    projectileLoop:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    impact:
+      category: 0
+      clip: {fileID: 8300000, guid: 14a6d800d5ac38f46a13237542f31aee, type: 3}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelLoop:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    channelEnd:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    followUp:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    areaWarning:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    summonAttack:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
+      spatialBlend: 1
+      minDistance: 4
+      maxDistance: 80
+    effectLoop:
+      category: 0
+      clip: {fileID: 0}
+      variations: []
+      volume: 0.5
+      pitch: 1
+      minimumInterval: 0.1
       spatialBlend: 1
       minDistance: 4
       maxDistance: 80
