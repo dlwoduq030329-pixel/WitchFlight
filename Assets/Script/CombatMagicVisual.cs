@@ -6,6 +6,7 @@ public sealed class CombatMagicVisual : MonoBehaviour
 {
     private LineRenderer line;
     private Transform stretched;
+    private bool beamWithMuzzleParticles;
     private Vector3 authoredScale;
     private Material ownedMaterial;
     private Player follow;
@@ -69,8 +70,12 @@ public sealed class CombatMagicVisual : MonoBehaviour
             effect.stretched = view.transform;
             effect.authoredScale = view.transform.localScale;
         }
-        else
+        // Healing beam may use a particle-only cast prefab. It still needs a
+        // line from the muzzle to the hit point; a stretched particle emitter
+        // is not a replacement for that line (and cannot use beamMaterial).
+        if (view == null || (magic == MagicType.Razier && effect.line == null))
         {
+            effect.beamWithMuzzleParticles = view != null;
             effect.line = root.AddComponent<LineRenderer>();
             if (material == null)
             {
@@ -94,12 +99,13 @@ public sealed class CombatMagicVisual : MonoBehaviour
     public void SetEndpoints(Vector3 origin, Vector3 end)
     {
         if (line != null) { line.SetPosition(0, origin); line.SetPosition(1, end); }
-        else if (stretched != null)
+        if (stretched != null && (line == null || beamWithMuzzleParticles))
         {
             Vector3 delta = end - origin;
             stretched.SetPositionAndRotation(origin, delta.sqrMagnitude > 0.0001f
                 ? Quaternion.LookRotation(delta) : Quaternion.identity);
-            stretched.localScale = new Vector3(authoredScale.x, authoredScale.y, authoredScale.z * delta.magnitude);
+            stretched.localScale = beamWithMuzzleParticles ? authoredScale :
+                new Vector3(authoredScale.x, authoredScale.y, authoredScale.z * delta.magnitude);
         }
     }
 

@@ -23,11 +23,21 @@ public static class PerkRules
     public static PerkId Candidate(MagicType magic, int level, int otherLevel, PerkId common)
         => level < (otherLevel == 2 ? 1 : 2) ? Spell(magic, level + 1) : otherLevel == 2 || level == 2 ? common : PerkId.None;
     public static bool CanUpgrade(int level, int other) => level >= 0 && level < (other == 2 ? 1 : 2);
+    public static int CommonCandidateCount(int mask, PerkId excluded = PerkId.None)
+    {
+        int count = 0;
+        for (int i = 25; i <= 34; i++)
+            if ((mask & Bit((PerkId)i)) == 0 && (PerkId)i != excluded) count++;
+        return count;
+    }
     public static PerkId CommonCandidate(int mask, int seed, PerkId excluded = PerkId.None)
     {
+        int count = CommonCandidateCount(mask, excluded);
+        if (count == 0) return PerkId.None;
+        int selected = (int)((uint)seed % (uint)count);
         for (int i = 0; i < 10; i++) {
-            PerkId id = (PerkId)(25 + (int)((uint)seed % 10 + i) % 10);
-            if ((mask & Bit(id)) == 0 && id != excluded) return id;
+            PerkId id = (PerkId)(25 + i);
+            if ((mask & Bit(id)) == 0 && id != excluded && selected-- == 0) return id;
         }
         return PerkId.None;
     }
