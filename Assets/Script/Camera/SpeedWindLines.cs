@@ -67,24 +67,38 @@ public sealed class SpeedWindLines : MaskableGraphic
             uint streakCycle = unchecked(animationCycle + (uint)Mathf.FloorToInt(phaseTime));
             // A new random width per streak lifetime, never per mesh rebuild/frame.
             float width = Mathf.Lerp(minWidth, maxWidth, WidthSample(i, streakCycle));
-            float headRadius = Mathf.Lerp(0.82f, edge + 0.35f, phase);
-            float tailRadius = Mathf.Max(0.76f, headRadius - 0.22f);
+            float headRadius = Mathf.Lerp(0.78f, edge + 0.45f, phase);
+            float length = Mathf.Lerp(.38f, .72f, WidthSample(i + 137, streakCycle));
+            float tailRadius = Mathf.Max(.54f, headRadius - length);
             Vector2 tail = rect.center + radial * tailRadius;
             Vector2 head = rect.center + radial * headRadius;
             Vector2 side = new Vector2(-radial.y, radial.x).normalized *
-                (rect.height / 1080f) * width * 0.5f;
-            Color tipColor = color;
-            tipColor.a *= opacity * Mathf.Sin(phase * Mathf.PI);
-            Color tailColor = tipColor;
-            tailColor.a = 0f;
-
+                (rect.height / 1080f) * width * 1.8f;
+            Color streak = Color.white;
+            streak.a = color.a * opacity * Mathf.Sin(phase * Mathf.PI);
+            // Feather both sides and taper towards the clear centre. No texture,
+            // extra material, or per-frame managed allocations are required.
             int start = vh.currentVertCount;
-            vh.AddVert(tail - side, tailColor, Vector2.zero);
-            vh.AddVert(tail + side, tailColor, Vector2.zero);
-            vh.AddVert(head + side, tipColor, Vector2.zero);
-            vh.AddVert(head - side, tipColor, Vector2.zero);
-            vh.AddTriangle(start, start + 1, start + 2);
-            vh.AddTriangle(start, start + 2, start + 3);
+            for (int row = 0; row < 4; row++)
+            {
+                float t = row / 3f;
+                Vector2 point = Vector2.Lerp(tail, head, t);
+                float spread = Mathf.Lerp(.02f, 1f, t * t);
+                for (int column = 0; column < 5; column++)
+                {
+                    float across = (column - 2) * .5f;
+                    Color c = streak;
+                    c.a *= (column == 0 || column == 4 ? 0f : column == 2 ? 1f : .28f) * t;
+                    vh.AddVert(point + side * (across * spread), c, Vector2.zero);
+                }
+            }
+            for (int row = 0; row < 3; row++)
+                for (int column = 0; column < 4; column++)
+                {
+                    int a = start + row * 5 + column;
+                    vh.AddTriangle(a, a + 1, a + 6);
+                    vh.AddTriangle(a, a + 6, a + 5);
+                }
         }
     }
 
