@@ -1,5 +1,6 @@
 Shader "WitchFlight/VisionFloatingRunes"
 {
+    Properties { [HDR] _Tint ("Tint", Color) = (1,1,1,1) }
     SubShader
     {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "RenderPipeline"="UniversalPipeline" }
@@ -12,9 +13,10 @@ Shader "WitchFlight/VisionFloatingRunes"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            half4 _Tint;
             struct A { float4 pos:POSITION; float2 uv:TEXCOORD0; half4 color:COLOR; };
             struct V { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; half4 color:COLOR; };
-            V vert(A a) { V o; o.pos=TransformObjectToHClip(a.pos.xyz); o.uv=a.uv; o.color=a.color; return o; }
+            V vert(A a) { V o; o.pos=TransformObjectToHClip(a.pos.xyz); o.uv=a.uv; o.color=a.color*_Tint; return o; }
             float stroke(float2 p,float2 a,float2 b)
             {
                 float2 d=b-a;

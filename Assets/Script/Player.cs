@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 using Unity.Profiling;
 
@@ -159,6 +159,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private TickTimer WallDamageTimer { get; set; }
     [Networked] private TickTimer WallContactTimer { get; set; }
     [Networked] private Vector3 LastFlightVelocity { get; set; }
+    public Vector3 FlightVisualVelocity => LastFlightVelocity;
     public Vector3 FlightIndicatorDirection => LastFlightVelocity.sqrMagnitude > .01f
         ? LastFlightVelocity.normalized : transform.forward;
     [Networked] public bool IsBoosting { get; private set; }

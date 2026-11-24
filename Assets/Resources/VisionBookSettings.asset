@@ -18,6 +18,19 @@ MonoBehaviour:
   pageGlowColor: {r: 0.25, g: 0.85, b: 1, a: 1}
   pageGlowIntensity: 10
   pageLightIntensity: 5
+  chargedElectricColor: {r: 0.1, g: 1, b: 0.8, a: 1}
+  chargedElectricIntensity: 3
+  chargedElectricWidth: 0.09
+  chargedElectricReach: 0.5
+  chargedEnergyRiseSpeed: 1.6
+  chargedAuraOpacity: 0.16
+  chargedAuraDrag: 0.045
+  chargedAuraMaxBend: 0.85
+  chargedAuraMoteRate: 18
+  chargedEnergyHeight: 1.4
+  chargedEnergyWidth: 0.7
+  chargedAuraColor: {r: 0.22, g: 0.55, b: 1, a: 1}
+  chargedAuraIntensity: 2
   pageLightRange: 4
   energyHeight: 1.2
   energyWidth: 0.12
@@ -25,8 +38,9 @@ MonoBehaviour:
   energyMaxTrail: 2
   energyLifetime: 0.4
   energyEmissionMultiplier: 2
+  runeMaxTrail: 1.5
   runeRate: 12
-  runeLifetime: 1.5
+  runeLifetime: 0.45
   runeSize: 0.16
   runeRiseSpeed: 0.6
   energyLocalOffset: {x: 0, y: 0.08, z: 0}

@@ -9,6 +9,20 @@ public sealed class VisionBookSettings : ScriptableObject
     [ColorUsage(false, true)] public Color pageGlowColor = new Color(.25f, .85f, 1f);
     [Min(0f)] public float pageGlowIntensity = 10f;
     [Min(0f)] public float pageLightIntensity = 5f;
+    [Header("Empowered body electricity")]
+    [ColorUsage(false, true)] public Color chargedElectricColor = new Color(.1f, 1f, .8f);
+    [Min(0f)] public float chargedElectricIntensity = 3f;
+    [Min(.001f)] public float chargedElectricWidth = .09f;
+    [Min(0f)] public float chargedElectricReach = .5f;
+    [Min(0f)] public float chargedAuraIntensity = 2f;
+    [Range(0f,1f)] public float chargedAuraOpacity = .16f;
+    [Min(0f)] public float chargedAuraDrag = .045f;
+    [Min(0f)] public float chargedAuraMaxBend = .85f;
+    [Min(0f)] public float chargedAuraMoteRate = 18f;
+    [Min(.1f)] public float chargedEnergyHeight = 1.4f;
+    [Min(.1f)] public float chargedEnergyRiseSpeed = 1.6f;
+    [Min(.01f)] public float chargedEnergyWidth = .7f;
+    [ColorUsage(false, true)] public Color chargedAuraColor = new Color(.22f,.55f,1f,1f);
     [Min(.1f)] public float pageLightRange = 4f;
     [Header("Page energy streams")]
     [Min(0f)] public float energyHeight = 1.2f;
@@ -20,7 +34,8 @@ public sealed class VisionBookSettings : ScriptableObject
     [Min(0f)] public float energyEmissionMultiplier = 2f;
     [Header("Floating page runes")]
     [Min(0f)] public float runeRate = 12f;
-    [Min(.05f)] public float runeLifetime = 1.5f;
+    [Min(.1f)] public float runeMaxTrail = 1.5f;
+    [Min(.05f)] public float runeLifetime = .45f;
     [Min(.01f)] public float runeSize = .16f;
     [Min(0f)] public float runeRiseSpeed = .6f;
     public Vector3 energyLocalOffset = new Vector3(0, .08f, 0);
