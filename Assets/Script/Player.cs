@@ -1780,6 +1780,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void CastMagic(MagicStatEntry stats, Player target, MagicProjectile summon = null)
     {
+        if (stats.effect != MagicEffectKind.BladeVolley) PrepareVisionBooks(ref stats);
         if (stats.effect == MagicEffectKind.TimeField)
         {
             var field = Runner.Spawn(magicProjectilePrefab, transform.position, Quaternion.identity, ParticipantRef);
@@ -1837,6 +1838,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             transform.forward, transform.forward, target != null ? target.LockAimPoint - origin :
                 summon != null ? summon.transform.position - origin : Vector3.zero);
         direction = ResolveDotCastDirection(stats, castAimDirection, direction);
+        PrepareVisionBooks(ref stats);
         if (stats.projectileSpeed > 0f)
         {
             if (!magicProjectilePrefab.IsValid)
@@ -2055,6 +2057,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             CastSequence++;
             stats.perkCast = CastSequence; stats.perkAttacker = ParticipantRef;
             stats.titleCastId=stats.effect == MagicEffectKind.BladeVolley ? 0 : PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleCast(stats.magic,summon!=null)??0;
+            PrepareVisionBooks(ref stats);
             channelPerkStats = stats;
             channelDamageTime = 0f;
         }

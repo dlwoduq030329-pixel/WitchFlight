@@ -7,11 +7,13 @@ public partial class Player
     public bool HasVisionEquipped => Magic1 == MagicType.Vision || Magic2 == MagicType.Vision;
     private bool PrepareVisionBooks(ref MagicStatEntry stats)
     {
-        if (stats.magic != MagicType.Vision || !HasVisionEquipped) return false;
+        if (stats.visionBooksEmpowered) return true;
+        if (!HasVisionEquipped || stats.TargetsAllies || (stats.damage <= 0f && stats.damagePerSecond <= 0f)) return false;
         var settings = VisionBookSettings.Default;
         if (VisionOpenBooks < Mathf.Clamp(settings.bookCount, 1, 12)) return false;
-        stats.damage = Mathf.Max(0, settings.empoweredDamage);
-        stats.hitscanRadius *= Mathf.Max(1, settings.empoweredRadiusMultiplier);
+        if (stats.damage > 0f) stats.damage += Mathf.Max(stats.damage * settings.empoweredDamageBonus, settings.minimumDamageBonus);
+        if (stats.damagePerSecond > 0f) stats.damagePerSecond += Mathf.Max(stats.damagePerSecond * settings.empoweredDamageBonus, settings.minimumDamageBonus);
+        if (stats.magic == MagicType.Vision) stats.hitscanRadius *= Mathf.Max(1, settings.empoweredRadiusMultiplier);
         // Consume on firing, including misses and parries. The charged shot cannot
         // immediately reopen a book or inherit the old consecutive-hit perk bonus.
         stats.visionBooksEmpowered = true;

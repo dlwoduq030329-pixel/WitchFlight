@@ -98,6 +98,7 @@ public partial class Player
         Vector3 aim = IsFiniteDirection(castAimDirection) && castAimDirection.sqrMagnitude > .001f
             ? castAimDirection.normalized : transform.forward;
         Vector3 origin = MagicCastPosition;
+        PrepareVisionBooks(ref shotStats);
         LastCastMagic = MagicType.BladeRain; CastSequence++;
         shotStats.perkCast = CastSequence; shotStats.perkAttacker = ParticipantRef;
         shotStats.titleCastId = PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordTitleCast(MagicType.BladeRain, false) ?? 0;
@@ -134,6 +135,8 @@ public partial class Player
         ClearLockTargetInternal(false);
         if(RainManaSpent<=0f) { CancelBladeRain(); return; }
         RainVolleyCircles=Mathf.Clamp(Mathf.FloorToInt((RainManaSpent+.0001f)/Mathf.Max(1f,rainStats.rainManaPerCircle)),1,16);
+        rainStats.damage = RainManaSpent * .5f;
+        PrepareVisionBooks(ref rainStats);
         RainFiring=true; RainVolleyStep=0;
         MagicCooldowns.Set((int)MagicType.BladeRain,TickTimer.CreateFromSeconds(Runner,Mathf.Max(0,rainStats.cooldownSeconds)));
         LastCastMagic=MagicType.BladeRain; CastSequence++;
@@ -159,7 +162,7 @@ public partial class Player
             if(victim!=null ? !victim.IsTargetableBy(this) : summon==null || !summon.IsSummonEnemyOf(this)) continue;
             MagicStatEntry shotStats=rainStats;
             // All circles emit ten blades. Split the actual mana damage budget evenly per blade.
-            shotStats.damage=(RainManaSpent*.5f)/(RainVolleyCircles*10);
+            shotStats.damage=rainStats.damage/(RainVolleyCircles*10);
             Vector3 origin=RainCirclePosition(circle);
             Vector3 aim=(victim!=null?victim.LockAimPoint:summon.transform.position)-origin;
             if (aim.sqrMagnitude < .001f) aim = transform.forward;
