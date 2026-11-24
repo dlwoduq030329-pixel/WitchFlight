@@ -626,6 +626,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     {
         instantScopeArmed = false;
         weaponRaiseHeldSeconds = 0f;
+        if (Object.HasStateAuthority) VisionOpenBooks = 0;
+        if (GetComponent<VisionBookOrbit>() == null) gameObject.AddComponent<VisionBookOrbit>();
         renderedLoadoutVersion = lastMagicSlot = localMagicInputSlot = -1;
         localCameraFollow = null;
         predictedRaisePending = false; predictedRaiseTarget = null; predictedRaiseSummon = null;
@@ -1853,6 +1855,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
 
+        bool empoweredVision = PrepareVisionBooks(ref stats);
+        bool visionAccepted = false;
         Vector3 end = TraceMagicTargets(stats, origin, direction, out Player victim, out MagicProjectile summonHit);
         if (stats.magic == MagicType.Razier)
         {
@@ -1906,10 +1910,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             int hit = victim.HitSequence;
             victim.ReceiveMagicHit(victim.ResolveHeadHit(stats, origin, direction,
                 Vector3.Distance(origin, end), stats.hitscanRadius), ParticipantRef, Object.Id, direction, end);
-            if (victim.HitSequence == hit) ResetVisionMiss(stats);
+            visionAccepted = victim.HitSequence != hit;
+            if (!visionAccepted) ResetVisionMiss(stats);
         }
         else { ResetVisionMiss(stats); NotifyFaceMiss(); }
 
+        CompleteVisionBooks(stats, empoweredVision, visionAccepted);
         PresentCast(stats.magic, origin, end);
         PresentEnvironmentContact(victim, summonHit);
     }

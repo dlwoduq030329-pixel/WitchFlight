@@ -153,7 +153,7 @@ public partial class Player
     private MagicStatEntry IncomingPerkDamage(MagicStatEntry s, Player source, NetworkId sourceId)
     {
         if (source == null || source == this || source.TeamIndex == TeamIndex || s.damage <= 0f) return s;
-        if (s.perkSecond?.id == PerkId.VisionCombo && s.perkSlot >= 1 && s.perkSlot <= 2)
+        if (!s.visionBooksEmpowered && s.perkSecond?.id == PerkId.VisionCombo && s.perkSlot >= 1 && s.perkSlot <= 2)
         {
             int slot = s.perkSlot;
             bool second = source.visionVictim[slot].Equals(Object.Id) && source.perkClock-source.visionFirstHit[slot] <= s.perkSecond.seconds;

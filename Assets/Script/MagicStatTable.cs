@@ -16,6 +16,7 @@ public struct MagicStatEntry
     [NonSerialized] public int titleCastId;
     [NonSerialized] public float channelContactSeconds;
     [NonSerialized] public bool focusedBlade;
+    [NonSerialized] public bool visionBooksEmpowered;
     [NonSerialized] public float focusedBladeCharge;
     [NonSerialized] public float timeHealingPerSecond, festivalSpeedBonus;
     [NonSerialized] public int festivalGuardCharges;
