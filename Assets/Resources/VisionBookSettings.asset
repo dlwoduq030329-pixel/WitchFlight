@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9430297a1d6429daeb4cbac511d7fba, type: 3}
+  m_Name: VisionBookSettings
+  m_EditorClassIdentifier:
+  bookCount: 2
+  empoweredDamageBonus: 0.5
+  minimumDamageBonus: 30
+  pageGlowColor: {r: 0.25, g: 0.85, b: 1, a: 1}
+  pageGlowIntensity: 10
+  pageLightIntensity: 5
+  chargedElectricColor: {r: 0.1, g: 1, b: 0.8, a: 1}
+  chargedElectricIntensity: 3
+  chargedElectricWidth: 0.09
+  chargedElectricReach: 0.5
+  chargedEnergyRiseSpeed: 1.6
+  chargedAuraOpacity: 0.16
+  chargedAuraDrag: 0.045
+  chargedAuraMaxBend: 0.85
+  chargedAuraMoteRate: 18
+  chargedEnergyHeight: 1.4
+  chargedEnergyWidth: 0.7
+  chargedAuraColor: {r: 0.22, g: 0.55, b: 1, a: 1}
+  chargedAuraIntensity: 2
+  pageLightRange: 4
+  energyHeight: 1.2
+  energyWidth: 0.12
+  energyVelocityTrail: 0.07
+  energyMaxTrail: 2
+  energyLifetime: 0.4
+  energyEmissionMultiplier: 2
+  runeMaxTrail: 1.5
+  runeRate: 12
+  runeLifetime: 0.45
+  runeSize: 0.16
+  runeRiseSpeed: 0.6
+  energyLocalOffset: {x: 0, y: 0.08, z: 0}
+  empoweredRadiusMultiplier: 2
+  closedBookPrefab: {fileID: 0}
+  openBookPrefab: {fileID: 0}
+  animatedBookPrefab: {fileID: 9216182506212718792, guid: 75de5c0a8511c1346b628dd713bea543, type: 3}
+  bookClosingClip: {fileID: 7400000, guid: 1b831af256914c649b47c7a815aed916, type: 2}
+  shoulderDistance: 1.1
+  shoulderHeight: 1.3
+  shoulderForwardOffset: 0
+  backwardTiltDegrees: 20
+  openingSeconds: 1.6
+  prefabRotationCorrection: {x: 0, y: 0, z: 0}
+  openPrefabRotationCorrection: {x: 90, y: 0, z: 0}
+  bobHeight: 0.07
+  bobSpeed: 2
+  bookScale: 1

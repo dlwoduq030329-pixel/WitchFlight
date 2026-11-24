@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -695,7 +695,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private bool ShouldFollowInstantMuzzle(MagicStatEntry stats) =>
         owner != null && owner.Object != null && owner.Object.IsValid && owner.IsAlive &&
-        (stats.magic == MagicType.Vision || stats.magic == MagicType.Dark) &&
+        stats.magic == MagicType.Dark &&
         stats.projectileSpeed <= 0f && !stats.IsChanneled;
 
     private void UpdateChannelVisual()

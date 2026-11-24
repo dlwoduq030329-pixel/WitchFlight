@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 using Unity.Profiling;
 
@@ -159,6 +159,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     [Networked] private TickTimer WallDamageTimer { get; set; }
     [Networked] private TickTimer WallContactTimer { get; set; }
     [Networked] private Vector3 LastFlightVelocity { get; set; }
+    public Vector3 FlightVisualVelocity => LastFlightVelocity;
     public Vector3 FlightIndicatorDirection => LastFlightVelocity.sqrMagnitude > .01f
         ? LastFlightVelocity.normalized : transform.forward;
     [Networked] public bool IsBoosting { get; private set; }
@@ -626,6 +627,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     {
         instantScopeArmed = false;
         weaponRaiseHeldSeconds = 0f;
+        if (Object.HasStateAuthority) VisionOpenBooks = 0;
+        if (GetComponent<VisionBookOrbit>() == null) gameObject.AddComponent<VisionBookOrbit>();
         renderedLoadoutVersion = lastMagicSlot = localMagicInputSlot = -1;
         localCameraFollow = null;
         predictedRaisePending = false; predictedRaiseTarget = null; predictedRaiseSummon = null;
@@ -1778,6 +1781,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void CastMagic(MagicStatEntry stats, Player target, MagicProjectile summon = null)
     {
+        if (stats.effect != MagicEffectKind.BladeVolley) PrepareVisionBooks(ref stats);
         if (stats.effect == MagicEffectKind.TimeField)
         {
             var field = Runner.Spawn(magicProjectilePrefab, transform.position, Quaternion.identity, ParticipantRef);
@@ -1835,6 +1839,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             transform.forward, transform.forward, target != null ? target.LockAimPoint - origin :
                 summon != null ? summon.transform.position - origin : Vector3.zero);
         direction = ResolveDotCastDirection(stats, castAimDirection, direction);
+        PrepareVisionBooks(ref stats);
         if (stats.projectileSpeed > 0f)
         {
             if (!magicProjectilePrefab.IsValid)
@@ -1853,6 +1858,8 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
 
+        bool empoweredVision = PrepareVisionBooks(ref stats);
+        bool visionAccepted = false;
         Vector3 end = TraceMagicTargets(stats, origin, direction, out Player victim, out MagicProjectile summonHit);
         if (stats.magic == MagicType.Razier)
         {
@@ -1906,10 +1913,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             int hit = victim.HitSequence;
             victim.ReceiveMagicHit(victim.ResolveHeadHit(stats, origin, direction,
                 Vector3.Distance(origin, end), stats.hitscanRadius), ParticipantRef, Object.Id, direction, end);
-            if (victim.HitSequence == hit) ResetVisionMiss(stats);
+            visionAccepted = victim.HitSequence != hit;
+            if (!visionAccepted) ResetVisionMiss(stats);
         }
         else { ResetVisionMiss(stats); NotifyFaceMiss(); }
 
+        CompleteVisionBooks(stats, empoweredVision, visionAccepted);
         PresentCast(stats.magic, origin, end);
         PresentEnvironmentContact(victim, summonHit);
     }
@@ -2049,6 +2058,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             CastSequence++;
             stats.perkCast = CastSequence; stats.perkAttacker = ParticipantRef;
             stats.titleCastId=stats.effect == MagicEffectKind.BladeVolley ? 0 : PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleCast(stats.magic,summon!=null)??0;
+            PrepareVisionBooks(ref stats);
             channelPerkStats = stats;
             channelDamageTime = 0f;
         }

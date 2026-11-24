@@ -4,6 +4,7 @@ Shader "Unlit/UnlitMaskedShader"
     {
         _Mask("Mask", Int) = 1
         _MainTex ("Texture", 2D) = "white" {}
+        [HDR] _EmissionColor ("Page Glow", Color) = (0,0,0,0)
          [KeywordEnum(None, Front, Back)] _Cull("Culling", Int) = 0
          _CutoffParam("Alpha cutoff", Range(0,1)) = 0.0 // ’Ç‰Á
     }
@@ -46,6 +47,7 @@ Shader "Unlit/UnlitMaskedShader"
             sampler2D _MainTex;
             float4 _MainTex_ST;
             fixed _CutoffParam;
+            half4 _EmissionColor;
 
             v2f vert (appdata v)
             {
@@ -56,12 +58,15 @@ Shader "Unlit/UnlitMaskedShader"
                 return o;
             }
 
-            fixed4 frag (v2f i) : SV_Target
+            half4 frag (v2f i) : SV_Target
             {
                 // sample the texture
-                fixed4 col = tex2D(_MainTex, i.uv);
+                half4 col = tex2D(_MainTex, i.uv);
 
                 clip(col.a - _CutoffParam);
+
+                // Keep the printed page texture readable while emitting HDR light.
+                col.rgb += (0.35h + col.rgb * 0.65h) * _EmissionColor.rgb;
 
                 // apply fog
                 UNITY_APPLY_FOG(i.fogCoord, col);

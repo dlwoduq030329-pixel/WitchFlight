@@ -74,6 +74,7 @@ public partial class Player
         if (target == null) return; // No target: no projectile, charge consumption or firing feedback.
         var shot = Runner.Spawn(magicProjectilePrefab, MagicCastPosition, Quaternion.LookRotation(aim), ParticipantRef);
         if (shot == null) return;
+        PrepareVisionBooks(ref stats);
         shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, aim, castInputTick);
         previousBasicAttackTarget = target.Object.Id;
         if (BasicAttackCharges == BasicAttackCapacity) BasicAttackRechargeElapsed = 0;
