@@ -6,24 +6,30 @@ public sealed class VisionBookSettings : ScriptableObject
     [Range(1, 12)] public int bookCount = 2;
     [Min(0f)] public float empoweredDamageBonus = .5f;
     [Min(0f)] public float minimumDamageBonus = 30f;
-    [ColorUsage(false, true)] public Color pageGlowColor = new Color(.25f, .85f, 1f);
+    [ColorUsage(false, true)] public Color pageGlowColor = new Color(.62f, .2f, 1f);
+    [ColorUsage(false, true)] public Color arcaneBlueColor = new Color(.12f,.38f,1f,1f);
     [Min(0f)] public float pageGlowIntensity = 10f;
     [Min(0f)] public float pageLightIntensity = 5f;
     [Header("Empowered body electricity")]
-    [ColorUsage(false, true)] public Color chargedElectricColor = new Color(.1f, 1f, .8f);
+    [ColorUsage(false, true)] public Color chargedElectricColor = new Color(.38f, .3f, 1f);
     [Min(0f)] public float chargedElectricIntensity = 3f;
     [Min(.001f)] public float chargedElectricWidth = .09f;
     [Min(0f)] public float chargedElectricReach = .5f;
     [Min(0f)] public float chargedAuraIntensity = 2f;
-    [Range(0f,1f)] public float chargedAuraOpacity = .16f;
+    [Range(0f,1f)] public float chargedAuraOpacity = .45f;
     [Min(0f)] public float chargedAuraDrag = .045f;
     [Min(0f)] public float chargedAuraMaxBend = .85f;
     [Min(0f)] public float chargedAuraMoteRate = 18f;
     [Min(.1f)] public float chargedEnergyHeight = 1.4f;
     [Min(.1f)] public float chargedEnergyRiseSpeed = 1.6f;
     [Min(.01f)] public float chargedEnergyWidth = .7f;
-    [ColorUsage(false, true)] public Color chargedAuraColor = new Color(.22f,.55f,1f,1f);
+    [ColorUsage(false, true)] public Color chargedAuraColor = new Color(.58f,.18f,1f,1f);
     [Min(.1f)] public float pageLightRange = 4f;
+    [Header("Charged wand focus")]
+    [Min(.01f)] public float wandFocusRadius = .24f;
+    [Min(.001f)] public float wandFocusBandWidth = .025f;
+    [Min(0f)] public float wandFocusOrbitSpeed = 220f;
+    [Min(0f)] public float wandFocusLightIntensity = 2f;
     [Header("Page energy streams")]
     [Min(0f)] public float energyHeight = 1.2f;
     [Min(0f)] public float energyWidth = .12f;

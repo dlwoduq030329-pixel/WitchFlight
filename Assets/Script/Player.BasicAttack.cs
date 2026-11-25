@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -83,7 +83,7 @@ public partial class Player
             Mathf.Max(.05f, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.shotInterval : .2f));
         LastCastMagic = MagicType.BasicAttack;
         CastSequence++;
-        PresentCast(MagicType.BasicAttack, MagicCastPosition, MagicCastPosition + aim);
+        PresentCast(MagicType.BasicAttack, MagicCastPosition, MagicCastPosition + aim, stats.visionBooksEmpowered);
     }
 
     private Player FindBasicAttackTarget(Vector3 origin, Vector3 aim, float range)

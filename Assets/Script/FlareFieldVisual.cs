@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Rendering;
 
 // One retained core/smoke system per pooled field, not GameObjects per decorative spark.
@@ -70,11 +70,11 @@ public sealed class FlareFieldVisual : MonoBehaviour
         float scale=Mathf.Max(.1f,stats.flareVfxScale);
         heads[count++]=new ParticleSystem.Particle {
             position=position,velocity=velocity,startSize=.4f*scale,
-            startColor=new Color(1f,.7f,.25f,Mathf.Clamp01((lifetime-age)*3)),
+            startColor=(stats.visionBooksEmpowered ? new Color(.65f,.18f,1f,Mathf.Clamp01((lifetime-age)*3)) : new Color(1f,.7f,.25f,Mathf.Clamp01((lifetime-age)*3))),
             startLifetime=lifetime,remainingLifetime=Mathf.Max(.01f,lifetime-age),randomSeed=(uint)(slot+1) };
         if(emitSmoke)
             smoke.Emit(new ParticleSystem.EmitParams {position=position,velocity=Vector3.up*.5f,
-                startSize=.7f*scale,startColor=new Color(.85f,.88f,.9f,.7f)},1);
+                startSize=.7f*scale,startColor=stats.visionBooksEmpowered ? new Color(.55f,.3f,.85f,.7f) : new Color(.85f,.88f,.9f,.7f)},1);
         // Optional authored replacement rents once per live head; the pool restarts it on reuse.
         if(stats.utilityVfxPrefab==null)return;
         if(customHeads[slot]==null)
@@ -83,6 +83,7 @@ public sealed class FlareFieldVisual : MonoBehaviour
             if(customHeads[slot]!=null)customHeads[slot].transform.localScale*=scale;
         }
         var custom=customHeads[slot];if(custom==null)return;
+        if(stats.visionBooksEmpowered) VisionEmpoweredVisual.Apply(custom,1f);
         custom.transform.SetPositionAndRotation(position,velocity.sqrMagnitude>.001f?Quaternion.LookRotation(velocity):Quaternion.identity);
         if(!custom.activeSelf)custom.SetActive(true);
     }

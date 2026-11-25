@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 // Display only. Radius is the actual spherical damage radius, including at flight altitude.
 public sealed class MagicAreaVisual : MonoBehaviour
@@ -10,11 +10,11 @@ public sealed class MagicAreaVisual : MonoBehaviour
     private float burstStarted, burstLifetime, burstExpandSeconds, burstStartScale, burstTargetScale;
     private Color burstColor;
 
-    public static MagicAreaVisual Create(GameObject prefab, string label)
+    public static MagicAreaVisual Create(GameObject prefab, string label, bool empowered = false)
     {
         var root = new GameObject(label);
         var visual = root.AddComponent<MagicAreaVisual>();
-        var custom = CombatPresentation.InstantiateVfx(prefab,Vector3.zero,Quaternion.identity,root.transform);
+        var custom = CombatPresentation.InstantiateVfx(prefab,Vector3.zero,Quaternion.identity,root.transform, empoweredVariant: empowered);
         if (custom != null) { visual.authoredScale = root.transform.localScale; return visual; }
         visual.material = CombatPresentation.CreateEffectMaterial(Color.cyan);
         Ring(root.transform,visual.material,Quaternion.identity);
@@ -57,7 +57,7 @@ public sealed class MagicAreaVisual : MonoBehaviour
     {
         BattleAudio.PlayMagic(MagicType.Thunder, MagicSound.AreaWarning, point);
         CreateBurst(point, radius, stats.thunderFlashVfxPrefab, stats.thunderVfxReferenceRadius,
-            1f, .01f, .14f, new Color(1f,.92f,.6f,.3f));
+            1f, .01f, .14f, stats.visionBooksEmpowered ? new Color(.65f,.18f,1f,.3f) : new Color(1f,.92f,.6f,.3f), stats.visionBooksEmpowered);
     }
 
     public static void ThunderBurst(Vector3 point, MagicStatEntry stats)
@@ -66,11 +66,11 @@ public sealed class MagicAreaVisual : MonoBehaviour
         float expand = stats.thunderBurstExpandSeconds > 0f ? stats.thunderBurstExpandSeconds : .12f;
         float start = stats.thunderBurstStartScale > 0f ? stats.thunderBurstStartScale : .08f;
         CreateBurst(point, stats.radius, stats.thunderBurstVfxPrefab != null ? stats.thunderBurstVfxPrefab : stats.impactVfxPrefab,
-            stats.thunderVfxReferenceRadius, start, expand, Mathf.Max(expand + .05f, stats.vfxLifetime), new Color(.7f,.85f,1f,.5f));
+            stats.thunderVfxReferenceRadius, start, expand, Mathf.Max(expand + .05f, stats.vfxLifetime), stats.visionBooksEmpowered ? new Color(.65f,.18f,1f,.5f) : new Color(.7f,.85f,1f,.5f), stats.visionBooksEmpowered);
     }
 
     private static void CreateBurst(Vector3 point, float radius, GameObject prefab, float referenceRadius,
-        float start, float expand, float lifetime, Color color)
+        float start, float expand, float lifetime, Color color, bool empowered = false)
     {
         var root = new GameObject("Thunder area flash / burst");
         // Start particle systems only after the initial small scale has been applied.
@@ -82,7 +82,7 @@ public sealed class MagicAreaVisual : MonoBehaviour
         visual.burstLifetime = lifetime;
         visual.burstExpandSeconds = expand;
         visual.burstStartScale = Mathf.Clamp01(start);
-        var custom = CombatPresentation.InstantiateVfx(prefab, point, Quaternion.identity, root.transform);
+        var custom = CombatPresentation.InstantiateVfx(prefab, point, Quaternion.identity, root.transform, empoweredVariant: empowered);
         visual.burstTargetScale = Mathf.Max(.1f, radius) / (custom != null && referenceRadius > 0f ? referenceRadius : 1f);
         if (custom == null)
         {
@@ -96,6 +96,7 @@ public sealed class MagicAreaVisual : MonoBehaviour
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
         }
+        if(empowered && custom!=null) VisionEmpoweredVisual.Apply(custom,1f);
         visual.burstColor = color;
         root.transform.localScale = Vector3.one * visual.burstTargetScale * visual.burstStartScale;
         root.SetActive(true);

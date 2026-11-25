@@ -29,7 +29,7 @@ public static class PerkEffects
         {
             case PerkId.FireIgnition: s.lockChargeSeconds *= 1f - Mathf.Clamp01(a); mana *= 1f - Mathf.Clamp01(p.secondaryAmount); break;
             case PerkId.IceSlow: s.movementMultiplier = Mathf.Clamp(1f - (1f - s.movementMultiplier) * (1f + a), .05f, 1f); break;
-            case PerkId.VisionAim: s.hitscanRadius *= 1f + a; break;
+            case PerkId.VisionAim: case PerkId.VisionCombo: break; // Confirmed-hit combo / fully opened books movement bonus.
             case PerkId.BeamWidth:
                 break; // Mana is returned only after a confirmed healing-beam hit.
             case PerkId.BeamFocus: s.damage += a; break;
@@ -46,6 +46,8 @@ public static class PerkEffects
                 if (s.effect == MagicEffectKind.PursuitSummon) {
                     s.lockChargeSeconds *= 1f - Mathf.Clamp01(a);
                     s.summonAttackInterval = Mathf.Max(.1f, s.summonAttackInterval * (1f - Mathf.Clamp01(p.secondaryAmount)));
+                    s.effectDuration *= Mathf.Max(1f, p.condition);
+                    if (!s.visionBooksEmpowered) s.summonChannelHealth *= 2f;
                 }
                 else s.activationDelay *= 1f - Mathf.Clamp01(a);
                 break;

@@ -5,6 +5,7 @@ public sealed class MagicVfxLease : MonoBehaviour
 {
     public GameObject Prefab { get; private set; }
     public bool InUse { get; set; }
+    public bool EmpoweredVariant { get; internal set; }
     private Transform[] nodes;
     private Vector3[] positions, scales;
     private Quaternion[] rotations;
@@ -12,6 +13,10 @@ public sealed class MagicVfxLease : MonoBehaviour
     private int[] layers;
     private ParticleSystem[] particles;
     private bool[] loops, playOnAwake;
+    private ParticleSystem.MinMaxGradient[] startColors, lifetimeColors;
+    private bool[] lifetimeColorEnabled;
+    private LineRenderer[] lines;
+    private Gradient[] lineColors, trailColors;
     private ParticleSystemSimulationSpace[] spaces;
     private Animator[] animators;
     private bool[] animatorEnabled;
@@ -41,11 +46,17 @@ public sealed class MagicVfxLease : MonoBehaviour
         { body.detectCollisions = false; body.isKinematic = true; body.useGravity = false; }
         particles = GetComponentsInChildren<ParticleSystem>(true);
         loops = new bool[particles.Length]; playOnAwake = new bool[particles.Length];
+        startColors = new ParticleSystem.MinMaxGradient[particles.Length];
+        lifetimeColors = new ParticleSystem.MinMaxGradient[particles.Length];
+        lifetimeColorEnabled = new bool[particles.Length];
         spaces = new ParticleSystemSimulationSpace[particles.Length];
         for (int i = 0; i < particles.Length; i++)
         {
             var main = particles[i].main;
             loops[i] = main.loop; playOnAwake[i] = main.playOnAwake; spaces[i] = main.simulationSpace;
+            startColors[i] = main.startColor;
+            var lifetimeColor = particles[i].colorOverLifetime;
+            lifetimeColors[i] = lifetimeColor.color; lifetimeColorEnabled[i] = lifetimeColor.enabled;
             main.stopAction = ParticleSystemStopAction.None;
             var collision = particles[i].collision; collision.enabled = false;
             var trigger = particles[i].trigger; trigger.enabled = false;
@@ -54,7 +65,10 @@ public sealed class MagicVfxLease : MonoBehaviour
         animatorEnabled = new bool[animators.Length]; animatorSpeeds = new float[animators.Length];
         for (int i = 0; i < animators.Length; i++) { animatorEnabled[i] = animators[i].enabled; animatorSpeeds[i] = animators[i].speed; }
         trails = GetComponentsInChildren<TrailRenderer>(true); trailEmitting = new bool[trails.Length];
-        for (int i = 0; i < trails.Length; i++) { trailEmitting[i] = trails[i].emitting; trails[i].autodestruct = false; }
+        trailColors = new Gradient[trails.Length];
+        for (int i = 0; i < trails.Length; i++) { trailEmitting[i] = trails[i].emitting; trails[i].autodestruct = false; trailColors[i] = trails[i].colorGradient; }
+        lines = GetComponentsInChildren<LineRenderer>(true); lineColors = new Gradient[lines.Length];
+        for (int i = 0; i < lines.Length; i++) lineColors[i] = lines[i].colorGradient;
         audioSources = GetComponentsInChildren<AudioSource>(true);
         renderers = GetComponentsInChildren<Renderer>(true);
         rendererEnabled = new bool[renderers.Length]; materials = new Material[renderers.Length][];
@@ -70,6 +84,8 @@ public sealed class MagicVfxLease : MonoBehaviour
 
     public void Restore()
     {
+        // Also handles effects tinted under an inactive parent, which never received OnDisable.
+        VisionEmpoweredVisual.Restore(gameObject);
         Stop();
         for (int i = 0; i < nodes.Length; i++) if (nodes[i] != null)
         {
@@ -86,10 +102,14 @@ public sealed class MagicVfxLease : MonoBehaviour
         for (int i = 0; i < particles.Length; i++) if (particles[i] != null)
         {
             var main = particles[i].main; main.loop = loops[i]; main.simulationSpace = spaces[i]; main.stopAction = ParticleSystemStopAction.None;
+            main.startColor = startColors[i];
+            var lifetimeColor = particles[i].colorOverLifetime;
+            lifetimeColor.color = lifetimeColors[i]; lifetimeColor.enabled = lifetimeColorEnabled[i];
         }
         for (int i = 0; i < animators.Length; i++) if (animators[i] != null)
         { animators[i].enabled = animatorEnabled[i]; animators[i].speed = animatorSpeeds[i]; }
-        for (int i = 0; i < trails.Length; i++) if (trails[i] != null) { trails[i].Clear(); trails[i].emitting = trailEmitting[i]; }
+        for (int i = 0; i < trails.Length; i++) if (trails[i] != null) { trails[i].Clear(); trails[i].emitting = trailEmitting[i]; trails[i].colorGradient = trailColors[i]; }
+        for (int i = 0; i < lines.Length; i++) if (lines[i] != null) lines[i].colorGradient = lineColors[i];
     }
 
     public void Restart()

@@ -390,7 +390,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
     public float GetMagicHealthCost(int slot)
     {
         MagicType magic = GetMagicInSlot(slot);
-        return magic == MagicType.None ? 0f : Mathf.Max(0f, GetPerkMagicStats(magic, slot).healthCost);
+        return magic == MagicType.None ? 0f : Mathf.Max(0f, VisionHealthCost(GetPerkMagicStats(magic, slot)));
     }
     public bool IsParrying => TimerIsActive(ParryTimer);
     // Presentation reads the simulation deadline, never starts its own 0.4s timer.
@@ -540,6 +540,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ResetBasicAttack();
         CancelBladeRain();
         ResetMeowFestival();
+        ResetVisionEffects();
         timeFieldHealing = timeFieldHealElapsed = 0f;
         StopMagicStorm();
         ChannelMagic = MagicType.None;
@@ -814,6 +815,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         TickBladeAbility();
         TickPerkEffects();
         TickMeowFestival();
+        TickVisionEffects();
         TickTimeFieldHealing();
         TickMagicStorm();
         TickBladeRainVolley();
@@ -1365,7 +1367,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             (magicStatTable != null && !magicStatTable.predictLocalProjectiles) ||
             magicIndex <= 0 || magicIndex >= MagicCooldowns.Length || stats.IsChanneled ||
             TimerIsActive(MagicCooldowns[magicIndex]) || NowAp < stats.apCost ||
-            (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
+            (VisionHealthCost(stats) > 0f && NowHp <= VisionHealthCost(stats))) return;
         Player target = null;
         MagicProjectile summon = null;
         if (stats.requiresTarget && !TryGetMagicTarget(LockTargetId, out target, out summon, out _)) return;
@@ -1474,7 +1476,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
         float targetSpeed = flightMaxSpeed * SpeedStage / 3f;
-        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() * (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier;
+        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() * (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier * EmpoweredMovementMultiplier * VisionPerkMovementMultiplier;
 
         if (IsBoosting)
             targetSpeed *= boostMultiplier;
@@ -1633,11 +1635,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
                 return;
         }
 
-        if (stats.IsChanneled || (stats.healthCost > 0f && NowHp <= stats.healthCost)) return;
+        if (stats.IsChanneled || (VisionHealthCost(stats) > 0f && NowHp <= VisionHealthCost(stats))) return;
         if (stats.TargetsAllies)
         {
             Player recipient = target != null ? target : this;
-            if (stats.effect == MagicEffectKind.Healing && recipient.NowHp >= recipient.MaxHp && !recipient.CanCleanse(stats)) return;
+            if (stats.effect == MagicEffectKind.Healing && recipient.NowHp >= recipient.MaxHp && !recipient.CanCleanse(stats) && !(VisionReady && recipient.NowAp < recipient.MaxAp)) return;
         }
         if (stats.effect == MagicEffectKind.Smoke &&
             (!SmokeCloudState.ValidSettings(stats.radius, stats.effectDuration) ||
@@ -1646,9 +1648,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         if (!TryConsumeAp(stats.apCost))
             return;
-        if (stats.healthCost > 0f)
+        if (VisionHealthCost(stats) > 0f)
         {
-            NowHp -= stats.healthCost; // A cost is not a hit and cannot be parried.
+            NowHp -= VisionHealthCost(stats); // A cost is not a hit and cannot be parried.
             SyncHealthToPlayerData();
         }
 
@@ -1709,7 +1711,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
         // Match the resource/configuration checks in TryCastSelectedMagic without spending anything.
         if (stats.magic == MagicType.BladeRain) return !RainFiring;
-        if (NowAp < Mathf.Max(0f, stats.apCost) || (stats.healthCost > 0f && NowHp <= stats.healthCost))
+        if (NowAp < Mathf.Max(0f, stats.apCost) || (VisionHealthCost(stats) > 0f && NowHp <= VisionHealthCost(stats)))
             return false;
         if (stats.projectileSpeed > 0f && !magicProjectilePrefab.IsValid) return false;
         // Full self HP must not prevent targeting an injured ally.
@@ -1781,7 +1783,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void CastMagic(MagicStatEntry stats, Player target, MagicProjectile summon = null)
     {
-        if (stats.effect != MagicEffectKind.BladeVolley) PrepareVisionBooks(ref stats);
+        PrepareVisionBooks(ref stats);
         if (stats.effect == MagicEffectKind.TimeField)
         {
             var field = Runner.Spawn(magicProjectilePrefab, transform.position, Quaternion.identity, ParticipantRef);
@@ -1797,7 +1799,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             BladeCharges = Mathf.Max(1, stats.bladeCharges);
             BladeAbilityTimer = TickTimer.CreateFromSeconds(Runner, stats.bladeAbilityDuration > 0f ? stats.bladeAbilityDuration : 10f);
             BladeShotCooldown = TickTimer.None;
-            PresentCast(stats.magic, MagicCastPosition, MagicCastPosition);
+            PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, stats.visionBooksEmpowered);
         }
         else if (stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon)
         {
@@ -1806,13 +1808,13 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else if (stats.effect == MagicEffectKind.Flare)
         {
             StartPerkFlare(stats);
-            PresentCast(stats.magic, LockAimPoint, -transform.forward);
+            PresentCast(stats.magic, LockAimPoint, -transform.forward, stats.visionBooksEmpowered);
         }
         else if (stats.effect == MagicEffectKind.Smoke)
         {
             // Persistent replicated area survives the caster's death/despawn.
             if (CombatSmoke.Create(this, stats))
-                PresentCast(stats.magic, MagicCastPosition, MagicCastPosition);
+                PresentCast(stats.magic, MagicCastPosition, MagicCastPosition, stats.visionBooksEmpowered);
         }
         else if (stats.effect == MagicEffectKind.MeowFestival)
         {
@@ -1824,8 +1826,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             Player recipient = IsHealingAlly(target) ? target : this;
             recipient.ApplyPerkCleanse(stats);
             recipient.RestoreHealth(stats.healing,ParticipantRef);
+            if (stats.visionBooksEmpowered) recipient.RestoreAp(50f);
             if (recipient != this) RPC_PlayBattleSound(BattleSound.HealOtherVoice);
-            PresentCast(stats.magic, recipient.LockAimPoint, recipient.LockAimPoint);
+            PresentCast(stats.magic, recipient.LockAimPoint, recipient.LockAimPoint, stats.visionBooksEmpowered);
         }
         else LaunchMagic(stats, target, summon);
     }
@@ -1853,7 +1856,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             {
                 shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, direction,
                     IsTestBot ? 0 : castInputTick, summon != null ? summon.Object.Id : default);
-                PresentCast(stats.magic, origin, origin);
+                PresentCast(stats.magic, origin, origin, stats.visionBooksEmpowered);
             }
             return;
         }
@@ -1919,7 +1922,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         else { ResetVisionMiss(stats); NotifyFaceMiss(); }
 
         CompleteVisionBooks(stats, empoweredVision, visionAccepted);
-        PresentCast(stats.magic, origin, end);
+        PresentCast(stats.magic, origin, end, stats.visionBooksEmpowered);
         PresentEnvironmentContact(victim, summonHit);
     }
 
@@ -2145,6 +2148,12 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             bool wasBound = IsBound;
             BindingDamageBonus = Mathf.Max(wasBound ? BindingDamageBonus : 0f,
                 stats.perkFirst?.id == PerkId.BindingLock ? Mathf.Max(0f, stats.perkFirst.amount) : 0f);
+            empoweredBinding = stats.visionBooksEmpowered;
+            if(empoweredBinding)
+            {
+                empoweredBinding=true; empoweredBindingTick=TickTimer.CreateFromSeconds(Runner,1f);
+                empoweredBindingAttacker=attacker; empoweredBindingId=attackerId;
+            }
             BindingTimer = TickTimer.CreateFromSeconds(Runner, StatusPerkDuration(stats.effectDuration));
             if (!wasBound && IsBound) PlayerData.FindPerkData(Runner,attacker)?.AwardPerkBinding(this);
             Speed = 0f;
@@ -2165,6 +2174,11 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         PlayerData.FindPerkData(Runner,attacker)?.RecordMissionMagicHit(stats.magic);
         NotifyConfirmedMagicHit(attacker, attackerId);
         OnAcceptedPerkHit(stats, perkSource, attackerId);
+        if(IsAlive && stats.visionBooksEmpowered && stats.magic==MagicType.Blade)
+        {
+            EmpoweredBladeSlowStacks=Mathf.Min(3,(TimerIsActive(EmpoweredBladeSlowTimer)?EmpoweredBladeSlowStacks:0)+1);
+            EmpoweredBladeSlowTimer=TickTimer.CreateFromSeconds(Runner,2f);
+        }
         if (IsAlive && stats.magic == MagicType.Curse) ApplyWound(stats);
         if (IsAlive && stats.effect == MagicEffectKind.MagicStorm) ApplyStormSlow(stats);
         if (IsAlive && stats.effect == MagicEffectKind.SlowDamage)
@@ -2184,28 +2198,28 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     // Equal endpoints are common for projectile/channel casts. Preserve exact coordinates,
     // but do not serialize the same vector twice or the old unused float argument.
-    private void PresentCast(MagicType magic, Vector3 origin, Vector3 end)
+    private void PresentCast(MagicType magic, Vector3 origin, Vector3 end, bool empowered = false)
     {
-        if (origin.Equals(end)) RPC_PresentCastAt(magic, origin);
-        else RPC_PresentCastBeam(magic, origin, end);
+        if (origin.Equals(end)) RPC_PresentCastAt(magic, origin, empowered);
+        else RPC_PresentCastBeam(magic, origin, end, empowered);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_PresentCastAt(MagicType magic, Vector3 origin)
+    private void RPC_PresentCastAt(MagicType magic, Vector3 origin, bool empowered)
     {
-        ApplyCastPresentation(magic, origin, origin);
+        ApplyCastPresentation(magic, origin, origin, empowered);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_PresentCastBeam(MagicType magic, Vector3 origin, Vector3 end)
+    private void RPC_PresentCastBeam(MagicType magic, Vector3 origin, Vector3 end, bool empowered)
     {
-        ApplyCastPresentation(magic, origin, end);
+        ApplyCastPresentation(magic, origin, end, empowered);
     }
 
-    private void ApplyCastPresentation(MagicType magic, Vector3 origin, Vector3 end)
+    private void ApplyCastPresentation(MagicType magic, Vector3 origin, Vector3 end, bool empowered)
     {
         presentation ??= GetComponent<CombatPresentation>();
-        presentation?.ShowCast(magic, origin, end);
+        presentation?.ShowCast(magic, origin, end, empowered);
     }
 
     private void ApplySlow(float multiplier, float duration)
@@ -2487,6 +2501,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ResetBasicAttack();
         CancelBladeRain();
         ResetMeowFestival();
+        ResetVisionEffects();
         timeFieldHealing = timeFieldHealElapsed = 0f;
         StopMagicStorm();
         RespawnTimer = testBot == null && BattleManager.Instance != null

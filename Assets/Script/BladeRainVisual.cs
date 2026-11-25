@@ -44,6 +44,8 @@ public sealed class BladeRainVisual : MonoBehaviour
         {
             if(circles[i]==null) continue;
             circles[i].SetActive(visible);
+            if(visible && owner.RainEmpowered) VisionEmpoweredVisual.Apply(circles[i]);
+            else if(!owner.RainEmpowered) VisionEmpoweredVisual.Restore(circles[i]);
             circles[i].transform.SetPositionAndRotation(owner.RainCirclePosition(i),owner.transform.rotation);
         }
     }

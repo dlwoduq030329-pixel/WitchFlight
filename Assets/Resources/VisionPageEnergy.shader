@@ -1,6 +1,6 @@
 Shader "WitchFlight/VisionPageEnergy"
 {
-    Properties { _Spark("Spark", Float) = 0 _Steady("Steady bolt", Float) = 0 _Aura("Rising energy", Float) = 0 [HDR] _AuraTint("Aura tint",Color) = (.22,.55,1,1) _AuraClock("Aura time",Float) = 0 _AuraOpacity("Aura opacity",Float) = .16 _AuraBend("Aura bend",Vector) = (0,0,0,0) _Mote("Light speck",Float) = 0 }
+    Properties { _Spark("Spark", Float) = 0 _Steady("Steady bolt", Float) = 0 _Aura("Rising energy", Float) = 0 [HDR] _AuraTint("Aura tint",Color) = (.58,.18,1,1) [HDR] _AuraBlue("Aura blue",Color) = (.12,.38,1,1) _AuraClock("Aura time",Float) = 0 _AuraOpacity("Aura opacity",Float) = .45 _AuraBend("Aura bend",Vector) = (0,0,0,0) _Mote("Light speck",Float) = 0 }
     SubShader
     {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "RenderPipeline"="UniversalPipeline" }
@@ -20,6 +20,7 @@ Shader "WitchFlight/VisionPageEnergy"
             float _Steady;
             float _Aura;
             float4 _AuraTint;
+            float4 _AuraBlue;
             float _AuraClock;
             float _AuraOpacity;
             float4 _AuraBend;
@@ -83,7 +84,8 @@ Shader "WitchFlight/VisionPageEnergy"
                     float bands = .25+.75*smoothstep(.25,.8,detail);
                     float upperFade = 1-smoothstep(.18,.82,h);
                     float density = base*top*pow(folds,2)*bands*upperFade;
-                    half3 tint = lerp(_AuraTint.rgb,half3(1.4,1.55,1.7),saturate(density)*.7);
+                    half3 arcane = lerp(_AuraTint.rgb,_AuraBlue.rgb,smoothstep(.2,.85,detail));
+                    half3 tint = lerp(arcane,half3(1.5,1.3,1.7),saturate(density)*.7);
                     return half4(tint, density*_AuraOpacity);
                 }
                 return half4(i.color.rgb, i.color.a * lerp(ribbon, spark, _Spark));

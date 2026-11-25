@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -181,7 +181,7 @@ public partial class Player
             created = true;
             if (!area) MagicProjectile.TrimSummons(this, Mathf.Clamp(Mathf.Max(count, s.summonMaxCount), 1, 16), spawned);
         }
-        if (created) PresentCast(s.magic, MagicCastPosition, MagicCastPosition);
+        if (created) PresentCast(s.magic, MagicCastPosition, MagicCastPosition,s.visionBooksEmpowered);
     }
 
     private void UpdateAreaAimPreview()

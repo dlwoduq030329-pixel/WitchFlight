@@ -4,6 +4,10 @@ using UnityEngine;
 // Existing battle keeps its flag-owned smoke; deathmatch has a separate network state.
 public static class CombatSmoke
 {
+    public static readonly Color PoisonColor = new Color(.48f, .62f, .16f, 1f);
+    public static bool ContainsPoison(NetworkRunner runner, Vector3 point) => DeathMatchState.Instance != null
+        ? DeathMatchState.Instance.Runner == runner && DeathMatchState.Instance.ContainsSmoke(point, true)
+        : BattleFlag.Instance != null && BattleFlag.Instance.Runner == runner && BattleFlag.Instance.ContainsSmoke(point, true);
     public static bool CanCreate(NetworkRunner runner) => DeathMatchState.Instance != null
         ? DeathMatchState.Instance.CanCreateSmoke(runner)
         : BattleFlag.Instance != null && BattleFlag.Instance.CanCreateSmoke(runner);

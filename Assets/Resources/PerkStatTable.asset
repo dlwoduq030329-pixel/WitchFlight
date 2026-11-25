@@ -49,21 +49,20 @@ MonoBehaviour:
     seconds: 4
     condition: 1
   - id: 5
-    displayName: "\uD655\uC7A5 \uC870\uC900"
-    description: "\uC989\uBC1C \uD310\uC815 \uBC18\uACBD {percent}% \uC99D\uAC00."
-    icon: {fileID: 0}
-    amount: 0.25
-    secondaryAmount: 0
-    seconds: 0
-    condition: 0
-  - id: 6
-    displayName: "\uC5F0\uC18D \uAD00\uD1B5"
-    description: "{seconds}\uCD08 \uB0B4 \uC5F0\uC18D \uBA85\uC911\uC758 \uB450 \uBC88\uC9F8
-      \uD53C\uD574 {percent}% \uC99D\uAC00."
+    displayName: "연속 관통"
+    description: "{seconds}초 내 연속 명중의 두 번째 피해 {percent}% 증가."
     icon: {fileID: 0}
     amount: 0.75
     secondaryAmount: 0
     seconds: 4
+    condition: 0
+  - id: 6
+    displayName: "마력 환기"
+    description: "모든 책이 펼쳐져 있는 동안 이동속도 {percent}% 증가."
+    icon: {fileID: 0}
+    amount: 0.2
+    secondaryAmount: 0
+    seconds: 0
     condition: 0
   - id: 7
     displayName: "\uD3ED\uD48D\uAD8C"
@@ -151,14 +150,13 @@ MonoBehaviour:
     seconds: 0
     condition: 0
   - id: 17
-    displayName: "\uC2E0\uC18D\uD55C \uC0AC\uC5ED\uB9C8"
-    description: "\uC18C\uD658\uCCB4\uC758 \uB85D\uC628 \uC2DC\uAC04 {percent}% \uAC10\uC18C,
-      \uACF5\uACA9 \uAC04\uACA9 {secondaryPercent}% \uAC10\uC18C."
+    displayName: "온전한 계약"
+    description: "소환체의 록온 시간 {percent}% 감소, 공격 간격 {secondaryPercent}% 감소. 2회 피격 시 파괴되며 지속시간이 1.5배로 증가."
     icon: {fileID: 0}
     amount: 0.45
     secondaryAmount: 0.2
     seconds: 0
-    condition: 0
+    condition: 1.5
   - id: 18
     displayName: "\uC774\uC911\uACC4\uC57D"
     description: "\uD55C \uBC88\uC5D0 \uC0AC\uC5ED\uB9C8\uB97C {amount}\uB9C8\uB9AC

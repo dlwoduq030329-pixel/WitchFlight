@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 // Owns temporary visual resources even if the caster dies or despawns.
@@ -10,6 +10,7 @@ public sealed class CombatTransientEffect : MonoBehaviour
     private static readonly Stack<CombatTransientEffect> beams = new();
     private PoolKind poolKind;
     private LineRenderer beamLine;
+    private float originalBeamWidth;
     private float started;
     private float duration;
     private float fadeDuration;
@@ -71,11 +72,12 @@ public sealed class CombatTransientEffect : MonoBehaviour
     }
 
     public static void PlayBeam(Vector3 origin, Vector3 end, Color color, Player owner = null, bool followMuzzle = false,
-        float holdSeconds = .15f, float fadeSeconds = .25f)
+        float holdSeconds = .15f, float fadeSeconds = .25f, float widthScale = 1f)
     {
         CombatTransientEffect effect = Acquire(PoolKind.Beam);
         RearThreatCamera.ExcludeLocalEffect(effect.gameObject, owner);
         effect.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        effect.beamLine.widthMultiplier=effect.originalBeamWidth*widthScale;
         effect.beamLine.SetPosition(0, origin);
         effect.beamLine.SetPosition(1, end);
         effect.muzzleOwner = followMuzzle ? owner : null;
@@ -134,6 +136,7 @@ public sealed class CombatTransientEffect : MonoBehaviour
         var effect = obj.AddComponent<CombatTransientEffect>();
         effect.poolKind = kind;
         effect.beamLine = renderer as LineRenderer;
+        if(effect.beamLine!=null) effect.originalBeamWidth=effect.beamLine.widthMultiplier;
         effect.materials = new[] { CombatPresentation.CreateEffectMaterial(Color.white) };
         renderer.sharedMaterial = effect.materials[0];
         return effect;

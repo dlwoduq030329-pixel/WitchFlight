@@ -402,7 +402,7 @@ internal sealed class VisionPageEnergy : MonoBehaviour
             float fadeStart = s.runeMaxTrail * .35f;
             float fadeProgress = Mathf.InverseLerp(fadeStart, s.runeMaxTrail, distance);
             float fade = 1f - Mathf.SmoothStep(0f, 1f, fadeProgress);
-            Color color = s.pageGlowColor; color.a = fade;
+            Color color = Color.Lerp(s.pageGlowColor,s.arcaneBlueColor,(i % 3)*.35f); color.a = fade;
             runeParticles[i].startColor = color;
             if (distance >= s.runeMaxTrail) runeParticles[i].remainingLifetime = 0;
         }
@@ -465,7 +465,8 @@ internal sealed class VisionPageEnergy : MonoBehaviour
             if (!line.enabled) continue;
             line.widthMultiplier = s.energyWidth * scale * (i < 12 ? .55f : .25f);
             Color color = s.pageGlowColor * 2f; color.a = strength * .3f;
-            line.startColor = color; line.endColor = new Color(color.r, color.g, color.b, 0);
+            line.startColor = color;
+            Color tip = s.arcaneBlueColor * 2f; tip.a = 0f; line.endColor = tip;
             line.positionCount = used;
             for (int j = 0; j < used; j++) line.SetPosition(j, vertices[j]);
         }
@@ -501,6 +502,7 @@ internal sealed class VisionEmpoweredElectricity
     private Vector3[] auraRestVertices, auraDeformedVertices;
     private readonly Player auraPlayer;
     private Transform auraVeil;
+    private VisionWandFocus wandFocus;
     private float auraElapsed, moteBudget;
     private Vector3 previousAuraPosition, auraBend, auraBendVelocity;
     private bool hasAuraPosition;
@@ -682,6 +684,8 @@ internal sealed class VisionEmpoweredElectricity
     {
         root.gameObject.SetActive(true);
         DrawChargedAura(s);
+        if (wandFocus == null && auraPlayer != null) wandFocus = new VisionWandFocus(root);
+        if (wandFocus != null) wandFocus.Draw(auraPlayer.MagicCastPosition,s);
         int alive = 0;
         for (int i = 0; i < Arcs; i++)
         {
@@ -738,7 +742,7 @@ internal sealed class VisionEmpoweredElectricity
             float age = Time.time - startedAt[i];
             float opacity = Mathf.SmoothStep(0,1,Mathf.Clamp01(age / .015f)) *
                 Mathf.SmoothStep(0,1,Mathf.Clamp01((duration[i]-age) / .035f));
-            Color core = Color.Lerp(s.chargedElectricColor,Color.white,.75f) * s.chargedElectricIntensity;
+            Color core = Color.Lerp(s.chargedElectricColor,new Color(.9f,.8f,1f),.75f) * s.chargedElectricIntensity;
             core.a = opacity;
             Color halo = s.chargedElectricColor * s.chargedElectricIntensity; halo.a = .45f * opacity;
             cores[i].widthMultiplier = s.chargedElectricWidth * widths[i];
@@ -764,6 +768,7 @@ internal sealed class VisionEmpoweredElectricity
         auraVeil.SetPositionAndRotation(Anchor(7)-Vector3.up*.55f,Quaternion.identity);
         auraVeil.localScale = new Vector3(s.chargedEnergyWidth/.7f,s.chargedEnergyHeight,s.chargedEnergyWidth/.7f);
         auraMaterial.SetColor("_AuraTint",s.chargedAuraColor*s.chargedAuraIntensity);
+        auraMaterial.SetColor("_AuraBlue",s.arcaneBlueColor*s.chargedAuraIntensity);
         auraMaterial.SetFloat("_AuraClock",auraElapsed*s.chargedEnergyRiseSpeed/Mathf.Max(.1f,s.chargedEnergyHeight));
         Vector3 delta = hasAuraPosition ? owner.position-previousAuraPosition : Vector3.zero;
         bool teleported = delta.sqrMagnitude > 100f;
@@ -799,7 +804,7 @@ internal sealed class VisionEmpoweredElectricity
                 velocity = Vector3.up*.55f + radial*.08f,
                 startLifetime = Mathf.Min(1.1f,1.5f/Mathf.Max(1f,velocity.magnitude)),
                 startSize = Mathf.Lerp(.018f,.045f,Mathf.Repeat(index*.618f,1f)),
-                startColor = Color.Lerp(s.chargedAuraColor,Color.white,.8f)*1.3f
+                startColor = Color.Lerp(s.chargedAuraColor,new Color(.85f,.8f,1f),.7f)*1.3f
             },1);
         }
     }
@@ -809,6 +814,7 @@ internal sealed class VisionEmpoweredElectricity
         if (root == null || !root.gameObject.activeSelf) return;
         System.Array.Clear(active,0,active.Length);
         pulsesRemaining = 0; nextPulse = Time.time + .1f;
+        wandFocus?.Hide();
         auraElapsed = 0f; hasAuraPosition = false;
         auraBend = auraBendVelocity = Vector3.zero; moteBudget = 0;
         if (auraMotes != null) auraMotes.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -821,5 +827,83 @@ internal sealed class VisionEmpoweredElectricity
         if (auraMaterial != null) Object.Destroy(auraMaterial);
         if (auraMesh != null) Object.Destroy(auraMesh);
         if (moteMaterial != null) Object.Destroy(moteMaterial);
+        wandFocus?.Dispose();
+    }
+}
+
+// Local-only charged wand focus. Geometry/materials are allocated once and reused.
+internal sealed class VisionWandFocus
+{
+    private readonly Transform root;
+    private readonly LineRenderer[] rings = new LineRenderer[3];
+    private readonly Vector3[] points = new Vector3[65];
+    private readonly Material ribbonMaterial, glowMaterial;
+    private readonly ParticleSystem glow;
+    private readonly ParticleSystem.Particle[] particles = new ParticleSystem.Particle[2];
+    private readonly Light light;
+    private float clock;
+    public VisionWandFocus(Transform parent)
+    {
+        root = new GameObject("Charged wand arcane focus").transform;
+        root.SetParent(parent,false);
+        var shader = Resources.Load<Shader>("VisionPageEnergy");
+        if (shader != null)
+        {
+            ribbonMaterial = new Material(shader); ribbonMaterial.SetFloat("_Steady",1);
+            glowMaterial = new Material(shader); glowMaterial.SetFloat("_Mote",1);
+        }
+        for (int i=0;i<rings.Length;i++)
+        {
+            var go = new GameObject("Orbiting energy band " + i); go.transform.SetParent(root,false);
+            var line = go.AddComponent<LineRenderer>(); rings[i]=line;
+            line.sharedMaterial=ribbonMaterial; line.useWorldSpace=false; line.positionCount=65;
+            line.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
+            line.receiveShadows=false; line.numCapVertices=3;
+            line.widthCurve=new AnimationCurve(new Keyframe(0,.15f),new Keyframe(.15f,1),new Keyframe(.65f,.65f),new Keyframe(1,0));
+        }
+        var orb = new GameObject("White violet luminous core"); orb.transform.SetParent(root,false);
+        glow=orb.AddComponent<ParticleSystem>(); glow.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main=glow.main; main.playOnAwake=false; main.maxParticles=2; main.simulationSpace=ParticleSystemSimulationSpace.Local;
+        var emission=glow.emission; emission.enabled=false;
+        var shape=glow.shape; shape.enabled=false;
+        var renderer=glow.GetComponent<ParticleSystemRenderer>(); renderer.sharedMaterial=glowMaterial;
+        renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off; renderer.receiveShadows=false;
+        light=orb.AddComponent<Light>(); light.type=LightType.Point; light.shadows=LightShadows.None;
+    }
+    public void Draw(Vector3 position, VisionBookSettings s)
+    {
+        root.gameObject.SetActive(true); root.SetPositionAndRotation(position,Quaternion.identity);
+        clock+=Time.deltaTime;
+        for(int i=0;i<rings.Length;i++)
+        {
+            float spin=clock*s.wandFocusOrbitSpeed*(i==1 ? -1.17f : 1f+i*.21f);
+            Quaternion tilt=Quaternion.Euler(35+i*53,spin*.27f+i*61,20+i*37);
+            for(int j=0;j<points.Length;j++)
+            {
+                float angle=(spin+j/(float)(points.Length-1)*310)*Mathf.Deg2Rad;
+                float radius=s.wandFocusRadius*(1+i*.17f);
+                points[j]=tilt*new Vector3(Mathf.Cos(angle)*radius,Mathf.Sin(angle)*radius*.6f,0);
+            }
+            rings[i].SetPositions(points); rings[i].widthMultiplier=s.wandFocusBandWidth;
+            Color color=Color.Lerp(s.pageGlowColor,s.arcaneBlueColor,i*.4f)*2;
+            color.a=.85f; rings[i].startColor=color; color.a=0; rings[i].endColor=color;
+        }
+        if(!glow.isPlaying) glow.Play();
+        for(int i=0;i<particles.Length;i++)
+        {
+            particles[i].position=Vector3.zero;
+            particles[i].startLifetime=particles[i].remainingLifetime=1;
+            particles[i].startSize=s.wandFocusRadius*(i==0 ? 1.1f : 3.5f);
+            particles[i].startColor=i==0 ? new Color(3,2.5f,3.2f,1) : new Color(.65f,.22f,1f,.42f);
+        }
+        glow.SetParticles(particles,particles.Length);
+        light.color=new Color(.7f,.4f,1f); light.intensity=s.wandFocusLightIntensity; light.range=2;
+    }
+    public void Hide() { root.gameObject.SetActive(false); clock=0; }
+    public void Dispose()
+    {
+        if(root!=null) Object.Destroy(root.gameObject);
+        if(ribbonMaterial!=null) Object.Destroy(ribbonMaterial);
+        if(glowMaterial!=null) Object.Destroy(glowMaterial);
     }
 }
