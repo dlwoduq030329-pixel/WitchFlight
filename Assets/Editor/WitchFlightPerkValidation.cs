@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -158,6 +158,53 @@ public static class WitchFlightPerkValidation
         Check(!slider.interactable&&slider.fillRect.sizeDelta==Vector2.zero,"XP is read-only and fill has no oversize offset");
         foreach(var g in canvas.GetComponentsInChildren<Graphic>(true))Check(!g.raycastTarget,"all fallback graphics ignore raycasts");
         UnityEngine.Object.DestroyImmediate(canvas);
+    }
+}
+#endif
+
+#if UNITY_EDITOR
+public static class WitchFlightThunderTintValidation
+{
+    private static string Colors(GameObject root)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (var ps in root.GetComponentsInChildren<ParticleSystem>(true))
+        {
+            var a=ps.main.startColor; var b=ps.colorOverLifetime.color;
+            foreach(var g in new[]{a,b})
+            {
+                text.Append(g.mode);
+                for(int i=0;i<=4;i++) text.Append(g.Evaluate(i/4f,.5f).ToString("F5"));
+            }
+        }
+        return text.ToString();
+    }
+    [MenuItem("Tools/WitchFlight/Validate Thunder Tint Pool")]
+    public static void Run()
+    {
+        var prefab=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/VFX/UI/Prefab/ThunderGold_Explosion.prefab");
+        if(prefab==null) throw new Exception("Missing thunder prefab");
+        string authored=Colors(prefab);
+        var original=MagicVfxPool.Rent(prefab,Vector3.zero,Quaternion.identity);
+        MagicVfxPool.Release(original);
+        for(int cycle=0;cycle<4;cycle++)
+        {
+            var wrapper=new GameObject("Tint regression wrapper");
+            wrapper.SetActive(false);
+            var effect=MagicVfxPool.Rent(prefab,Vector3.zero,Quaternion.identity,wrapper.transform,empoweredVariant:true);
+            if(effect==original) throw new Exception("Empowered thunder reused normal lease");
+            if(Colors(effect)!=authored) throw new Exception("Normal thunder contaminated before cycle "+cycle);
+            VisionEmpoweredVisual.Apply(cycle==3 ? wrapper : effect,1f);
+            if(Colors(effect)==authored) throw new Exception("Empowerment did not change particle colors");
+            if(cycle!=1) wrapper.SetActive(true);
+            MagicVfxPool.Release(wrapper);
+            var normal=MagicVfxPool.Rent(prefab,Vector3.zero,Quaternion.identity);
+            if(normal!=original) throw new Exception("Normal pool instance was not retained");
+            if(Colors(normal)!=authored) throw new Exception("Normal thunder contaminated after cycle "+cycle);
+            if(Colors(prefab)!=authored) throw new Exception("Authored prefab modified");
+            MagicVfxPool.Release(normal);
+        }
+        Debug.Log("THUNDER_TINT_REGRESSION_PASSED");
     }
 }
 #endif

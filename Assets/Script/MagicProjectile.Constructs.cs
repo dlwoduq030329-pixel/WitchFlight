@@ -234,7 +234,7 @@ public partial class MagicProjectile
         {
             if (areaVisual == null)
             {
-                areaVisual = MagicAreaVisual.Create(PresentationStats.areaWarningVfxPrefab,"Thunder confirmed area");
+                areaVisual = MagicAreaVisual.Create(PresentationStats.areaWarningVfxPrefab,"Thunder confirmed area", VisionEmpowered);
                 if(VisionEmpowered) VisionEmpoweredVisual.Apply(areaVisual.gameObject,1f);
                 MagicAreaVisual.ThunderFlash(transform.position, ConstructRadius, PresentationStats);
             }

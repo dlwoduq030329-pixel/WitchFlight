@@ -10,11 +10,11 @@ public sealed class MagicAreaVisual : MonoBehaviour
     private float burstStarted, burstLifetime, burstExpandSeconds, burstStartScale, burstTargetScale;
     private Color burstColor;
 
-    public static MagicAreaVisual Create(GameObject prefab, string label)
+    public static MagicAreaVisual Create(GameObject prefab, string label, bool empowered = false)
     {
         var root = new GameObject(label);
         var visual = root.AddComponent<MagicAreaVisual>();
-        var custom = CombatPresentation.InstantiateVfx(prefab,Vector3.zero,Quaternion.identity,root.transform);
+        var custom = CombatPresentation.InstantiateVfx(prefab,Vector3.zero,Quaternion.identity,root.transform, empoweredVariant: empowered);
         if (custom != null) { visual.authoredScale = root.transform.localScale; return visual; }
         visual.material = CombatPresentation.CreateEffectMaterial(Color.cyan);
         Ring(root.transform,visual.material,Quaternion.identity);
@@ -82,7 +82,7 @@ public sealed class MagicAreaVisual : MonoBehaviour
         visual.burstLifetime = lifetime;
         visual.burstExpandSeconds = expand;
         visual.burstStartScale = Mathf.Clamp01(start);
-        var custom = CombatPresentation.InstantiateVfx(prefab, point, Quaternion.identity, root.transform);
+        var custom = CombatPresentation.InstantiateVfx(prefab, point, Quaternion.identity, root.transform, empoweredVariant: empowered);
         visual.burstTargetScale = Mathf.Max(.1f, radius) / (custom != null && referenceRadius > 0f ? referenceRadius : 1f);
         if (custom == null)
         {

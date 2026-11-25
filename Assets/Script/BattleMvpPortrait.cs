@@ -36,11 +36,13 @@ public sealed class BattleMvpPortrait : MonoBehaviour
         // Copy the entire skeleton, including inactive bones, without behaviours/colliders.
         foreach (Transform source in player.GetComponentsInChildren<Transform>(true)) CopyTransform(source, map);
         var equipment = player.GetComponentInChildren<PlayerEquipment>(true);
+        Transform hips = sourceAnimator.GetBoneTransform(HumanBodyBones.Hips);
         foreach (Renderer source in player.GetComponentsInChildren<Renderer>(true))
         {
             if (!source.enabled || !source.gameObject.activeInHierarchy ||
                 source.GetComponentInParent<Canvas>() != null || source.GetComponentInParent<CatAvatar>() != null ||
-                (equipment != null && equipment.IsFlightEquipment(source.transform))) continue;
+                (equipment != null && equipment.IsFlightEquipment(source.transform)) ||
+                !IsCharacterRenderer(source, hips)) continue;
             Renderer target;
             var copy = map[source.transform];
             if (source is SkinnedMeshRenderer skin && skin.sharedMesh != null)
@@ -90,6 +92,20 @@ public sealed class BattleMvpPortrait : MonoBehaviour
         return root;
     }
 
+    private static bool IsCharacterRenderer(Renderer source, Transform hips)
+    {
+        if (hips == null || source.GetComponentInParent<MagicVfxLease>() != null) return false;
+        // Copy the humanoid body/clothes and rigid accessories attached to its bones.
+        // Floating books, aura meshes and shields must not enlarge portrait framing.
+        if (source is SkinnedMeshRenderer skin)
+        {
+            foreach (var bone in skin.bones)
+                if (bone != null && (bone == hips || bone.IsChildOf(hips))) return true;
+            return false;
+        }
+        return source is MeshRenderer && source.transform.IsChildOf(hips);
+    }
+
     private static Transform CopyTransform(Transform source, Dictionary<Transform, Transform> map)
     {
         if (map.TryGetValue(source, out Transform copy)) return copy;
@@ -104,6 +120,12 @@ public sealed class BattleMvpPortrait : MonoBehaviour
     public static BattleMvpPortrait Create(GameObject template, RawImage image, int slot, int catBody, int catEyes)
     {
         if (template == null || image == null) return null;
+        // An inactive RawImage can still have the old/zero layout rectangle. Do not
+        // permanently frame this portrait using that rectangle's clamped .2 aspect.
+        image.gameObject.SetActive(true);
+        image.enabled = true;
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(image.rectTransform);
         var root = new GameObject("MVP portrait " + slot);
         root.transform.position = new Vector3(14000 + slot * 50, 14000, 14000);
         var view = root.AddComponent<BattleMvpPortrait>();
