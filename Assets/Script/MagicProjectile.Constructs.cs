@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 // Reuses the registered MagicProjectile NetworkObject and NetworkTransform. No second runner,
@@ -25,10 +25,16 @@ public partial class MagicProjectile
     private Vector3 summonObservedPosition, summonObservedVelocity;
     private const float SummonReactionSeconds = .35f;
     public bool IsConstruct => ConstructKind == MagicConstructKind.ThunderArea || ConstructKind == MagicConstructKind.Summon || ConstructKind == MagicConstructKind.TimeField || ConstructKind == MagicConstructKind.FlareField;
-    public virtual MagicStatEntry PresentationStats => initialized ? stats : FocusedBlade
-        ? PerkEffects.FocusBladeShot(CombatPresentation.Stats(Magic), FocusedBladeCharge, 1f)
-        : ConstructKind == MagicConstructKind.SummonBolt
-            ? SummonBoltStats(CombatPresentation.Stats(Magic)) : CombatPresentation.Stats(Magic);
+    public virtual MagicStatEntry PresentationStats
+    {
+        get
+        {
+            if (initialized) return stats;
+            var entry = FocusedBlade ? PerkEffects.FocusBladeShot(CombatPresentation.Stats(Magic),FocusedBladeCharge,1f) : CombatPresentation.Stats(Magic);
+            if(VisionEmpowered) VisionEmpowerment.Apply(ref entry);
+            return ConstructKind == MagicConstructKind.SummonBolt ? SummonBoltStats(entry) : entry;
+        }
+    }
 
     public static MagicStatEntry SummonBoltStats(MagicStatEntry source)
     {
@@ -56,6 +62,7 @@ public partial class MagicProjectile
         summonShotTimer = summonScanTimer = TickTimer.None;
         SummonLockProgress = 0f;
         SummonDamageTaken = 0f;
+        empoweredSummonHits = 0;
         summonBurnRemaining = summonBurnDps = summonBurnTick = 0f;
         SummonMoving = false;
         SummonAttackSequence = 0;
@@ -190,6 +197,16 @@ public partial class MagicProjectile
         return best;
     }
 
+    public static float EmpoweredThunderMovement(NetworkRunner runner, Vector3 point, int team)
+    {
+        foreach(var field in active)
+            if(field!=null && field.Object!=null && field.Object.IsValid && field.Runner==runner && field.VisionEmpowered &&
+                field.ConstructKind==MagicConstructKind.ThunderArea && !field.Finished && field.ShooterTeam!=team &&
+                !field.ConstructTimer.ExpiredOrNotRunning(runner) && (point-field.transform.position).sqrMagnitude<=field.ConstructRadius*field.ConstructRadius)
+                return .8f;
+        return 1f;
+    }
+
     private void RenderConstruct()
     {
         if (Finished || impactPresented)
@@ -199,12 +216,13 @@ public partial class MagicProjectile
             if (areaVisual == null)
             {
                 areaVisual = MagicAreaVisual.Create(PresentationStats.areaWarningVfxPrefab,"Thunder confirmed area");
+                if(VisionEmpowered) VisionEmpoweredVisual.Apply(areaVisual.gameObject,1f);
                 MagicAreaVisual.ThunderFlash(transform.position, ConstructRadius, PresentationStats);
             }
             bool friendly = Player.LocalPlayer != null && Player.LocalPlayer.Object != null && Player.LocalPlayer.Object.IsValid &&
                 Player.LocalPlayer.TeamIndex == ShooterTeam;
             float remaining = ConstructTimer.RemainingTime(Runner) ?? 0f;
-            areaVisual.SetArea(transform.position,ConstructRadius, friendly ? new Color(.2f,1f,.9f,.85f) : new Color(1f,.2f,.08f,.9f),
+            areaVisual.SetArea(transform.position,ConstructRadius, VisionEmpowered ? VisionEmpowerment.Color : friendly ? new Color(.2f,1f,.9f,.85f) : new Color(1f,.2f,.08f,.9f),
                 1f-Mathf.Clamp01(remaining / Mathf.Max(.1f,ConstructDelay)));
         }
         else

@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 // Deathmatch-only replicated rules. No flag model, pickup collider, rounds or intro state.
@@ -13,6 +13,14 @@ public sealed class DeathMatchState : NetworkBehaviour
     public override void Spawned() { Instance = this; }
     public override void FixedUpdateNetwork()
     {
+        if(Object.HasStateAuthority)
+            for(int smokeIndex=0;smokeIndex<SmokeClouds.Length;smokeIndex++)
+            {
+                var cloud=SmokeClouds[smokeIndex];
+                if(!cloud.DamageDue(Runner)) continue;
+                cloud.TickDamage(Runner); SmokeClouds.Set(smokeIndex,cloud);
+            }
+
         if (Object.HasStateAuthority) BattleManager.Instance?.TickRespawns();
     }
     public override void Render() { RenderSmoke(); }
@@ -47,6 +55,8 @@ public sealed class DeathMatchState : NetworkBehaviour
             Center = caster.LockAimPoint, Radius = Mathf.Min(stats.radius, 100f),
             Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Min(stats.effectDuration, 120f)),
             CasterTeam = caster.TeamIndex,
+            Empowered=stats.visionBooksEmpowered, Caster=caster.ParticipantRef, CasterId=caster.Object.Id,
+            DamageTick=TickTimer.CreateFromSeconds(Runner,1f),
             LockTimePenalty = stats.perkSecond?.id == PerkId.SmokeDuration ? Mathf.Max(0f, stats.perkSecond.amount) : 0f,
             Sequence = SmokeSequence
         });
@@ -103,6 +113,7 @@ public sealed class DeathMatchState : NetworkBehaviour
             smokeViewSequences[i] = cloud.Sequence;
             smokeViews[i] = UtilityMagicVisual.CreateSmoke(cloud.Center, cloud.Radius,
                 CombatPresentation.Stats(MagicType.Smoke).utilityVfxPrefab);
+            if(cloud.Empowered) VisionEmpoweredVisual.Apply(smokeViews[i],1f);
             TimeVfxSpeed.Bind(smokeViews[i], Runner, cloud.CasterTeam, false);
         }
     }

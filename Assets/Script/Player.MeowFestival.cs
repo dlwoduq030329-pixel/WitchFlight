@@ -1,8 +1,10 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
 {
+    [Networked] public bool FestivalEmpowered { get; private set; }
+    private NetworkId festivalCasterId;
     [Networked] private TickTimer FestivalTimer { get; set; }
     [Networked] public float FestivalRadius { get; private set; }
     [Networked] private NetworkBool FestivalClimax { get; set; }
@@ -48,6 +50,7 @@ public partial class Player
     {
         if (!Object.HasStateAuthority || !IsAlive) return;
         festivalHealElapsed = 0f;
+        FestivalEmpowered=entry.visionBooksEmpowered; festivalCasterId=caster.Object.Id;
         FestivalHealedCount = 0;
         festivalBudget = Mathf.Max(0f, entry.effectDuration);
         FestivalTimer = TickTimer.CreateFromSeconds(Runner, festivalBudget);
@@ -70,6 +73,11 @@ public partial class Player
         if (festivalHealElapsed >= 1f || festivalBudget <= .0001f)
         {
             float healingSeconds = festivalBudget <= .0001f ? festivalHealElapsed : Mathf.Floor(festivalHealElapsed);
+            if(FestivalEmpowered)
+                foreach(var enemy in combatants)
+                    if(enemy!=null && enemy.IsAlive && enemy.Runner==Runner && enemy.TeamIndex!=TeamIndex &&
+                        (enemy.LockAimPoint-LockAimPoint).sqrMagnitude<=FestivalRadius*FestivalRadius)
+                        enemy.TakeDamage(20f*healingSeconds,festivalHealer,MagicType.MeowFestival,false,0,0,festivalCasterId);
             foreach (var ally in combatants)
             {
                 if (!ContainsFestivalAlly(ally)) continue;
@@ -95,7 +103,7 @@ public partial class Player
 
     private void ResetMeowFestival()
     {
-        FestivalTimer = TickTimer.None;
+        FestivalTimer = TickTimer.None; FestivalEmpowered=false;
         FestivalHealedCount = 0;
         FestivalClimax = false;
         FestivalAllySpeed = 0f;

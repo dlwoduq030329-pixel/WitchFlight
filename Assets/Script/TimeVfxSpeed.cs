@@ -35,7 +35,7 @@ public sealed class TimeVfxSpeed : MonoBehaviour
         // Most frames contain no time field: no spatial queries or animator traversal.
         if (!MagicProjectile.HasTimeFields && multiplier == 1f) return;
         float next = runner != null && runner.IsRunning ? projectile
-            ? MagicProjectile.TimeProjectileMultiplier(runner, transform.position)
+            ? MagicProjectile.TimeProjectileMultiplier(runner, transform.position, team)
             : MagicProjectile.TimeMovementMultiplier(runner, transform.position, team) : 1f;
         if (!Mathf.Approximately(next, multiplier))
             for (int i = 0; i < particles.Length; i++)

@@ -84,6 +84,8 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             if (reusable != null && reusable != view) Destroy(reusable.gameObject);
         }
         else view = Create(entry, projectile.transform.position, projectile.transform.forward, reusable);
+        if(entry.visionBooksEmpowered) VisionEmpoweredVisual.Apply(view.content);
+        view.stats=entry;
         view.hasSource = true;
         view.source = projectile;
         view.runner = projectile.Runner;
@@ -245,7 +247,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
         {
             float dt = Mathf.Min(remaining, 1f / 60f);
             remaining -= dt;
-            float timeScale = MagicProjectile.TimeProjectileMultiplier(runner, transform.position);
+            float timeScale = MagicProjectile.TimeProjectileMultiplier(runner, transform.position, owner != null ? owner.TeamIndex : -1);
             dt *= timeScale;
             if (flightExhausted)
             {
@@ -260,7 +262,7 @@ public sealed class ProjectilePredictionView : MonoBehaviour
             Vector3 previousDirection = direction;
             bool exhaustion = stats.requiresTarget && MagicProjectile.UsesFlightExhaustion(stats.magic, table);
             float turnSpeed = exhaustion ? MagicProjectile.FlightTurnSpeed(stats.projectileTurnSpeed,
-                stats.projectileSpeed * flightSpeedFraction, table) : stats.projectileTurnSpeed;
+                stats.projectileSpeed * flightSpeedFraction / (stats.visionBooksEmpowered ? 2f : 1f), table) : stats.projectileTurnSpeed;
             if (target != null && target.Object != null && target.Object.IsValid && target.IsAlive)
             {
                 Vector3 desired = target.LockAimPoint - transform.position;

@@ -1,10 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
 // A pooled field emits discrete decoys. Only burst poses are replicated, never per-particle objects.
 public partial class MagicProjectile
 {
+    [Networked, Capacity(96)] private NetworkArray<int> FlareConsumed => default;
     private static readonly HashSet<MagicProjectile> flareFields = new();
     [Networked] private float FlareSpeed { get; set; }
     [Networked] private float FlareParticleLifetime { get; set; }
@@ -33,6 +34,7 @@ public partial class MagicProjectile
     public void InitializeFlareField(Player owner, MagicStatEntry entry)
     {
         Initialize(owner, null, entry, -owner.transform.forward);
+        for(int i=0;i<FlareConsumed.Length;i++) FlareConsumed.Set(i,0);
         ConstructKind = MagicConstructKind.FlareField;
         Settled = true;
         ConstructRadius = Mathf.Max(.1f, entry.flareInterceptRadius);
@@ -109,13 +111,43 @@ public partial class MagicProjectile
             if(age>FlareParticleLifetime) break;
             for(int branch=0;branch<3;branch++)
             {
+                if(IsFlareConsumed(sample.sequence,branch)) continue;
                 Vector3 heading=sample.rotation*Quaternion.Euler(0,(branch-1)*FlareSpread,0)*Vector3.forward;
                 flareSegments[flareSegmentCount++]=new FlareSegment {
                     start=FlareTrailPoint(sample.position,heading,FlareSpeed,Mathf.Max(0,age-Runner.DeltaTime)),
                     end=FlareTrailPoint(sample.position,heading,FlareSpeed,age),origin=sample.position,sequence=sample.sequence,branch=branch };
             }
         }
+        if(VisionEmpowered)
+            for(int i=0;i<flareSegmentCount;i++)
+            {
+                var segment=flareSegments[i];
+                if(IsFlareConsumed(segment.sequence,segment.branch)) continue;
+                foreach(var enemy in Player.ActiveCombatants)
+                    if(enemy!=null && enemy.IsAlive && enemy.Runner==Runner && enemy.TeamIndex!=ShooterTeam &&
+                        BattleFlag.SegmentDistanceSquared(segment.start,segment.end,enemy.LockAimPoint,enemy.LockAimPoint,out Vector3 contact)<=Mathf.Pow(ConstructRadius+.6f,2))
+                    { ExplodeEmpoweredFlare(segment,contact); break; }
+            }
     }
+    private bool IsFlareConsumed(int sequence,int branch)
+    {
+        int key=sequence*3+branch;
+        return key>0 && FlareConsumed[key%96]==key;
+    }
+    private void ExplodeEmpoweredFlare(FlareSegment segment,Vector3 point)
+    {
+        if(!VisionEmpowered || IsFlareConsumed(segment.sequence,segment.branch)) return;
+        int key=segment.sequence*3+segment.branch; FlareConsumed.Set(key%96,key);
+        var blast=stats; blast.effect=MagicEffectKind.DirectDamage; blast.damage=30f; blast.perkFirst=blast.perkSecond=null;
+        foreach(var enemy in Player.ActiveCombatants)
+            if(enemy!=null && enemy.IsAlive && enemy.Runner==Runner && enemy.TeamIndex!=ShooterTeam &&
+                (enemy.LockAimPoint-point).sqrMagnitude<=100f && HasBlastSight(point,enemy))
+                enemy.ReceiveMagicHit(blast,Shooter,ShooterId,enemy.LockAimPoint-point,point);
+        DamageSummonsInArea(Runner,ShooterTeam,point,10f,blast,ShooterId);
+        RPC_EmpoweredFlareBlast(point);
+    }
+    [Rpc(RpcSources.StateAuthority,RpcTargets.All)]
+    private void RPC_EmpoweredFlareBlast(Vector3 point) => CombatPresentation.ShowImpact(point,MagicType.Flare,null,true);
     // Decelerate horizontally, then drift down. Shared by authority collision and rendered cores.
     internal static Vector3 FlareTrailPoint(Vector3 origin, Vector3 heading, float speed, float age)
     {
@@ -138,6 +170,7 @@ public partial class MagicProjectile
             for(int i=0;i<field.flareSegmentCount;i++)
             {
                 var head=field.flareSegments[i];
+                if(field.IsFlareConsumed(head.sequence,head.branch))continue;
                 float sqr=(head.end-transform.position).sqrMagnitude;
                 if(sqr>=closest || sqr>field.FlareAttractionRadius*field.FlareAttractionRadius || !HasSummonSight(transform.position,head.end))continue;
                 nearest=field;index=i;closest=sqr;
@@ -156,7 +189,7 @@ public partial class MagicProjectile
             for(int i=0;i<decoyField.flareSegmentCount;i++)
             {
                 var head=decoyField.flareSegments[i];
-                if(head.sequence!=decoySequence || head.branch!=decoyBranch)continue;
+                if(head.sequence!=decoySequence || head.branch!=decoyBranch || decoyField.IsFlareConsumed(head.sequence,head.branch))continue;
                 point=head.end;return true;
             }
         decoyField=null;TargetId=default; // Spent decoy: keep flying, never snap back to the player.
@@ -166,6 +199,7 @@ public partial class MagicProjectile
     {
         if(IsConstruct || IsMine || Finished)return false;
         MagicProjectile nearest=null;Vector3 contact=end;float closest=float.PositiveInfinity;
+        FlareSegment consumedSegment=default;
         foreach(var field in flareFields)
         {
             if(field==null || !field.IsLiveFlare(Runner) || field.ShooterTeam==ShooterTeam)continue;
@@ -173,13 +207,15 @@ public partial class MagicProjectile
             for(int i=0;i<field.flareSegmentCount;i++)
             {
                 var head=field.flareSegments[i];
+                if(field.IsFlareConsumed(head.sequence,head.branch))continue;
                 float sqr=BattleFlag.SegmentDistanceSquared(start,end,head.start,head.end,out Vector3 point);
                 if(sqr>radius*radius || !HasSummonSight(head.origin,point))continue;
                 float along=(point-start).sqrMagnitude;if(along>=closest)continue;
-                nearest=field;contact=point;closest=along;
+                nearest=field;contact=point;closest=along;consumedSegment=head;
             }
         }
         if(nearest==null)return false;
+        nearest.ExplodeEmpoweredFlare(consumedSegment,contact);
         Finished=true;TargetId=default;decoyField=null;transform.position=contact;
         RPC_Impact(contact,Magic);
         Lifetime=TickTimer.CreateFromSeconds(Runner,.1f);
@@ -205,6 +241,7 @@ public partial class MagicProjectile
             float age=now-sample.at;if(age>FlareParticleLifetime)break;if(age<0)continue;
             for(int branch=0;branch<3;branch++)
             {
+                if(IsFlareConsumed(sample.sequence,branch)) continue;
                 Vector3 heading=sample.rotation*Quaternion.Euler(0,(branch-1)*FlareSpread,0)*Vector3.forward;
                 flareVisual.SetHead((sample.sequence%FlareHistoryCapacity)*3+branch,
                     FlareTrailPoint(sample.position,heading,FlareSpeed,age),
@@ -212,6 +249,7 @@ public partial class MagicProjectile
             }
         }
         flareVisual.EndFrame(FlareBurstSequence);
+        if(VisionEmpowered) VisionEmpoweredVisual.Apply(flareVisual.gameObject,1f);
     }
     private void ClearFlareField()
     {

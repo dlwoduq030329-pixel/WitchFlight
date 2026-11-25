@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -378,6 +378,14 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
 
     public override void FixedUpdateNetwork()
     {
+        if(Object.HasStateAuthority)
+            for(int smokeIndex=0;smokeIndex<SmokeClouds.Length;smokeIndex++)
+            {
+                var cloud=SmokeClouds[smokeIndex];
+                if(!cloud.DamageDue(Runner)) continue;
+                cloud.TickDamage(Runner); SmokeClouds.Set(smokeIndex,cloud);
+            }
+
         if (NetworkGameManager.Instance != null && NetworkGameManager.Instance.IsMigratingDeathMatch) return;
         if (!Object.HasStateAuthority || !IsPrepared || HasEnded)
             return;
@@ -1025,6 +1033,8 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
             Center = caster.LockAimPoint, Radius = Mathf.Min(stats.radius, 100f),
             Lifetime = TickTimer.CreateFromSeconds(Runner, Mathf.Min(stats.effectDuration, 120f)),
             CasterTeam = caster.TeamIndex,
+            Empowered=stats.visionBooksEmpowered, Caster=caster.ParticipantRef, CasterId=caster.Object.Id,
+            DamageTick=TickTimer.CreateFromSeconds(Runner,1f),
             LockTimePenalty = stats.perkSecond?.id == PerkId.SmokeDuration ? Mathf.Max(0f, stats.perkSecond.amount) : 0f,
             Sequence = SmokeSequence
         });
@@ -1081,6 +1091,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
             smokeViewSequences[i] = cloud.Sequence;
             smokeViews[i] = UtilityMagicVisual.CreateSmoke(cloud.Center, cloud.Radius,
                 CombatPresentation.Stats(MagicType.Smoke).utilityVfxPrefab);
+            if(cloud.Empowered) VisionEmpoweredVisual.Apply(smokeViews[i],1f);
             TimeVfxSpeed.Bind(smokeViews[i], Runner, cloud.CasterTeam, false);
         }
     }

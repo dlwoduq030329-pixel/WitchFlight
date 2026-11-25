@@ -1,9 +1,10 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
 public partial class MagicProjectile
 {
+    private int empoweredSummonHits;
     private float summonBurnRemaining, summonBurnDps, summonBurnTick;
     private MagicStatEntry summonBurnStats;
     private int summonBurnTeam;
@@ -126,7 +127,8 @@ public partial class MagicProjectile
             }
         }
         float threshold = stats.summonChannelHealth > 0f ? stats.summonChannelHealth : 50f;
-        bool killed=!sustained || SummonDamageTaken + .0001f >= threshold;
+        if(!sustained && VisionEmpowered) { empoweredSummonHits++; SummonDamageTaken = Mathf.Max(SummonDamageTaken,threshold*empoweredSummonHits*.5f); }
+        bool killed=(!sustained && (!VisionEmpowered || empoweredSummonHits>=2)) || SummonDamageTaken + .0001f >= threshold;
         PlayerData.FindPerkData(Runner,attack.perkAttacker)?.RecordTitleSummonHit(attack.titleCastId,killed);
         if (killed)
         {

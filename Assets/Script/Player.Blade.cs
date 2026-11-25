@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -65,7 +65,7 @@ public partial class Player
         BladeCharges--;
         BladeShotCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, entry.bladeShotInterval));
         LastCastMagic = MagicType.Blade;
-        PresentCast(MagicType.Blade, MagicCastPosition, MagicCastPosition);
+        PresentCast(MagicType.Blade, MagicCastPosition, MagicCastPosition, entry.visionBooksEmpowered);
     }
 
     private void ApplyWound(MagicStatEntry entry)

@@ -54,7 +54,7 @@ public sealed class MeowFestivalVisual : MonoBehaviour
             zone.SetActive(visible);
             zone.transform.SetPositionAndRotation(owner.LockAimPoint, Quaternion.identity);
             zone.transform.localScale = new Vector3(owner.FestivalRadius, zoneHeight, owner.FestivalRadius);
-            Color color = zoneColor;
+            Color color = owner.FestivalEmpowered ? new Color(.65f,.18f,1f,zoneColor.a) : zoneColor;
             color.a *= Mathf.Clamp01(elapsed / .25f);
             zoneProperties.SetColor(ColorId, color);
             zoneProperties.SetFloat(PhaseId, elapsed * riseSpeed);
@@ -64,6 +64,8 @@ public sealed class MeowFestivalVisual : MonoBehaviour
         {
             if (cats[i] == null) continue;
             cats[i].SetActive(visible);
+            if(visible && owner.FestivalEmpowered) VisionEmpoweredVisual.Apply(cats[i]);
+            else if(!owner.FestivalEmpowered) VisionEmpoweredVisual.Restore(cats[i]);
             float angle = elapsed*2f+i*Mathf.PI*2f/3f;
             Vector3 destination = owner.LockAimPoint + new Vector3(Mathf.Cos(angle)*owner.FestivalRadius, .2f+Mathf.Sin(angle*2)*.12f, Mathf.Sin(angle)*owner.FestivalRadius);
             Vector3 previous = cats[i].transform.position;

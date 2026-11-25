@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 // Optional authored familiar/robot replaces only the body; the lock telegraph remains visible.
 public sealed class MagicSummonVisual : MonoBehaviour
@@ -46,6 +46,18 @@ public sealed class MagicSummonVisual : MonoBehaviour
         visual.targetRing = MagicAreaVisual.Ring(null,visual.material,Quaternion.identity);
         visual.targetRing.gameObject.SetActive(false);
         root.transform.localScale = Vector3.one * SummonFlightMotion.VisualScale;
+        if(stats.visionBooksEmpowered)
+        {
+            visual.material.color=VisionEmpowerment.Color;
+            VisionEmpoweredVisual.Apply(root);
+            var aura = new GameObject("Empowered familiar aura"); aura.transform.SetParent(root.transform,false);
+            var ps=aura.AddComponent<ParticleSystem>(); var main=ps.main;
+            main.startColor=new Color(.65f,.15f,1f,.35f); main.startSize=.18f; main.startLifetime=.6f; main.startSpeed=.35f;
+            main.maxParticles=32; var emission=ps.emission; emission.rateOverTime=18;
+            var shape=ps.shape; shape.shapeType=ParticleSystemShapeType.Sphere; shape.radius=.45f;
+            ps.GetComponent<ParticleSystemRenderer>().sharedMaterial=visual.material;
+            ps.Play();
+        }
         return visual;
     }
 
