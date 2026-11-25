@@ -14,6 +14,10 @@ namespace Suimono.Core
 
 	[ExecuteInEditMode]
 	public class SuimonoObject : MonoBehaviour {
+        public bool customWaterShadows;
+        public Color waterShadowColor = new Color(.25f, .55f, .65f, 1f);
+        [Range(0f, 1f)] public float waterShadowStrength = .75f;
+
 
 
 		public float systemTime = 0.0f;
@@ -883,7 +887,14 @@ namespace Suimono.Core
 					surfaceRenderer.sharedMaterial.SetFloat("_cameraDistance",cameraDistance);
 
 
-					//Force shoreline foam scale
+					                    surfaceRenderer.sharedMaterial.SetFloat("_WaterShadowEnabled", customWaterShadows ? 1f : 0f);
+                    surfaceRenderer.sharedMaterial.SetColor("_WaterShadowTint", waterShadowColor);
+                    surfaceRenderer.sharedMaterial.SetFloat("_WaterShadowStrength", waterShadowStrength);
+                    scaleRenderer.sharedMaterial.SetFloat("_WaterShadowEnabled", customWaterShadows ? 1f : 0f);
+                    scaleRenderer.sharedMaterial.SetColor("_WaterShadowTint", waterShadowColor);
+                    scaleRenderer.sharedMaterial.SetFloat("_WaterShadowStrength", waterShadowStrength);
+
+                    //Force shoreline foam scale
 					Vector2 setWaveTiling = new Vector2(1f, 10f);
 					surfaceRenderer.sharedMaterial.SetTextureScale("_WaveTex", setWaveTiling);
 					scaleRenderer.sharedMaterial.SetTextureScale("_WaveTex", setWaveTiling);

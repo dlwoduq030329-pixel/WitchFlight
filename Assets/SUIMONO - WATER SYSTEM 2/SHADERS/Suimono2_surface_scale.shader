@@ -1,6 +1,10 @@
 Shader "Suimono2/surface_scale" {
 
 Properties {
+    [Toggle] _WaterShadowEnabled ("Custom Water Shadows", Float) = 0
+    _WaterShadowTint ("Water Shadow Tint", Color) = (0.25,0.55,0.65,1)
+    _WaterShadowStrength ("Water Shadow Strength", Range(0,1)) = 0.75
+
 	//_MainTex ("Particle Texture", 2D) = "white" {}
 	_shallowColor ("Tint Color 1", Color) = (0.5,0.5,0.5,0.5)
 	_depthColor ("Tint Color 2", Color) = (0.5,0.5,0.5,1.0)

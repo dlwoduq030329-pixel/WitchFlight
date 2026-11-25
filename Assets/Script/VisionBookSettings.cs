@@ -3,6 +3,11 @@
 [CreateAssetMenu(menuName = "WitchFlight/Combat/Vision Books")]
 public sealed class VisionBookSettings : ScriptableObject
 {
+    [Header("Empowered thunder slow aura")]
+    [Tooltip("강화 번개 시전 대기 범위에서 감속되는 적에게 표시할 로컬 VFX. 반복 재생 파티클 프리팹을 지정하세요.")]
+    public GameObject thunderSlowAuraPrefab;
+    public Vector3 thunderSlowAuraOffset = new Vector3(0f, 1f, 0f);
+    [Min(.01f)] public float thunderSlowAuraScale = 1f;
     [Range(1, 12)] public int bookCount = 2;
     [Min(0f)] public float empoweredDamageBonus = .5f;
     [Min(0f)] public float minimumDamageBonus = 30f;

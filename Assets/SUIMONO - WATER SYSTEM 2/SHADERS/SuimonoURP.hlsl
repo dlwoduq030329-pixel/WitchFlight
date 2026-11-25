@@ -16,6 +16,8 @@
 struct SurfaceOutput { half3 Albedo; half3 Normal; half3 Emission; half Specular; half Gloss; half Alpha; };
 static half4 _LightColor0;
 float _SuimonoCaptureValid;
+float _WaterShadowEnabled, _WaterShadowStrength;
+half4 _WaterShadowTint;
 float SuimonoSceneEye(float2 uv) {
     float d=SampleSceneDepth(saturate(uv));
     return unity_OrthoParams.w > 0.5 ? LinearDepthToEyeDepth(d) : LinearEyeDepth(d,_ZBufferParams);
@@ -61,7 +63,12 @@ half4 SuimonoFragment(Varyings i):SV_Target {
     #ifdef SUIMONO_UNDER
     half4 col=LightingSuimonoLightUnder(s,lightTS,viewTS,light.shadowAttenuation);
     #else
-    half4 col=LightingSuimonoLight(s,lightTS,viewTS,light.shadowAttenuation);
+    // Custom tint replaces the old repeated black attenuation; no second lighting evaluation.
+    half attenuation = _WaterShadowEnabled > .5 ? 1.0h : light.shadowAttenuation;
+    half4 col=LightingSuimonoLight(s,lightTS,viewTS,attenuation);
+    if (_WaterShadowEnabled > .5)
+        col.rgb *= lerp(half3(1,1,1), saturate(_WaterShadowTint.rgb),
+            (1.0h - light.shadowAttenuation) * saturate(_WaterShadowStrength));
     #endif
     // The infinite-ocean mesh has very large triangles. Clamping fog at its
     // vertices makes the horizon a flat band; evaluate depth at the actual pixel.

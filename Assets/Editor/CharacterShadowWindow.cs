@@ -11,9 +11,12 @@ public sealed class CharacterShadowWindow : EditorWindow
         public readonly List<string> users = new();
         public readonly List<string> parts = new();
         public string description;
+        public int category;
     }
     private readonly List<Entry> entries = new();
     private Vector2 scroll;
+    private int category;
+    private static readonly string[] categories = { "전체", "캐릭터", "고양이", "기체" };
     private string search = "";
     private static readonly string[] shadowProperties = { "_ShadowReceive", "_Shadow2ndReceive", "_Shadow3rdReceive" };
 
@@ -30,28 +33,56 @@ public sealed class CharacterShadowWindow : EditorWindow
     private void RefreshTargets()
     {
         entries.Clear();
-        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Ch/ChPrefab.prefab");
-        if (prefab == null) return;
         var lookup = new Dictionary<Material, Entry>();
-        foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
-        foreach (var material in renderer.sharedMaterials)
+        AddPrefab("Assets/Ch/ChPrefab.prefab", lookup, 1);
+        AddPrefab("Assets/Ch/WitchCat.prefab", lookup, 2);
+        AddPrefab("Assets/Item/Robot.prefab", lookup, 3);
+        AddPrefab("Assets/Item/Cleaner.prefab", lookup, 3);
+        foreach (var guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Weapon/Prefabs(usethis)/Broom" }))
+            AddPrefab(AssetDatabase.GUIDToAssetPath(guid), lookup, 3);
+        // Include every selectable cat skin, including material variants not currently equipped.
+        foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { "Assets/Ch/cat/Material" }))
         {
-            if (material == null || !material.HasProperty("_ShadowReceive")) continue;
-            if (!lookup.TryGetValue(material, out var entry))
-            {
-                entry = new Entry { material = material };
-                lookup.Add(material, entry);
-                entries.Add(entry);
-            }
-            string path = AnimationUtility.CalculateTransformPath(renderer.transform, prefab.transform);
-            if (!entry.users.Contains(path)) entry.users.Add(path);
-            string part = DescribePart(renderer.name, path);
+            var material = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+            var entry = AddMaterial(material, lookup, 2);
+            if (entry == null) continue;
+            string part = material.name.StartsWith("eye") ? "고양이 눈" : material.name == "Hat" ? "고양이 모자" : "고양이 털·몸통 (선택 가능한 외형)";
             if (!entry.parts.Contains(part)) entry.parts.Add(part);
         }
         foreach (var entry in entries)
             entry.description = "적용 부위: " + string.Join(" · ", entry.parts);
         entries.Sort((a, b) => string.CompareOrdinal(AssetDatabase.GetAssetPath(a.material), AssetDatabase.GetAssetPath(b.material)));
         Repaint();
+    }
+    private Entry AddMaterial(Material material, Dictionary<Material, Entry> lookup, int group)
+    {
+        if (material == null || (!material.HasProperty("_ShadowReceive") && !material.HasProperty("_ReceiveShadows"))) return null;
+        if (lookup.TryGetValue(material, out var existing)) return existing;
+        string path = AssetDatabase.GetAssetPath(material);
+        if (path.Contains("/Broom/")) group = 3;
+        if (path.Contains("/cat/")) group = 2;
+        var entry = new Entry { material = material, category = group };
+        lookup.Add(material, entry);
+        entries.Add(entry);
+        return entry;
+    }
+    private void AddPrefab(string assetPath, Dictionary<Material, Entry> lookup, int group)
+    {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+        if (prefab == null) return;
+        foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
+        foreach (var material in renderer.sharedMaterials)
+        {
+            string path = AnimationUtility.CalculateTransformPath(renderer.transform, prefab.transform);
+            int partGroup = path.Contains("Brooms") ? 3 : group;
+            var entry = AddMaterial(material, lookup, partGroup);
+            if (entry == null) continue;
+            string location = prefab.name + "/" + path;
+            if (!entry.users.Contains(location)) entry.users.Add(location);
+            string part = entry.category == 1 ? DescribePart(renderer.name, path) :
+                categories[entry.category] + " / " + prefab.name + " / " + renderer.name;
+            if (!entry.parts.Contains(part)) entry.parts.Add(part);
+        }
     }
     private static string DescribePart(string name, string path)
     {
@@ -89,12 +120,13 @@ public sealed class CharacterShadowWindow : EditorWindow
     {
         EditorGUILayout.LabelField("머티리얼별 그림자 수신 강도", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox("0 = 외부 그림자 영향 없음 / 1 = 최대 반영\n원본 머티리얼에 즉시 적용됩니다. 같은 머티리얼을 공유하는 부위는 함께 변경됩니다. Ctrl+Z로 취소할 수 있습니다.", MessageType.Info);
+        category = GUILayout.Toolbar(category, categories);
         search = EditorGUILayout.TextField("이름 / 부위 검색", search);
         scroll = EditorGUILayout.BeginScrollView(scroll);
         foreach (var entry in entries)
         {
             var material = entry.material;
-            if (material == null) continue;
+            if (material == null || (category != 0 && entry.category != category)) continue;
             string users = string.Join("\n", entry.users);
             if (!string.IsNullOrEmpty(search) &&
                 material.name.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) < 0 &&
@@ -106,6 +138,8 @@ public sealed class CharacterShadowWindow : EditorWindow
                     EditorGUILayout.ObjectField(material, typeof(Material), false);
                 EditorGUILayout.LabelField(entry.description, EditorStyles.wordWrappedLabel);
                 EditorGUILayout.LabelField(new GUIContent("사용: " + string.Join(", ", entry.users.ConvertAll(p => p.Substring(p.LastIndexOf('/') + 1))), users), EditorStyles.wordWrappedMiniLabel);
+                if (material.HasProperty("_ShadowReceive"))
+                {
                 float value = material.GetFloat("_ShadowReceive");
                 bool mixed = false;
                 foreach (var property in shadowProperties)
@@ -124,6 +158,21 @@ public sealed class CharacterShadowWindow : EditorWindow
                     EditorApplication.QueuePlayerLoopUpdate();
                 }
                 EditorGUI.showMixedValue = false;
+                }
+                else
+                {
+                    EditorGUI.BeginChangeCheck();
+                    bool receive = EditorGUILayout.Toggle("외부 그림자 수신", material.GetFloat("_ReceiveShadows") > .5f);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(material, material.name + " 그림자 수신");
+                        material.SetFloat("_ReceiveShadows", receive ? 1f : 0f);
+                        if (receive) material.DisableKeyword("_RECEIVE_SHADOWS_OFF");
+                        else material.EnableKeyword("_RECEIVE_SHADOWS_OFF");
+                        RefreshMaterial(material);
+                    }
+                    EditorGUILayout.HelpBox("URP Lit 부품: 그림자 수신 ON/OFF를 지원합니다. 이 셰이더에는 개별 그림자 농도·색 속성이 없습니다.", MessageType.Info);
+                }
                 if (material.HasProperty("_ShadowStrength"))
                 {
                     EditorGUI.BeginChangeCheck();
@@ -157,7 +206,7 @@ public sealed class CharacterShadowWindow : EditorWindow
                 foreach (var entry in entries)
                     if (entry.material != null) AssetDatabase.SaveAssetIfDirty(entry.material);
         }
-        EditorGUILayout.LabelField($"ChPrefab 참조 머티리얼 {entries.Count}개 (그림자 수신 지원)", EditorStyles.miniLabel);
+        EditorGUILayout.LabelField($"캐릭터·고양이·기체 머티리얼 {entries.Count}개 (그림자 수신 지원)", EditorStyles.miniLabel);
     }
     private static void RefreshMaterial(Material material)
     {
