@@ -7,11 +7,12 @@ public sealed class MagicVfxPool : MonoBehaviour
 {
     private const int RetainedPerPrefab = 160, RetainedTotal = 640;
     private static MagicVfxPool instance;
-    private readonly Dictionary<GameObject, Stack<MagicVfxLease>> idle = new();
+    private readonly Dictionary<(GameObject prefab, bool empowered), Stack<MagicVfxLease>> idle = new();
     private readonly Dictionary<GameObject, MagicVfxLease> leases = new();
     private readonly Dictionary<GameObject, bool> validPrefabs = new();
     private readonly List<Deadline> deadlines = new();
     private readonly List<MagicVfxLease> releaseBuffer = new();
+    private readonly List<VisionEmpoweredVisual> empowermentBuffer = new();
     private int retained;
     private Transform storage;
     private struct Deadline { public GameObject root; public float at; public TimeVfxSpeed clock; }
@@ -30,7 +31,7 @@ public sealed class MagicVfxPool : MonoBehaviour
         return instance;
     }
 
-    public static GameObject Rent(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null)
+    public static GameObject Rent(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null, bool empoweredVariant = false)
     {
         if (prefab == null) return null;
         var pool = Ensure();
@@ -41,8 +42,9 @@ public sealed class MagicVfxPool : MonoBehaviour
             if (!valid) Debug.LogWarning("Magic VFX must not contain a NetworkObject: " + prefab.name);
         }
         if (!valid) return null;
-        if (!pool.idle.TryGetValue(prefab, out var stack))
-            pool.idle.Add(prefab, stack = new Stack<MagicVfxLease>());
+        var key = (prefab, empoweredVariant);
+        if (!pool.idle.TryGetValue(key, out var stack))
+            pool.idle.Add(key, stack = new Stack<MagicVfxLease>());
         MagicVfxLease lease = null;
         while (stack.Count > 0 && lease == null) { lease = stack.Pop(); pool.retained--; }
         if (lease == null)
@@ -52,6 +54,7 @@ public sealed class MagicVfxPool : MonoBehaviour
             root.SetActive(false);
             lease = root.AddComponent<MagicVfxLease>();
             lease.Capture(prefab);
+            lease.EmpoweredVariant = empoweredVariant;
             pool.leases.Add(root, lease);
         }
         lease.Restore();
@@ -79,6 +82,13 @@ public sealed class MagicVfxPool : MonoBehaviour
         }
         if (instance == null) { Destroy(root); return; }
         var owner = instance;
+        // Restore while the complete hierarchy still belongs to this effect. A wrapper's
+        // OnDisable can run after its leased children have already been detached/reused.
+        owner.empowermentBuffer.Clear();
+        root.GetComponentsInChildren(true, owner.empowermentBuffer);
+        for (int i = owner.empowermentBuffer.Count - 1; i >= 0; i--)
+            VisionEmpoweredVisual.Restore(owner.empowermentBuffer[i].gameObject);
+        owner.empowermentBuffer.Clear();
         for (int i = owner.deadlines.Count - 1; i >= 0; i--)
             if (owner.deadlines[i].root == null || owner.deadlines[i].root == root ||
                 owner.deadlines[i].root.transform.IsChildOf(root.transform)) owner.deadlines.RemoveAt(i);
@@ -100,7 +110,7 @@ public sealed class MagicVfxPool : MonoBehaviour
         lease.Stop();
         lease.gameObject.SetActive(false);
         lease.transform.SetParent(storage, false);
-        var stack = idle[lease.Prefab];
+        var stack = idle[(lease.Prefab, lease.EmpoweredVariant)];
         if (retained >= RetainedTotal || stack.Count >= RetainedPerPrefab)
         { leases.Remove(lease.gameObject); Destroy(lease.gameObject); return; }
         stack.Push(lease);

@@ -642,9 +642,9 @@ public sealed class CombatPresentation : MonoBehaviour
     }
 
     // Author VFX here / in MagicStatTable. Prefabs must be visual-only, without NetworkObject.
-    public static GameObject InstantiateVfx(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null, Player timeOwner = null)
+    public static GameObject InstantiateVfx(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null, Player timeOwner = null, bool empoweredVariant = false)
     {
-        GameObject view = MagicVfxPool.Rent(prefab, position, rotation, parent);
+        GameObject view = MagicVfxPool.Rent(prefab, position, rotation, parent, empoweredVariant);
         if (timeOwner != null) TimeVfxSpeed.Bind(view, timeOwner.Runner, timeOwner.TeamIndex, false);
         return view;
     }
@@ -687,7 +687,7 @@ public sealed class CombatPresentation : MonoBehaviour
 
     private void ShowCastVfx(MagicStatEntry stats, Vector3 origin)
     {
-        GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation, null, owner);
+        GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation, null, owner, stats.visionBooksEmpowered);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
         if(stats.visionBooksEmpowered) VisionEmpoweredVisual.Apply(view);
         if (view != null && ShouldFollowInstantMuzzle(stats)) InstantCastMuzzleFollow.Bind(view, owner);
@@ -743,7 +743,7 @@ public sealed class CombatPresentation : MonoBehaviour
         MagicStatEntry stats = Stats(magic);
         if(empowered) VisionEmpowerment.Apply(ref stats);
         if(empowered && magic==MagicType.Flare) stats.radius=10f;
-        GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity, null, owner);
+        GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity, null, owner, empowered);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
         if(empowered) VisionEmpoweredVisual.Apply(view);
         if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
