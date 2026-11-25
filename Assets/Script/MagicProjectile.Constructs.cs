@@ -62,6 +62,8 @@ public partial class MagicProjectile
         summonShotTimer = summonScanTimer = TickTimer.None;
         SummonLockProgress = 0f;
         SummonDamageTaken = 0f;
+        SummonDurable = entry.visionBooksEmpowered || entry.perkFirst?.id == PerkId.MineArming;
+        SummonHealthLimit = entry.summonChannelHealth > 0f ? entry.summonChannelHealth : (SummonDurable ? 100f : 50f);
         empoweredSummonHits = 0;
         summonBurnRemaining = summonBurnDps = summonBurnTick = 0f;
         SummonMoving = false;
@@ -133,7 +135,14 @@ public partial class MagicProjectile
         if (!summonScanTimer.IsRunning || summonScanTimer.Expired(Runner))
         {
             summonScanTimer = TickTimer.CreateFromSeconds(Runner,.1f);
-            if (!IsSummonTarget(target))
+            Player designated = FindDesignatedSummonTarget(owner);
+            if (designated != null && designated != target)
+            {
+                target = designated;
+                TargetId = target.Object.Id;
+                SummonLockProgress = 0f;
+            }
+            else if (!IsSummonTarget(target))
             {
                 target = FindSummonTarget();
                 TargetId = target != null ? target.Object.Id : default;
@@ -195,6 +204,16 @@ public partial class MagicProjectile
             if (sqr < distance) { best = candidate; distance = sqr; }
         }
         return best;
+    }
+
+    private Player FindDesignatedSummonTarget(Player owner)
+    {
+        // Use the caster's replicated selection, not this client's local crosshair or an ally's ping.
+        var data = PlayerData.FindPerkData(Runner, owner.ParticipantRef);
+        if (data == null || data.Object == null || !data.Object.IsValid || !data.TeamPingTarget.IsValid ||
+            !Runner.TryFindObject(data.TeamPingTarget, out var selected) || selected == null) return null;
+        var target = selected.GetComponent<Player>();
+        return IsSummonTarget(target) ? target : null;
     }
 
     public static float EmpoweredThunderMovement(NetworkRunner runner, Vector3 point, int team)

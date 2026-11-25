@@ -57,7 +57,14 @@ public sealed class SmokeInteriorView : MonoBehaviour
         material.SetVector("_SmokeCamera", view.transform.position);
         material.SetFloat("_ClearDistance", settings != null ? settings.smokeClearDistance : 5f);
         material.SetFloat("_FadeDistance", settings != null ? settings.smokeFadeDistance : 2f);
-        material.SetColor("_SmokeColor", settings != null ? settings.smokeInteriorColor : new Color(.22f,.24f,.26f,.995f));
+        Color fogColor = settings != null ? settings.smokeInteriorColor : new Color(.22f,.24f,.26f,.995f);
+        if (CombatSmoke.ContainsPoison(player.Runner, player.LockAimPoint))
+        {
+            float opacity = fogColor.a;
+            fogColor = CombatSmoke.PoisonColor;
+            fogColor.a = opacity;
+        }
+        material.SetColor("_SmokeColor", fogColor);
         screen.SetActive(true);
     }
     private void BeginCamera(ScriptableRenderContext context, Camera camera)

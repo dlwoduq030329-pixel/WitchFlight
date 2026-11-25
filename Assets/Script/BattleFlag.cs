@@ -1041,13 +1041,13 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
         return true;
     }
 
-    public bool ContainsSmoke(Vector3 point)
+    public bool ContainsSmoke(Vector3 point, bool empoweredOnly = false)
     {
         if (Object == null || !Object.IsValid || Phase != BattleStartPhase.Playing) return false;
         for (int i = 0; i < SmokeClouds.Length; i++)
         {
             SmokeCloudState cloud = SmokeClouds[i];
-            if (cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
+            if ((!empoweredOnly || cloud.Empowered) && cloud.Lifetime.IsRunning && !cloud.Lifetime.Expired(Runner) && cloud.Contains(point)) return true;
         }
         return false;
     }
@@ -1091,7 +1091,7 @@ public partial class BattleFlag : NetworkBehaviour, IAfterRender
             smokeViewSequences[i] = cloud.Sequence;
             smokeViews[i] = UtilityMagicVisual.CreateSmoke(cloud.Center, cloud.Radius,
                 CombatPresentation.Stats(MagicType.Smoke).utilityVfxPrefab);
-            if(cloud.Empowered) VisionEmpoweredVisual.Apply(smokeViews[i],1f);
+            if(cloud.Empowered) VisionEmpoweredVisual.Apply(smokeViews[i],1f,poison:true);
             TimeVfxSpeed.Bind(smokeViews[i], Runner, cloud.CasterTeam, false);
         }
     }

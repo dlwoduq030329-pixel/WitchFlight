@@ -5,6 +5,7 @@ using UnityEngine;
 public enum PerkId
 {
     None = 0, FireBurn = 1, FireIgnition = 2, IceSlow = 3, IceMark = 4,
+    // Stable saved IDs: VisionAim = 연속 관통, VisionCombo = 마력 환기.
     VisionAim = 5, VisionCombo = 6, ThunderRadius = 7, ThunderCore = 8,
     HealingPower = 9, HealingCleanse = 10, BindingLock = 11, BindingCost = 12,
     // Keep the serialized ID/name: CurseEfficiency now slows its victim while channel damage continues.
@@ -97,8 +98,8 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.FireIgnition,"신속 점화","록온 시간 {percent}% 감소, MP 소모 {secondaryPercent}% 감소.",.45f,0,.25f),
         D(PerkId.IceSlow,"혹한","둔화 강도 {percent}% 증가.",.15f),
         D(PerkId.IceMark,"균열 각인","{seconds}초 내 다른 슬롯의 다음 공격 피해 {percent}% 증가.",.3f,4,0,1),
-        D(PerkId.VisionAim,"확장 조준","즉발 판정 반경 {percent}% 증가.",.25f),
-        D(PerkId.VisionCombo,"연속 관통","{seconds}초 내 연속 명중의 두 번째 피해 {percent}% 증가.",.75f,4),
+        D(PerkId.VisionAim,"연속 관통","{seconds}초 내 연속 명중의 두 번째 피해 {percent}% 증가.",.75f,4),
+        D(PerkId.VisionCombo,"마력 환기","모든 책이 펼쳐져 있는 동안 이동속도 {percent}% 증가.",.2f),
         D(PerkId.ThunderRadius,"폭풍권","폭발 반경 {percent}% 증가.",.2f),
         D(PerkId.ThunderCore,"낙뢰 집중","폭발 중심부 피해 {percent}% 증가.",.3f,0,0,.45f),
         D(PerkId.HealingPower,"응급 증폭","회복량 {percent}% 증가.",.5f),
@@ -109,7 +110,7 @@ public sealed class PerkStatTable : ScriptableObject
         D(PerkId.DarkHarvest,"살육의 마법","피해량 {percent}% 증가. 이 마법으로 적 플레이어 처치 시 쿨타임 즉시 초기화.",0.3f,0.0f,0.0f,0.0f),
         D(PerkId.CurseRange,"저주","적중 시 {seconds}초간 초당 {amount} 피해를 줍니다.",10f,3f),
         D(PerkId.CurseEfficiency,"큰 상처","치유 감소가 {percent}%로 증가합니다.",1f),
-        D(PerkId.MineArming,"신속한 사역마","소환체의 록온 시간 {percent}% 감소, 공격 간격 {secondaryPercent}% 감소.",.45f,0,.2f),
+        D(PerkId.MineArming,"온전한 계약","소환체의 록온 시간 {percent}% 감소, 공격 간격 {secondaryPercent}% 감소. 2회 피격 시 파괴되며 지속시간이 1.5배로 증가.",.45f,0,.2f,1.5f),
         D(PerkId.MineRadius,"이중계약","한 번에 사역마를 {amount}마리 소환합니다.",2.0f,0.0f,0.0f,0.0f),
         D(PerkId.BeamWidth,"마력 환기","치유 광선 적중 시 MP {amount} 회복.",10f),
         D(PerkId.BeamFocus,"과다주입","치유 광선 피해량 {amount} 증가.",10f),

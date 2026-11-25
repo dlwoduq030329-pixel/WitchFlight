@@ -1476,7 +1476,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             return;
         }
         float targetSpeed = flightMaxSpeed * SpeedStage / 3f;
-        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() * (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier * EmpoweredMovementMultiplier;
+        targetSpeed *= GetMovementMultiplier() * GetFlagSpeedMultiplier() * GetItemSpeedMultiplier() * (IsFlareActive ? 1.1f : 1f) * TimeFieldSpeed * FestivalMovementMultiplier * EmpoweredMovementMultiplier * VisionPerkMovementMultiplier;
 
         if (IsBoosting)
             targetSpeed *= boostMultiplier;
