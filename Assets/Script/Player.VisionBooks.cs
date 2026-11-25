@@ -3,6 +3,33 @@ using UnityEngine;
 
 public partial class Player
 {
+    private GameObject thunderSlowAura;
+    private GameObject thunderSlowAuraSource;
+    private void ClearThunderSlowAura()
+    {
+        if (thunderSlowAura != null) MagicVfxPool.Release(thunderSlowAura);
+        thunderSlowAura = null;
+        thunderSlowAuraSource = null;
+    }
+    private void RenderThunderSlowAura()
+    {
+        if (Object == null || !Object.IsValid || Runner == null || !IsAlive ||
+            MagicProjectile.EmpoweredThunderMovement(Runner, LockAimPoint, TeamIndex) >= 1f)
+        { ClearThunderSlowAura(); return; }
+        var settings = VisionBookSettings.Default;
+        var prefab = settings.thunderSlowAuraPrefab;
+        if (prefab == null) { ClearThunderSlowAura(); return; }
+        if (thunderSlowAuraSource != prefab) ClearThunderSlowAura();
+        if (thunderSlowAura == null)
+        {
+            thunderSlowAura = MagicVfxPool.Rent(prefab, transform.position, transform.rotation, transform);
+            thunderSlowAuraSource = prefab;
+        }
+        if (thunderSlowAura == null) return;
+        thunderSlowAura.transform.localPosition = settings.thunderSlowAuraOffset;
+        thunderSlowAura.transform.localRotation = Quaternion.identity;
+        thunderSlowAura.transform.localScale = prefab.transform.localScale * settings.thunderSlowAuraScale;
+    }
     [Networked] public int VisionOpenBooks { get; private set; }
     public bool HasVisionEquipped => Magic1 == MagicType.Vision || Magic2 == MagicType.Vision;
     public bool VisionReady => HasVisionEquipped && VisionOpenBooks >= Mathf.Clamp(VisionBookSettings.Default.bookCount,1,12);

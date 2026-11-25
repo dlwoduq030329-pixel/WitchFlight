@@ -13,6 +13,14 @@ public class suimono_object_editor : Editor {
 
 
 	public override void OnInspectorGUI() {
+        serializedObject.Update();
+        EditorGUILayout.LabelField("바다 그림자 (URP)", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("customWaterShadows"), new GUIContent("바다 그림자 색 사용"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("waterShadowColor"), new GUIContent("그림자 색", "바다 원래 색에 곱할 색입니다. 흰색은 색 변화 없음, 검정은 가장 어둡습니다."));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("waterShadowStrength"), new GUIContent("그림자 농도"));
+        serializedObject.ApplyModifiedProperties();
+        EditorGUILayout.Space();
+
 
 
 	int localPresetIndex = -1;
