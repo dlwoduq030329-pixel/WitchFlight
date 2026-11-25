@@ -1,9 +1,10 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
 public partial class MagicProjectile
 {
+    private int empoweredSummonHits;
     private float summonBurnRemaining, summonBurnDps, summonBurnTick;
     private MagicStatEntry summonBurnStats;
     private int summonBurnTeam;
@@ -21,7 +22,9 @@ public partial class MagicProjectile
     }
 
     [Networked] public float SummonDamageTaken { get; private set; }
-    public virtual float SummonMaxHealth => PresentationStats.summonChannelHealth > 0 ? PresentationStats.summonChannelHealth : 50f;
+    [Networked] public bool SummonDurable { get; private set; }
+    [Networked] public float SummonHealthLimit { get; private set; }
+    public virtual float SummonMaxHealth => SummonHealthLimit > 0f ? SummonHealthLimit : (PresentationStats.summonChannelHealth > 0 ? PresentationStats.summonChannelHealth : 50f);
     public virtual float SummonHealthFraction => IsLiveSummon ? Mathf.Clamp01(1f - SummonDamageTaken / SummonMaxHealth) : 0f;
     public static IEnumerable<MagicProjectile> ActiveProjectiles => active;
     public virtual bool IsLiveSummon => Object != null && Object.IsValid &&
@@ -125,8 +128,9 @@ public partial class MagicProjectile
                 summonBurnStats = attack; summonBurnStats.perkFirst = summonBurnStats.perkSecond = null;
             }
         }
-        float threshold = stats.summonChannelHealth > 0f ? stats.summonChannelHealth : 50f;
-        bool killed=!sustained || SummonDamageTaken + .0001f >= threshold;
+        float threshold = SummonMaxHealth;
+        if(!sustained && SummonDurable) { empoweredSummonHits++; SummonDamageTaken = Mathf.Max(SummonDamageTaken,threshold*empoweredSummonHits*.5f); }
+        bool killed=(!sustained && (!SummonDurable || empoweredSummonHits>=2)) || SummonDamageTaken + .0001f >= threshold;
         PlayerData.FindPerkData(Runner,attack.perkAttacker)?.RecordTitleSummonHit(attack.titleCastId,killed);
         if (killed)
         {

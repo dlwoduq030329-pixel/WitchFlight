@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -58,13 +58,14 @@ public partial class Player
         CastSequence++;
         entry.perkCast = CastSequence;
         entry.titleCastId = PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordTitleCast(MagicType.Blade, false) ?? 0;
+        PrepareVisionBooks(ref entry);
         shot.GetComponent<MagicProjectile>().Initialize(this, null, entry, direction, castInputTick);
         BladeSwingStep = Mathf.Max(0, bladeStats.bladeCharges - BladeCharges);
         BladeSwingSequence++;
         BladeCharges--;
         BladeShotCooldown = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, entry.bladeShotInterval));
         LastCastMagic = MagicType.Blade;
-        PresentCast(MagicType.Blade, MagicCastPosition, MagicCastPosition);
+        PresentCast(MagicType.Blade, MagicCastPosition, MagicCastPosition, entry.visionBooksEmpowered);
     }
 
     private void ApplyWound(MagicStatEntry entry)

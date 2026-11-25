@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -70,7 +70,7 @@ public partial class Player
             if (shot == null) { StopMagicStorm(); return; }
             shot.GetComponent<MagicProjectile>().Initialize(this, null, stormStats, direction, castInputTick);
             StormShotsRemaining--;
-            PresentCast(MagicType.MagicStorm, MagicCastPosition, MagicCastPosition);
+            PresentCast(MagicType.MagicStorm, MagicCastPosition, MagicCastPosition,stormStats.visionBooksEmpowered);
         }
     }
 }

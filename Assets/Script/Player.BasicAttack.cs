@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -74,6 +74,7 @@ public partial class Player
         if (target == null) return; // No target: no projectile, charge consumption or firing feedback.
         var shot = Runner.Spawn(magicProjectilePrefab, MagicCastPosition, Quaternion.LookRotation(aim), ParticipantRef);
         if (shot == null) return;
+        PrepareVisionBooks(ref stats);
         shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, aim, castInputTick);
         previousBasicAttackTarget = target.Object.Id;
         if (BasicAttackCharges == BasicAttackCapacity) BasicAttackRechargeElapsed = 0;
@@ -82,7 +83,7 @@ public partial class Player
             Mathf.Max(.05f, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.shotInterval : .2f));
         LastCastMagic = MagicType.BasicAttack;
         CastSequence++;
-        PresentCast(MagicType.BasicAttack, MagicCastPosition, MagicCastPosition + aim);
+        PresentCast(MagicType.BasicAttack, MagicCastPosition, MagicCastPosition + aim, stats.visionBooksEmpowered);
     }
 
     private Player FindBasicAttackTarget(Vector3 origin, Vector3 aim, float range)

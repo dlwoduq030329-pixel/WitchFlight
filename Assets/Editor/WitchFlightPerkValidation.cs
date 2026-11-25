@@ -103,7 +103,9 @@ public static class WitchFlightPerkValidation
         Check(Near(S(MagicType.Fire,2).lockChargeSeconds,magic.GetStats(MagicType.Fire).lockChargeSeconds*(1-Mathf.Clamp01(A(PerkId.FireIgnition)))),"fire lock follows table");
         Check(Near(S(MagicType.Fire,2).apCost,magic.GetStats(MagicType.Fire).apCost*Mathf.Max(1-table.manaDiscountCap,1-table.Get(PerkId.FireIgnition).secondaryAmount)),"fire mana follows table");
         Check(S(MagicType.Ice,1).movementMultiplier<magic.GetStats(MagicType.Ice).movementMultiplier,"ice stronger slow");
-        Check(Near(S(MagicType.Vision,1).hitscanRadius,magic.GetStats(MagicType.Vision).hitscanRadius*(1+A(PerkId.VisionAim))),"vision radius");
+        Check(Near(S(MagicType.Vision,1).hitscanRadius,magic.GetStats(MagicType.Vision).hitscanRadius),"vision combo no longer increases hit radius");
+        Check(Near(table.Get(PerkId.VisionAim).amount,.75f) && Near(table.Get(PerkId.VisionAim).seconds,4f),"vision first stage combo window and bonus");
+        Check(Near(table.Get(PerkId.VisionCombo).amount,.2f),"vision second stage charged movement bonus");
         var thunder=S(MagicType.Thunder,2);
         Check(Near(PerkEffects.AreaHit(thunder,0).damage,thunder.damage*(1+A(PerkId.ThunderCore)))&&Near(PerkEffects.AreaHit(thunder,thunder.radius+.01f).damage,thunder.damage),"thunder core not outside area");
         Check(Near(S(MagicType.Healing,1).healing,magic.GetStats(MagicType.Healing).healing*(1+A(PerkId.HealingPower))),"healing amount");
@@ -119,6 +121,8 @@ public static class WitchFlightPerkValidation
         Check(Near(PerkEffects.HitManaRefund(S(MagicType.Fire,2),200,A(PerkId.ManaRemnant)),200*A(PerkId.ManaRemnant)),"single-hit spells retain remnant refund");
         Check(Near(S(MagicType.Mine,2).lockChargeSeconds,magic.GetStats(MagicType.Mine).lockChargeSeconds*(1-Mathf.Clamp01(A(PerkId.MineArming)))),"summon lock");
         Check(Near(S(MagicType.Mine,2).summonAttackInterval,Mathf.Max(.1f,magic.GetStats(MagicType.Mine).summonAttackInterval*(1-Mathf.Clamp01(table.Get(PerkId.MineArming).secondaryAmount)))),"summon attack interval follows perk");
+        Check(Near(S(MagicType.Mine,1).effectDuration,magic.GetStats(MagicType.Mine).effectDuration*1.5f),"summon contract duration");
+        Check(Near(S(MagicType.Mine,1).summonChannelHealth,magic.GetStats(MagicType.Mine).summonChannelHealth*2f),"summon contract channel durability");
         Check(Near(S(MagicType.Mine,2).range,magic.GetStats(MagicType.Mine).range) &&
             Near(S(MagicType.Mine,2).summonAttackRange,magic.GetStats(MagicType.Mine).summonAttackRange),"dual summon does not change range");
         Check(Near(S(MagicType.Razier,1).hitscanRadius,magic.GetStats(MagicType.Razier).hitscanRadius*1.5f),"beam width");

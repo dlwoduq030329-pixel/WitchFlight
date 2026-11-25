@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -649,9 +649,10 @@ public sealed class CombatPresentation : MonoBehaviour
         return view;
     }
 
-    public void ShowCast(MagicType magic, Vector3 origin, Vector3 end)
+    public void ShowCast(MagicType magic, Vector3 origin, Vector3 end, bool empowered = false)
     {
         MagicStatEntry stats = OwnerStats(magic);
+        if(empowered) VisionEmpowerment.Apply(ref stats);
         bool followMuzzle = ShouldFollowInstantMuzzle(stats);
         // RPC coordinates are simulation-time positions; the rendered caster may
         // already have advanced. Only re-anchor presentation, never the confirmed hit.
@@ -666,8 +667,8 @@ public sealed class CombatPresentation : MonoBehaviour
         if (magic == MagicType.Blade || stats.projectileSpeed > 0f || stats.IsChanneled || stats.effect == MagicEffectKind.Healing ||
             stats.effect == MagicEffectKind.DelayedArea || stats.effect == MagicEffectKind.PursuitSummon) return;
         if (stats.beamVfxPrefab == null && stats.beamMaterial == null)
-            CombatTransientEffect.PlayBeam(origin, end, MagicColor(magic), owner, followMuzzle,
-                instantBeamHoldSeconds, instantBeamFadeSeconds);
+            CombatTransientEffect.PlayBeam(origin, end, empowered ? VisionEmpowerment.Color : MagicColor(magic), owner, followMuzzle,
+                instantBeamHoldSeconds, instantBeamFadeSeconds, empowered ? 1.5f : 1f);
         else
         {
             CombatMagicVisual beam = CombatMagicVisual.Beam(magic, stats.beamVfxPrefab, stats.beamMaterial);
@@ -677,25 +678,27 @@ public sealed class CombatPresentation : MonoBehaviour
             if (followMuzzle) beam.FollowInstantMuzzle(owner, end);
             float beamSeconds = Mathf.Max(0f, instantBeamHoldSeconds) + Mathf.Max(.01f, instantBeamFadeSeconds);
             if (magic == MagicType.Dark) beam.SetReadability(darkBeamWidth, beamSeconds);
+            if(empowered) { VisionEmpoweredVisual.Apply(beam.gameObject,1f); foreach(var line in beam.GetComponentsInChildren<LineRenderer>(true)) line.widthMultiplier*=1.5f; }
             beam.BeginInstantFade(instantBeamHoldSeconds, instantBeamFadeSeconds);
             MagicVfxPool.Release(beam.gameObject, beamSeconds);
         }
-        ShowImpact(end, magic, owner);
+        ShowImpact(end, magic, owner, empowered);
     }
 
     private void ShowCastVfx(MagicStatEntry stats, Vector3 origin)
     {
         GameObject view = InstantiateVfx(stats.castVfxPrefab, origin, transform.rotation, null, owner);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
+        if(stats.visionBooksEmpowered) VisionEmpoweredVisual.Apply(view);
         if (view != null && ShouldFollowInstantMuzzle(stats)) InstantCastMuzzleFollow.Bind(view, owner);
         if (view != null && stats.magic == MagicType.Dark) view.transform.localScale *= darkCastScale;
         if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
-        else SpawnPulse(origin, MagicColor(stats.magic), stats.effect == MagicEffectKind.Healing ? 2f : 0.7f, 0.25f, owner);
+        else SpawnPulse(origin, stats.visionBooksEmpowered ? VisionEmpowerment.Color : MagicColor(stats.magic), (stats.effect == MagicEffectKind.Healing ? 2f : 0.7f)*(stats.visionBooksEmpowered?1.5f:1f), 0.25f, owner);
     }
 
     private bool ShouldFollowInstantMuzzle(MagicStatEntry stats) =>
         owner != null && owner.Object != null && owner.Object.IsValid && owner.IsAlive &&
-        (stats.magic == MagicType.Vision || stats.magic == MagicType.Dark) &&
+        stats.magic == MagicType.Dark &&
         stats.projectileSpeed <= 0f && !stats.IsChanneled;
 
     private void UpdateChannelVisual()
@@ -734,14 +737,17 @@ public sealed class CombatPresentation : MonoBehaviour
         channelVisual.SetEndpoints(owner.MagicCastPosition, end);
     }
 
-    public static void ShowImpact(Vector3 position, MagicType magic, Player owner = null)
+    public static void ShowImpact(Vector3 position, MagicType magic, Player owner = null, bool empowered = false)
     {
         BattleAudio.PlayMagic(magic, MagicSound.Impact, position);
         MagicStatEntry stats = Stats(magic);
+        if(empowered) VisionEmpowerment.Apply(ref stats);
+        if(empowered && magic==MagicType.Flare) stats.radius=10f;
         GameObject view = InstantiateVfx(stats.impactVfxPrefab, position, Quaternion.identity, null, owner);
         RearThreatCamera.ExcludeLocalEffect(view, owner);
+        if(empowered) VisionEmpoweredVisual.Apply(view);
         if (view != null) MagicVfxPool.Release(view, Mathf.Max(0.05f, stats.vfxLifetime));
-        else SpawnPulse(position, MagicColor(magic), stats.radius > 0f ? stats.radius * 2f : 1.25f, 0.3f, owner);
+        else SpawnPulse(position, empowered ? VisionEmpowerment.Color : MagicColor(magic), stats.radius > 0f ? stats.radius * 2f : 1.25f, 0.3f, owner);
     }
 
     private static void SpawnPulse(Vector3 position, Color color, float diameter, float duration, Player owner = null)

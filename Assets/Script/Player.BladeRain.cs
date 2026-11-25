@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 public partial class Player
@@ -9,6 +9,7 @@ public partial class Player
     [Networked] public float RainManaSpent { get; private set; }
     [Networked] public bool RainFocused { get; private set; }
     [Networked] public float RainChargeBudget { get; private set; }
+    [Networked] public bool RainEmpowered { get; private set; }
     private bool rainFullCue;
     [Networked] public int RainTargetCount { get; private set; }
     [Networked] public int RainTargetRevision { get; private set; }
@@ -98,13 +99,14 @@ public partial class Player
         Vector3 aim = IsFiniteDirection(castAimDirection) && castAimDirection.sqrMagnitude > .001f
             ? castAimDirection.normalized : transform.forward;
         Vector3 origin = MagicCastPosition;
+        PrepareVisionBooks(ref shotStats);
         LastCastMagic = MagicType.BladeRain; CastSequence++;
         shotStats.perkCast = CastSequence; shotStats.perkAttacker = ParticipantRef;
         shotStats.titleCastId = PlayerData.FindPerkData(Runner, ParticipantRef)?.RecordTitleCast(MagicType.BladeRain, false) ?? 0;
         Runner.Spawn(magicProjectilePrefab, origin, Quaternion.LookRotation(aim), ParticipantRef,
             onBeforeSpawned: (_, obj) => obj.GetComponent<MagicProjectile>().Initialize(this, null, shotStats, aim));
         MagicCooldowns.Set((int)MagicType.BladeRain, TickTimer.CreateFromSeconds(Runner, Mathf.Max(0f, rainStats.cooldownSeconds)));
-        PresentCast(MagicType.BladeRain, origin, origin + aim);
+        PresentCast(MagicType.BladeRain, origin, origin + aim,shotStats.visionBooksEmpowered);
         CancelBladeRain();
         rainNeedsRelease = true;
     }
@@ -134,13 +136,16 @@ public partial class Player
         ClearLockTargetInternal(false);
         if(RainManaSpent<=0f) { CancelBladeRain(); return; }
         RainVolleyCircles=Mathf.Clamp(Mathf.FloorToInt((RainManaSpent+.0001f)/Mathf.Max(1f,rainStats.rainManaPerCircle)),1,16);
+        rainStats.damage = RainManaSpent * .5f;
+        PrepareVisionBooks(ref rainStats);
+        RainEmpowered=rainStats.visionBooksEmpowered;
         RainFiring=true; RainVolleyStep=0;
         MagicCooldowns.Set((int)MagicType.BladeRain,TickTimer.CreateFromSeconds(Runner,Mathf.Max(0,rainStats.cooldownSeconds)));
         LastCastMagic=MagicType.BladeRain; CastSequence++;
         rainStats.perkCast=CastSequence; rainStats.perkAttacker=ParticipantRef;
         rainStats.titleCastId=PlayerData.FindPerkData(Runner,ParticipantRef)?.RecordTitleCast(MagicType.BladeRain,false)??0;
         rainNextWave=TickTimer.CreateFromSeconds(Runner,.12f);
-        PresentCast(MagicType.BladeRain,MagicCastPosition,MagicCastPosition);
+        PresentCast(MagicType.BladeRain,MagicCastPosition,MagicCastPosition,rainStats.visionBooksEmpowered);
         TickBladeRainVolley();
     }
     private void TickBladeRainVolley()
@@ -159,7 +164,7 @@ public partial class Player
             if(victim!=null ? !victim.IsTargetableBy(this) : summon==null || !summon.IsSummonEnemyOf(this)) continue;
             MagicStatEntry shotStats=rainStats;
             // All circles emit ten blades. Split the actual mana damage budget evenly per blade.
-            shotStats.damage=(RainManaSpent*.5f)/(RainVolleyCircles*10);
+            shotStats.damage=rainStats.damage/(RainVolleyCircles*10);
             Vector3 origin=RainCirclePosition(circle);
             Vector3 aim=(victim!=null?victim.LockAimPoint:summon.transform.position)-origin;
             if (aim.sqrMagnitude < .001f) aim = transform.forward;
@@ -185,6 +190,7 @@ public partial class Player
         if (!RainCharging && !RainFiring && RainTargetCount==0 && RainManaSpent==0) return;
         ClearLockTargetInternal(false);
         RainCharging=RainFiring=false; RainTargetCount=0; RainManaSpent=0; RainVolleyCircles=0;
+        RainEmpowered=false;
         RainFocused=false; RainChargeBudget=0f; rainFullCue=false;
         RainTargetRevision++; rainNeedsRelease=previousButtons.IsSet(PlayerInputButton.Lock);
     }

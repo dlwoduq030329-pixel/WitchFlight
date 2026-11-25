@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -57,11 +57,11 @@ public partial class MagicProjectile
         return enemy < 1f ? enemy : ally;
     }
 
-    public static float TimeProjectileMultiplier(NetworkRunner runner, Vector3 point)
+    public static float TimeProjectileMultiplier(NetworkRunner runner, Vector3 point, int team = -1)
     {
         float speed = 1f;
         foreach (var field in timeFields)
-            if (field != null && field.ContainsTimePoint(runner, point)) speed = Mathf.Min(speed, field.TimeShotMultiplier);
+            if (field != null && field.ContainsTimePoint(runner, point) && !(field.VisionEmpowered && field.ShooterTeam==team)) speed = Mathf.Min(speed, field.TimeShotMultiplier);
         return speed;
     }
 
@@ -69,7 +69,7 @@ public partial class MagicProjectile
 
     protected float TimeFlightStep()
     {
-        float speed = TimeProjectileMultiplier(Runner, transform.position);
+        float speed = TimeProjectileMultiplier(Runner, transform.position, ShooterTeam);
         if (!Finished && !Settled && !IsConstruct && Lifetime.IsRunning)
         {
             timeLifetimeRemainder += Runner.DeltaTime * (1f - speed);
@@ -89,6 +89,7 @@ public partial class MagicProjectile
         if (timeFieldView == null)
         {
             timeFieldView = MagicVfxPool.Rent(PresentationStats.timeFieldVfxPrefab, transform.position, Quaternion.identity, transform);
+            if(VisionEmpowered) VisionEmpoweredVisual.Apply(timeFieldView,1f);
             if (timeFieldView != null) clockView = timeFieldView.GetComponent<TimeClockVisual>();
         }
         if (clockView != null) clockView.Show(ConstructRadius, 1f - Mathf.Clamp01((Lifetime.RemainingTime(Runner) ?? 0f) / Mathf.Max(.1f, ConstructDelay)));

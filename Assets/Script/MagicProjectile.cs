@@ -15,6 +15,7 @@ public partial class MagicProjectile : NetworkBehaviour
     private Player weaknessVictim;
     private static readonly ProfilerMarker simulationMarker = new("WitchFlight.Projectile.Simulate");
     private static readonly HashSet<MagicProjectile> active = new();
+    [Networked] public bool VisionEmpowered { get; private set; }
     [Networked] public MagicType Magic { get; protected set; }
     [Networked] public NetworkId ShooterId { get; protected set; }
     [Networked] public PlayerRef Shooter { get; protected set; }
@@ -181,6 +182,7 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         ConstructKind = MagicConstructKind.Projectile;
         stats = entry;
+        VisionEmpowered = entry.visionBooksEmpowered;
         FocusedBlade = entry.focusedBlade;
         FocusedBladeCharge = entry.focusedBladeCharge;
         flightSettings = shooter.MagicTable != null ? shooter.MagicTable : MagicStatTable.Default;
@@ -295,7 +297,7 @@ public partial class MagicProjectile : NetworkBehaviour
             if (desired.sqrMagnitude > 0.001f)
                 direction = ResolveHomingDirection(stats.requiresTarget, direction, desired,
                     HasFlightExhaustion ? FlightTurnSpeed(stats.projectileTurnSpeed,
-                        stats.projectileSpeed * FlightSpeedFraction, flightSettings) : stats.projectileTurnSpeed, flightDelta);
+                        stats.projectileSpeed * FlightSpeedFraction / (VisionEmpowered ? 2f : 1f), flightSettings) : stats.projectileTurnSpeed, flightDelta);
         }
 
         if (HasFlightExhaustion)
@@ -617,7 +619,7 @@ public partial class MagicProjectile : NetworkBehaviour
             return;
         Finished = true;
         transform.position = point;
-        if (IsMine || stats.effect == MagicEffectKind.AreaDamage)
+        if (IsMine || stats.effect == MagicEffectKind.AreaDamage || (VisionEmpowered && (Magic == MagicType.Fire || Magic == MagicType.Ice)))
         {
             bool contacted = DamageSummonsInArea(Runner, ShooterTeam, point, stats.radius, stats, ShooterId);
             foreach (Player player in Player.ActiveCombatants)
@@ -830,15 +832,15 @@ public partial class MagicProjectile : NetworkBehaviour
             Vector3 delta = observer.LockAimPoint - shot.transform.position;
             float squared = delta.sqrMagnitude;
             if (squared > range * range || Vector3.Dot(shot.transform.forward, delta) <= 0f) continue;
-            float timeScale = TimeProjectileMultiplier(shot.Runner, shot.transform.position);
+            float timeScale = TimeProjectileMultiplier(shot.Runner, shot.transform.position,shot.ShooterTeam);
             float speed = shot.stats.projectileSpeed * shot.FlightSpeedFraction;
             float closing = Vector3.Dot(shot.transform.forward * speed * timeScale - targetVelocity, delta.normalized);
             if (closing <= .01f) continue;
             float eta = Mathf.Sqrt(squared) / closing;
             if (eta >= arrival || !HasBlastSight(shot.transform.position, observer)) continue;
             var table = shot.flightSettings != null ? shot.flightSettings : MagicStatTable.Default;
-            currentTurnRate = FlightTurnSpeed(shot.stats.projectileTurnSpeed, speed, table) * timeScale;
-            initialTurnRate = FlightTurnSpeed(shot.stats.projectileTurnSpeed, shot.stats.projectileSpeed, table) * timeScale;
+            currentTurnRate = FlightTurnSpeed(shot.stats.projectileTurnSpeed, speed / (shot.VisionEmpowered ? 2f : 1f), table) * timeScale;
+            initialTurnRate = FlightTurnSpeed(shot.stats.projectileTurnSpeed, shot.stats.projectileSpeed / (shot.VisionEmpowered ? 2f : 1f), table) * timeScale;
             threat = shot; arrival = eta;
         }
         return threat != null;
@@ -864,7 +866,7 @@ public partial class MagicProjectile : NetworkBehaviour
         MagicStatEntry entry = PresentationStats;
         MagicStatTable guidance = flightSettings != null ? flightSettings : MagicStatTable.Default;
         float baseSpeed = entry.projectileSpeed;
-        float timeScale = TimeProjectileMultiplier(Runner, transform.position);
+        float timeScale = TimeProjectileMultiplier(Runner, transform.position,ShooterTeam);
         if (HasFlightExhaustion) entry.projectileSpeed *= FlightSpeedFraction;
         entry.projectileSpeed *= timeScale;
         if (entry.projectileSpeed <= 0f) return false;
@@ -888,7 +890,7 @@ public partial class MagicProjectile : NetworkBehaviour
                     ? HomingAimDelta(-offset, observerVelocity, baseSpeed * fraction * timeScale, guidance.homingLeadSeconds)
                     : -offset;
                 float turnSpeed = HasFlightExhaustion
-                    ? FlightTurnSpeed(entry.projectileTurnSpeed, baseSpeed * fraction, guidance)
+                    ? FlightTurnSpeed(entry.projectileTurnSpeed, baseSpeed * fraction / (VisionEmpowered ? 2f : 1f), guidance)
                     : entry.projectileTurnSpeed;
                 forward = ResolveHomingDirection(true, forward, desired, turnSpeed, dt * timeScale);
                 if (HasFlightExhaustion)
@@ -983,7 +985,7 @@ public partial class MagicProjectile : NetworkBehaviour
         {
             Player caster = Runner.TryFindObject(ShooterId, out NetworkObject shooter) && shooter != null
                 ? shooter.GetComponent<Player>() : null;
-            CombatPresentation.ShowImpact(position, magic, caster);
+            CombatPresentation.ShowImpact(position, magic, caster, VisionEmpowered);
         }
     }
 
