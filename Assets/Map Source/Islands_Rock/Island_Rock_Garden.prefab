@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7577897758194706375}
-  - component: {fileID: 8463481012128705653}
   m_Layer: 0
   m_Name: Island_Rock_Garden
   m_TagString: Untagged
@@ -33,28 +32,6 @@ Transform:
   - {fileID: 894462751506683628}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!64 &8463481012128705653
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2648429257489802351}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: 0}
 --- !u!1001 &856665103051960583
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -110,8 +87,38 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 90bedea7052d0e644a03b01b2ae8ab33, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7622928005767392210}
   m_SourcePrefab: {fileID: 100100000, guid: 90bedea7052d0e644a03b01b2ae8ab33, type: 3}
+--- !u!1 &513997010105240662 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 90bedea7052d0e644a03b01b2ae8ab33, type: 3}
+  m_PrefabInstance: {fileID: 856665103051960583}
+  m_PrefabAsset: {fileID: 0}
+--- !u!64 &7622928005767392210
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 513997010105240662}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 0
+  m_CookingOptions: 30
+  m_Mesh: {fileID: 3904300410811628525, guid: 90bedea7052d0e644a03b01b2ae8ab33, type: 3}
 --- !u!4 &894462751506683628 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 90bedea7052d0e644a03b01b2ae8ab33, type: 3}
