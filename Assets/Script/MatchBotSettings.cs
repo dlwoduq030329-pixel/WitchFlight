@@ -92,6 +92,9 @@ public sealed class MatchBotSettings : ScriptableObject
     [Range(0f,1f)] public float parryGoodTimingChance = .5f;
     [Tooltip("실제 패링 결과에 따른 확률 보정 강도. 0이면 독립 시행, 0.2이면 성공/실패마다 기본 확률 50% 기준 10%p 보정합니다.")]
     [Range(0f,1f)] public float parryOutcomeCorrection = .2f;
+    [Tooltip("실패 추첨 중 패링을 아예 시도하지 않는 비율. 나머지는 빠름/늦음으로 나뉩니다.")]
+    [Range(0f,1f)] public float parrySkipShareOfMistakes = 1f / 3f;
+    [Tooltip("시도 안 함을 제외한 실패 중 너무 일찍 패링하는 비율.")]
     [Range(0f,1f)] public float parryEarlyShareOfMistakes = .5f;
     [Min(.01f)] public float parryReactionSeconds = .12f;
     [Min(.1f)] public float parryLookAheadSeconds = 1.5f;

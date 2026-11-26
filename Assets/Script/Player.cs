@@ -1534,6 +1534,9 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         {
             ResolveBotParryOutcome(false);
             botParryAwaitingOutcome = true;
+            botParryActiveTrial = botParryPendingTrial;
+            botParryPendingTrial = 0;
+            BotParryTelemetry.Started(botParryActiveTrial);
         }
         ParryTimer = TickTimer.CreateFromSeconds(Runner,
             magicStatTable != null ? magicStatTable.parryWindowSeconds : parryWindowSeconds);
@@ -3018,6 +3021,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void OnDisable()
     {
+        CancelBotParryTelemetry("disabled");
         ClearThunderSlowAura();
         manaBuffContacts.Clear();
         ClearAreaAimPreview();
@@ -3095,6 +3099,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        CancelBotParryTelemetry("despawned");
         ClearThunderSlowAura();
         manaBuffContacts.Clear();
         networkSpawned = false;
