@@ -2982,6 +2982,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         ApplyCombatAnimation();
         RenderMeowFestival();
         RenderBladeRain();
+        RenderThunderSlowAura();
     }
 
     private void Update()
@@ -3017,6 +3018,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     private void OnDisable()
     {
+        ClearThunderSlowAura();
         manaBuffContacts.Clear();
         ClearAreaAimPreview();
         if (festivalVisual != null) festivalVisual.Hide();
@@ -3093,6 +3095,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        ClearThunderSlowAura();
         manaBuffContacts.Clear();
         networkSpawned = false;
         ClearAreaAimPreview();
