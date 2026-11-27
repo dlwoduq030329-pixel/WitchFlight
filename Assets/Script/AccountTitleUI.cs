@@ -128,7 +128,10 @@ public sealed class AccountTitleUI : MonoBehaviour
         if(selectedId==0)return;
         var t=TitleCatalog.Find(selectedId);bool owned=p?.Owns(selectedId)??false;
         Set(nameText,t.name);
-        Set(descriptionText,t.hidden&&!owned?"히든 칭호입니다.":t.description);
+        string description = t.hidden && !owned ? "히든 칭호입니다." : t.description;
+        if (!owned && !t.hidden && p != null)
+            description += $" ({p.GetVisibleProgress(t)}/{t.required})";
+        Set(descriptionText, description);
         Set(ownershipText,owned?(DataConfig.equippedTitleId==selectedId?"장착 중":"보유"):"미보유");
         if(equipButton!=null)equipButton.interactable=owned;
     }

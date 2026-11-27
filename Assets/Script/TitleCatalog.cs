@@ -113,6 +113,21 @@ public sealed class TitleProgress
     public List<int> unlocked=new();
     public TitleMatchSnapshot lastMatch;
     public bool Owns(int id) => unlocked != null && unlocked.Contains(id);
+    // Only public title conditions are exposed to the inspection popup.
+    public int GetVisibleProgress(TitleDefinition title)
+    {
+        if (title == null || title.hidden) return 0;
+        int current = title.condition switch
+        {
+            TitleCondition.Login => Owns(title.id) ? 1 : 0,
+            TitleCondition.Matches => matches,
+            TitleCondition.BotMatches => botMatches,
+            TitleCondition.MagicKills => At(magicKills, (int)title.magic),
+            TitleCondition.RaidClear => Owns(title.id) ? 1 : 0,
+            _ => 0
+        };
+        return Math.Max(0, Math.Min(current, title.required));
+    }
     public void Normalize()
     {
         unlocked ??= new();
