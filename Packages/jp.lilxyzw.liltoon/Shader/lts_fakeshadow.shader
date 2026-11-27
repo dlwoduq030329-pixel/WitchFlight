@@ -87,7 +87,6 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_AnisotropyTangentMap
             #define LIL_FEATURE_AnisotropyScaleMask
             #define LIL_FEATURE_AnisotropyShiftNoiseMask
-            #define LIL_FEATURE_ShadowStrengthMask
             #define LIL_FEATURE_ShadowColorTex
             #define LIL_FEATURE_Shadow2ndColorTex
             #define LIL_FEATURE_Shadow3rdColorTex
@@ -112,7 +111,7 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_OutlineVectorTex
             #define LIL_OPTIMIZE_APPLY_SHADOW_FA
             #define LIL_OPTIMIZE_USE_FORWARDADD
-            #define LIL_OPTIMIZE_USE_VERTEXLIGHT
+            #pragma skip_variants LIGHTPROBE_SH
             #pragma skip_variants _MIXED_LIGHTING_SUBTRACTIVE
             #define LIL_SRP_VERSION_MAJOR 17
             #define LIL_SRP_VERSION_MINOR 0
@@ -124,7 +123,6 @@ Shader "_lil/[Optional] lilToonFakeShadow"
 
             #pragma skip_variants SHADOW_VERY_HIGH
             #pragma skip_variants _DBUFFER_MRT3
-            #pragma skip_variants LIGHTPROBE_SH
             #pragma skip_variants _ADDITIONAL_LIGHT_SHADOWS
             #pragma skip_variants _SCREEN_SPACE_OCCLUSION
             #pragma skip_variants USE_CLUSTERED_LIGHTLIST
@@ -237,7 +235,6 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_AnisotropyTangentMap
             #define LIL_FEATURE_AnisotropyScaleMask
             #define LIL_FEATURE_AnisotropyShiftNoiseMask
-            #define LIL_FEATURE_ShadowStrengthMask
             #define LIL_FEATURE_ShadowColorTex
             #define LIL_FEATURE_Shadow2ndColorTex
             #define LIL_FEATURE_Shadow3rdColorTex
@@ -262,7 +259,6 @@ Shader "_lil/[Optional] lilToonFakeShadow"
             #define LIL_FEATURE_OutlineVectorTex
             #define LIL_OPTIMIZE_APPLY_SHADOW_FA
             #define LIL_OPTIMIZE_USE_FORWARDADD
-            #define LIL_OPTIMIZE_USE_VERTEXLIGHT
             #define LIL_SRP_VERSION_MAJOR 17
             #define LIL_SRP_VERSION_MINOR 0
             #define LIL_SRP_VERSION_PATCH 4

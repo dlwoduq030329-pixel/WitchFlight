@@ -675,7 +675,6 @@ Shader "Hidden/ltspass_opaque"
             #define LIL_FEATURE_AnisotropyTangentMap
             #define LIL_FEATURE_AnisotropyScaleMask
             #define LIL_FEATURE_AnisotropyShiftNoiseMask
-            #define LIL_FEATURE_ShadowStrengthMask
             #define LIL_FEATURE_ShadowColorTex
             #define LIL_FEATURE_Shadow2ndColorTex
             #define LIL_FEATURE_Shadow3rdColorTex
@@ -700,7 +699,7 @@ Shader "Hidden/ltspass_opaque"
             #define LIL_FEATURE_OutlineVectorTex
             #define LIL_OPTIMIZE_APPLY_SHADOW_FA
             #define LIL_OPTIMIZE_USE_FORWARDADD
-            #define LIL_OPTIMIZE_USE_VERTEXLIGHT
+            #pragma skip_variants LIGHTPROBE_SH
             #pragma skip_variants _MIXED_LIGHTING_SUBTRACTIVE
             #define LIL_SRP_VERSION_MAJOR 17
             #define LIL_SRP_VERSION_MINOR 0
@@ -1116,7 +1115,6 @@ Shader "Hidden/ltspass_opaque"
             #define LIL_FEATURE_AnisotropyTangentMap
             #define LIL_FEATURE_AnisotropyScaleMask
             #define LIL_FEATURE_AnisotropyShiftNoiseMask
-            #define LIL_FEATURE_ShadowStrengthMask
             #define LIL_FEATURE_ShadowColorTex
             #define LIL_FEATURE_Shadow2ndColorTex
             #define LIL_FEATURE_Shadow3rdColorTex
@@ -1141,7 +1139,6 @@ Shader "Hidden/ltspass_opaque"
             #define LIL_FEATURE_OutlineVectorTex
             #define LIL_OPTIMIZE_APPLY_SHADOW_FA
             #define LIL_OPTIMIZE_USE_FORWARDADD
-            #define LIL_OPTIMIZE_USE_VERTEXLIGHT
             #define LIL_SRP_VERSION_MAJOR 17
             #define LIL_SRP_VERSION_MINOR 0
             #define LIL_SRP_VERSION_PATCH 4

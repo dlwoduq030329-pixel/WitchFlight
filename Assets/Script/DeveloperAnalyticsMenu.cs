@@ -10,6 +10,7 @@ public sealed class DeveloperAnalyticsMenu : MonoBehaviour
     public const string MainScene = "Assets/Scenes/Main.unity";
     public const string MovementScene = "Assets/BattleLog.unity";
     public const string PickScene = "Assets/Scenes/MagicPick.unity";
+    public const string ParryScene = "Assets/Scenes/BOTPARRYPOSSABLITY.unity";
     private static bool loading;
     private LoginFlowController lobby;
     private GameObject controls, choices;
@@ -83,11 +84,12 @@ public sealed class DeveloperAnalyticsMenu : MonoBehaviour
         {
             if (CanOpen()) choices.SetActive(!choices.activeSelf);
         });
-        var panel = Rect("AnalyticsChoices", anchor, new Vector2(0, 132), new Vector2(260, 172));
+        var panel = Rect("AnalyticsChoices", anchor, new Vector2(0, 168), new Vector2(260, 244));
         panel.gameObject.AddComponent<Image>().color = new Color(.06f, .09f, .14f, .96f);
         choices = panel.gameObject;
-        MakeButton("MovementLogButton", "맵 로그 보기", panel, new Vector2(0, 36), OpenMovementLog);
-        MakeButton("MagicPickButton", "마법 픽률 보기", panel, new Vector2(0, -36), OpenMagicPicks);
+        MakeButton("MovementLogButton", "맵 로그 보기", panel, new Vector2(0, 72), OpenMovementLog);
+        MakeButton("MagicPickButton", "마법 픽률 보기", panel, new Vector2(0, 0), OpenMagicPicks);
+        MakeButton("BotParryButton", "봇 패링 확률", panel, new Vector2(0, -72), OpenBotParry);
         choices.SetActive(false);
         controls.SetActive(false);
         Refresh();
@@ -143,6 +145,7 @@ public sealed class DeveloperAnalyticsMenu : MonoBehaviour
 
     public void OpenMovementLog() { if (CanOpen()) Load(MovementScene); }
     public void OpenMagicPicks() { if (CanOpen()) Load(PickScene); }
+    public void OpenBotParry() { if (CanOpen()) Load(ParryScene); }
     public static void ReturnToMain() => Load(MainScene);
 
     public static bool EnsureViewerAccess(MonoBehaviour viewer)
