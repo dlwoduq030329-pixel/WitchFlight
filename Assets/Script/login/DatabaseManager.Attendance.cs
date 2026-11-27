@@ -141,8 +141,12 @@ public partial class DatabaseManager
                             if (table == null || !table.TryGet(next.streakDay, out var reward) || balance > int.MaxValue - reward.money)
                             { RetryLater("출석 보상 설정 또는 재화 보유 한도를 확인해주세요."); return; }
                             int newBalance = balance + reward.money;
+                            var missionState = MissionProgression.Parse(ReadString(rows[0], "missionState", ""));
+                            MissionProgression.AddCurrencyProgress(missionState, reward.money, utc);
+                            string missionJson = JsonUtility.ToJson(missionState);
                             var param = new Param();
                             param.Add("money", newBalance);
+                            param.Add("missionState", missionJson);
                             param.Add("attendanceState", JsonUtility.ToJson(next));
                             LastSaveSucceeded = false;
                             try
@@ -151,8 +155,7 @@ public partial class DatabaseManager
                                 {
                                     if (!Current()) return;
                                     if (saved == null || !saved.IsSuccess()) { Uncertain(); return; }
-                                    currentPlayerSetting.money = newBalance;
-                                    using (DataConfig.BeginChangeBatch(false)) DataConfig.money = newBalance;
+                                    ApplyMissionSnapshot(newBalance, missionJson);
                                     AttendanceDay = next.streakDay; AttendanceClaimedToday = true;
                                     AttendanceCompletedDays = next.streakDay;
                                     attendancePrompt = false;

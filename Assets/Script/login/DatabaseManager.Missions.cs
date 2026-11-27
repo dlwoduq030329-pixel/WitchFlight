@@ -25,12 +25,13 @@ public partial class DatabaseManager
             var state=MissionProgression.Parse(server.missionState);
             DateTime now=DateTime.UtcNow;
             bool current=definition.period==MissionPeriod.Daily ? state.dailyPeriodKey==MissionProgression.PeriodDay(now).ToString("yyyy-MM-dd") :
-                state.weeklyPeriodKey==MissionProgression.PeriodWeek(now).ToString("yyyy-MM-dd") && state.weeklyMissionId==id;
+                state.weeklyPeriodKey==MissionProgression.PeriodWeek(now).ToString("yyyy-MM-dd") && MissionProgression.IsSelectedWeekly(state,id);
             var entry=state.entries.Find(e=>e.id==id);
             if(!current || entry==null || entry.progress<definition.target) { message="아직 완료하지 않은 미션입니다."; return false; }
             if(entry.claimed) { ApplyMissionSnapshot(server.money,server.missionState); message="이미 수령한 보상입니다."; return false; }
             if(definition.rewardCurrency<0 || server.money>int.MaxValue-definition.rewardCurrency) { message="재화 보유 한도를 확인해주세요."; return false; }
             entry.claimed=true;
+            MissionProgression.AddCurrencyProgress(state, definition.rewardCurrency, now);
             string json=JsonUtility.ToJson(state); int balance=server.money+definition.rewardCurrency;
             var param=new Param(); param.Add("money",balance); param.Add("missionState",json);
             var saved=Backend.GameData.UpdateV2(TABLE_NAME,currentPlayerSettingInDate,loadedUserInDate,param);

@@ -4,7 +4,7 @@ using UnityEngine;
 
 public partial class PlayerData
 {
-    [Networked, Capacity(28)] public NetworkArray<float> MissionCounters => default;
+    [Networked, Capacity(29)] public NetworkArray<float> MissionCounters => default;
     [Networked] public NetworkString<_32> MissionMatchId { get; private set; }
     [Networked] public NetworkBool MissionCompleted { get; private set; }
     [Networked] public NetworkBool MissionWon { get; private set; }
@@ -13,7 +13,7 @@ public partial class PlayerData
         !NetworkGameManager.Instance.IsTraining && !NetworkGameManager.Instance.IsDeathMatch;
     private void ResetMissions()
     {
-        for(int i=0;i<28;i++) MissionCounters.Set(i,0);
+        for(int i=0;i<29;i++) MissionCounters.Set(i,0);
         MissionMatchId=System.Guid.NewGuid().ToString("N"); MissionCompleted=false; MissionWon=false; missionContributors.Clear();
     }
     public void CompleteMissions(bool won)
@@ -23,7 +23,7 @@ public partial class PlayerData
     }
     public void RecordMission(MissionObjective objective,float amount=1)
     {
-        if(CanRecordMissions && !IsMatchBot && amount>0 && !float.IsNaN(amount) && !float.IsInfinity(amount))
+        if((int)objective >= 0 && (int)objective < 29 && CanRecordMissions && !IsMatchBot && amount>0 && !float.IsNaN(amount) && !float.IsInfinity(amount))
             MissionCounters.Set((int)objective,Mathf.Min(100000000, MissionCounters[(int)objective]+amount));
     }
     public void RecordMissionMagicHit(MagicType magic)

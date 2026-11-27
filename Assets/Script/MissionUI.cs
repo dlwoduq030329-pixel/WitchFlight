@@ -7,15 +7,22 @@ public sealed class MissionUI : MonoBehaviour
 {
     [SerializeField] private Transform content;
     private sealed class Row { public GameObject root; public TMP_Text name,description,label; public Button confirm; public string id; public Image image; public Sprite defaultSprite; }
-    private readonly Row[] rows=new Row[6];
+    private readonly Row[] rows=new Row[8];
     private bool bound;
     private void Awake()
     {
         if(content==null) { Debug.LogError("MissionUI Content를 연결해주세요.",this); return; }
+        // Reuse authored rows; older scenes have only six, so fill the two missing slots once.
+        if (content.childCount > 0)
+            while (content.childCount < rows.Length)
+            {
+                var clone = Instantiate(content.GetChild(0).gameObject, content);
+                clone.name = "MissionRow" + content.childCount;
+            }
         for(int i=0;i<content.childCount;i++)
         {
             var child=content.GetChild(i);
-            if(i>=6) { child.gameObject.SetActive(false); continue; }
+            if(i>=rows.Length) { child.gameObject.SetActive(false); continue; }
             var row=new Row { root=child.gameObject };
             // Cache the mission icon once, including nested/inactive authored objects.
             foreach(var image in child.GetComponentsInChildren<Image>(true))

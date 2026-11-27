@@ -7,7 +7,9 @@ public enum MissionObjective
 {
     MatchComplete = 0, DamageDealt = 1, KillOrAssist = 2, ItemCollected = 3,
     MatchWin = 4, CombatMinutes = 5, ParrySuccess = 6,
-    DistinctMagicHits = 7, DistinctPlayDays = 8, MatchesWithKillOrAssist = 9
+    DistinctMagicHits = 7, DistinctPlayDays = 8, MatchesWithKillOrAssist = 9,
+    // 10..27 are reserved for per-magic hit counters.
+    FlagPossessionMinutes = 28, CurrencyEarned = 29
 }
 
 [Serializable]

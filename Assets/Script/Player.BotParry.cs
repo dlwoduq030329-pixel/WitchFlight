@@ -14,7 +14,8 @@ public partial class Player
     private bool botParryAwaitingOutcome;
     private float botParryProbabilityOffset;
     private int botParryPendingTrial, botParryActiveTrial;
-    private float BotParryCurrentProbability => Mathf.Clamp01(MatchBotSettings.Default.parryGoodTimingChance + botParryProbabilityOffset);
+    private float BotParryCurrentProbability => Mathf.Clamp01
+        (MatchBotSettings.Default.parryGoodTimingChance + botParryProbabilityOffset);
     private void CancelBotParryTelemetry(string reason)
     {
         if (botParryPendingTrial == 0 && botParryActiveTrial == 0) return;
@@ -35,9 +36,10 @@ public partial class Player
     private void AdjustBotParryProbability(bool success)
     {
         var settings = MatchBotSettings.Default;
-        float baseline = Mathf.Clamp01(settings.parryGoodTimingChance);
+        float baseline = Mathf.Clamp01(settings.parryGoodTimingChance); // baseline == settings.parryGood == 0.5f
         botParryProbabilityOffset = Mathf.Clamp(botParryProbabilityOffset +
             (baseline - (success ? 1f : 0f)) * settings.parryOutcomeCorrection, -baseline, 1f - baseline);
+        // settings.parryOutcomeCorrection == 0.2f
     }
 
     private void UpdateBotParry(ref NetworkInputData input)
