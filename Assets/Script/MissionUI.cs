@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,24 +7,26 @@ using UnityEngine.UI;
 public sealed class MissionUI : MonoBehaviour
 {
     [SerializeField] private Transform content;
-    private sealed class Row { public GameObject root; public TMP_Text name,description,label; public Button confirm; public string id; public Image image; public Sprite defaultSprite; }
-    private readonly Row[] rows=new Row[8];
+    [SerializeField] private GameObject dayTemplate, weekTemplate;
+    private sealed class Row { public GameObject root; public TMP_Text name,description,label; public Button confirm; public string id; public Image image; public Sprite defaultSprite; public MissionPeriod period; }
+    private readonly List<Row> rows=new();
     private bool bound;
     private void Awake()
     {
         if(content==null) { Debug.LogError("MissionUI Content를 연결해주세요.",this); return; }
-        // Reuse authored rows; older scenes have only six, so fill the two missing slots once.
-        if (content.childCount > 0)
-            while (content.childCount < rows.Length)
-            {
-                var clone = Instantiate(content.GetChild(0).gameObject, content);
-                clone.name = "MissionRow" + content.childCount;
-            }
-        for(int i=0;i<content.childCount;i++)
-        {
-            var child=content.GetChild(i);
-            if(i>=rows.Length) { child.gameObject.SetActive(false); continue; }
-            var row=new Row { root=child.gameObject };
+        if(dayTemplate==null) dayTemplate=content.Find("DayMissionButton")?.gameObject;
+        if(weekTemplate==null) weekTemplate=content.Find("WeekMissionButton")?.gameObject;
+        if(dayTemplate==null || weekTemplate==null)
+        { Debug.LogError("일간/주간 미션 템플릿을 연결해주세요.",this); return; }
+        foreach(Transform child in content) child.gameObject.SetActive(false);
+        bound=true;
+    }
+    private Row CreateRow(MissionPeriod period)
+    {
+            var template=period==MissionPeriod.Weekly?weekTemplate:dayTemplate;
+            var child=Instantiate(template,content,false).transform;
+            child.name=template.name+" (Mission)";
+            var row=new Row { root=child.gameObject, period=period };
             // Cache the mission icon once, including nested/inactive authored objects.
             foreach(var image in child.GetComponentsInChildren<Image>(true))
                 if(string.Equals(image.name,"MissionIMG",StringComparison.OrdinalIgnoreCase))
@@ -39,11 +42,11 @@ public sealed class MissionUI : MonoBehaviour
             if(row.confirm!=null)
             {
                 row.label=row.confirm.GetComponentInChildren<TMP_Text>(true);
+                row.confirm.onClick=new Button.ButtonClickedEvent();
                 row.confirm.onClick.AddListener(()=>Claim(row));
             }
-            rows[i]=row;
-        }
-        bound=true;
+            rows.Add(row);
+            return row;
     }
     private void OnEnable()
     {
@@ -74,11 +77,19 @@ public sealed class MissionUI : MonoBehaviour
     {
         if(!bound)return;
         var active=MissionProgression.Active();
-        for(int i=0;i<rows.Length;i++)
+        // Active() supplies weekly first, then daily. Move only claimed rewards to the end.
+        var claimed=active.FindAll(d=>MissionProgression.Entry(MissionProgression.State,d.missionId).claimed);
+        active.RemoveAll(d=>MissionProgression.Entry(MissionProgression.State,d.missionId).claimed);
+        active.AddRange(claimed);
+        var unused=new List<Row>(rows);
+        for(int i=0;i<active.Count;i++)
         {
-            var row=rows[i];if(row==null)continue;
-            bool show=i<active.Count;row.root.SetActive(show);if(!show)continue;
-            var d=active[i];row.id=d.missionId;
+            var d=active[i];
+            var row=unused.Find(r=>r.period==d.period);
+            if(row==null) row=CreateRow(d.period); else unused.Remove(row);
+            row.root.SetActive(true);
+            row.root.transform.SetSiblingIndex(i);
+            row.id=d.missionId;
             if(row.image!=null)
             {
                 Sprite sprite=d.sprite!=null?d.sprite:row.defaultSprite;
@@ -91,12 +102,14 @@ public sealed class MissionUI : MonoBehaviour
             if(row.confirm!=null)row.confirm.interactable=MissionProgression.Ready && !state.claimed && state.progress>=d.target;
             if(row.label!=null)row.label.text=state.claimed?"수령 완료":state.progress>=d.target?$"보상 받기\n+{d.rewardCurrency}":"진행 중";
         }
+        foreach(var row in unused) row.root.SetActive(false);
     }
     private void Claim(Row row)
     {
+        string id=row.id; // Refresh at the weekly reset can reassign the clicked row.
         MissionProgression.EnsurePeriods();
         var db=DatabaseManager.Instance;
-        if(db!=null && !db.TryClaimMission(row.id,out string message))
+        if(db!=null && !db.TryClaimMission(id,out string message))
         { if(row.label!=null)row.label.text=message; Debug.Log(message,this); }
         else Refresh();
     }
