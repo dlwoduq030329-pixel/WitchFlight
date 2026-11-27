@@ -132,8 +132,10 @@ public sealed class CombatMagicVisual : MonoBehaviour
         return effect;
     }
 
+    private float nextCloudPassage;
     public void SetEndpoints(Vector3 origin, Vector3 end)
     {
+        if(Time.time>=nextCloudPassage){HighAltitudeClouds.MagicPassage(origin,end);nextCloudPassage=Time.time+.3f;}
         if (line != null) { line.SetPosition(0, origin); line.SetPosition(1, end); }
         if (stretched != null && (line == null || beamWithMuzzleParticles))
         {

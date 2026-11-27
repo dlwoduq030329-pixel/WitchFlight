@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 // Owns temporary visual resources even if the caster dies or despawns.
@@ -74,6 +74,7 @@ public sealed class CombatTransientEffect : MonoBehaviour
     public static void PlayBeam(Vector3 origin, Vector3 end, Color color, Player owner = null, bool followMuzzle = false,
         float holdSeconds = .15f, float fadeSeconds = .25f, float widthScale = 1f)
     {
+        HighAltitudeClouds.MagicPassage(origin,end);
         CombatTransientEffect effect = Acquire(PoolKind.Beam);
         RearThreatCamera.ExcludeLocalEffect(effect.gameObject, owner);
         effect.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
