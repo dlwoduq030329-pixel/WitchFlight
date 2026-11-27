@@ -16,12 +16,16 @@ public sealed class BattleUpdraft : MonoBehaviour
     [Tooltip("발동 영역 반경(월드 미터). 프리팹의 모델 크기와 독립적입니다.")]
     [SerializeField, Min(.1f)] private float activationRadius = 2.5f;
     [SerializeField] private Vector3 activationOffset = new Vector3(0f, .5f, 0f);
+    [SerializeField, Tooltip("호스트의 에디터/개발 빌드에서 점프대 발동 및 차단 사유를 기록합니다.")]
+    private bool logDiagnostics = true;
 
     private struct Contact
     {
         public Vector3 center;
         public int tick;
         public bool inside;
+        public bool activatedThisVisit;
+        public bool reportedBlock;
         public TickTimer cooldown;
     }
     private static readonly HashSet<BattleUpdraft> active = new();
@@ -43,8 +47,14 @@ public sealed class BattleUpdraft : MonoBehaviour
     internal static void TickPlayer(Player player)
     {
         if (player == null || player.Object == null || !player.Object.IsValid || !player.Object.HasStateAuthority) return;
+        var battle = BattleManager.Instance;
+        if (battle == null || !battle.IsGameplayActive || player.Runner == null) return;
         foreach (BattleUpdraft pad in active)
-            if (pad != null && pad.isActiveAndEnabled && pad.gameObject.scene == player.gameObject.scene) pad.Sample(player);
+            // A pooled/migrated network avatar need not live in the authored map scene.
+            // Scope pads to the current battle and runner, not the avatar's storage scene.
+            if (pad != null && pad.isActiveAndEnabled && pad.gameObject.scene == battle.gameObject.scene &&
+                (player.Runner.SceneManager == null || player.Runner.SceneManager.IsRunnerScene(pad.gameObject.scene)))
+                pad.Sample(player);
     }
 
     private void Sample(Player player)
@@ -66,13 +76,38 @@ public sealed class BattleUpdraft : MonoBehaviour
         float reach = radius + Mathf.Max(.1f, activationRadius);
         bool inside = BattleFlag.SegmentDistanceSquared(center, center, point - halfAxis, point + halfAxis, out _) <= reach * reach;
         bool crossed = BattleFlag.SegmentDistanceSquared(previous, center, point - halfAxis, point + halfAxis, out Vector3 contact) <= reach * reach;
-        if (crossed && (!sampled || !state.inside) && state.cooldown.ExpiredOrNotRunning(player.Runner) &&
-            HasSight(contact, point) && player.TryApplyUpdraft(launchSpeed))
-            state.cooldown = TickTimer.CreateFromSeconds(player.Runner, Mathf.Max(.1f, cooldownSeconds));
+        // Failed entry checks must not consume this visit. Retry until launch succeeds,
+        // but never repeatedly launch a player who remains inside after success.
+        if (!sampled || !state.inside)
+        { state.activatedThisVisit = false; state.reportedBlock = false; }
+        if (crossed && !state.activatedThisVisit)
+        {
+            string blocked = !state.cooldown.ExpiredOrNotRunning(player.Runner) ? "cooldown" :
+                !HasSight(contact, point) ? "obstacle" :
+                !player.TryApplyUpdraft(launchSpeed) ? "player-state" : null;
+            if (blocked == null)
+            {
+                state.activatedThisVisit = true;
+                state.cooldown = TickTimer.CreateFromSeconds(player.Runner, Mathf.Max(.1f, cooldownSeconds));
+                Report(player, "launched");
+            }
+            else if (!state.reportedBlock)
+            {
+                state.reportedBlock = true;
+                Report(player, blocked);
+            }
+        }
         state.center = center;
         state.tick = player.Runner.Tick.Raw;
         state.inside = inside;
         contacts[player] = state;
+    }
+
+    private void Report(Player player, string result)
+    {
+        if (logDiagnostics && (Application.isEditor || Debug.isDebugBuild))
+            Debug.Log($"[Updraft] {result} pad={name} player={player.Object.Id} authority={player.Object.InputAuthority} " +
+                $"padScene={gameObject.scene.name} playerScene={player.gameObject.scene.name}", this);
     }
 
     private bool HasSight(Vector3 origin, Vector3 point)

@@ -1,3 +1,4 @@
+﻿using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,7 +23,7 @@ public sealed class TeamTargetPingHUD : MonoBehaviour
     [SerializeField] private RectTransform[] heads = new RectTransform[5];
     [SerializeField] private RectTransform canvasRect;
     private GameObject canvasObject => canvasRect != null ? canvasRect.gameObject : null;
-    private Player localTarget;
+    private NetworkObject localTarget;
     private float localHeadUntil;
 
     private void OnEnable()
@@ -67,13 +68,13 @@ public sealed class TeamTargetPingHUD : MonoBehaviour
         Render(Player.LocalPlayer, worldCamera, enemyLockOn.LocalDesignatedTarget, pingRadius);
     }
 
-    private void LocalPing(Player target)
+    private void LocalPing(NetworkObject target)
     {
         localTarget = target;
         localHeadUntil = Time.unscaledTime + 3f;
     }
 
-    private void Render(Player owner, Camera camera, Player designated, float radius)
+    private void Render(Player owner, Camera camera, NetworkObject designated, float radius)
     {
         if (owner == null || owner != Player.LocalPlayer || owner.Object == null || !owner.Object.IsValid ||
             !owner.IsAlive || camera == null || CombatPresentation.MenuOpen ||
@@ -95,7 +96,7 @@ public sealed class TeamTargetPingHUD : MonoBehaviour
         Vector2 centerScreen = RectTransformUtility.WorldToScreenPoint(uiCamera, canvasRect.TransformPoint(center));
         for (int i = 0; i < 5; i++)
         {
-            Player target = null;
+            NetworkObject target = null;
             bool head = false;
             if (i == 0)
             {
@@ -106,15 +107,14 @@ public sealed class TeamTargetPingHUD : MonoBehaviour
             {
                 var data = allies[i-1];
                 if (data.TeamPingTarget.IsValid && owner.Runner.TryFindObject(data.TeamPingTarget, out var obj))
-                    target = obj.GetComponent<Player>();
+                    target = obj;
                 head = !data.TeamPingHeadTimer.ExpiredOrNotRunning(owner.Runner);
             }
-            bool valid = target != null && target.Object != null && target.Object.IsValid &&
-                target.Runner == owner.Runner && target.IsTargetableBy(owner);
+            bool valid = enemyLockOn.IsValidDesignated(target, owner);
             directions[i].gameObject.SetActive(false);
             heads[i].gameObject.SetActive(false);
             if (!valid) continue;
-            Vector3 screen = camera.WorldToScreenPoint(target.LockAimPoint);
+            Vector3 screen = camera.WorldToScreenPoint(enemyLockOn.DesignatedPoint(target));
             bool onScreen = screen.z > 0f && camera.pixelRect.Contains((Vector2)screen);
             directions[i].gameObject.SetActive(!onScreen);
             Vector2 delta = (Vector2)screen - centerScreen;
@@ -123,7 +123,7 @@ public sealed class TeamTargetPingHUD : MonoBehaviour
             delta.Normalize();
             directions[i].anchoredPosition = center + delta * radius;
             directions[i].localRotation = Quaternion.Euler(0,0,Mathf.Atan2(delta.y,delta.x)*Mathf.Rad2Deg-90f);
-            Vector3 headScreen = camera.WorldToScreenPoint(target.LockAimPoint + Vector3.up * 1.5f);
+            Vector3 headScreen = camera.WorldToScreenPoint(enemyLockOn.DesignatedPoint(target) + Vector3.up * 1.5f);
             if (head && headScreen.z > 0 && camera.pixelRect.Contains(headScreen))
             {
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, headScreen, uiCamera, out var position);

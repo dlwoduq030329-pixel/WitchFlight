@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 
 public partial class PlayerData
 {
@@ -15,13 +15,11 @@ public partial class PlayerData
             return;
         }
         if (IsMatchBot || !Runner.TryFindObject(targetId, out var targetObject)) return;
-        var target = targetObject.GetComponent<Player>();
-        if (target == null || !target.IsAlive || target.TeamIndex <= 0 || target.TeamIndex == teamIndex) return;
         Player sender = null;
         foreach (var player in Player.ActiveCombatants)
             if (player != null && player.Object != null && player.Object.IsValid && player.Runner == Runner &&
                 player.ParticipantRef == Object.InputAuthority && player.IsAlive) { sender = player; break; }
-        if (sender == null || !target.IsTargetableBy(sender)) return;
+        if (sender == null || !enemyLockOn.IsValidDesignated(targetObject, sender)) return;
         TeamPingTarget = targetId;
         TeamPingHeadTimer = TickTimer.CreateFromSeconds(Runner, 3f);
     }

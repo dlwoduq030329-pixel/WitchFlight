@@ -152,7 +152,21 @@ public partial class Player
         return true;
     }
 
-    private void CreateSpecialMagic(MagicStatEntry s)
+    [SerializeField, Min(.05f)] private float doubleContractSpawnDelay = .65f;
+    private TickTimer nextContractSummon;
+    private MagicStatEntry pendingContractSummon;
+
+    private void TickContractSummon()
+    {
+        if (!Object.HasStateAuthority || !nextContractSummon.IsRunning) return;
+        if (!IsAlive || BattleManager.Instance == null || !BattleManager.Instance.IsGameplayActive)
+        { nextContractSummon = TickTimer.None; return; }
+        if (!nextContractSummon.Expired(Runner)) return;
+        nextContractSummon = TickTimer.None;
+        CreateSpecialMagic(pendingContractSummon, true);
+    }
+
+    private void CreateSpecialMagic(MagicStatEntry s, bool delayedContract = false)
     {
         if (!Object.HasStateAuthority) return;
         bool area = s.effect == MagicEffectKind.DelayedArea;
@@ -166,7 +180,7 @@ public partial class Player
         }
         int count = !area && s.perkSecond?.id == PerkId.MineRadius ? 2 : 1;
         bool created = false;
-        for (int i = 0; i < count; i++)
+        for (int i = delayedContract ? 1 : 0; i < (delayedContract ? count : 1); i++)
         {
             Vector3 position = origin;
             if (count > 1)
@@ -180,6 +194,11 @@ public partial class Player
             if (spawned == null) continue;
             created = true;
             if (!area) MagicProjectile.TrimSummons(this, Mathf.Clamp(Mathf.Max(count, s.summonMaxCount), 1, 16), spawned);
+        }
+        if (created && count > 1 && !delayedContract)
+        {
+            pendingContractSummon = s;
+            nextContractSummon = TickTimer.CreateFromSeconds(Runner, Mathf.Max(.05f, doubleContractSpawnDelay));
         }
         if (created) PresentCast(s.magic, MagicCastPosition, MagicCastPosition,s.visionBooksEmpowered);
     }

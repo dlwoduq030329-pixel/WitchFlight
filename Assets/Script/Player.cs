@@ -786,6 +786,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
             SpeedStage = 0;
             currentTurnSpeed = 0f;
             previousButtons = default;
+            nextContractSummon = TickTimer.None;
             pendingMagic = MagicType.None;
             pendingTargetId = default;
             castTimer = TickTimer.None;
@@ -795,6 +796,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
         if (!IsAlive)
         {
+            nextContractSummon = TickTimer.None;
             if (Object.HasStateAuthority) SubmergedSeconds = 0f;
             areaAimArmed = false;
             IsReturningToMap = false;
@@ -803,6 +805,7 @@ public partial class Player : NetworkBehaviour, IAfterRender, IBeforeAllTicks, I
         }
 
         ResetControllerAfterRender();
+        TickContractSummon();
         TickManaBuffArea();
         TickDashRecharge();
         TickBasicAttackRecharge();

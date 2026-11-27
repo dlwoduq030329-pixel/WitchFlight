@@ -4,6 +4,8 @@
 public sealed class MagicSummonVisual : MonoBehaviour
 {
     private Material material;
+    private MagicProjectile source;
+    private Outline designatedOutline;
     private Transform body;
     private LineRenderer targetRing;
     private Player target;
@@ -58,6 +60,12 @@ public sealed class MagicSummonVisual : MonoBehaviour
             ps.GetComponent<ParticleSystemRenderer>().sharedMaterial=visual.material;
             ps.Play();
         }
+        visual.source = source;
+        visual.designatedOutline = root.AddComponent<Outline>();
+        visual.designatedOutline.OutlineMode = Outline.Mode.OutlineVisible;
+        visual.designatedOutline.OutlineColor = Color.green;
+        visual.designatedOutline.OutlineWidth = 4f;
+        visual.designatedOutline.enabled = false;
         return visual;
     }
 
@@ -78,6 +86,7 @@ public sealed class MagicSummonVisual : MonoBehaviour
     {
         if (retiring) return;
         retiring = true;
+        if (designatedOutline != null) designatedOutline.enabled = false;
         target = null; progress = 0f;
         if (targetRing != null) targetRing.gameObject.SetActive(false);
         float seconds = animationPlayer?.PlayDeath() ?? 0f;
@@ -93,6 +102,12 @@ public sealed class MagicSummonVisual : MonoBehaviour
     private void LateUpdate()
     {
         animationPlayer?.Render(moving, attackSequence, Time.deltaTime);
+        if (designatedOutline != null)
+        {
+            bool selected = !retiring && source != null && source.IsLiveSummon &&
+                enemyLockOn.LocalDesignatedTarget == source.Object && source.IsSummonEnemyOf(Player.LocalPlayer);
+            if (designatedOutline.enabled != selected) designatedOutline.enabled = selected;
+        }
         if (retiring) return;
         bool validTarget = target != null && target.Object != null && target.Object.IsValid && target.IsAlive;
         Vector3 gaze = validTarget ? target.LockAimPoint - transform.position :

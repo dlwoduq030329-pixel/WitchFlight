@@ -1,4 +1,4 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,11 +15,11 @@ public class enemyLockOn : MonoBehaviour
     private NetworkObject currentTarget;
     private float nextRefreshTime;
     private readonly RaycastHit[] obstructionHits = new RaycastHit[32];
-    private Player designatedTarget;
+    private NetworkObject designatedTarget;
     private static enemyLockOn localDesignator;
-    public static event System.Action<Player> TargetDesignated;
-    public static Player LocalDesignatedTarget => localDesignator != null ? localDesignator.designatedTarget : null;
-    public Player DesignatedTarget => designatedTarget;
+    public static event System.Action<NetworkObject> TargetDesignated;
+    public static NetworkObject LocalDesignatedTarget => localDesignator != null ? localDesignator.designatedTarget : null;
+    public Player DesignatedTarget => designatedTarget != null ? designatedTarget.GetComponent<Player>() : null;
 
     // Viewer-local presentation only. No replicated target/appearance state.
     public static bool IsLocallyDesignated(Player candidate)
@@ -29,11 +29,18 @@ public class enemyLockOn : MonoBehaviour
             selector.owner != Player.LocalPlayer || selector.owner.Object == null ||
             !selector.owner.Object.IsValid || !selector.owner.Object.HasInputAuthority || !selector.owner.IsAlive)
             return false;
-        return candidate != null && selector.designatedTarget == candidate && candidate.Object != null &&
-            candidate.Object.IsValid && candidate.Runner == selector.owner.Runner && candidate.IsTargetableBy(selector.owner);
+        return candidate != null && selector.designatedTarget == candidate.Object && IsValidDesignated(candidate.Object, selector.owner);
     }
 
-    private void SetDesignatedTarget(Player target)
+    public static bool IsValidDesignated(NetworkObject target, Player observer) => target != null && target.IsValid &&
+        observer != null && target.Runner == observer.Runner &&
+        (target.TryGetComponent(out Player player) ? player.IsTargetableBy(observer) :
+         target.TryGetComponent(out MagicProjectile summon) && summon.IsSummonEnemyOf(observer));
+
+    public static Vector3 DesignatedPoint(NetworkObject target) => target.TryGetComponent(out Player player)
+        ? player.LockAimPoint : target.transform.position;
+
+    private void SetDesignatedTarget(NetworkObject target)
     {
         if (designatedTarget == target) return;
         designatedTarget = target;
@@ -50,20 +57,20 @@ public class enemyLockOn : MonoBehaviour
         {
             var data = PlayerData.Local;
             if (data != null && data.Object != null && data.Object.IsValid && data.Runner == owner.Runner)
-                data.RPC_SetTeamPing(target != null && target.Object != null && target.Object.IsValid ? target.Object.Id : default);
+                data.RPC_SetTeamPing(target != null && target.IsValid ? target.Id : default);
             TargetDesignated?.Invoke(target);
         }
     }
 
-    private Player FindNextDesignatedTarget()
+    private NetworkObject FindNextDesignatedTarget()
     {
         Ray aimRay = BattleHud.GetMagicAimRay(targetCamera);
         Vector2 aim = targetCamera.WorldToScreenPoint(aimRay.GetPoint(1f));
-        Player best = null;
+        NetworkObject best = null;
         float bestScore = float.PositiveInfinity;
         foreach (Player candidate in Player.ActiveCombatants)
         {
-            if (candidate == null || candidate == designatedTarget || candidate.Object == null || !candidate.Object.IsValid ||
+            if (candidate == null || candidate.Object == designatedTarget || candidate.Object == null || !candidate.Object.IsValid ||
                 candidate.Runner != owner.Runner || !candidate.IsTargetableBy(owner)) continue;
             Vector3 viewport = targetCamera.WorldToViewportPoint(candidate.LockAimPoint);
             if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f) continue;
@@ -71,7 +78,17 @@ public class enemyLockOn : MonoBehaviour
             float score = (screen - aim).sqrMagnitude;
             if (score >= bestScore || !HasLineOfSight(aimRay.origin, candidate)) continue;
             bestScore = score;
-            best = candidate;
+            best = candidate.Object;
+        }
+        foreach (var candidate in MagicProjectile.ActiveProjectiles)
+        {
+            if (candidate == null || candidate.Object == designatedTarget || !candidate.IsSummonEnemyOf(owner)) continue;
+            Vector3 point = candidate.transform.position;
+            Vector3 viewport = targetCamera.WorldToViewportPoint(point);
+            if (viewport.z <= 0 || viewport.x < 0 || viewport.x > 1 || viewport.y < 0 || viewport.y > 1) continue;
+            float score = ((Vector2)targetCamera.WorldToScreenPoint(point) - aim).sqrMagnitude;
+            if (score >= bestScore || !MagicProjectile.HasSummonSight(aimRay.origin, point)) continue;
+            bestScore = score; best = candidate.Object;
         }
         return best;
     }
@@ -86,8 +103,7 @@ public class enemyLockOn : MonoBehaviour
             SetDesignatedTarget(null);
             return;
         }
-        if (designatedTarget != null && (designatedTarget.Object == null || !designatedTarget.Object.IsValid ||
-            designatedTarget.Runner != owner.Runner || !designatedTarget.IsTargetableBy(owner))) SetDesignatedTarget(null);
+        if (designatedTarget != null && !IsValidDesignated(designatedTarget, owner)) SetDesignatedTarget(null);
         if (Input.GetMouseButtonDown(2) && Cursor.lockState == CursorLockMode.Locked && !CombatPresentation.MenuOpen &&
             !BattlePerkUI.BlocksCombatInput && !BattleEmoteUI.BlocksCombatInput && TryGetAlignedAim(out _))
         {
@@ -165,11 +181,9 @@ public class enemyLockOn : MonoBehaviour
 
     private NetworkObject FindClosestVisibleEnemy(bool excludeRainTargets = false)
     {
-        if (!owner.InputMagicStats.TargetsAllies && designatedTarget != null &&
-            designatedTarget.Object != null && designatedTarget.Object.IsValid && designatedTarget.Runner == owner.Runner &&
-            designatedTarget.IsTargetableBy(owner) && IsVisible(designatedTarget.Object) &&
-            (!excludeRainTargets || !owner.HasRainTarget(designatedTarget.Object.Id)))
-            return designatedTarget.Object;
+        if (!owner.InputMagicStats.TargetsAllies && IsValidDesignated(designatedTarget, owner) &&
+            IsVisible(designatedTarget) && (!excludeRainTargets || !owner.HasRainTarget(designatedTarget.Id)))
+            return designatedTarget;
         NetworkObject best = null;
         float bestScore = float.PositiveInfinity;
         if (owner.Runner == null) return null;

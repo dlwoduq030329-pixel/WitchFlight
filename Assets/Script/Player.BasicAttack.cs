@@ -13,7 +13,7 @@ public partial class Player
     private bool awaitSkillCompletion;
     private int completingSkillRevision, completingSkillSlot;
     [Networked] private NetworkId previousBasicAttackTarget { get; set; }
-    private readonly List<Player> basicAttackCandidates = new List<Player>(20);
+    private readonly List<NetworkObject> basicAttackCandidates = new List<NetworkObject>(36);
     public int BasicAttackCapacity => Mathf.Max(1, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.capacity : 3);
     public float BasicAttackRechargeSeconds => Mathf.Max(.05f, BasicAttackSettings.Default != null ? BasicAttackSettings.Default.rechargeSeconds : 4);
     public float BasicAttackRechargeProgress => Object != null && Object.IsValid && BasicAttackCharges < BasicAttackCapacity
@@ -21,6 +21,7 @@ public partial class Player
 
     private void ResetBasicAttack()
     {
+        nextContractSummon = TickTimer.None;
         awaitSkillCompletion = false;
         HasCompletedSkillSelection = false;
         previousBasicAttackTarget = default;
@@ -70,13 +71,13 @@ public partial class Player
         MagicStatEntry stats = BasicAttackSettings.Stats;
         Vector3 aim = IsFiniteDirection(castAimDirection) && castAimDirection.sqrMagnitude > .001f
             ? castAimDirection.normalized : transform.forward;
-        Player target = FindBasicAttackTarget(MagicCastPosition, aim, stats.range);
+        NetworkObject target = FindBasicAttackTarget(MagicCastPosition, aim, stats.range);
         if (target == null) return; // No target: no projectile, charge consumption or firing feedback.
         var shot = Runner.Spawn(magicProjectilePrefab, MagicCastPosition, Quaternion.LookRotation(aim), ParticipantRef);
         if (shot == null) return;
         PrepareVisionBooks(ref stats);
-        shot.GetComponent<MagicProjectile>().Initialize(this, target, stats, aim, castInputTick);
-        previousBasicAttackTarget = target.Object.Id;
+        shot.GetComponent<MagicProjectile>().Initialize(this, target.GetComponent<Player>(), stats, aim, castInputTick, target.Id);
+        previousBasicAttackTarget = target.Id;
         if (BasicAttackCharges == BasicAttackCapacity) BasicAttackRechargeElapsed = 0;
         BasicAttackCharges--;
         BasicAttackShotCooldown = TickTimer.CreateFromSeconds(Runner,
@@ -86,7 +87,7 @@ public partial class Player
         PresentCast(MagicType.BasicAttack, MagicCastPosition, MagicCastPosition + aim, stats.visionBooksEmpowered);
     }
 
-    private Player FindBasicAttackTarget(Vector3 origin, Vector3 aim, float range)
+    private NetworkObject FindBasicAttackTarget(Vector3 origin, Vector3 aim, float range)
     {
         var settings = BasicAttackSettings.Default;
         float cone = Mathf.Clamp(settings != null ? settings.aimAssistAngle : 12, 0, 90);
@@ -104,21 +105,31 @@ public partial class Player
             if (delta.sqrMagnitude > range * range || delta.sqrMagnitude < .001f) continue;
             float dot = Vector3.Dot(aim, delta.normalized);
             if (dot < minimumDot || !MagicProjectile.HasSummonSight(origin, candidate.LockAimPoint)) continue;
-            if (candidate.Object.Id == previousBasicAttackTarget) return candidate;
+            if (candidate.Object.Id == previousBasicAttackTarget) return candidate.Object;
             nearestAngle = Mathf.Min(nearestAngle, Mathf.Acos(Mathf.Clamp(dot, -1, 1)) * Mathf.Rad2Deg);
-            basicAttackCandidates.Add(candidate);
+            basicAttackCandidates.Add(candidate.Object);
         }
-        Player best = null;
-        float bestAngle = float.PositiveInfinity;
-        // Compare against the true closest aim angle, not the previous iteration, so a
-        // chain of similar angles cannot pull selection to the far edge of the cone.
-        foreach (Player candidate in basicAttackCandidates)
+        foreach (var candidate in MagicProjectile.ActiveProjectiles)
         {
-            float angle = Vector3.Angle(aim, candidate.LockAimPoint - origin);
+            if (candidate == null || !candidate.IsSummonEnemyOf(this)) continue;
+            Vector3 delta = candidate.transform.position - origin;
+            if (delta.sqrMagnitude > range * range || delta.sqrMagnitude < .001f) continue;
+            float dot = Vector3.Dot(aim, delta.normalized);
+            if (dot < minimumDot || !MagicProjectile.HasSummonSight(origin, candidate.transform.position)) continue;
+            if (candidate.Object.Id == previousBasicAttackTarget) return candidate.Object;
+            nearestAngle = Mathf.Min(nearestAngle, Mathf.Acos(Mathf.Clamp(dot, -1, 1)) * Mathf.Rad2Deg);
+            basicAttackCandidates.Add(candidate.Object);
+        }
+        NetworkObject best = null;
+        float bestAngle = float.PositiveInfinity, bestHealth = float.PositiveInfinity;
+        foreach (var candidate in basicAttackCandidates)
+        {
+            float angle = Vector3.Angle(aim, enemyLockOn.DesignatedPoint(candidate) - origin);
             if (angle > nearestAngle + tolerance) continue;
-            if (best == null || candidate.NowHp < best.NowHp ||
-                (candidate.NowHp == best.NowHp && angle < bestAngle))
-            { best = candidate; bestAngle = angle; }
+            float health = candidate.TryGetComponent(out Player player) ? player.NowHp :
+                candidate.GetComponent<MagicProjectile>().SummonHealthFraction * 30f;
+            if (best == null || health < bestHealth || (health == bestHealth && angle < bestAngle))
+            { best = candidate; bestAngle = angle; bestHealth = health; }
         }
         return best;
     }

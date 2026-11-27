@@ -129,8 +129,8 @@ public partial class MagicProjectile
             }
         }
         float threshold = SummonMaxHealth;
-        if(!sustained && SummonDurable) { empoweredSummonHits++; SummonDamageTaken = Mathf.Max(SummonDamageTaken,threshold*empoweredSummonHits*.5f); }
-        bool killed=(!sustained && (!SummonDurable || empoweredSummonHits>=2)) || SummonDamageTaken + .0001f >= threshold;
+        if(!sustained && (SummonDurable || attack.magic == MagicType.BasicAttack)) { empoweredSummonHits++; SummonDamageTaken = Mathf.Max(SummonDamageTaken,threshold*empoweredSummonHits*.5f); }
+        bool killed=(!sustained && ((!SummonDurable && attack.magic != MagicType.BasicAttack) || empoweredSummonHits>=2)) || SummonDamageTaken + .0001f >= threshold;
         PlayerData.FindPerkData(Runner,attack.perkAttacker)?.RecordTitleSummonHit(attack.titleCastId,killed);
         if (killed)
         {
