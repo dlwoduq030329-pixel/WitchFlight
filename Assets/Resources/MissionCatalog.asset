@@ -198,3 +198,27 @@ MonoBehaviour:
     sortOrder: 10
     enabled: 1
     requiredHitsPerMagic: 10
+  - missionId: weekly_flag_minutes_01
+    period: 1
+    displayName: "나를 따르라!"
+    sprite: {fileID: 0}
+    description: "깃발 보유 시간 누적 {target}분"
+    shortDescription: "깃발 보유 시간 누적 {target}분"
+    objective: 28
+    target: 60
+    rewardCurrency: 1000
+    sortOrder: 11
+    enabled: 1
+    requiredHitsPerMagic: 10
+  - missionId: weekly_currency_01
+    period: 1
+    displayName: "돈이 최고야!"
+    sprite: {fileID: 0}
+    description: "재화 {target} 획득"
+    shortDescription: "재화 {target} 획득"
+    objective: 29
+    target: 10000
+    rewardCurrency: 1000
+    sortOrder: 12
+    enabled: 1
+    requiredHitsPerMagic: 10

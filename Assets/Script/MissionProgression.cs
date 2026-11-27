@@ -13,13 +13,15 @@ using UnityEngine;
 [Serializable] public sealed class MissionMatchCursor
 {
     public string id;
-    public float[] counters = new float[28];
+    public float[] counters = new float[29];
     public bool completed;
 }
 [Serializable] public sealed class MissionSaveState
 {
     public int version = 1;
     public string dailyPeriodKey, weeklyPeriodKey, weeklyMissionId;
+    public List<string> weeklyMissionIds = new();
+    public bool weeklySelectionExpanded;
     public List<MissionEntryState> entries = new();
     public List<MissionMatchCursor> matches = new();
 }
@@ -44,7 +46,7 @@ public static class MissionProgression
     {
         var state = string.IsNullOrWhiteSpace(json) ? new MissionSaveState() : JsonUtility.FromJson<MissionSaveState>(json);
         if (state == null || state.version != 1) throw new InvalidOperationException("지원하지 않는 미션 저장 데이터입니다.");
-        state.entries ??= new(); state.matches ??= new();
+        state.entries ??= new(); state.matches ??= new(); state.weeklyMissionIds ??= new();
         return state;
     }
     public static void Load()
@@ -67,7 +69,8 @@ public static class MissionProgression
     {
         var result = new List<MissionDefinition>();
         if (State == null || Definitions == null) return result;
-        var weekly = Find(State.weeklyMissionId); if (weekly != null) result.Add(weekly);
+        foreach (string id in State.weeklyMissionIds)
+        { var weekly = Find(id); if (weekly != null && weekly.period == MissionPeriod.Weekly) result.Add(weekly); }
         var daily = new List<MissionDefinition>();
         foreach (var d in Definitions) if (d != null && d.enabled && d.period == MissionPeriod.Daily) daily.Add(d);
         daily.Sort((a,b) => a.sortOrder != b.sortOrder ? a.sortOrder.CompareTo(b.sortOrder) : string.CompareOrdinal(a.missionId,b.missionId));
@@ -88,20 +91,61 @@ public static class MissionProgression
         DateTime now = DateTime.UtcNow;
         string day = PeriodDay(now).ToString("yyyy-MM-dd"), week = PeriodWeek(now).ToString("yyyy-MM-dd");
         bool dailyReset = State.dailyPeriodKey != day, weeklyReset = State.weeklyPeriodKey != week;
-        if (!dailyReset && !weeklyReset) return;
+        bool expandWeekly = !State.weeklySelectionExpanded;
+        if (!dailyReset && !weeklyReset && !expandWeekly) return;
         State.entries.RemoveAll(e => { var d = Find(e.id); return d == null || (d.period == MissionPeriod.Daily ? dailyReset : weeklyReset); });
         State.dailyPeriodKey = day; State.weeklyPeriodKey = week;
-        if (weeklyReset)
+        if (weeklyReset || expandWeekly)
         {
-            var pool = new List<MissionDefinition>();
-            foreach (var d in Definitions) if (d != null && d.enabled && d.period == MissionPeriod.Weekly) pool.Add(d);
-            pool.Sort((a,b) => a.sortOrder != b.sortOrder ? a.sortOrder.CompareTo(b.sortOrder) : string.CompareOrdinal(a.missionId,b.missionId));
-            int weeks = (int)((PeriodWeek(now) - new DateTime(2026,1,5)).TotalDays / 7);
-            State.weeklyMissionId = pool.Count == 0 ? "" : pool[((weeks % pool.Count)+pool.Count)%pool.Count].missionId;
+            State.weeklyMissionIds ??= new();
+            if (weeklyReset) State.weeklyMissionIds.Clear();
+            else if (State.weeklyMissionIds.Count == 0)
+            {
+                // Keep the old week's mission and its progress when upgrading a save.
+                var previous = Find(State.weeklyMissionId);
+                if (previous != null && previous.period == MissionPeriod.Weekly)
+                    State.weeklyMissionIds.Add(previous.missionId);
+            }
+            var pool = new List<string>();
+            foreach (var d in Definitions)
+                if (d != null && d.enabled && d.period == MissionPeriod.Weekly &&
+                    !State.weeklyMissionIds.Contains(d.missionId) && !pool.Contains(d.missionId)) pool.Add(d.missionId);
+            // Draw without replacement, then persist: reopening the UI cannot reroll missions.
+            var random = new System.Random(Guid.NewGuid().GetHashCode());
+            while (State.weeklyMissionIds.Count < 3 && pool.Count > 0)
+            {
+                int index = random.Next(pool.Count);
+                State.weeklyMissionIds.Add(pool[index]);
+                pool.RemoveAt(index);
+            }
+            State.weeklyMissionId = ""; // Legacy field is only read during migration.
+            State.weeklySelectionExpanded = true;
         }
         Save();
     }
+    public static bool IsSelectedWeekly(MissionSaveState state, string id) =>
+        state != null && state.weeklyMissionIds != null && state.weeklyMissionIds.Contains(id);
     private static void Save() { DataConfig.missionState = JsonUtility.ToJson(State); Changed?.Invoke(); }
+    // Used on server snapshots before saving currency and mission progress together.
+    public static void AddCurrencyProgress(MissionSaveState state, int amount, DateTime utc)
+    {
+        if (state == null || amount <= 0 || Definitions == null) return;
+        string week = PeriodWeek(utc).ToString("yyyy-MM-dd");
+        foreach (var d in Definitions)
+        {
+            if (d == null || !d.enabled || d.objective != MissionObjective.CurrencyEarned ||
+                d.period != MissionPeriod.Weekly || state.weeklyPeriodKey != week || !IsSelectedWeekly(state, d.missionId)) continue;
+            var entry = Entry(state, d.missionId);
+            if (!entry.claimed) entry.progress = Mathf.Min(d.target, entry.progress + amount);
+        }
+    }
+    public static void RecordCurrencyEarned(int amount)
+    {
+        if (!Ready || amount <= 0) return;
+        EnsurePeriods();
+        AddCurrencyProgress(State, amount, DateTime.UtcNow);
+        Save();
+    }
     public static void Observe(PlayerData data)
     {
         if (!Ready || data == null || data.Object == null || !data.Object.IsValid || !data.Object.HasInputAuthority || data.IsMatchBot ||
@@ -110,11 +154,12 @@ public static class MissionProgression
         EnsurePeriods();
         var cursor = State.matches.Find(c => c.id == id);
         if (cursor == null) { cursor = new MissionMatchCursor { id = id }; State.matches.Add(cursor); }
-        if (cursor.counters == null || cursor.counters.Length != 28) cursor.counters = new float[28];
+        // Preserve previous totals when upgrading saves, preventing duplicate progress.
+        if (cursor.counters == null || cursor.counters.Length != 29) Array.Resize(ref cursor.counters, 29);
         bool finished = data.MissionCompleted && !cursor.completed;
         bool changed = finished;
-        var delta = new float[28];
-        for (int i=0; i<28; i++)
+        var delta = new float[29];
+        for (int i=0; i<29; i++)
         {
             float total = data.MissionCounters[i];
             delta[i] = Mathf.Max(0,total-cursor.counters[i]);
@@ -127,6 +172,7 @@ public static class MissionProgression
             var e = Entry(State,d.missionId); if (e.claimed) continue;
             switch (d.objective)
             {
+                case MissionObjective.CurrencyEarned: break; // Account grants are recorded separately.
                 case MissionObjective.MatchComplete: if (finished) e.progress++; break;
                 case MissionObjective.MatchWin: if (finished && data.MissionWon) e.progress++; break;
                 case MissionObjective.MatchesWithKillOrAssist: if (finished && data.MissionCounters[2]>0) e.progress++; break;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 using BackEnd;
 using LitJson;
@@ -982,7 +982,11 @@ public partial class DatabaseManager : MonoBehaviour
     public bool TryAddMoney(int amount)
     {
         if (!CanModifyAccountData || amount <= 0 || DataConfig.money > int.MaxValue - amount) return false;
-        DataConfig.money += amount;
+        using (DataConfig.BeginChangeBatch())
+        {
+            DataConfig.money += amount;
+            MissionProgression.RecordCurrencyEarned(amount);
+        }
         return true;
     }
 

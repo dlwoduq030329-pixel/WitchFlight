@@ -41,7 +41,11 @@ public partial class PlayerData
         Player player = Player.FindInRunner(Runner, ParticipantRef);
         if (player == null || !player.IsAlive) return;
         float dt = Runner.DeltaTime;
-        if (BattleFlag.Instance != null && BattleFlag.Instance.IsCarriedBy(Runner, ParticipantRef)) BattleFlagSeconds += dt;
+        if (BattleFlag.Instance != null && BattleFlag.Instance.IsCarriedBy(Runner, ParticipantRef))
+        {
+            BattleFlagSeconds += dt;
+            RecordMission(MissionObjective.FlagPossessionMinutes, dt / 60f);
+        }
         if (player.IsBoosting) BattleBoostSeconds += dt;
         if (statsWater == null && Time.unscaledTime >= nextWaterLookup)
         { statsWater = FindFirstObjectByType<Suimono.Core.SuimonoModule>(); nextWaterLookup = Time.unscaledTime + 2f; }
